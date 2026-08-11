@@ -18,9 +18,9 @@ Controls:
 - Move the mouse around the Jeep to steer toward it.
 - Cursor distance continuously controls speed: inside 1 world unit is stopped; at 16 units it reaches 14 units/s.
 - Hold `Space` to burst at 23.33 units/s with stronger acceleration and a wider, committed turn.
-- Steering behaves like a ground vehicle: the Jeep cannot pivot while stopped, yaw builds with road speed, and the turning circle widens at high speed.
+- Steering behaves like a ground vehicle: the Jeep cannot pivot while stopped, yaw builds with road speed, and the turning circle widens at high speed. Pulling the cursor closer lowers the requested speed and sharpens the turn, preserving Starter FOLLOW's useful slow/tight versus fast/wide relationship.
 
-The floor uses a world-space shader grid with one-unit subdivisions, stronger four-unit lines, and highlighted centre axes. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain easy to read.
+The floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
 
 The small turret points at the cursor and the Jeep body leans under turning load, but both are presentation-only. Collision always uses the same server-authoritative, equal-mass sphere on every peer.
 

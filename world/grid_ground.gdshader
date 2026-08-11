@@ -1,10 +1,10 @@
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
-uniform vec4 ground_color : source_color = vec4(0.055, 0.085, 0.105, 1.0);
-uniform vec4 fine_color : source_color = vec4(0.12, 0.24, 0.28, 1.0);
-uniform vec4 major_color : source_color = vec4(0.22, 0.52, 0.58, 1.0);
-uniform vec4 axis_color : source_color = vec4(0.82, 0.48, 0.20, 1.0);
+uniform vec4 ground_color : source_color = vec4(0.047, 0.060, 0.066, 1.0);
+uniform vec4 fine_color : source_color = vec4(0.090, 0.115, 0.120, 1.0);
+uniform vec4 major_color : source_color = vec4(0.120, 0.160, 0.170, 1.0);
+uniform vec4 axis_color : source_color = vec4(0.230, 0.180, 0.120, 1.0);
 uniform float fine_spacing = 1.0;
 uniform float major_spacing = 4.0;
 
@@ -30,11 +30,10 @@ void fragment() {
 	float axis_z = 1.0 - smoothstep(axis_width.x, axis_width.x * 2.0, abs(world_position.x));
 	float axis = max(axis_x, axis_z);
 
-	vec3 color = mix(ground_color.rgb, fine_color.rgb, fine * 0.42);
-	color = mix(color, major_color.rgb, major * 0.82);
-	color = mix(color, axis_color.rgb, axis * 0.9);
+	vec3 color = mix(ground_color.rgb, fine_color.rgb, fine * 0.22);
+	color = mix(color, major_color.rgb, major * 0.45);
+	color = mix(color, axis_color.rgb, axis * 0.40);
 	ALBEDO = color;
-	EMISSION = color * (fine * 0.05 + major * 0.16 + axis * 0.24);
+	EMISSION = color * (fine * 0.01 + major * 0.025 + axis * 0.04);
 	ROUGHNESS = 0.9;
 }
-

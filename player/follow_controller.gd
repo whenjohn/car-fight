@@ -9,7 +9,9 @@ const DEADZONE := 1.0
 const MAX_DISTANCE := 16.0
 const CURVE := 1.0
 const HEADING_DEADZONE := 0.8
-const TURN_RATE := 1.45
+const TURN_NEAR := 2.2
+const TURN_FAR := 1.45
+const TURN_CURSOR_CURVE := 1.0
 const TURN_ACCEL := 4.0
 const STEERING_SPEED_REF := 4.0
 const HIGH_SPEED_TURN_SCALE := 0.72
@@ -30,9 +32,12 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	var error := wrapf(desired_yaw - current_yaw, -PI, PI)
 	var throttle := clampf((distance - DEADZONE) / (MAX_DISTANCE - DEADZONE), 0.0, 1.0)
 	throttle = pow(throttle, CURVE)
+	var cursor_reach := clampf(distance / MAX_DISTANCE, 0.0, 1.0)
 	var top_speed := SPEED
 	var yaw_acceleration := TURN_ACCEL
-	var turn_cap := TURN_RATE
+	# Keep Starter FOLLOW's useful relationship: a close cursor asks for a
+	# tighter low-speed turn, while a far cursor asks for a broad fast arc.
+	var turn_cap := lerpf(TURN_NEAR, TURN_FAR, pow(cursor_reach, TURN_CURSOR_CURVE))
 
 	if burst and distance > DEADZONE:
 		throttle = 1.0
@@ -48,8 +53,8 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 				error = absf(error) * burst_turn_sign
 	else:
 		burst_turn_sign = 0.0
-		# A Jeep's turning circle grows with road speed. Mid-speed steering has
-		# full authority; at top speed the cap falls to 72% instead of pivoting.
+		# A Jeep's turning circle grows further with actual road speed. Cursor
+		# reach and road speed therefore reinforce one another without pivoting.
 		var road_speed := clampf(current_speed / SPEED, 0.0, 1.0)
 		turn_cap *= lerpf(1.0, HIGH_SPEED_TURN_SCALE, road_speed)
 
