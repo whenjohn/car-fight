@@ -11,6 +11,7 @@ const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
+const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 
 var _role := "client"
@@ -30,9 +31,13 @@ var _contact_seen := false
 var _minimum_pair_distance := INF
 var _prediction_history := {}
 var _worst_correction_error := 0.0
+var _ball_seeded := false
+var _maximum_ball_speed := 0.0
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
+var _balls: Node3D
+var _ball_spawner: MultiplayerSpawner
 var _camera: Camera3D
 var _status_label: Label
 
@@ -173,6 +178,9 @@ func _on_peer_join(id: int) -> void:
 	_log("PEER_JOIN id=%d slot=%d" % [id, _next_spawn_slot])
 	_spawner.spawn({"id": id, "slot": _next_spawn_slot})
 	_next_spawn_slot += 1
+	if not _ball_seeded:
+		_ball_seeded = true
+		_ball_spawner.spawn({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
 
 func _on_peer_leave(id: int) -> void:
 	if not multiplayer.is_server():
@@ -197,6 +205,14 @@ func _build_world() -> void:
 	add_child(_spawner)
 	_spawner.spawn_path = _players.get_path()
 	_spawner.spawn_function = _spawn_player
+	_balls = Node3D.new()
+	_balls.name = "Balls"
+	add_child(_balls)
+	_ball_spawner = MultiplayerSpawner.new()
+	_ball_spawner.name = "BallSpawner"
+	add_child(_ball_spawner)
+	_ball_spawner.spawn_path = _balls.get_path()
+	_ball_spawner.spawn_function = _spawn_ball
 	_build_arena()
 	if not _is_headless():
 		_build_presentation()
@@ -261,6 +277,64 @@ func _spawn_transform(slot: int) -> Transform3D:
 	var forward := -position.normalized()
 	var yaw := atan2(-forward.x, -forward.z)
 	return Transform3D(Basis(Vector3.UP, yaw), position)
+
+func _spawn_ball(data: Variant) -> Node:
+	var info: Dictionary = data if data is Dictionary else {}
+	var body := RigidBody3D.new()
+	body.set_script(BALL_SCRIPT)
+	body.name = str(info.get("name", "ArenaBall"))
+	body.position = info.get("position", BALL_SCRIPT.SPAWN_POSITION)
+	body.gravity_scale = 0.0
+	body.mass = BALL_SCRIPT.MASS
+	body.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	body.linear_damp = BALL_SCRIPT.LINEAR_DAMP
+	body.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	body.angular_damp = 1.2
+	body.axis_lock_linear_y = true
+	body.axis_lock_angular_x = true
+	body.axis_lock_angular_z = true
+	body.can_sleep = false
+	body.continuous_cd = true
+	body.contact_monitor = true
+	body.max_contacts_reported = 8
+
+	var physics_material := PhysicsMaterial.new()
+	physics_material.bounce = BALL_SCRIPT.BOUNCE
+	physics_material.friction = BALL_SCRIPT.FRICTION
+	body.physics_material_override = physics_material
+
+	var collision := CollisionShape3D.new()
+	collision.name = "Collision"
+	var sphere := SphereShape3D.new()
+	sphere.radius = BALL_SCRIPT.RADIUS
+	collision.shape = sphere
+	body.add_child(collision)
+
+	var synchronizer := Node.new()
+	synchronizer.name = "RollbackSynchronizer"
+	synchronizer.set_script(load("res://addons/netfox/rollback/rollback-synchronizer.gd"))
+	body.add_child(synchronizer)
+	var interpolator := Node.new()
+	interpolator.name = "TickInterpolator"
+	interpolator.set_script(load("res://addons/netfox/tick-interpolator.gd"))
+	body.add_child(interpolator)
+
+	if not _is_headless():
+		var mesh_instance := MeshInstance3D.new()
+		mesh_instance.name = "BallMesh"
+		var mesh := SphereMesh.new()
+		mesh.radius = BALL_SCRIPT.RADIUS
+		mesh.height = BALL_SCRIPT.RADIUS * 2.0
+		mesh.radial_segments = 24
+		mesh.rings = 12
+		mesh_instance.mesh = mesh
+		var ball_material := _material(Color("dc7a4d"))
+		ball_material.emission_enabled = true
+		ball_material.emission = Color("6d2d18")
+		ball_material.emission_energy_multiplier = 0.35
+		mesh_instance.material_override = ball_material
+		body.add_child(mesh_instance)
+	return body
 
 func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	var hull := Node3D.new()
@@ -410,6 +484,12 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2(16.0, 0.0), "burst": false}
 		"burst-right":
 			return {"cursor_offset": Vector2(16.0, 0.0), "burst": true}
+		"ball":
+			var target := BALL_SCRIPT.SPAWN_POSITION
+			if _balls != null and _balls.get_child_count() > 0:
+				target = (_balls.get_child(0) as Node3D).global_position
+			var delta := target - body.global_position
+			return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(16.0), "burst": false}
 		_:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
@@ -424,6 +504,7 @@ func _on_tick(_delta: float, tick: int) -> void:
 	var elapsed := tick - _start_tick
 	if multiplayer.is_server():
 		_track_server_contacts()
+		_track_server_ball()
 		if elapsed % 30 == 0:
 			for child in _players.get_children():
 				var body := child as Node3D
@@ -442,7 +523,7 @@ func _on_tick(_delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count()])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d ballmax=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _maximum_ball_speed])
 		get_tree().quit()
 
 func _server_escape_count() -> int:
@@ -475,6 +556,14 @@ func _track_server_contacts() -> void:
 				if not _contact_seen:
 					_log("CONTACT a=%s b=%s" % [a.name, b.name])
 				_contact_seen = true
+
+func _track_server_ball() -> void:
+	if _balls == null:
+		return
+	for child in _balls.get_children():
+		var ball := child as RigidBody3D
+		if ball != null:
+			_maximum_ball_speed = maxf(_maximum_ball_speed, ball.linear_velocity.length())
 
 func _peer_color(id: int) -> Color:
 	var palette := [Color("63d8ff"), Color("ffb45e"), Color("b080ff"), Color("72df80"), Color("ff7096")]
