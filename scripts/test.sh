@@ -15,5 +15,6 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_layout_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
 "$project_root/scripts/network_test.sh"
+"$project_root/scripts/ball_test.sh"
 git -C "$project_root" diff --check
 echo "ALL_TESTS PASS"

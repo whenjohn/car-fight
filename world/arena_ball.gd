@@ -18,7 +18,9 @@ func _ready() -> void:
 	set_multiplayer_authority(1)
 	_rollback_sync.root = self
 	_rollback_sync.enable_prediction = true
-	_rollback_sync.enable_input_broadcast = false
+	# Keep this at netfox's project-wide/default setting, matching g2's prop
+	# bodies. The ball has no input properties, so it sends no input traffic.
+	_rollback_sync.enable_input_broadcast = true
 	_rollback_sync.add_state(self, "physics_state")
 	_rollback_sync.process_settings()
 	_interpolator.root = self
