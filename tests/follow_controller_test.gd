@@ -34,6 +34,34 @@ func _init() -> void:
 	_expect_close(burst["acceleration"], 32.0, 0.0001, "Space uses heavier burst acceleration")
 	_expect_close(burst["yaw_rate"], -0.85, 0.0001, "burst keeps a wider committed turn")
 
+	var escape := {
+		"stall_time": 0.0,
+		"escape_time": 0.0,
+		"escape_sign": 0.0,
+	}
+	var escape_started := false
+	for step in range(40):
+		escape = FOLLOW.collision_escape(14.0, 0.0, 0.0,
+			escape["stall_time"], escape["escape_time"], escape["escape_sign"],
+			1.0 / 120.0, 1.0)
+		escape_started = escape_started or bool(escape["started"])
+	if not escape_started or not bool(escape["active"]):
+		_failures += 1
+		push_error("sustained requested movement at zero speed must arm collision escape")
+	_expect_close(escape["escape_sign"], 1.0, 0.0001, "straight collision uses stable fallback side")
+
+	var side_escape := {"stall_time": 0.0, "escape_time": 0.0, "escape_sign": 0.0}
+	for step in range(40):
+		side_escape = FOLLOW.collision_escape(14.0, 0.0, -0.5,
+			side_escape["stall_time"], side_escape["escape_time"], side_escape["escape_sign"],
+			1.0 / 120.0, 1.0)
+	_expect_close(side_escape["escape_sign"], -1.0, 0.0001, "collision escape honors cursor steering side")
+
+	var clear_launch := FOLLOW.collision_escape(14.0, 2.0, 0.0, 0.2, 0.0, 0.0, 1.0 / 120.0, 1.0)
+	if bool(clear_launch["active"]):
+		_failures += 1
+		push_error("a normally moving launch must not trigger collision escape")
+
 	if _failures == 0:
 		print("FOLLOW_TEST PASS")
 		quit()

@@ -7,6 +7,10 @@ var owner_id := 0
 var spawn_slot := 0
 var aim := Vector3(0.0, 0.0, -1.0)
 var burst_turn_sign := 0.0
+var collision_stall_time := 0.0
+var collision_escape_time := 0.0
+var collision_escape_sign := 0.0
+var collision_escape_count := 0
 
 @onready var _input := get_node("Input")
 @onready var _sync := get_node("RollbackSynchronizer")
@@ -23,6 +27,10 @@ func _ready() -> void:
 	_sync.enable_input_broadcast = false
 	_sync.add_state(self, "physics_state")
 	_sync.add_state(self, "burst_turn_sign")
+	_sync.add_state(self, "collision_stall_time")
+	_sync.add_state(self, "collision_escape_time")
+	_sync.add_state(self, "collision_escape_sign")
+	_sync.add_state(self, "collision_escape_count")
 	_sync.add_input(_input, "cursor_offset")
 	_sync.add_input(_input, "burst")
 	_sync.process_settings()
@@ -46,6 +54,15 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var command := FOLLOW.command(offset, direct_state.transform.basis.get_euler().y,
 		_input.burst, burst_turn_sign, planar_speed)
 	burst_turn_sign = command["burst_turn_sign"]
+	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
+	var escape := FOLLOW.collision_escape(float(command["speed"]), planar_speed,
+		float(command["heading_error"]), collision_stall_time, collision_escape_time,
+		collision_escape_sign, delta, fallback_sign)
+	collision_stall_time = escape["stall_time"]
+	collision_escape_time = escape["escape_time"]
+	collision_escape_sign = escape["escape_sign"]
+	if bool(escape["started"]):
+		collision_escape_count += 1
 	if offset.length_squared() > 0.0001:
 		aim = Vector3(offset.x, 0.0, offset.y).normalized()
 	var forward: Vector3 = -direct_state.transform.basis.z
@@ -54,10 +71,17 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var target_velocity: Vector3 = forward * float(command["speed"])
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	horizontal = horizontal.move_toward(target_velocity, float(command["acceleration"]) * delta)
+	if bool(escape["started"]):
+		var right: Vector3 = direct_state.transform.basis.x
+		right.y = 0.0
+		horizontal += right.normalized() * collision_escape_sign * FOLLOW.ESCAPE_SIDE_KICK
 	direct_state.linear_velocity = Vector3(horizontal.x, 0.0, horizontal.z)
 	var current_yaw_rate: float = direct_state.angular_velocity.y
-	var yaw_rate := move_toward(current_yaw_rate, float(command["yaw_rate"]),
-		float(command["yaw_acceleration"]) * delta)
+	var target_yaw_rate := collision_escape_sign * FOLLOW.ESCAPE_YAW_RATE \
+		if bool(escape["active"]) else float(command["yaw_rate"])
+	var yaw_acceleration := FOLLOW.ESCAPE_YAW_ACCEL \
+		if bool(escape["active"]) else float(command["yaw_acceleration"])
+	var yaw_rate := move_toward(current_yaw_rate, target_yaw_rate, yaw_acceleration * delta)
 	direct_state.angular_velocity = Vector3(0.0, yaw_rate, 0.0)
 
 func _process(_delta: float) -> void:

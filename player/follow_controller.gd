@@ -21,6 +21,14 @@ const BURST_TURN := 0.85
 const BURST_TURN_ACCEL := 3.0
 const BURST_FLIP_ON := deg_to_rad(150.0)
 const BURST_FLIP_OFF := deg_to_rad(110.0)
+const ESCAPE_MIN_REQUEST_SPEED := 4.0
+const ESCAPE_STALL_SPEED := 0.6
+const ESCAPE_STALL_DELAY := 0.22
+const ESCAPE_DURATION := 0.55
+const ESCAPE_YAW_RATE := 1.6
+const ESCAPE_YAW_ACCEL := 8.0
+const ESCAPE_SIDE_KICK := 1.4
+const ESCAPE_STEER_EPSILON := 0.08
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		burst_turn_sign: float, current_speed: float = 0.0) -> Dictionary:
@@ -74,6 +82,37 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		"yaw_rate": steering_fraction * turn_cap * speed_authority * cursor_authority,
 		"yaw_acceleration": yaw_acceleration,
 		"turn_cap": turn_cap * speed_authority,
+		"heading_error": error,
 		"burst_turn_sign": burst_turn_sign,
 		"throttle": throttle,
+	}
+
+## Rollback-safe stuck detector. A genuine launch clears ESCAPE_STALL_SPEED
+## before the delay; a wall or another vehicle holding the body nearly still
+## arms a brief side-steer escape without introducing a reverse control mode.
+static func collision_escape(requested_speed: float, current_speed: float,
+		heading_error: float, stall_time: float, escape_time: float,
+		escape_sign: float, delta: float, fallback_sign: float) -> Dictionary:
+	var started := false
+	if escape_time > 0.0:
+		escape_time = maxf(escape_time - delta, 0.0)
+	else:
+		escape_sign = 0.0
+		if requested_speed >= ESCAPE_MIN_REQUEST_SPEED and current_speed <= ESCAPE_STALL_SPEED:
+			stall_time += delta
+		else:
+			stall_time = maxf(stall_time - delta * 3.0, 0.0)
+		if stall_time >= ESCAPE_STALL_DELAY:
+			stall_time = 0.0
+			escape_time = ESCAPE_DURATION
+			escape_sign = signf(heading_error) if absf(heading_error) >= ESCAPE_STEER_EPSILON else signf(fallback_sign)
+			if is_zero_approx(escape_sign):
+				escape_sign = 1.0
+			started = true
+	return {
+		"stall_time": stall_time,
+		"escape_time": escape_time,
+		"escape_sign": escape_sign,
+		"active": escape_time > 0.0,
+		"started": started,
 	}

@@ -50,6 +50,11 @@ if ! rg -q 'RESULT players=2 .*contact=1' "$log_dir/server.log"; then
 	tail -100 "$log_dir/server.log" >&2
 	exit 1
 fi
+if ! rg -q 'RESULT players=2 .*contact=1 escapes=[1-9][0-9]*' "$log_dir/server.log"; then
+	echo "colliding cars never triggered the authoritative escape assist; logs: $log_dir" >&2
+	tail -100 "$log_dir/server.log" >&2
+	exit 1
+fi
 if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.log; then
 	echo "runtime script error; logs: $log_dir" >&2
 	rg 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.log >&2

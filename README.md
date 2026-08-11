@@ -19,6 +19,7 @@ Controls:
 - Cursor distance continuously controls speed: inside 1 world unit is stopped; at 16 units it reaches 14 units/s.
 - Hold `Space` to burst at 23.33 units/s with stronger acceleration and a wider, committed turn.
 - Steering behaves like a ground vehicle: the Jeep cannot pivot while stopped, yaw builds with road speed, and the turning circle widens at high speed. Pulling the cursor closer lowers the requested speed and sharpens the turn, preserving Starter FOLLOW's useful slow/tight versus fast/wide relationship.
+- If a collision holds the Jeep nearly stationary while movement is still requested, a short side bump and forced steer peel it away. Cursor steering chooses the escape side; a stable per-player side handles a perfectly straight impact. There is no automatic reverse mode.
 
 The floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
 
@@ -30,7 +31,7 @@ The small turret points at the cursor. At runtime the combined CC0 mesh is split
 ./scripts/test.sh
 ```
 
-The gate checks FOLLOW throttle and ground-vehicle steering, imports the Jeep and grid shader, compiles every script, then runs a real headless server and two clients through a deterministic 120 ms one-way UDP relay. It requires both clients to connect, keep prediction error below two units, and produce authoritative vehicle contact.
+The gate checks FOLLOW throttle, ground-vehicle steering, and collision-stall recovery; imports the Jeep and grid shader; compiles every script; then runs a real headless server and two clients through a deterministic 120 ms one-way UDP relay. It requires both clients to connect, keep prediction error below two units, produce authoritative vehicle contact, and trigger authoritative escape assists rather than remain nose-locked.
 
 ## Structure
 
