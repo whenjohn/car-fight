@@ -2,6 +2,7 @@ extends SceneTree
 
 const JEEP_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const JEEP_PRESENTATION := preload("res://player/ground_vehicle_hull.gd")
+const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -16,6 +17,12 @@ func _init() -> void:
 		quit(1)
 		return
 	var source_mesh := meshes[0] as MeshInstance3D
+	var footprint_radius := _visual_footprint_radius(source_mesh.mesh, source_mesh.transform)
+	if VEHICLE_CONFIG.COLLISION_RADIUS + 0.001 < footprint_radius:
+		push_error("JEEP_COLLIDER_TEST FAIL: radius %.3f does not contain visual footprint %.3f" % [
+			VEHICLE_CONFIG.COLLISION_RADIUS, footprint_radius])
+		quit(1)
+		return
 	var split: Dictionary = JEEP_SPLITTER.split(source_mesh.mesh, source_mesh.transform)
 	var chassis := split["chassis"] as ArrayMesh
 	var wheels: Dictionary = split["wheels"]
@@ -52,3 +59,15 @@ func _init() -> void:
 	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded")
 	jeep.free()
 	quit()
+
+func _visual_footprint_radius(mesh: Mesh, source_transform: Transform3D) -> float:
+	var radius := 0.0
+	var model_basis := Basis(Vector3.UP, PI).scaled(Vector3.ONE * JEEP_PRESENTATION.JEEP_SCALE)
+	var model_offset := Vector3(0.0, 0.065, -0.05)
+	for surface in range(mesh.get_surface_count()):
+		var arrays := mesh.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for vertex in vertices:
+			var presented := model_basis * (source_transform * vertex) + model_offset
+			radius = maxf(radius, Vector2(presented.x, presented.z).length())
+	return radius

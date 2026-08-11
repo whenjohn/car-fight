@@ -5,7 +5,8 @@ extends Node3D
 const DEFAULT_PORT := 10080
 const MAX_CLIENTS := 16
 const ARENA_HALF := 40.0
-const PLAYER_RADIUS := 0.6
+const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
+const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
