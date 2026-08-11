@@ -57,6 +57,13 @@ func _init() -> void:
 			1.0 / 120.0, 1.0)
 	_expect_close(side_escape["escape_sign"], -1.0, 0.0001, "collision escape honors cursor steering side")
 
+	var right_escape_direction := FOLLOW.escape_drive_direction(Vector3.FORWARD, -1.0)
+	_expect_vector_close(right_escape_direction, Vector3.RIGHT, 0.0001,
+		"right escape yaw and drive deflection agree")
+	var left_escape_direction := FOLLOW.escape_drive_direction(Vector3.FORWARD, 1.0)
+	_expect_vector_close(left_escape_direction, Vector3.LEFT, 0.0001,
+		"left escape yaw and drive deflection agree")
+
 	var clear_launch := FOLLOW.collision_escape(14.0, 2.0, 0.0, 0.2, 0.0, 0.0, 1.0 / 120.0, 1.0)
 	if bool(clear_launch["active"]):
 		_failures += 1
@@ -73,3 +80,8 @@ func _expect_close(actual: float, expected: float, tolerance: float, label: Stri
 	if absf(actual - expected) > tolerance:
 		_failures += 1
 		push_error("%s: expected %.6f, got %.6f" % [label, expected, actual])
+
+func _expect_vector_close(actual: Vector3, expected: Vector3, tolerance: float, label: String) -> void:
+	if actual.distance_to(expected) > tolerance:
+		_failures += 1
+		push_error("%s: expected %s, got %s" % [label, expected, actual])

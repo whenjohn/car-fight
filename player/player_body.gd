@@ -68,13 +68,13 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var forward: Vector3 = -direct_state.transform.basis.z
 	forward.y = 0.0
 	forward = forward.normalized()
-	var target_velocity: Vector3 = forward * float(command["speed"])
+	var drive_direction := FOLLOW.escape_drive_direction(forward, collision_escape_sign) \
+		if bool(escape["active"]) else forward
+	var target_velocity: Vector3 = drive_direction * float(command["speed"])
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	horizontal = horizontal.move_toward(target_velocity, float(command["acceleration"]) * delta)
 	if bool(escape["started"]):
-		var right: Vector3 = direct_state.transform.basis.x
-		right.y = 0.0
-		horizontal += right.normalized() * collision_escape_sign * FOLLOW.ESCAPE_SIDE_KICK
+		horizontal += drive_direction * FOLLOW.ESCAPE_SIDE_KICK
 	direct_state.linear_velocity = Vector3(horizontal.x, 0.0, horizontal.z)
 	var current_yaw_rate: float = direct_state.angular_velocity.y
 	var target_yaw_rate := collision_escape_sign * FOLLOW.ESCAPE_YAW_RATE \

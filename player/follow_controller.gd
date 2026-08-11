@@ -24,10 +24,11 @@ const BURST_FLIP_OFF := deg_to_rad(110.0)
 const ESCAPE_MIN_REQUEST_SPEED := 4.0
 const ESCAPE_STALL_SPEED := 0.6
 const ESCAPE_STALL_DELAY := 0.22
-const ESCAPE_DURATION := 0.55
-const ESCAPE_YAW_RATE := 1.6
-const ESCAPE_YAW_ACCEL := 8.0
-const ESCAPE_SIDE_KICK := 1.4
+const ESCAPE_DURATION := 0.7
+const ESCAPE_YAW_RATE := 2.2
+const ESCAPE_YAW_ACCEL := 10.0
+const ESCAPE_SIDE_KICK := 2.2
+const ESCAPE_DEFLECTION_ANGLE := PI * 0.5
 const ESCAPE_STEER_EPSILON := 0.08
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
@@ -116,3 +117,13 @@ static func collision_escape(requested_speed: float, current_speed: float,
 		"active": escape_time > 0.0,
 		"started": started,
 	}
+
+## Turn the escape drive a full quarter-turn to match its yaw direction. This
+## stops forward acceleration from continuing to press a stalled car into a
+## wall while the body is trying to rotate free.
+static func escape_drive_direction(forward: Vector3, escape_sign: float) -> Vector3:
+	var planar_forward := Vector3(forward.x, 0.0, forward.z).normalized()
+	if planar_forward.is_zero_approx() or is_zero_approx(escape_sign):
+		return planar_forward
+	return planar_forward.rotated(Vector3.UP,
+		signf(escape_sign) * ESCAPE_DEFLECTION_ANGLE).normalized()
