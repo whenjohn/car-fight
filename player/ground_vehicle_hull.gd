@@ -8,6 +8,8 @@ const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
+const BODY_ROLL_MAX := deg_to_rad(11.0)
+const BODY_ROLL_SPEED_REF := 8.0
 
 var _body: Node3D
 var _chassis_lean: Node3D
@@ -26,9 +28,8 @@ func _process(delta: float) -> void:
 	var rigid := _body as RigidBody3D
 	if rigid != null and _chassis_lean != null:
 		var planar_speed := Vector2(rigid.linear_velocity.x, rigid.linear_velocity.z).length()
-		var speed_load := clampf(planar_speed / 14.0, 0.0, 1.0)
 		var steer_fraction := clampf(rigid.angular_velocity.y / STEER_RATE_REFERENCE, -1.0, 1.0)
-		var target_roll := -steer_fraction * speed_load * deg_to_rad(5.5)
+		var target_roll := chassis_roll_target(rigid.angular_velocity.y, planar_speed)
 		_chassis_lean.rotation.z = lerp_angle(_chassis_lean.rotation.z, target_roll, 1.0 - exp(-9.0 * delta))
 		var target_steer := steer_fraction * MAX_VISUAL_STEER
 		for steer_node in _front_steer_nodes:
@@ -42,6 +43,11 @@ func _process(delta: float) -> void:
 	if aim_value is Vector3 and (aim_value as Vector3).length_squared() > 0.001:
 		var aim_direction := aim_value as Vector3
 		_turret.global_rotation.y = atan2(-aim_direction.x, -aim_direction.z)
+
+static func chassis_roll_target(yaw_rate: float, road_speed: float) -> float:
+	var steer_load := clampf(yaw_rate / STEER_RATE_REFERENCE, -1.0, 1.0)
+	var speed_load := clampf(road_speed / BODY_ROLL_SPEED_REF, 0.0, 1.0)
+	return -steer_load * speed_load * BODY_ROLL_MAX
 
 func _material(color: Color, metallic: float = 0.0) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
