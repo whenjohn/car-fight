@@ -10,6 +10,7 @@ const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
+const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 
 var _role := "client"
@@ -312,6 +313,9 @@ func _build_arena() -> void:
 	_add_static_box("WallSouth", Vector3(ARENA_HALF * 2.0 + 2.0, 2.0, 1.0), Vector3(0.0, 1.0, ARENA_HALF), Color("596674"))
 	_add_static_box("WallWest", Vector3(1.0, 2.0, ARENA_HALF * 2.0), Vector3(-ARENA_HALF, 1.0, 0.0), Color("596674"))
 	_add_static_box("WallEast", Vector3(1.0, 2.0, ARENA_HALF * 2.0), Vector3(ARENA_HALF, 1.0, 0.0), Color("596674"))
+	for obstacle in ARENA_LAYOUT.collision_objects():
+		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
+			obstacle["color"], float(obstacle["yaw"]))
 
 func _build_shader_ground() -> void:
 	var ground := MeshInstance3D.new()
@@ -326,10 +330,12 @@ func _build_shader_ground() -> void:
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ground)
 
-func _add_static_box(node_name: String, size: Vector3, position: Vector3, color: Color) -> void:
+func _add_static_box(node_name: String, size: Vector3, position: Vector3, color: Color,
+		yaw: float = 0.0) -> void:
 	var body := StaticBody3D.new()
 	body.name = node_name
 	body.position = position
+	body.rotation.y = yaw
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = size
