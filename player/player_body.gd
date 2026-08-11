@@ -41,8 +41,10 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	if direct_state == null:
 		return
 	var offset: Vector2 = _input.cursor_offset
+	var velocity: Vector3 = direct_state.linear_velocity
+	var planar_speed := Vector2(velocity.x, velocity.z).length()
 	var command := FOLLOW.command(offset, direct_state.transform.basis.get_euler().y,
-		_input.burst, burst_turn_sign)
+		_input.burst, burst_turn_sign, planar_speed)
 	burst_turn_sign = command["burst_turn_sign"]
 	if offset.length_squared() > 0.0001:
 		aim = Vector3(offset.x, 0.0, offset.y).normalized()
@@ -50,11 +52,13 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	forward.y = 0.0
 	forward = forward.normalized()
 	var target_velocity: Vector3 = forward * float(command["speed"])
-	var velocity: Vector3 = direct_state.linear_velocity
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	horizontal = horizontal.move_toward(target_velocity, float(command["acceleration"]) * delta)
 	direct_state.linear_velocity = Vector3(horizontal.x, 0.0, horizontal.z)
-	direct_state.angular_velocity = Vector3(0.0, float(command["yaw_rate"]), 0.0)
+	var current_yaw_rate: float = direct_state.angular_velocity.y
+	var yaw_rate := move_toward(current_yaw_rate, float(command["yaw_rate"]),
+		float(command["yaw_acceleration"]) * delta)
+	direct_state.angular_velocity = Vector3(0.0, yaw_rate, 0.0)
 
 func _process(_delta: float) -> void:
 	if _cursor_marker == null or _cursor_line == null:
@@ -64,8 +68,10 @@ func _process(_delta: float) -> void:
 	_cursor_marker.global_position = target
 	var start := global_position + Vector3.UP * 0.08
 	var distance := start.distance_to(target)
+	var planar_distance := offset.length()
 	_cursor_line.global_position = (start + target) * 0.5
-	if distance > 0.001:
+	_cursor_line.visible = planar_distance > 0.05
+	if planar_distance > 0.05:
 		_cursor_line.look_at(target, Vector3.UP)
 	_cursor_line.scale = Vector3(1.0, 1.0, distance)
 

@@ -306,23 +306,24 @@ func _build_arena() -> void:
 	# whose top is y=0 would start every spherical car half embedded in it and
 	# compromise horizontal contact resolution.
 	if not _is_headless():
-		_add_visual_box("Floor", Vector3(ARENA_HALF * 2.0, 0.1, ARENA_HALF * 2.0), Vector3(0.0, -0.05, 0.0), Color("26333d"))
+		_build_shader_ground()
 	_add_static_box("WallNorth", Vector3(ARENA_HALF * 2.0 + 2.0, 2.0, 1.0), Vector3(0.0, 1.0, -ARENA_HALF), Color("596674"))
 	_add_static_box("WallSouth", Vector3(ARENA_HALF * 2.0 + 2.0, 2.0, 1.0), Vector3(0.0, 1.0, ARENA_HALF), Color("596674"))
 	_add_static_box("WallWest", Vector3(1.0, 2.0, ARENA_HALF * 2.0), Vector3(-ARENA_HALF, 1.0, 0.0), Color("596674"))
 	_add_static_box("WallEast", Vector3(1.0, 2.0, ARENA_HALF * 2.0), Vector3(ARENA_HALF, 1.0, 0.0), Color("596674"))
-	if not _is_headless():
-		_build_grid()
 
-func _add_visual_box(node_name: String, size: Vector3, position: Vector3, color: Color) -> void:
-	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.name = node_name
-	mesh_instance.position = position
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	mesh_instance.mesh = mesh
-	mesh_instance.material_override = _material(color)
-	add_child(mesh_instance)
+func _build_shader_ground() -> void:
+	var ground := MeshInstance3D.new()
+	ground.name = "ShaderGridGround"
+	ground.position.y = -0.01
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(ARENA_HALF * 2.0, ARENA_HALF * 2.0)
+	ground.mesh = plane
+	var material := ShaderMaterial.new()
+	material.shader = load("res://world/grid_ground.gdshader")
+	ground.material_override = material
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ground)
 
 func _add_static_box(node_name: String, size: Vector3, position: Vector3, color: Color) -> void:
 	var body := StaticBody3D.new()
@@ -341,21 +342,6 @@ func _add_static_box(node_name: String, size: Vector3, position: Vector3, color:
 		mesh_instance.material_override = _material(color)
 		body.add_child(mesh_instance)
 	add_child(body)
-
-func _build_grid() -> void:
-	var immediate := ImmediateMesh.new()
-	for value in range(-40, 41, 4):
-		immediate.surface_begin(Mesh.PRIMITIVE_LINES)
-		immediate.surface_add_vertex(Vector3(float(value), 0.012, -ARENA_HALF))
-		immediate.surface_add_vertex(Vector3(float(value), 0.012, ARENA_HALF))
-		immediate.surface_add_vertex(Vector3(-ARENA_HALF, 0.012, float(value)))
-		immediate.surface_add_vertex(Vector3(ARENA_HALF, 0.012, float(value)))
-		immediate.surface_end()
-	var grid := MeshInstance3D.new()
-	grid.name = "Grid"
-	grid.mesh = immediate
-	grid.material_override = _material(Color(0.24, 0.38, 0.44, 0.65), true)
-	add_child(grid)
 
 func _build_presentation() -> void:
 	var environment := WorldEnvironment.new()

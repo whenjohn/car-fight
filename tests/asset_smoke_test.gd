@@ -12,7 +12,11 @@ func _init() -> void:
 		push_error("JEEP_ASSET_TEST FAIL: no meshes")
 		quit(1)
 		return
-	print("JEEP_ASSET_TEST PASS meshes=%d" % meshes.size())
+	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
+	if grid_shader == null or grid_shader.code.is_empty():
+		push_error("GRID_SHADER_TEST FAIL: shader did not load")
+		quit(1)
+		return
+	print("PRESENTATION_ASSET_TEST PASS jeep_meshes=%d grid_shader=loaded" % meshes.size())
 	jeep.free()
 	quit()
-

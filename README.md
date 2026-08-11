@@ -17,8 +17,10 @@ Controls:
 
 - Move the mouse around the Jeep to steer toward it.
 - Cursor distance continuously controls speed: inside 1 world unit is stopped; at 16 units it reaches 14 units/s.
-- Hold `Space` to burst at 23.33 units/s with stronger acceleration and a 6 rad/s steering cap.
-- The normal steering cap blends from 30 rad/s nearby to 2.4 rad/s far away, matching the Starter FOLLOW controller.
+- Hold `Space` to burst at 23.33 units/s with stronger acceleration and a wider, committed turn.
+- Steering behaves like a ground vehicle: the Jeep cannot pivot while stopped, yaw builds with road speed, and the turning circle widens at high speed.
+
+The floor uses a world-space shader grid with one-unit subdivisions, stronger four-unit lines, and highlighted centre axes. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain easy to read.
 
 The small turret points at the cursor and the Jeep body leans under turning load, but both are presentation-only. Collision always uses the same server-authoritative, equal-mass sphere on every peer.
 
@@ -28,7 +30,7 @@ The small turret points at the cursor and the Jeep body leans under turning load
 ./scripts/test.sh
 ```
 
-The gate checks the exact FOLLOW tuning, imports the Jeep, compiles every script, then runs a real headless server and two clients through a deterministic 120 ms one-way UDP relay. It requires both clients to connect and the authoritative server to observe vehicle contact.
+The gate checks FOLLOW throttle and ground-vehicle steering, imports the Jeep and grid shader, compiles every script, then runs a real headless server and two clients through a deterministic 120 ms one-way UDP relay. It requires both clients to connect, keep prediction error below two units, and produce authoritative vehicle contact.
 
 ## Structure
 
@@ -37,6 +39,7 @@ The gate checks the exact FOLLOW tuning, imports the Jeep, compiles every script
 - `player/player_input.gd` — the two network inputs: cursor offset and burst.
 - `player/player_body.gd` — predicted/rollback Rapier body.
 - `player/ground_vehicle_hull.gd` — CC0 Jeep, suspension lean, and cursor turret.
+- `world/grid_ground.gdshader` — anti-aliased world-space movement grid.
 - `net/latency_proxy.gd` — test-only UDP delay/loss relay.
 - `tests/` and `scripts/` — mechanic, asset, network, play, and deployment helpers.
 
@@ -51,4 +54,3 @@ The deployment helper is intentionally manual and has not been run:
 ```
 
 It uses `ssh macai2-ts`, installs the isolated launchd label `com.whenjohn.car-fight-server`, listens on UDP `10080`, and does not touch g2 or Starter.
-
