@@ -22,7 +22,7 @@ Controls:
 
 The floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
 
-The small turret points at the cursor and the Jeep body leans under turning load, but both are presentation-only. Collision always uses the same server-authoritative, equal-mass sphere on every peer.
+The small turret points at the cursor. At runtime the combined CC0 mesh is split into a chassis and four wheel assemblies: only the chassis leans under turning load, the front tires visibly steer, and all tires spin with signed road speed. This rig is presentation-only; collision always uses the same server-authoritative, equal-mass sphere on every peer.
 
 ## Tests
 
@@ -39,6 +39,7 @@ The gate checks FOLLOW throttle and ground-vehicle steering, imports the Jeep an
 - `player/player_input.gd` — the two network inputs: cursor offset and burst.
 - `player/player_body.gd` — predicted/rollback Rapier body.
 - `player/ground_vehicle_hull.gd` — CC0 Jeep, suspension lean, and cursor turret.
+- `player/jeep_mesh_splitter.gd` — derives the chassis and four independently animated wheels without modifying the FBX.
 - `world/grid_ground.gdshader` — anti-aliased world-space movement grid.
 - `net/latency_proxy.gd` — test-only UDP delay/loss relay.
 - `tests/` and `scripts/` — mechanic, asset, network, play, and deployment helpers.

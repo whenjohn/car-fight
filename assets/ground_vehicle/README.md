@@ -5,8 +5,9 @@ review.
 
 - Selected model: `Jeep.fbx`
 - Complexity: 706 triangles, eight colored material surfaces
-- Geometry note: the body and four wheels are one mesh, so source-wheel steering
-  and spin are unavailable without separating the geometry in a later art pass.
+- Geometry note: the source body and four wheels are one mesh. Car Fight keeps
+  that CC0 source untouched and derives a chassis plus four wheel assemblies at
+  runtime from the `Tires`/`Wheel` surfaces and their spatial quadrants.
 
 Source: https://opengameart.org/content/low-poly-vehicles-pack
 
