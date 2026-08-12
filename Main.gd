@@ -12,10 +12,20 @@ const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
+const COVERAGE := preload("res://combat/coverage_config.gd")
+const AUTO_TARGETING := preload("res://combat/auto_targeting.gd")
+const COVERAGE_VISUAL_SCRIPT := preload("res://combat/coverage_visual.gd")
+const TARGET_DUMMY_SCRIPT := preload("res://combat/target_dummy.gd")
+const TARGET_LAYOUT := preload("res://combat/target_layout.gd")
+const BOLT_VISUAL_SCRIPT := preload("res://combat/bolt_visual.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
+const COMBAT_FIRE_INTERVAL_TICKS := 15
+const COMBAT_BOLT_SPEED := 30.0
+const COMBAT_BOLT_LIFETIME := 1.0
+const COMBAT_TARGET_RADIUS := 0.66
 
 var _role := "client"
 var _host := "127.0.0.1"
@@ -46,17 +56,32 @@ var _course_rebound_speed := 0.0
 var _course_landing_tilt := 0.0
 var _maximum_player_tilt := 0.0
 var _minimum_player_x := INF
+var _combat_editor_active := false
+var _coverage_overlay_visible := true
+var _selected_zone := 0
+var _coverage_drag := {}
+var _coverage_configs := {}
+var _zone_last_fire_tick := {}
+var _server_bolts := {}
+var _bolt_visuals := {}
+var _next_bolt_id := 1
+var _combat_shot_count := 0
+var _combat_hit_count := 0
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
 var _balls: Node3D
 var _ball_spawner: MultiplayerSpawner
+var _targets: Node3D
+var _combat_bolts: Node3D
 var _camera: Camera3D
 var _shadow_light: SpotLight3D
 var _status_label: Label
+var _editor_label: Label
 
 func _ready() -> void:
 	_parse_args()
+	_combat_editor_active = _role == "client" and _scripted.is_empty()
 	if _role == "proxy":
 		_start_proxy()
 		return
@@ -86,7 +111,12 @@ func _process(_delta: float) -> void:
 	if _status_label != null:
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
-		_status_label.text = "CAR FIGHT  |  peer %d  |  %.1f u/s\nMouse: direction + distance speed  |  Space: burst  |  Hold Tab/R: reverse" % [id, speed]
+		var mode := "COVERAGE EDITOR" if _combat_editor_active else "DRIVE + AUTO FIRE"
+		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s" % [
+			mode, id, speed,
+			"Drag cone handles  |  Enter: drive" if _combat_editor_active \
+			else "Mouse: drive  |  Space: burst  |  Tab/R: reverse  |  E: editor  |  C: cones"]
+	_update_editor_label()
 
 func _parse_args() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -199,6 +229,12 @@ func _on_peer_join(id: int) -> void:
 		return
 	_log("PEER_JOIN id=%d slot=%d" % [id, _next_spawn_slot])
 	_spawner.spawn({"id": id, "slot": _next_spawn_slot})
+	var config := _configuration_for(id)
+	_apply_coverage_config.rpc(id, config["ranges"], config["widths"])
+	var target_counts := PackedInt32Array()
+	for target in _targets.get_children():
+		target_counts.append(int(target.get("hit_count")))
+	_sync_target_hits.rpc_id(id, target_counts)
 	_next_spawn_slot += 1
 	if not _ball_seeded:
 		_ball_seeded = true
@@ -235,7 +271,14 @@ func _build_world() -> void:
 	add_child(_ball_spawner)
 	_ball_spawner.spawn_path = _balls.get_path()
 	_ball_spawner.spawn_function = _spawn_ball
+	_targets = Node3D.new()
+	_targets.name = "CombatTargets"
+	add_child(_targets)
+	_combat_bolts = Node3D.new()
+	_combat_bolts.name = "CombatBolts"
+	add_child(_combat_bolts)
 	_build_arena()
+	_build_combat_targets()
 	if not _is_headless():
 		_build_presentation()
 
@@ -248,6 +291,9 @@ func _spawn_player(data: Variant) -> Node:
 	body.name = str(owner_id)
 	body.set("owner_id", owner_id)
 	body.set("spawn_slot", slot)
+	if not _coverage_configs.has(owner_id):
+		_coverage_configs[owner_id] = {
+			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths()}
 	body.gravity_scale = 1.0
 	body.mass = VEHICLE_CONFIG.MASS
 	body.linear_damp = 0.0
@@ -376,6 +422,17 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	hull.set_script(HULL_SCRIPT)
 	hull.position.y = -PLAYER_RADIUS
 	body.add_child(hull)
+	if owner_id == multiplayer.get_unique_id():
+		var coverage_visual := Node3D.new()
+		coverage_visual.name = "CoverageDebug"
+		coverage_visual.set_script(COVERAGE_VISUAL_SCRIPT)
+		coverage_visual.position.y = -PLAYER_RADIUS + 0.09
+		body.add_child(coverage_visual)
+		var config: Dictionary = _configuration_for(owner_id)
+		coverage_visual.call("set_configuration", config["ranges"], config["widths"])
+		coverage_visual.call("set_editor_mode", _combat_editor_active)
+		coverage_visual.call("set_overlay_visible", _coverage_overlay_visible)
+		coverage_visual.call("set_selected_zone", _selected_zone)
 
 	var color := _peer_color(owner_id)
 	var pip := MeshInstance3D.new()
@@ -432,6 +489,15 @@ func _build_arena() -> void:
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
 	_build_elevated_course()
+
+func _build_combat_targets() -> void:
+	var positions := TARGET_LAYOUT.positions()
+	for index in range(positions.size()):
+		var target := StaticBody3D.new()
+		target.set_script(TARGET_DUMMY_SCRIPT)
+		target.position = positions[index]
+		target.call("setup", index, not _is_headless())
+		_targets.add_child(target)
 
 func _build_elevated_course() -> void:
 	var ramp: Dictionary = ELEVATED_COURSE.ramp()
@@ -540,6 +606,163 @@ func _build_presentation() -> void:
 	_status_label.add_theme_font_size_override("font_size", 18)
 	_status_label.add_theme_color_override("font_color", Color("e8f4f6"))
 	hud.add_child(_status_label)
+	_editor_label = Label.new()
+	_editor_label.position = Vector2(18.0, 78.0)
+	_editor_label.add_theme_font_size_override("font_size", 17)
+	_editor_label.add_theme_color_override("font_color", Color("dce7e8"))
+	hud.add_child(_editor_label)
+
+func _update_editor_label() -> void:
+	if _editor_label == null:
+		return
+	_editor_label.visible = _combat_editor_active
+	if not _combat_editor_active:
+		return
+	var config := _configuration_for(multiplayer.get_unique_id())
+	var ranges: PackedFloat32Array = config["ranges"]
+	var widths: PackedFloat32Array = config["widths"]
+	var used := COVERAGE.total_area(ranges, widths)
+	_editor_label.text = "%s  ·  range %.1f  ·  width %.0f°\nAREA  %.1f / %.1f" % [
+		COVERAGE.ZONE_NAMES[_selected_zone], ranges[_selected_zone],
+		rad_to_deg(widths[_selected_zone]), used, COVERAGE.TOTAL_BUDGET]
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _role != "client" or not _scripted.is_empty():
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_ENTER and _combat_editor_active:
+			_set_combat_editor_active(false)
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_E and not _combat_editor_active:
+			_set_combat_editor_active(true)
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_C and not _combat_editor_active:
+			_coverage_overlay_visible = not _coverage_overlay_visible
+			_update_local_coverage_visual()
+			get_viewport().set_input_as_handled()
+	if not _combat_editor_active:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_begin_coverage_drag(event.position)
+		else:
+			_finish_coverage_drag()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and not _coverage_drag.is_empty():
+		_drag_coverage(event.position)
+		get_viewport().set_input_as_handled()
+
+func _set_combat_editor_active(enabled: bool) -> void:
+	_combat_editor_active = enabled
+	_coverage_drag.clear()
+	_update_local_coverage_visual()
+	if not enabled:
+		_submit_local_coverage_config()
+
+func combat_editor_active(_body: Node3D) -> bool:
+	return _combat_editor_active
+
+func _begin_coverage_drag(screen_position: Vector2) -> void:
+	var body := local_player() as Node3D
+	var world_point: Variant = _mouse_world_point(screen_position, body)
+	if body == null or world_point == null:
+		return
+	var local := COVERAGE.local_point(world_point, body.global_transform)
+	var config := _configuration_for(multiplayer.get_unique_id())
+	var ranges: PackedFloat32Array = config["ranges"]
+	var widths: PackedFloat32Array = config["widths"]
+	var best_distance := 1.0
+	var best := {}
+	for zone in range(COVERAGE.ZONE_COUNT):
+		var handles: Dictionary = COVERAGE.handle_positions(zone, ranges[zone], widths[zone])
+		for kind in ["range", "left", "right"]:
+			var distance := local.distance_to(handles[kind])
+			if distance < best_distance:
+				best_distance = distance
+				best = {"zone": zone, "kind": kind}
+	if best.is_empty():
+		return
+	_coverage_drag = best
+	_selected_zone = int(best["zone"])
+	_update_local_coverage_visual()
+
+func _drag_coverage(screen_position: Vector2) -> void:
+	var body := local_player() as Node3D
+	var world_point: Variant = _mouse_world_point(screen_position, body)
+	if body == null or world_point == null:
+		return
+	var local := COVERAGE.local_point(world_point, body.global_transform)
+	var id := multiplayer.get_unique_id()
+	var config := _configuration_for(id)
+	var ranges: PackedFloat32Array = (config["ranges"] as PackedFloat32Array).duplicate()
+	var widths: PackedFloat32Array = (config["widths"] as PackedFloat32Array).duplicate()
+	var zone := int(_coverage_drag["zone"])
+	if str(_coverage_drag["kind"]) == "range":
+		ranges[zone] = COVERAGE.clamp_range(zone, local.length(), ranges, widths)
+	else:
+		var point_heading := atan2(-local.x, -local.y)
+		var offset := absf(wrapf(point_heading - float(COVERAGE.ZONE_HEADINGS[zone]), -PI, PI))
+		widths[zone] = COVERAGE.clamp_width(zone, offset * 2.0, ranges, widths)
+	_coverage_configs[id] = {"ranges": ranges, "widths": widths}
+	_update_local_coverage_visual()
+
+func _finish_coverage_drag() -> void:
+	if _coverage_drag.is_empty():
+		return
+	_coverage_drag.clear()
+	_submit_local_coverage_config()
+
+func _mouse_world_point(screen_position: Vector2, body: Node3D) -> Variant:
+	if _camera == null or body == null:
+		return null
+	var origin := _camera.project_ray_origin(screen_position)
+	var direction := _camera.project_ray_normal(screen_position)
+	if absf(direction.y) < 0.00001:
+		return null
+	var plane_y := body.global_position.y - PLAYER_RADIUS + 0.10
+	var distance := (plane_y - origin.y) / direction.y
+	return null if distance < 0.0 else origin + direction * distance
+
+func _configuration_for(owner_id: int) -> Dictionary:
+	if not _coverage_configs.has(owner_id):
+		_coverage_configs[owner_id] = {
+			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths()}
+	return _coverage_configs[owner_id]
+
+func _submit_local_coverage_config() -> void:
+	var config := _configuration_for(multiplayer.get_unique_id())
+	_submit_coverage_config.rpc_id(1, config["ranges"], config["widths"])
+
+@rpc("any_peer", "call_remote", "reliable")
+func _submit_coverage_config(ranges: PackedFloat32Array, widths: PackedFloat32Array) -> void:
+	if not multiplayer.is_server() or not COVERAGE.is_valid(ranges, widths):
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _players.get_node_or_null(str(sender)) == null:
+		return
+	_apply_coverage_config.rpc(sender, ranges, widths)
+
+@rpc("authority", "call_local", "reliable")
+func _apply_coverage_config(owner_id: int, ranges: PackedFloat32Array,
+		widths: PackedFloat32Array) -> void:
+	if not COVERAGE.is_valid(ranges, widths):
+		return
+	_coverage_configs[owner_id] = {"ranges": ranges.duplicate(), "widths": widths.duplicate()}
+	if owner_id == multiplayer.get_unique_id():
+		_update_local_coverage_visual()
+
+func _update_local_coverage_visual() -> void:
+	var body := local_player() as Node3D
+	if body == null:
+		return
+	var visual := body.get_node_or_null("CoverageDebug")
+	if visual == null:
+		return
+	var config := _configuration_for(multiplayer.get_unique_id())
+	visual.call("set_configuration", config["ranges"], config["widths"])
+	visual.call("set_editor_mode", _combat_editor_active)
+	visual.call("set_overlay_visible", _coverage_overlay_visible)
+	visual.call("set_selected_zone", _selected_zone)
 
 func cursor_offset_for(body: Node3D) -> Vector2:
 	if _camera == null:
@@ -584,6 +807,10 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2(0.0, -reach), "burst": false}
 		"reverse":
 			return {"cursor_offset": Vector2(16.0, 0.0), "burst": false, "reverse": true}
+		"combat":
+			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
+		"combat-edit":
+			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": true}
 		_:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
@@ -592,11 +819,12 @@ func local_player():
 		return null
 	return _players.get_node_or_null(str(multiplayer.get_unique_id()))
 
-func _on_tick(_delta: float, tick: int) -> void:
+func _on_tick(delta: float, tick: int) -> void:
 	if _start_tick < 0:
 		_start_tick = tick
 	var elapsed := tick - _start_tick
 	if multiplayer.is_server():
+		_service_auto_combat(delta, tick)
 		_track_server_contacts()
 		_track_server_ball()
 		_track_server_course()
@@ -618,8 +846,162 @@ func _on_tick(_delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f shots=%d hits=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _combat_shot_count, _combat_hit_count])
 		get_tree().quit()
+
+func _service_auto_combat(delta: float, tick: int) -> void:
+	_step_server_bolts(delta)
+	for player_node in _players.get_children():
+		var body := player_node as RigidBody3D
+		if body == null:
+			continue
+		var input := body.get_node_or_null("Input")
+		if input == null or bool(input.get("editing")):
+			continue
+		var owner_id := int(body.name)
+		var config := _configuration_for(owner_id)
+		var ranges: PackedFloat32Array = config["ranges"]
+		var widths: PackedFloat32Array = config["widths"]
+		for zone in range(COVERAGE.ZONE_COUNT):
+			var cooldown_key := "%d:%d" % [owner_id, zone]
+			if tick - int(_zone_last_fire_tick.get(cooldown_key, -COMBAT_FIRE_INTERVAL_TICKS)) \
+					< COMBAT_FIRE_INTERVAL_TICKS:
+				continue
+			var target := _acquire_target(body, zone, ranges[zone], widths[zone])
+			if target == null:
+				continue
+			_zone_last_fire_tick[cooldown_key] = tick
+			_fire_combat_bolt(body, target, zone)
+
+func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float) -> StaticBody3D:
+	var candidates: Array[Dictionary] = []
+	var by_id := {}
+	for target_node in _targets.get_children():
+		var target := target_node as StaticBody3D
+		if target == null:
+			continue
+		var target_id := int(target.get("target_id"))
+		var local := COVERAGE.local_point(target.global_position, body.global_transform)
+		candidates.append({"id": target_id, "local_position": local,
+			"visible": _has_target_line_of_sight(body, target)})
+		by_id[target_id] = target
+	var selected := AUTO_TARGETING.select_nearest(zone, reach, width, candidates)
+	return by_id.get(selected) as StaticBody3D
+
+func _has_target_line_of_sight(body: RigidBody3D, target: StaticBody3D) -> bool:
+	var start := _combat_muzzle_origin(body, target.global_position)
+	var query := PhysicsRayQueryParameters3D.create(start, target.global_position, 1)
+	query.exclude = _combat_dynamic_rids()
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return hit.is_empty()
+
+func _combat_dynamic_rids() -> Array[RID]:
+	var excluded: Array[RID] = []
+	for child in _players.get_children():
+		var body := child as CollisionObject3D
+		if body != null:
+			excluded.append(body.get_rid())
+	for child in _balls.get_children():
+		var ball := child as CollisionObject3D
+		if ball != null:
+			excluded.append(ball.get_rid())
+	return excluded
+
+func _combat_muzzle_origin(body: RigidBody3D, aim_point: Vector3) -> Vector3:
+	var planar := aim_point - body.global_position
+	planar.y = 0.0
+	if planar.is_zero_approx():
+		planar = -body.global_basis.z
+	return body.global_position + planar.normalized() * 1.2 \
+		- Vector3.UP * (PLAYER_RADIUS - 0.82)
+
+func _fire_combat_bolt(body: RigidBody3D, target: StaticBody3D, zone: int) -> void:
+	var origin := _combat_muzzle_origin(body, target.global_position)
+	var velocity := (target.global_position - origin).normalized() * COMBAT_BOLT_SPEED
+	var bolt_id := _next_bolt_id
+	_next_bolt_id += 1
+	_server_bolts[bolt_id] = {"position": origin, "velocity": velocity,
+		"age": 0.0, "shooter": int(body.name), "zone": zone}
+	_combat_shot_count += 1
+	_spawn_combat_bolt.rpc(bolt_id, int(body.name), zone, origin, velocity)
+
+func _step_server_bolts(delta: float) -> void:
+	for bolt_id_value in _server_bolts.keys():
+		var bolt_id := int(bolt_id_value)
+		var bolt: Dictionary = _server_bolts[bolt_id]
+		var start: Vector3 = bolt["position"]
+		var finish := start + (bolt["velocity"] as Vector3) * delta
+		var segment := finish - start
+		var wall_fraction := 1.01
+		var wall_query := PhysicsRayQueryParameters3D.create(start, finish, 1)
+		wall_query.exclude = _combat_dynamic_rids()
+		var wall_hit := get_world_3d().direct_space_state.intersect_ray(wall_query)
+		if not wall_hit.is_empty() and segment.length_squared() > 0.0001:
+			wall_fraction = start.distance_to(wall_hit["position"]) / segment.length()
+		var target_hit: StaticBody3D
+		var target_fraction := 1.01
+		for target_node in _targets.get_children():
+			var target := target_node as StaticBody3D
+			if target == null or segment.length_squared() <= 0.0001:
+				continue
+			var fraction := clampf((target.global_position - start).dot(segment) \
+				/ segment.length_squared(), 0.0, 1.0)
+			var closest := start + segment * fraction
+			if closest.distance_to(target.global_position) <= COMBAT_TARGET_RADIUS \
+					and fraction < target_fraction:
+				target_hit = target
+				target_fraction = fraction
+		if target_hit != null and target_fraction <= wall_fraction:
+			_combat_hit_count += 1
+			_register_target_hit.rpc(int(target_hit.get("target_id")))
+			_end_combat_bolt.rpc(bolt_id)
+			_server_bolts.erase(bolt_id)
+			continue
+		if wall_fraction <= 1.0:
+			_end_combat_bolt.rpc(bolt_id)
+			_server_bolts.erase(bolt_id)
+			continue
+		bolt["position"] = finish
+		bolt["age"] = float(bolt["age"]) + delta
+		if float(bolt["age"]) >= COMBAT_BOLT_LIFETIME:
+			_end_combat_bolt.rpc(bolt_id)
+			_server_bolts.erase(bolt_id)
+		else:
+			_server_bolts[bolt_id] = bolt
+
+@rpc("authority", "call_local", "reliable")
+func _spawn_combat_bolt(bolt_id: int, shooter_id: int, zone: int,
+		origin: Vector3, velocity: Vector3) -> void:
+	if not _is_headless():
+		var visual := Node3D.new()
+		visual.name = "Bolt_%d" % bolt_id
+		visual.set_script(BOLT_VISUAL_SCRIPT)
+		_combat_bolts.add_child(visual)
+		visual.call("setup", bolt_id, origin, velocity, COVERAGE.ZONE_COLORS[zone])
+		_bolt_visuals[bolt_id] = visual
+	var local := local_player() as Node3D
+	if local != null and int(local.name) == shooter_id:
+		var coverage_visual := local.get_node_or_null("CoverageDebug")
+		if coverage_visual != null:
+			coverage_visual.call("flash_zone", zone)
+
+@rpc("authority", "call_local", "reliable")
+func _end_combat_bolt(bolt_id: int) -> void:
+	var visual: Node = _bolt_visuals.get(bolt_id)
+	if visual != null and is_instance_valid(visual):
+		visual.queue_free()
+	_bolt_visuals.erase(bolt_id)
+
+@rpc("authority", "call_local", "reliable")
+func _register_target_hit(target_id: int) -> void:
+	var target := _targets.get_node_or_null("Target_%02d" % target_id)
+	if target != null:
+		target.call("register_hit")
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_target_hits(hit_counts: PackedInt32Array) -> void:
+	for index in range(mini(hit_counts.size(), _targets.get_child_count())):
+		_targets.get_child(index).call("set_hit_count", hit_counts[index])
 
 func _server_escape_count() -> int:
 	var total := 0

@@ -47,6 +47,7 @@ func _ready() -> void:
 	_sync.add_input(_input, "cursor_offset")
 	_sync.add_input(_input, "burst")
 	_sync.add_input(_input, "reverse")
+	_sync.add_input(_input, "editing")
 	_sync.process_settings()
 
 	var local_player := owner_id == multiplayer.get_unique_id()
@@ -62,11 +63,12 @@ func _ready() -> void:
 func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	if direct_state == null:
 		return
-	var offset: Vector2 = _input.cursor_offset
+	var offset: Vector2 = Vector2.ZERO if _input.editing else _input.cursor_offset
 	var velocity: Vector3 = direct_state.linear_velocity
 	var planar_speed := Vector2(velocity.x, velocity.z).length()
 	var command := FOLLOW.command(offset, FOLLOW.heading_yaw(direct_state.transform.basis),
-		_input.burst, burst_turn_sign, planar_speed, _input.reverse)
+		_input.burst and not _input.editing, burst_turn_sign, planar_speed,
+		_input.reverse and not _input.editing)
 	burst_turn_sign = command["burst_turn_sign"]
 	boost_active = bool(command["boost_active"])
 	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
@@ -105,7 +107,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 			wall_bump_count += 1
 			bump_started = true
 	var escape: Dictionary
-	if touching_static or _input.reverse:
+	if touching_static or (_input.reverse and not _input.editing):
 		# Static contacts use Rapier plus the one-shot impulses above. The timed
 		# escape assist is reserved for cars wedged against other moving cars.
 		escape = {"stall_time": 0.0, "escape_time": 0.0, "escape_sign": 0.0,
@@ -174,6 +176,11 @@ func _static_support_normal() -> Vector3:
 func _process(_delta: float) -> void:
 	if _cursor_marker == null or _cursor_line == null:
 		return
+	if _input.editing:
+		_cursor_marker.visible = false
+		_cursor_line.visible = false
+		return
+	_cursor_marker.visible = true
 	var offset: Vector2 = _input.cursor_offset
 	var road_plane_y := global_position.y - VEHICLE_CONFIG.COLLISION_RADIUS
 	var target := Vector3(global_position.x + offset.x, road_plane_y + 0.04,

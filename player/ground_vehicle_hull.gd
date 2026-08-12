@@ -18,7 +18,6 @@ const BOOST_ECHO_COLOR := Color(1.0, 0.38, 0.08, 0.28)
 
 var _body: Node3D
 var _chassis_lean: Node3D
-var _turret: Node3D
 var _front_steer_nodes: Array[Node3D] = []
 var _wheel_spin_nodes: Array[Node3D] = []
 var _wheel_spin_angle := 0.0
@@ -35,7 +34,7 @@ func _ready() -> void:
 	_build_boost_echoes()
 
 func _process(delta: float) -> void:
-	if _body == null or _turret == null:
+	if _body == null:
 		return
 	var rigid := _body as RigidBody3D
 	if rigid != null and _chassis_lean != null:
@@ -52,10 +51,6 @@ func _process(delta: float) -> void:
 		for spin_node in _wheel_spin_nodes:
 			spin_node.rotation.x = _wheel_spin_angle
 		_update_boost_echoes(delta, bool(_body.get("boost_active")), planar_speed)
-	var aim_value: Variant = _body.get("aim")
-	if aim_value is Vector3 and (aim_value as Vector3).length_squared() > 0.001:
-		var aim_direction := aim_value as Vector3
-		_turret.global_rotation.y = atan2(-aim_direction.x, -aim_direction.z)
 
 static func chassis_roll_target(yaw_rate: float, road_speed: float) -> float:
 	var steer_load := clampf(yaw_rate / STEER_RATE_REFERENCE, -1.0, 1.0)
@@ -114,19 +109,25 @@ func _build_jeep() -> void:
 
 	var dark_mat := _material(Color(0.055, 0.075, 0.095), 0.3)
 	var body_mat := _material(Color(0.18, 0.48, 0.22), 0.12)
-	_turret = Node3D.new()
-	_turret.name = "CursorTurret"
-	_turret.position = Vector3(0.0, 1.34, -0.12)
-	_chassis_lean.add_child(_turret)
-	var ring := CylinderMesh.new()
-	ring.top_radius = 0.28
-	ring.bottom_radius = 0.34
-	ring.height = 0.18
-	ring.radial_segments = 16
-	_turret.add_child(_mesh_node("TurretRing", ring, Vector3.ZERO, dark_mat))
-	var barrel := BoxMesh.new()
-	barrel.size = Vector3(0.13, 0.12, 0.9)
-	_turret.add_child(_mesh_node("Barrel", barrel, Vector3(0.0, 0.07, -0.44), body_mat))
+	_build_weapon_mounts(dark_mat, body_mat)
+
+func _build_weapon_mounts(dark_material: Material, body_material: Material) -> void:
+	var ring_mesh := CylinderMesh.new()
+	ring_mesh.top_radius = 0.17
+	ring_mesh.bottom_radius = 0.21
+	ring_mesh.height = 0.13
+	ring_mesh.radial_segments = 12
+	var barrel_mesh := BoxMesh.new()
+	barrel_mesh.size = Vector3(0.11, 0.10, 0.72)
+	for index in range(4):
+		var mount := Node3D.new()
+		mount.name = "%sWeaponMount" % ["Front", "Right", "Rear", "Left"][index]
+		mount.position = Vector3(0.0, 1.30, -0.04)
+		mount.rotation.y = [0.0, -PI * 0.5, PI, PI * 0.5][index]
+		_chassis_lean.add_child(mount)
+		mount.add_child(_mesh_node("Mount", ring_mesh, Vector3.ZERO, dark_material))
+		mount.add_child(_mesh_node("Barrel", barrel_mesh,
+			Vector3(0.0, 0.04, -0.34), body_material))
 
 ## A tiny pool of frozen Jeep snapshots, matching g2's accepted boost echoes.
 ## They clone only render nodes and never add collision, physics, or network state.
