@@ -1,10 +1,10 @@
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
-uniform vec4 ground_color : source_color = vec4(0.047, 0.060, 0.066, 1.0);
-uniform vec4 fine_color : source_color = vec4(0.090, 0.115, 0.120, 1.0);
-uniform vec4 major_color : source_color = vec4(0.120, 0.160, 0.170, 1.0);
-uniform vec4 axis_color : source_color = vec4(0.230, 0.180, 0.120, 1.0);
+uniform vec4 ground_color : source_color = vec4(0.180, 0.205, 0.210, 1.0);
+uniform vec4 fine_color : source_color = vec4(0.255, 0.285, 0.290, 1.0);
+uniform vec4 major_color : source_color = vec4(0.330, 0.370, 0.380, 1.0);
+uniform vec4 axis_color : source_color = vec4(0.390, 0.310, 0.190, 1.0);
 uniform float fine_spacing = 1.0;
 uniform float major_spacing = 4.0;
 

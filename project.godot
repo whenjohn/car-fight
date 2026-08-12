@@ -36,7 +36,7 @@ burst={
 }
 reverse={
 "deadzone": 0.5,
-"events": [Object(InputEventKey,"physical_keycode":82,"unicode":114)]
+"events": [Object(InputEventKey,"physical_keycode":82,"unicode":114), Object(InputEventKey,"physical_keycode":4194306)]
 }
 
 [netfox]

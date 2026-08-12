@@ -79,7 +79,7 @@ func _process(_delta: float) -> void:
 	if _status_label != null:
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
-		_status_label.text = "CAR FIGHT  |  peer %d  |  %.1f u/s\nMouse: direction + distance speed  |  Space: burst  |  Hold R: reverse" % [id, speed]
+		_status_label.text = "CAR FIGHT  |  peer %d  |  %.1f u/s\nMouse: direction + distance speed  |  Space: burst  |  Hold Tab/R: reverse" % [id, speed]
 
 func _parse_args() -> void:
 	var args := OS.get_cmdline_user_args()

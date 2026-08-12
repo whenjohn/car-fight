@@ -46,7 +46,15 @@ func _init() -> void:
 		push_error("reverse must invert steering response like a ground vehicle")
 	if not InputMap.has_action("reverse"):
 		_failures += 1
-		push_error("R reverse action must exist in the project input map")
+		push_error("reverse action must exist in the project input map")
+	else:
+		var has_tab := false
+		for event in InputMap.action_get_events("reverse"):
+			if event is InputEventKey and (event as InputEventKey).physical_keycode == KEY_TAB:
+				has_tab = true
+		if not has_tab:
+			_failures += 1
+			push_error("Tab must activate reverse")
 
 	var escape := {
 		"stall_time": 0.0,
