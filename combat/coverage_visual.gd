@@ -154,6 +154,8 @@ func _material(color: Color) -> StandardMaterial3D:
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = color
-	material.no_depth_test = true
+	# Coverage belongs on the ground plane. Ignoring depth projects the moving
+	# triangles through cars, walls, and roads as a distracting striped overlay.
+	material.no_depth_test = false
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material

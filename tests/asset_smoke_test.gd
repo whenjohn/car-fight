@@ -3,6 +3,7 @@ extends SceneTree
 const JEEP_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const JEEP_PRESENTATION := preload("res://player/ground_vehicle_hull.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
+const COVERAGE_VISUAL := preload("res://combat/coverage_visual.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -51,6 +52,12 @@ func _init() -> void:
 		push_error("GRID_SHADOW_TEST FAIL: ground shader must receive real lighting and shadows")
 		quit(1)
 		return
+	var coverage_visual := COVERAGE_VISUAL.new()
+	var coverage_material := coverage_visual.call("_material", Color.WHITE) as StandardMaterial3D
+	if coverage_material.no_depth_test:
+		push_error("COVERAGE_DEPTH_TEST FAIL: cones must not draw through solid geometry")
+		quit(1)
+		return
 	var full_roll_degrees := rad_to_deg(absf(JEEP_PRESENTATION.chassis_roll_target(1.85, 8.0)))
 	if absf(full_roll_degrees - 11.0) > 0.001:
 		push_error("JEEP_ROLL_TEST FAIL: expected 11 degrees at medium-speed full steer")
@@ -60,7 +67,8 @@ func _init() -> void:
 		push_error("JEEP_ROLL_TEST FAIL: stopped chassis must remain level")
 		quit(1)
 		return
-	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded")
+	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded coverage_depth=enabled")
+	coverage_visual.free()
 	jeep.free()
 	quit()
 
