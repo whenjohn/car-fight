@@ -80,6 +80,7 @@ var _camera: Camera3D
 var _shadow_light: SpotLight3D
 var _status_label: Label
 var _editor_label: Label
+var _fps_label: Label
 
 func _ready() -> void:
 	_parse_args()
@@ -120,6 +121,8 @@ func _process(_delta: float) -> void:
 			mode, id, speed,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
 			else "Mouse: drive  |  Space: burst  |  Tab/R: reverse  |  E: editor  |  C: cones"]
+	if _fps_label != null:
+		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
 
 func _parse_args() -> void:
@@ -633,6 +636,17 @@ func _build_presentation() -> void:
 	_editor_label.add_theme_font_size_override("font_size", 17)
 	_editor_label.add_theme_color_override("font_color", Color("dce7e8"))
 	hud.add_child(_editor_label)
+	_fps_label = Label.new()
+	_fps_label.name = "FPSCounter"
+	_fps_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_fps_label.offset_left = -110.0
+	_fps_label.offset_top = 16.0
+	_fps_label.offset_right = -18.0
+	_fps_label.offset_bottom = 42.0
+	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_fps_label.add_theme_font_size_override("font_size", 16)
+	_fps_label.add_theme_color_override("font_color", Color("aebfc3"))
+	hud.add_child(_fps_label)
 
 func _update_editor_presentation(local: Node3D) -> void:
 	if local == null or _editor_stage == null:
