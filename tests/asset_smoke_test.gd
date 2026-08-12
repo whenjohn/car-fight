@@ -47,6 +47,10 @@ func _init() -> void:
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")
 		quit(1)
 		return
+	if "unshaded" in grid_shader.code or "EMISSION" in grid_shader.code:
+		push_error("GRID_SHADOW_TEST FAIL: ground shader must receive real lighting and shadows")
+		quit(1)
+		return
 	var full_roll_degrees := rad_to_deg(absf(JEEP_PRESENTATION.chassis_roll_target(1.85, 8.0)))
 	if absf(full_roll_degrees - 11.0) > 0.001:
 		push_error("JEEP_ROLL_TEST FAIL: expected 11 degrees at medium-speed full steer")

@@ -15,6 +15,10 @@ static func ground_body_y(radius: float) -> float:
 	return radius + 0.04
 
 
+static func camera_target(body_position: Vector3) -> Vector3:
+	return Vector3(body_position.x, 0.0, body_position.z)
+
+
 static func ramp() -> Dictionary:
 	return {
 		"name": "LaunchRamp",
@@ -41,4 +45,27 @@ static func upper_roads() -> Array[Dictionary]:
 			"rotation": Vector3.ZERO,
 			"color": Color("53656b"),
 		},
+	]
+
+
+static func supports() -> Array[Dictionary]:
+	var height := ROAD_SURFACE_Y - ROAD_THICKNESS
+	var y := height * 0.5
+	return [
+		{"name": "UpperSupportSouthWest", "size": Vector3(0.7, height, 0.7),
+			"position": Vector3(-3.2, y, 1.0), "color": Color("39484d")},
+		{"name": "UpperSupportSouthEast", "size": Vector3(0.7, height, 0.7),
+			"position": Vector3(3.2, y, 1.0), "color": Color("39484d")},
+		{"name": "UpperSupportMidWest", "size": Vector3(0.7, height, 0.7),
+			"position": Vector3(-3.2, y, -14.0), "color": Color("39484d")},
+		{"name": "UpperSupportMidEast", "size": Vector3(0.7, height, 0.7),
+			"position": Vector3(3.2, y, -14.0), "color": Color("39484d")},
+		{"name": "UpperSupportNorthWest", "size": Vector3(0.7, height, 0.7),
+			"position": Vector3(-3.2, y, -28.0), "color": Color("39484d")},
+		{"name": "UpperSupportNorthEast", "size": Vector3(0.7, height, 0.7),
+			"position": Vector3(3.2, y, -28.0), "color": Color("39484d")},
+		{"name": "CrossSupportWest", "size": Vector3(0.7, height, 0.7),
+			"position": Vector3(-15.0, y, -16.0), "color": Color("39484d")},
+		{"name": "CrossSupportEast", "size": Vector3(0.7, height, 0.7),
+			"position": Vector3(15.0, y, -16.0), "color": Color("39484d")},
 	]

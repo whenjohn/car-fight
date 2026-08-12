@@ -34,6 +34,5 @@ void fragment() {
 	color = mix(color, major_color.rgb, major * 0.45);
 	color = mix(color, axis_color.rgb, axis * 0.40);
 	ALBEDO = color;
-	EMISSION = color * (fine * 0.01 + major * 0.025 + axis * 0.04);
 	ROUGHNESS = 0.9;
 }

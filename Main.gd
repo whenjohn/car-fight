@@ -62,7 +62,8 @@ func _process(_delta: float) -> void:
 	if _camera == null:
 		return
 	var local: Node3D = local_player()
-	var target: Vector3 = Vector3.ZERO if local == null else local.global_position
+	var target: Vector3 = Vector3.ZERO if local == null \
+		else ELEVATED_COURSE.camera_target(local.global_position)
 	var yaw := deg_to_rad(45.0)
 	var pitch := deg_to_rad(55.0)
 	var horizontal := cos(pitch) * 80.0
@@ -413,6 +414,9 @@ func _build_elevated_course() -> void:
 	for road in ELEVATED_COURSE.upper_roads():
 		_add_static_oriented_box(str(road["name"]), road["size"], road["position"],
 			road["color"], road["rotation"])
+	for support in ELEVATED_COURSE.supports():
+		_add_static_box(str(support["name"]), support["size"], support["position"],
+			support["color"])
 
 func _build_shader_ground() -> void:
 	var ground := MeshInstance3D.new()
@@ -458,13 +462,22 @@ func _build_presentation() -> void:
 	env.background_color = Color("10171d")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("b6cad3")
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.22
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	environment.environment = env
 	add_child(environment)
 	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
-	light.light_energy = 1.25
+	light.name = "ShadowSun"
+	light.rotation_degrees = Vector3(-42.0, -32.0, 0.0)
+	light.light_color = Color("fff1d4")
+	light.light_energy = 1.65
 	light.shadow_enabled = true
+	light.shadow_opacity = 0.88
+	light.shadow_bias = 0.025
+	light.shadow_normal_bias = 0.65
+	light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	light.directional_shadow_max_distance = 110.0
+	light.directional_shadow_blend_splits = true
 	add_child(light)
 	_camera = Camera3D.new()
 	_camera.name = "IsometricCamera"

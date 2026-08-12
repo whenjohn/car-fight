@@ -12,11 +12,13 @@ func _init() -> void:
 	if course != null:
 		var ramp: Dictionary = course.ramp()
 		var roads: Array = course.upper_roads()
+		var supports: Array = course.supports()
 		var ramp_size: Vector3 = ramp["size"]
 		var ramp_rotation: Vector3 = ramp["rotation"]
 		var ramp_position: Vector3 = ramp["position"]
 		_check(ramp_rotation.x > 0.0, "ramp rises toward the upper road")
 		_check(roads.size() >= 2, "course has connected upper-level roads")
+		_check(supports.size() >= 4, "upper roads have visible height supports")
 		var rise := ramp_size.z * sin(ramp_rotation.x)
 		_check(absf(rise - float(course.ROAD_SURFACE_Y)) < 0.01,
 			"ramp lip reaches the upper-road height")
@@ -32,6 +34,9 @@ func _init() -> void:
 			var landing_z: float = lip_z - flight_range
 			_check(landing_z <= south_edge and landing_z >= road_position.z - road_size.z * 0.5,
 				"upper road catches a %.1f-speed launch" % speed)
+		var camera_target: Vector3 = course.camera_target(Vector3(7.0, 5.0, -9.0))
+		_check(camera_target.is_equal_approx(Vector3(7.0, 0.0, -9.0)),
+			"camera follows X/Z without cancelling visible jump height")
 
 	var composed: Vector3 = FOLLOW.compose_drive_velocity(Vector3(3.0, 0.0, 4.0), 6.0)
 	_check(composed.is_equal_approx(Vector3(3.0, 6.0, 4.0)),
