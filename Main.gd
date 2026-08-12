@@ -483,13 +483,8 @@ func _build_presentation() -> void:
 	light.rotation_degrees = Vector3(-42.0, -32.0, 0.0)
 	light.light_color = Color("fff1d4")
 	light.light_energy = 0.28
-	light.shadow_enabled = true
-	light.shadow_opacity = 0.88
-	light.shadow_bias = 0.025
-	light.shadow_normal_bias = 0.65
-	light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	light.directional_shadow_max_distance = 110.0
-	light.directional_shadow_blend_splits = true
+	# A second shadow map produces striped self-shadowing on ANGLE.
+	light.shadow_enabled = false
 	add_child(light)
 	# ANGLE's compatibility path does not consistently expose directional
 	# shadows on this Intel Mac. A broad real-time spotlight supplies a shadow
@@ -504,8 +499,10 @@ func _build_presentation() -> void:
 	_shadow_light.spot_attenuation = 0.1
 	_shadow_light.shadow_enabled = true
 	_shadow_light.shadow_opacity = 0.92
-	_shadow_light.shadow_bias = 0.025
-	_shadow_light.shadow_normal_bias = 0.5
+	_shadow_light.shadow_bias = 0.12
+	_shadow_light.shadow_normal_bias = 1.25
+	# Closed box meshes can cast from their back faces without shadow acne.
+	_shadow_light.shadow_reverse_cull_face = true
 	add_child(_shadow_light)
 	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
 	_camera = Camera3D.new()
