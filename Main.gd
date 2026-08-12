@@ -523,7 +523,7 @@ func _on_tick(_delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d deflects=%d ballmax=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_deflection_count(), _maximum_ball_speed])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed])
 		get_tree().quit()
 
 func _server_escape_count() -> int:
@@ -532,10 +532,10 @@ func _server_escape_count() -> int:
 		total += int(child.get("collision_escape_count"))
 	return total
 
-func _server_deflection_count() -> int:
+func _server_bump_count() -> int:
 	var total := 0
 	for child in _players.get_children():
-		total += int(child.get("wall_deflection_count"))
+		total += int(child.get("wall_bump_count"))
 	return total
 
 @rpc("authority", "call_remote", "unreliable")

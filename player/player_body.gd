@@ -11,11 +11,8 @@ var collision_stall_time := 0.0
 var collision_escape_time := 0.0
 var collision_escape_sign := 0.0
 var collision_escape_count := 0
-var wall_deflection_time := 0.0
-var wall_deflection_cooldown := 0.0
-var wall_deflection_direction := Vector3.ZERO
-var wall_deflection_turn_sign := 0.0
-var wall_deflection_count := 0
+var wall_bump_cooldown := 0.0
+var wall_bump_count := 0
 
 @onready var _input := get_node("Input")
 @onready var _sync := get_node("RollbackSynchronizer")
@@ -36,11 +33,8 @@ func _ready() -> void:
 	_sync.add_state(self, "collision_escape_time")
 	_sync.add_state(self, "collision_escape_sign")
 	_sync.add_state(self, "collision_escape_count")
-	_sync.add_state(self, "wall_deflection_time")
-	_sync.add_state(self, "wall_deflection_cooldown")
-	_sync.add_state(self, "wall_deflection_direction")
-	_sync.add_state(self, "wall_deflection_turn_sign")
-	_sync.add_state(self, "wall_deflection_count")
+	_sync.add_state(self, "wall_bump_cooldown")
+	_sync.add_state(self, "wall_bump_count")
 	_sync.add_input(_input, "cursor_offset")
 	_sync.add_input(_input, "burst")
 	_sync.process_settings()
@@ -68,31 +62,27 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var forward: Vector3 = -direct_state.transform.basis.z
 	forward.y = 0.0
 	forward = forward.normalized()
-	wall_deflection_time = maxf(wall_deflection_time - delta, 0.0)
-	wall_deflection_cooldown = maxf(wall_deflection_cooldown - delta, 0.0)
-	var deflection_started := false
-	var deflection_velocity := Vector3.ZERO
-	if wall_deflection_cooldown <= 0.0:
-		var wall_normal := _static_contact_normal()
-		if not wall_normal.is_zero_approx():
-			var preferred_sign := signf(float(command["heading_error"])) \
-				if absf(float(command["heading_error"])) >= FOLLOW.ESCAPE_STEER_EPSILON \
-				else fallback_sign
-			var deflection := FOLLOW.wall_deflection(forward, velocity, wall_normal, preferred_sign)
-			if bool(deflection["active"]):
-				wall_deflection_time = FOLLOW.WALL_DEFLECTION_DURATION
-				wall_deflection_cooldown = FOLLOW.WALL_DEFLECTION_COOLDOWN
-				wall_deflection_direction = deflection["direction"]
-				wall_deflection_turn_sign = deflection["turn_sign"]
-				deflection_velocity = deflection["velocity"]
-				wall_deflection_count += 1
-				deflection_started = true
-	var deflecting := wall_deflection_time > 0.0
+	wall_bump_cooldown = maxf(wall_bump_cooldown - delta, 0.0)
+	var bump_started := false
+	var bump_linear_impulse := Vector3.ZERO
+	var bump_yaw_impulse := 0.0
+	var wall_normal := _static_contact_normal()
+	var touching_static := not wall_normal.is_zero_approx()
+	if wall_bump_cooldown <= 0.0 and touching_static:
+		var preferred_sign := signf(float(command["heading_error"])) \
+			if absf(float(command["heading_error"])) >= FOLLOW.ESCAPE_STEER_EPSILON \
+			else fallback_sign
+		var bump := FOLLOW.wall_bump(forward, velocity, wall_normal, preferred_sign, mass)
+		if bool(bump["active"]):
+			wall_bump_cooldown = FOLLOW.WALL_BUMP_COOLDOWN
+			bump_linear_impulse = bump["linear_impulse"]
+			bump_yaw_impulse = bump["yaw_impulse"]
+			wall_bump_count += 1
+			bump_started = true
 	var escape: Dictionary
-	if deflecting:
-		collision_stall_time = 0.0
-		collision_escape_time = 0.0
-		collision_escape_sign = 0.0
+	if touching_static:
+		# Static contacts use Rapier plus the one-shot impulses above. The timed
+		# escape assist is reserved for cars wedged against other moving cars.
 		escape = {"stall_time": 0.0, "escape_time": 0.0, "escape_sign": 0.0,
 			"active": false, "started": false}
 	else:
@@ -106,27 +96,24 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 		collision_escape_count += 1
 	if offset.length_squared() > 0.0001:
 		aim = Vector3(offset.x, 0.0, offset.y).normalized()
-	var drive_direction := wall_deflection_direction if deflecting \
-		else (FOLLOW.escape_drive_direction(forward, collision_escape_sign) \
-		if bool(escape["active"]) else forward)
+	var drive_direction := FOLLOW.escape_drive_direction(forward, collision_escape_sign) \
+		if bool(escape["active"]) else forward
 	var target_velocity: Vector3 = drive_direction * float(command["speed"])
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-	if deflection_started:
-		horizontal = deflection_velocity
-	else:
-		horizontal = horizontal.move_toward(target_velocity, float(command["acceleration"]) * delta)
-	if bool(escape["started"]) and not deflecting:
+	horizontal = horizontal.move_toward(target_velocity, float(command["acceleration"]) * delta)
+	if bool(escape["started"]):
 		horizontal += drive_direction * FOLLOW.ESCAPE_SIDE_KICK
 	direct_state.linear_velocity = Vector3(horizontal.x, 0.0, horizontal.z)
 	var current_yaw_rate: float = direct_state.angular_velocity.y
-	var target_yaw_rate := wall_deflection_turn_sign * FOLLOW.WALL_DEFLECTION_YAW_RATE \
-		if deflecting else (collision_escape_sign * FOLLOW.ESCAPE_YAW_RATE \
-		if bool(escape["active"]) else float(command["yaw_rate"]))
-	var yaw_acceleration := FOLLOW.WALL_DEFLECTION_YAW_ACCEL if deflecting \
-		else (FOLLOW.ESCAPE_YAW_ACCEL if bool(escape["active"]) \
-		else float(command["yaw_acceleration"]))
+	var target_yaw_rate := collision_escape_sign * FOLLOW.ESCAPE_YAW_RATE \
+		if bool(escape["active"]) else float(command["yaw_rate"])
+	var yaw_acceleration := FOLLOW.ESCAPE_YAW_ACCEL \
+		if bool(escape["active"]) else float(command["yaw_acceleration"])
 	var yaw_rate := move_toward(current_yaw_rate, target_yaw_rate, yaw_acceleration * delta)
 	direct_state.angular_velocity = Vector3(0.0, yaw_rate, 0.0)
+	if bump_started:
+		direct_state.apply_central_impulse(bump_linear_impulse)
+		direct_state.apply_torque_impulse(Vector3.UP * bump_yaw_impulse)
 
 func _static_contact_normal() -> Vector3:
 	for index in range(direct_state.get_contact_count()):

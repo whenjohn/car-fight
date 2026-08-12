@@ -30,16 +30,14 @@ const ESCAPE_YAW_ACCEL := 10.0
 const ESCAPE_SIDE_KICK := 2.2
 const ESCAPE_DEFLECTION_ANGLE := PI * 0.5
 const ESCAPE_STEER_EPSILON := 0.08
-const WALL_DEFLECTION_DURATION := 0.30
-const WALL_DEFLECTION_COOLDOWN := 0.48
-const WALL_DEFLECTION_MIN_APPROACH := 0.10
-const WALL_DEFLECTION_KEEP_SPEED := 0.62
-const WALL_DEFLECTION_MIN_SPEED := 3.2
-const WALL_DEFLECTION_MAX_SPEED := 9.0
-const WALL_DEFLECTION_OUTWARD_WEIGHT := 0.34
-const WALL_DEFLECTION_TANGENT_WEIGHT := 0.94
-const WALL_DEFLECTION_YAW_RATE := 2.35
-const WALL_DEFLECTION_YAW_ACCEL := 11.0
+const WALL_BUMP_COOLDOWN := 0.32
+const WALL_BUMP_MIN_APPROACH := 0.10
+const WALL_BUMP_BASE_DELTA_SPEED := 1.15
+const WALL_BUMP_IMPACT_SCALE := 0.12
+const WALL_BUMP_MAX_DELTA_SPEED := 2.8
+const WALL_BUMP_BASE_YAW_IMPULSE := 22.0
+const WALL_BUMP_YAW_IMPACT_SCALE := 0.35
+const WALL_BUMP_MAX_YAW_IMPULSE := 28.0
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		burst_turn_sign: float, current_speed: float = 0.0) -> Dictionary:
@@ -138,41 +136,40 @@ static func escape_drive_direction(forward: Vector3, escape_sign: float) -> Vect
 	return planar_forward.rotated(Vector3.UP,
 		signf(escape_sign) * ESCAPE_DEFLECTION_ANGLE).normalized()
 
-## Turn a static-body impact into a short glancing exit instead of a dead stop.
-## The supplied normal points away from the wall. Existing tangent motion wins;
-## a nearly head-on impact uses the driver's requested steering side.
-static func wall_deflection(forward: Vector3, velocity: Vector3,
-		wall_normal: Vector3, preferred_turn_sign: float) -> Dictionary:
+## Produce a one-shot collision impulse. It has no tangent component and no
+## duration: Rapier preserves the existing along-wall momentum, while the yaw
+## impulse turns the body naturally after the hit.
+static func wall_bump(forward: Vector3, velocity: Vector3, wall_normal: Vector3,
+		preferred_turn_sign: float, body_mass: float) -> Dictionary:
 	var planar_forward := Vector3(forward.x, 0.0, forward.z).normalized()
 	var planar_velocity := Vector3(velocity.x, 0.0, velocity.z)
 	var wall_out := Vector3(wall_normal.x, 0.0, wall_normal.z).normalized()
 	var motion := planar_velocity.normalized() if not planar_velocity.is_zero_approx() else planar_forward
 	if planar_forward.is_zero_approx() or wall_out.is_zero_approx() \
-			or -motion.dot(wall_out) < WALL_DEFLECTION_MIN_APPROACH:
+			or -motion.dot(wall_out) < WALL_BUMP_MIN_APPROACH:
 		return {
 			"active": false,
-			"direction": planar_forward,
-			"velocity": planar_velocity,
-			"turn_sign": 0.0,
+			"linear_impulse": Vector3.ZERO,
+			"yaw_impulse": 0.0,
 		}
 
 	var tangent := motion - wall_out * motion.dot(wall_out)
-	if tangent.length_squared() < 0.04:
-		var side := signf(preferred_turn_sign)
-		if is_zero_approx(side):
-			side = 1.0
-		tangent = planar_forward.rotated(Vector3.UP, side * PI * 0.5)
-	tangent = tangent.normalized()
-	var direction := (tangent * WALL_DEFLECTION_TANGENT_WEIGHT \
-		+ wall_out * WALL_DEFLECTION_OUTWARD_WEIGHT).normalized()
-	var turn_sign := signf(planar_forward.cross(direction).y)
+	var turn_sign := 0.0
+	if tangent.length_squared() >= 0.04:
+		turn_sign = signf(planar_forward.cross(tangent.normalized()).y)
 	if is_zero_approx(turn_sign):
 		turn_sign = signf(preferred_turn_sign)
-	var exit_speed := clampf(planar_velocity.length() * WALL_DEFLECTION_KEEP_SPEED,
-		WALL_DEFLECTION_MIN_SPEED, WALL_DEFLECTION_MAX_SPEED)
+	if is_zero_approx(turn_sign):
+		turn_sign = 1.0
+	var approach_speed := maxf(-planar_velocity.dot(wall_out), 0.0)
+	var delta_speed := clampf(WALL_BUMP_BASE_DELTA_SPEED \
+		+ approach_speed * WALL_BUMP_IMPACT_SCALE,
+		WALL_BUMP_BASE_DELTA_SPEED, WALL_BUMP_MAX_DELTA_SPEED)
+	var yaw_magnitude := clampf(WALL_BUMP_BASE_YAW_IMPULSE \
+		+ approach_speed * WALL_BUMP_YAW_IMPACT_SCALE,
+		WALL_BUMP_BASE_YAW_IMPULSE, WALL_BUMP_MAX_YAW_IMPULSE)
 	return {
 		"active": true,
-		"direction": direction,
-		"velocity": direction * exit_speed,
-		"turn_sign": turn_sign,
+		"linear_impulse": wall_out * delta_speed * maxf(body_mass, 0.001),
+		"yaw_impulse": turn_sign * yaw_magnitude,
 	}
