@@ -591,6 +591,10 @@ func _build_presentation() -> void:
 	_shadow_light.shadow_opacity = 0.92
 	_shadow_light.shadow_bias = 0.12
 	_shadow_light.shadow_normal_bias = 1.25
+	# Compatibility's soft positional-shadow filter uses a rotating sample
+	# pattern that crawls across plain walls. project.godot selects hard filtering
+	# with a 32-bit depth atlas; keep per-light blur disabled to match it.
+	_shadow_light.shadow_blur = 0.0
 	# Closed box meshes can cast from their back faces without shadow acne.
 	_shadow_light.shadow_reverse_cull_face = true
 	add_child(_shadow_light)

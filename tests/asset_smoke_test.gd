@@ -58,6 +58,16 @@ func _init() -> void:
 		push_error("COVERAGE_DEPTH_TEST FAIL: cones must not draw through solid geometry")
 		quit(1)
 		return
+	if bool(ProjectSettings.get_setting(
+			"rendering/lights_and_shadows/positional_shadow/atlas_16_bits", true)):
+		push_error("SHADOW_DEPTH_TEST FAIL: long-range arena shadows need a 32-bit depth atlas")
+		quit(1)
+		return
+	if int(ProjectSettings.get_setting(
+			"rendering/lights_and_shadows/positional_shadow/soft_shadow_filter_quality", 2)) != 0:
+		push_error("SHADOW_FILTER_TEST FAIL: compatibility shadows must not use a grain pattern")
+		quit(1)
+		return
 	var full_roll_degrees := rad_to_deg(absf(JEEP_PRESENTATION.chassis_roll_target(1.85, 8.0)))
 	if absf(full_roll_degrees - 11.0) > 0.001:
 		push_error("JEEP_ROLL_TEST FAIL: expected 11 degrees at medium-speed full steer")
@@ -67,7 +77,7 @@ func _init() -> void:
 		push_error("JEEP_ROLL_TEST FAIL: stopped chassis must remain level")
 		quit(1)
 		return
-	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded coverage_depth=enabled")
+	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded coverage_depth=enabled shadow_filter=hard shadow_depth=32bit")
 	coverage_visual.free()
 	jeep.free()
 	quit()
