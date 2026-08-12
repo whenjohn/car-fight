@@ -63,6 +63,7 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	throttle = pow(throttle, CURVE)
 	var cursor_reach := clampf(distance / MAX_DISTANCE, 0.0, 1.0)
 	var top_speed := SPEED
+	var boost_active := false
 	var yaw_acceleration := lerpf(TURN_ACCEL_NEAR, TURN_ACCEL_FAR,
 		pow(cursor_reach, TURN_CURSOR_CURVE))
 	# Keep Starter FOLLOW's useful relationship: a close cursor asks for a
@@ -76,6 +77,7 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		yaw_acceleration = REVERSE_TURN_ACCEL
 		burst_turn_sign = 0.0
 	elif burst and distance > DEADZONE:
+		boost_active = true
 		throttle = 1.0
 		top_speed = BURST_SPEED
 		turn_cap = BURST_TURN
@@ -116,6 +118,7 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		"burst_turn_sign": burst_turn_sign,
 		"throttle": throttle,
 		"drive_sign": -1.0 if reverse else 1.0,
+		"boost_active": boost_active,
 	}
 
 ## Mouse drive only owns the ground plane. Gravity, ramps, and impacts own Y.

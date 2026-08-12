@@ -12,6 +12,7 @@ if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script' "
 fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/follow_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/asset_smoke_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/boost_trail_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_layout_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/elevated_course_test.gd

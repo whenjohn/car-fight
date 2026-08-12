@@ -8,6 +8,7 @@ var owner_id := 0
 var spawn_slot := 0
 var aim := Vector3(0.0, 0.0, -1.0)
 var burst_turn_sign := 0.0
+var boost_active := false
 var collision_stall_time := 0.0
 var collision_escape_time := 0.0
 var collision_escape_sign := 0.0
@@ -33,6 +34,7 @@ func _ready() -> void:
 	_sync.enable_input_broadcast = false
 	_sync.add_state(self, "physics_state")
 	_sync.add_state(self, "burst_turn_sign")
+	_sync.add_state(self, "boost_active")
 	_sync.add_state(self, "collision_stall_time")
 	_sync.add_state(self, "collision_escape_time")
 	_sync.add_state(self, "collision_escape_sign")
@@ -66,6 +68,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var command := FOLLOW.command(offset, FOLLOW.heading_yaw(direct_state.transform.basis),
 		_input.burst, burst_turn_sign, planar_speed, _input.reverse)
 	burst_turn_sign = command["burst_turn_sign"]
+	boost_active = bool(command["boost_active"])
 	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
 	var forward: Vector3 = -direct_state.transform.basis.z
 	forward.y = 0.0

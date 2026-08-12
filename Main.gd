@@ -11,6 +11,7 @@ const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
+const BOOST_TRAIL_SCRIPT := preload("res://player/boost_trail.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
@@ -375,6 +376,10 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	hull.set_script(HULL_SCRIPT)
 	hull.position.y = -PLAYER_RADIUS
 	body.add_child(hull)
+	var boost_trail := Node3D.new()
+	boost_trail.name = "BoostTrail"
+	boost_trail.set_script(BOOST_TRAIL_SCRIPT)
+	body.add_child(boost_trail)
 
 	var color := _peer_color(owner_id)
 	var pip := MeshInstance3D.new()
