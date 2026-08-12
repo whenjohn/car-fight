@@ -18,11 +18,11 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 "$godot_bin" --headless --path "$project_root" -- --server --port "$server_port" \
-	--course-test --ticks 480 >"$log_dir/server.log" 2>&1 &
+	--course-test --ticks 600 >"$log_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
 "$godot_bin" --headless --path "$project_root" -- --client --host 127.0.0.1 --port "$server_port" \
-	--name jumper --script ramp --ticks 560 >"$log_dir/client.log" 2>&1 &
+	--name jumper --script ramp --ticks 680 >"$log_dir/client.log" 2>&1 &
 client_pid=$!
 
 if ! wait "$server_pid"; then
@@ -43,6 +43,25 @@ if [[ -z "$result_line" ]] || ! print -r -- "$result_line" | rg -q 'landed=1'; t
 	echo "car did not launch and land on the upper road; logs: $log_dir" >&2
 	tail -100 "$log_dir/server.log" >&2
 	tail -60 "$log_dir/client.log" >&2
+	exit 1
+fi
+if ! print -r -- "$result_line" | rg -q 'grounded=1'; then
+	echo "car did not complete the elevated-road drop; logs: $log_dir" >&2
+	exit 1
+fi
+rebound="$(print -r -- "$result_line" | sed -E 's/.*rebound=([0-9.]+).*/\1/')"
+tilt="$(print -r -- "$result_line" | sed -E 's/.*rebound=[0-9.]+ tilt=([0-9.]+) maxtilt=.*/\1/')"
+max_tilt="$(print -r -- "$result_line" | sed -E 's/.*maxtilt=([0-9.]+).*/\1/')"
+if ! awk -v value="$rebound" 'BEGIN { exit !(value >= 0.15 && value <= 3.0) }'; then
+	echo "landing rebound was not small and visible: $rebound; logs: $log_dir" >&2
+	exit 1
+fi
+if ! awk -v value="$tilt" 'BEGIN { exit !(value >= 0.5 && value <= 18.0) }'; then
+	echo "physical landing jostle was absent or excessive: $tilt degrees; logs: $log_dir" >&2
+	exit 1
+fi
+if ! awk -v value="$max_tilt" 'BEGIN { exit !(value <= 20.0) }'; then
+	echo "vehicle failed to self-right after landing: $max_tilt degrees; logs: $log_dir" >&2
 	exit 1
 fi
 if rg -q 'SCRIPT ERROR|Parse Error|Trying to run rollback .*past the history limit' "$log_dir"/*.log; then

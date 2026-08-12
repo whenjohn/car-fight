@@ -38,6 +38,11 @@ var _ball_seeded := false
 var _maximum_ball_speed := 0.0
 var _maximum_player_y := 0.0
 var _course_landed := false
+var _course_ground_drop_seen := false
+var _course_ground_landed := false
+var _course_rebound_speed := 0.0
+var _course_landing_tilt := 0.0
+var _maximum_player_tilt := 0.0
 var _minimum_player_x := INF
 
 var _players: Node3D
@@ -242,12 +247,13 @@ func _spawn_player(data: Variant) -> Node:
 	body.set("owner_id", owner_id)
 	body.set("spawn_slot", slot)
 	body.gravity_scale = 1.0
-	body.mass = 2.2
+	body.mass = VEHICLE_CONFIG.MASS
 	body.linear_damp = 0.0
-	body.angular_damp = 0.0
+	body.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	body.angular_damp = VEHICLE_CONFIG.ANGULAR_DAMP
 	body.axis_lock_linear_y = false
-	body.axis_lock_angular_x = true
-	body.axis_lock_angular_z = true
+	body.axis_lock_angular_x = false
+	body.axis_lock_angular_z = false
 	body.can_sleep = false
 	body.continuous_cd = true
 	body.contact_monitor = true
@@ -256,10 +262,10 @@ func _spawn_player(data: Variant) -> Node:
 	body.position = spawn.origin
 	body.rotation.y = spawn.basis.get_euler().y
 	var physics_material := PhysicsMaterial.new()
-	physics_material.bounce = 0.12
-	# The gameplay sphere stays upright instead of rolling like a wheel. Zero
-	# contact friction lets the explicit ground-vehicle drive own planar motion.
-	physics_material.friction = 0.0
+	physics_material.bounce = VEHICLE_CONFIG.BOUNCE
+	# Explicit drive owns planar motion; touchdown applies a separate one-shot
+	# physics impulse instead of continuous sphere friction.
+	physics_material.friction = VEHICLE_CONFIG.CONTACT_FRICTION
 	body.physics_material_override = physics_material
 
 	var collision := CollisionShape3D.new()
@@ -558,7 +564,9 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			var delta := target - body.global_position
 			return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(16.0), "burst": false}
 		"ramp":
-			return {"cursor_offset": Vector2(0.0, -16.0), "burst": false}
+			# Slow near the end so the elevated-road drop lands before the arena wall.
+			var reach := 6.0 if body.position.z < -25.0 else 16.0
+			return {"cursor_offset": Vector2(0.0, -reach), "burst": false}
 		"reverse":
 			return {"cursor_offset": Vector2(16.0, 0.0), "burst": false, "reverse": true}
 		_:
@@ -595,7 +603,7 @@ func _on_tick(_delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d minx=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, _minimum_player_x])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x])
 		get_tree().quit()
 
 func _server_escape_count() -> int:
@@ -644,6 +652,7 @@ func _track_server_ball() -> void:
 			_maximum_ball_speed = maxf(_maximum_ball_speed, ball.linear_velocity.length())
 
 func _track_server_course() -> void:
+	var ground_body_y := ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS)
 	var road_body_y := ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS) + ELEVATED_COURSE.ROAD_SURFACE_Y
 	for child in _players.get_children():
 		var body := child as RigidBody3D
@@ -651,11 +660,22 @@ func _track_server_course() -> void:
 			continue
 		_minimum_player_x = minf(_minimum_player_x, body.position.x)
 		_maximum_player_y = maxf(_maximum_player_y, body.position.y)
+		var upright := clampf(body.global_basis.y.normalized().dot(Vector3.UP), -1.0, 1.0)
+		_maximum_player_tilt = maxf(_maximum_player_tilt, rad_to_deg(acos(upright)))
 		if _maximum_player_y > road_body_y + 0.35 \
 				and absf(body.position.y - road_body_y) < 0.20 \
 				and absf(body.position.x) < 3.8 \
 				and body.position.z <= 4.5 and body.position.z >= -30.5:
 			_course_landed = true
+		if _course_landed and body.position.z < -30.5 \
+				and body.position.y > ground_body_y + 1.0 and body.linear_velocity.y < -1.0:
+			_course_ground_drop_seen = true
+		if _course_ground_drop_seen and body.position.y < ground_body_y + 0.25:
+			_course_ground_landed = true
+		# Stop measuring before the north wall can add its own collision rotation.
+		if _course_ground_landed and body.position.z > -37.0:
+			_course_rebound_speed = maxf(_course_rebound_speed, body.linear_velocity.y)
+			_course_landing_tilt = maxf(_course_landing_tilt, rad_to_deg(acos(upright)))
 
 func _peer_color(id: int) -> Color:
 	var palette := [Color("63d8ff"), Color("ffb45e"), Color("b080ff"), Color("72df80"), Color("ff7096")]

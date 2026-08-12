@@ -14,6 +14,9 @@ var collision_escape_sign := 0.0
 var collision_escape_count := 0
 var wall_bump_cooldown := 0.0
 var wall_bump_count := 0
+var was_supported := false
+var landing_fall_speed := 0.0
+var landing_jostle_cooldown := 0.0
 
 @onready var _input := get_node("Input")
 @onready var _sync := get_node("RollbackSynchronizer")
@@ -36,6 +39,9 @@ func _ready() -> void:
 	_sync.add_state(self, "collision_escape_count")
 	_sync.add_state(self, "wall_bump_cooldown")
 	_sync.add_state(self, "wall_bump_count")
+	_sync.add_state(self, "was_supported")
+	_sync.add_state(self, "landing_fall_speed")
+	_sync.add_state(self, "landing_jostle_cooldown")
 	_sync.add_input(_input, "cursor_offset")
 	_sync.add_input(_input, "burst")
 	_sync.add_input(_input, "reverse")
@@ -57,7 +63,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var offset: Vector2 = _input.cursor_offset
 	var velocity: Vector3 = direct_state.linear_velocity
 	var planar_speed := Vector2(velocity.x, velocity.z).length()
-	var command := FOLLOW.command(offset, direct_state.transform.basis.get_euler().y,
+	var command := FOLLOW.command(offset, FOLLOW.heading_yaw(direct_state.transform.basis),
 		_input.burst, burst_turn_sign, planar_speed, _input.reverse)
 	burst_turn_sign = command["burst_turn_sign"]
 	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
@@ -65,6 +71,20 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	forward.y = 0.0
 	forward = forward.normalized()
 	wall_bump_cooldown = maxf(wall_bump_cooldown - delta, 0.0)
+	landing_jostle_cooldown = maxf(landing_jostle_cooldown - delta, 0.0)
+	var support_normal := _static_support_normal()
+	var touching_support := not support_normal.is_zero_approx()
+	var landing_torque_impulse := Vector3.ZERO
+	if touching_support:
+		if not was_supported and landing_jostle_cooldown <= 0.0:
+			landing_torque_impulse = FOLLOW.landing_torque_impulse(
+				velocity, support_normal, landing_fall_speed, mass)
+			if not landing_torque_impulse.is_zero_approx():
+				landing_jostle_cooldown = FOLLOW.LANDING_JOSTLE_COOLDOWN
+		landing_fall_speed = 0.0
+	else:
+		landing_fall_speed = maxf(landing_fall_speed, maxf(-velocity.y, 0.0))
+	was_supported = touching_support
 	var bump_started := false
 	var bump_linear_impulse := Vector3.ZERO
 	var bump_yaw_impulse := 0.0
@@ -113,10 +133,15 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var yaw_acceleration := FOLLOW.ESCAPE_YAW_ACCEL \
 		if bool(escape["active"]) else float(command["yaw_acceleration"])
 	var yaw_rate := move_toward(current_yaw_rate, target_yaw_rate, yaw_acceleration * delta)
-	direct_state.angular_velocity = Vector3(0.0, yaw_rate, 0.0)
+	direct_state.angular_velocity = FOLLOW.compose_drive_angular_velocity(
+		direct_state.angular_velocity, yaw_rate)
+	direct_state.apply_torque(FOLLOW.upright_torque(direct_state.transform.basis,
+		direct_state.angular_velocity, mass))
 	if bump_started:
 		direct_state.apply_central_impulse(bump_linear_impulse)
 		direct_state.apply_torque_impulse(Vector3.UP * bump_yaw_impulse)
+	if not landing_torque_impulse.is_zero_approx():
+		direct_state.apply_torque_impulse(landing_torque_impulse)
 
 func _static_contact_normal() -> Vector3:
 	for index in range(direct_state.get_contact_count()):
@@ -129,6 +154,17 @@ func _static_contact_normal() -> Vector3:
 				continue
 			normal.y = 0.0
 			if not normal.is_zero_approx():
+				return normal.normalized()
+	return Vector3.ZERO
+
+func _static_support_normal() -> Vector3:
+	for index in range(direct_state.get_contact_count()):
+		var collider := direct_state.get_contact_collider_object(index)
+		if collider is StaticBody3D:
+			var normal: Vector3 = direct_state.get_contact_local_normal(index)
+			if absf(normal.y) > 0.45:
+				if normal.y < 0.0:
+					normal = -normal
 				return normal.normalized()
 	return Vector3.ZERO
 

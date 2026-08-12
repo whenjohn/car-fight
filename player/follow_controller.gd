@@ -43,6 +43,13 @@ const WALL_BUMP_MAX_DELTA_SPEED := 3.8
 const WALL_BUMP_BASE_YAW_IMPULSE := 7.0
 const WALL_BUMP_YAW_IMPACT_SCALE := 0.08
 const WALL_BUMP_MAX_YAW_IMPULSE := 9.0
+const UPRIGHT_STIFFNESS := 32.0
+const UPRIGHT_DAMPING := 7.0
+const UPRIGHT_MAX_TORQUE := 70.0
+const LANDING_MIN_IMPACT_SPEED := 2.5
+const LANDING_TORQUE_SCALE := 0.006
+const LANDING_MAX_TORQUE_IMPULSE := 0.65
+const LANDING_JOSTLE_COOLDOWN := 0.35
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		burst_turn_sign: float, current_speed: float = 0.0, reverse: bool = false) -> Dictionary:
@@ -114,6 +121,54 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 ## Mouse drive only owns the ground plane. Gravity, ramps, and impacts own Y.
 static func compose_drive_velocity(planar_velocity: Vector3, vertical_velocity: float) -> Vector3:
 	return Vector3(planar_velocity.x, vertical_velocity, planar_velocity.z)
+
+## Steering owns yaw only. Rapier keeps pitch and roll from ramps, suspension-like
+## low-center-of-mass response, and landing contacts.
+static func compose_drive_angular_velocity(physical_velocity: Vector3, yaw_rate: float) -> Vector3:
+	return Vector3(physical_velocity.x, yaw_rate, physical_velocity.z)
+
+## Project the physical body's nose onto the road plane. Unlike Euler yaw, this
+## stays stable while suspension response adds pitch and roll near +/-90 yaw.
+static func heading_yaw(body_basis: Basis) -> float:
+	var forward := -body_basis.z
+	forward.y = 0.0
+	if forward.is_zero_approx():
+		return 0.0
+	forward = forward.normalized()
+	return atan2(-forward.x, -forward.z)
+
+## A ground vehicle's suspension resists large pitch/roll while still letting
+## collision impulses move the body. This returns a real torque for Rapier to
+## integrate; it never writes an orientation directly.
+static func upright_torque(body_basis: Basis, angular_velocity: Vector3,
+		body_mass: float) -> Vector3:
+	var body_up := body_basis.y.normalized()
+	var upright_dot := clampf(body_up.dot(Vector3.UP), -1.0, 1.0)
+	var tilt_axis := body_up.cross(Vector3.UP)
+	var restoring := Vector3.ZERO
+	if not tilt_axis.is_zero_approx():
+		restoring = tilt_axis.normalized() * acos(upright_dot) * UPRIGHT_STIFFNESS
+	var pitch_roll_velocity := Vector3(angular_velocity.x, 0.0, angular_velocity.z)
+	var torque := (restoring - pitch_roll_velocity * UPRIGHT_DAMPING) \
+		* maxf(body_mass, 0.001)
+	return torque.limit_length(UPRIGHT_MAX_TORQUE)
+
+## Model the brief tire/suspension scrub at touchdown as an angular impulse.
+## Its axis comes from the real support normal and travel direction, while its
+## strength comes from the accumulated fall speed.
+static func landing_torque_impulse(velocity: Vector3, support_normal: Vector3,
+		impact_speed: float, body_mass: float) -> Vector3:
+	var normal := support_normal.normalized()
+	if impact_speed < LANDING_MIN_IMPACT_SPEED or normal.is_zero_approx():
+		return Vector3.ZERO
+	var tangent_velocity := velocity - normal * velocity.dot(normal)
+	var tangent_speed := tangent_velocity.length()
+	if tangent_speed < 0.1:
+		return Vector3.ZERO
+	var axis := normal.cross(tangent_velocity / tangent_speed).normalized()
+	var magnitude := impact_speed * minf(tangent_speed, SPEED) \
+		* LANDING_TORQUE_SCALE * maxf(body_mass, 0.001)
+	return axis * minf(magnitude, LANDING_MAX_TORQUE_IMPULSE)
 
 ## Rollback-safe stuck detector. A genuine launch clears ESCAPE_STALL_SPEED
 ## before the delay; a wall or another vehicle holding the body nearly still
