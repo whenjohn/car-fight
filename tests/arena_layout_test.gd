@@ -18,6 +18,10 @@ func _init() -> void:
 		push_error("ARENA_LAYOUT_TEST FAIL: expanded field must be at least 120 units wide")
 		quit(1)
 		return
+	if float(arena_config.CAMERA_SIZE) < 34.0:
+		push_error("ARENA_LAYOUT_TEST FAIL: camera must show substantially more of the expanded field")
+		quit(1)
+		return
 	if float(arena_config.WALL_HEIGHT) < VEHICLE_CONFIG.COLLISION_RADIUS * 2.0:
 		push_error("ARENA_LAYOUT_TEST FAIL: boundary walls must contain the vehicle collider")
 		quit(1)

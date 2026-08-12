@@ -522,7 +522,7 @@ func _build_presentation() -> void:
 	_camera = Camera3D.new()
 	_camera.name = "IsometricCamera"
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	_camera.size = 24.0
+	_camera.size = ARENA_CONFIG.CAMERA_SIZE
 	_camera.current = true
 	add_child(_camera)
 	var hud := CanvasLayer.new()

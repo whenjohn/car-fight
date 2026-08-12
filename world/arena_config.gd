@@ -4,3 +4,4 @@ extends RefCounted
 const HALF_EXTENT := 64.0
 const WALL_HEIGHT := 4.0
 const WALL_THICKNESS := 1.0
+const CAMERA_SIZE := 36.0
