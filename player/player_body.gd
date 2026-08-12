@@ -9,6 +9,8 @@ var spawn_slot := 0
 var aim := Vector3(0.0, 0.0, -1.0)
 var burst_turn_sign := 0.0
 var boost_active := false
+var is_cloaked := false
+var cloak_held_prev := false
 var collision_stall_time := 0.0
 var collision_escape_time := 0.0
 var collision_escape_sign := 0.0
@@ -35,6 +37,8 @@ func _ready() -> void:
 	_sync.add_state(self, "physics_state")
 	_sync.add_state(self, "burst_turn_sign")
 	_sync.add_state(self, "boost_active")
+	_sync.add_state(self, "is_cloaked")
+	_sync.add_state(self, "cloak_held_prev")
 	_sync.add_state(self, "collision_stall_time")
 	_sync.add_state(self, "collision_escape_time")
 	_sync.add_state(self, "collision_escape_sign")
@@ -47,6 +51,7 @@ func _ready() -> void:
 	_sync.add_input(_input, "cursor_offset")
 	_sync.add_input(_input, "burst")
 	_sync.add_input(_input, "reverse")
+	_sync.add_input(_input, "cloak_held")
 	_sync.add_input(_input, "editing")
 	_sync.process_settings()
 
@@ -63,11 +68,12 @@ func _ready() -> void:
 func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	if direct_state == null:
 		return
+	_service_cloak_toggle(bool(_input.cloak_held))
 	var offset: Vector2 = Vector2.ZERO if _input.editing else _input.cursor_offset
 	var velocity: Vector3 = direct_state.linear_velocity
 	var planar_speed := Vector2(velocity.x, velocity.z).length()
 	var command := FOLLOW.command(offset, FOLLOW.heading_yaw(direct_state.transform.basis),
-		_input.burst and not _input.editing, burst_turn_sign, planar_speed,
+		_input.burst and not _input.editing and not is_cloaked, burst_turn_sign, planar_speed,
 		_input.reverse and not _input.editing)
 	burst_turn_sign = command["burst_turn_sign"]
 	boost_active = bool(command["boost_active"])
@@ -162,6 +168,15 @@ func _static_contact_normal() -> Vector3:
 				return normal.normalized()
 	return Vector3.ZERO
 
+func _service_cloak_toggle(held: bool) -> void:
+	# The wire carries a held level. Only real input transitions write the
+	# rollback edge detector, so holding Q produces exactly one toggle.
+	if held == cloak_held_prev:
+		return
+	cloak_held_prev = held
+	if held:
+		is_cloaked = not is_cloaked
+
 func _static_support_normal() -> Vector3:
 	for index in range(direct_state.get_contact_count()):
 		var collider := direct_state.get_contact_collider_object(index)
@@ -176,7 +191,7 @@ func _static_support_normal() -> Vector3:
 func _process(_delta: float) -> void:
 	if _cursor_marker == null or _cursor_line == null:
 		return
-	if _input.editing:
+	if _input.editing or is_cloaked:
 		_cursor_marker.visible = false
 		_cursor_line.visible = false
 		return

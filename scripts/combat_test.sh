@@ -37,6 +37,7 @@ run_case() {
 
 run_case fire combat "$port"
 run_case edit combat-edit "$((port + 1))"
+run_case cloak cloak "$((port + 2))"
 
 if ! rg -q 'CLIENT_READY' "$log_dir/fire-client.log"; then
 	echo "combat client did not connect; logs: $log_dir" >&2
@@ -50,6 +51,11 @@ fi
 if ! rg -q 'RESULT players=1 .*shots=0 hits=0' "$log_dir/edit-server.log"; then
 	echo "coverage editor mode did not suppress automatic combat; logs: $log_dir" >&2
 	tail -100 "$log_dir/edit-server.log" >&2
+	exit 1
+fi
+if ! rg -q 'RESULT players=1 .*cloaked=1 boosting=0 shots=0 hits=0' "$log_dir/cloak-server.log"; then
+	echo "cloak did not stay server-authoritative and move-only; logs: $log_dir" >&2
+	tail -100 "$log_dir/cloak-server.log" >&2
 	exit 1
 fi
 if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.log; then

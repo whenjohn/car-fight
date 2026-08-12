@@ -4,6 +4,9 @@ extends Node3D
 
 const JEEP_SCENE: PackedScene = preload("res://assets/ground_vehicle/Jeep.fbx")
 const JEEP_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
+const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
+const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
+const CLOAK_DUST_SCRIPT := preload("res://fx/vehicle_cloak_dust.gd")
 const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
@@ -15,6 +18,9 @@ const BOOST_ECHO_INTERVAL := 0.075
 const BOOST_ECHO_LIFETIME := 0.34
 const BOOST_ECHO_MIN_SPEED := 1.0
 const BOOST_ECHO_COLOR := Color(1.0, 0.38, 0.08, 0.28)
+const CLOAK_FADE_TIME := 0.38
+const CLOAK_CUT_FRONT := 2.10
+const CLOAK_CUT_BACK := -2.10
 
 var _body: Node3D
 var _chassis_lean: Node3D
@@ -27,10 +33,19 @@ var _boost_echo_materials: Array[StandardMaterial3D] = []
 var _boost_echo_ages: Array[float] = []
 var _boost_echo_cursor := 0
 var _boost_echo_accum := 0.0
+var _cloak_surfaces: Array[Dictionary] = []
+var _cloak_strength := 0.0
+var _cloak_override_active := false
+var _cloak_dust: Node3D
+var _cloak_ghost: Node3D
+var _cloak_ghost_material: ShaderMaterial
 
 func _ready() -> void:
 	_body = get_parent() as Node3D
 	_build_jeep()
+	_prepare_cloak_meshes(self)
+	_build_cloak_dust()
+	_build_cloak_ghost()
 	_build_boost_echoes()
 
 func _process(delta: float) -> void:
@@ -51,11 +66,15 @@ func _process(delta: float) -> void:
 		for spin_node in _wheel_spin_nodes:
 			spin_node.rotation.x = _wheel_spin_angle
 		_update_boost_echoes(delta, bool(_body.get("boost_active")), planar_speed)
+		_update_cloak(delta, rigid)
 
 static func chassis_roll_target(yaw_rate: float, road_speed: float) -> float:
 	var steer_load := clampf(yaw_rate / STEER_RATE_REFERENCE, -1.0, 1.0)
 	var speed_load := clampf(road_speed / BODY_ROLL_SPEED_REF, 0.0, 1.0)
 	return -steer_load * speed_load * BODY_ROLL_MAX
+
+static func cloak_cut_position(amount: float) -> float:
+	return lerpf(CLOAK_CUT_FRONT, CLOAK_CUT_BACK, clampf(amount, 0.0, 1.0))
 
 func _material(color: Color, metallic: float = 0.0) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
@@ -128,6 +147,113 @@ func _build_weapon_mounts(dark_material: Material, body_material: Material) -> v
 		mount.add_child(_mesh_node("Mount", ring_mesh, Vector3.ZERO, dark_material))
 		mount.add_child(_mesh_node("Barrel", barrel_mesh,
 			Vector3(0.0, 0.04, -0.34), body_material))
+
+## Prepare the dissolve counterparts without replacing the normal materials.
+## The originals remain authoritative whenever the Jeep is fully visible.
+func _prepare_cloak_meshes(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance.mesh != null:
+			if mesh_instance.material_override != null:
+				_cloak_surfaces.append({
+					"mesh": mesh_instance, "surface": -1,
+					"original": mesh_instance.material_override,
+					"material": _cloak_material(mesh_instance.material_override),
+				})
+			else:
+				for surface in range(mesh_instance.mesh.get_surface_count()):
+					_cloak_surfaces.append({
+						"mesh": mesh_instance, "surface": surface,
+						"original": mesh_instance.get_surface_override_material(surface),
+						"material": _cloak_material(mesh_instance.get_active_material(surface)),
+					})
+	for child in node.get_children():
+		_prepare_cloak_meshes(child)
+
+func _cloak_material(source: Material) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = CLOAK_DISSOLVE_SHADER
+	if source is BaseMaterial3D:
+		var base := source as BaseMaterial3D
+		material.set_shader_parameter("base_color", base.albedo_color)
+		material.set_shader_parameter("roughness_value", base.roughness)
+		material.set_shader_parameter("metallic_value", base.metallic)
+		if base.albedo_texture != null:
+			material.set_shader_parameter("albedo_texture", base.albedo_texture)
+			material.set_shader_parameter("use_albedo_texture", true)
+	material.set_shader_parameter("cut_position", CLOAK_CUT_FRONT)
+	return material
+
+func _build_cloak_dust() -> void:
+	_cloak_dust = Node3D.new()
+	_cloak_dust.name = "VehicleCloakDust"
+	_cloak_dust.set_script(CLOAK_DUST_SCRIPT)
+	add_child(_cloak_dust)
+
+## Remote Jeeps disappear completely. The owning client keeps this faint
+## refractive duplicate as a steering reference once the cut reaches the tail.
+func _build_cloak_ghost() -> void:
+	if _body == null or int(_body.get("owner_id")) != multiplayer.get_unique_id():
+		return
+	_cloak_ghost = Node3D.new()
+	_cloak_ghost.name = "OwnerCloakGhost"
+	add_child(_cloak_ghost)
+	for part in _visual_parts:
+		_cloak_ghost.add_child(part.duplicate())
+	_cloak_ghost_material = ShaderMaterial.new()
+	_cloak_ghost_material.shader = CLOAK_GHOST_SHADER
+	_cloak_ghost_material.set_shader_parameter("cloak_strength", 0.0)
+	_apply_cloak_ghost_material(_cloak_ghost)
+	_cloak_ghost.visible = false
+
+func _update_cloak(delta: float, rigid: RigidBody3D) -> void:
+	var target := 1.0 if bool(_body.get("is_cloaked")) else 0.0
+	_cloak_strength = move_toward(_cloak_strength, target,
+		delta / maxf(CLOAK_FADE_TIME, 0.0001))
+	var forward := -global_basis.z.normalized()
+	var right := global_basis.x.normalized()
+	var up := global_basis.y.normalized()
+	var cut := cloak_cut_position(_cloak_strength)
+	_set_cloak_override_active(_cloak_strength > 0.0001)
+	for record in _cloak_surfaces:
+		var material := record["material"] as ShaderMaterial
+		material.set_shader_parameter("vehicle_origin", global_position)
+		material.set_shader_parameter("vehicle_forward", forward)
+		material.set_shader_parameter("vehicle_right", right)
+		material.set_shader_parameter("vehicle_up", up)
+		material.set_shader_parameter("cut_position", cut)
+	if _cloak_dust != null and is_instance_valid(_cloak_dust):
+		_cloak_dust.call("set_source_velocity", rigid.linear_velocity)
+		_cloak_dust.call("set_cloak", _cloak_strength)
+	if _cloak_ghost != null and _cloak_ghost_material != null:
+		for index in range(_visual_parts.size()):
+			_copy_pose(_visual_parts[index], _cloak_ghost.get_child(index) as Node3D)
+		var ghost_strength := smoothstep(0.86, 1.0, _cloak_strength)
+		_cloak_ghost_material.set_shader_parameter("cloak_strength", ghost_strength)
+		_cloak_ghost.visible = ghost_strength > 0.001
+
+func _set_cloak_override_active(active: bool) -> void:
+	if active == _cloak_override_active:
+		return
+	_cloak_override_active = active
+	for record in _cloak_surfaces:
+		var mesh_instance := record["mesh"] as MeshInstance3D
+		if not is_instance_valid(mesh_instance):
+			continue
+		var material := record["material"] as Material if active else record["original"] as Material
+		var surface := int(record["surface"])
+		if surface < 0:
+			mesh_instance.material_override = material
+		else:
+			mesh_instance.set_surface_override_material(surface, material)
+
+func _apply_cloak_ghost_material(node: Node) -> void:
+	if node is GeometryInstance3D:
+		var geometry := node as GeometryInstance3D
+		geometry.material_override = _cloak_ghost_material
+		geometry.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for child in node.get_children():
+		_apply_cloak_ghost_material(child)
 
 ## A tiny pool of frozen Jeep snapshots, matching g2's accepted boost echoes.
 ## They clone only render nodes and never add collision, physics, or network state.

@@ -12,6 +12,8 @@ const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
+const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
+const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const COVERAGE := preload("res://combat/coverage_config.gd")
 const AUTO_TARGETING := preload("res://combat/auto_targeting.gd")
 const COVERAGE_VISUAL_SCRIPT := preload("res://combat/coverage_visual.gd")
@@ -81,6 +83,7 @@ var _shadow_light: SpotLight3D
 var _status_label: Label
 var _editor_label: Label
 var _fps_label: Label
+var _shader_prewarm: Node3D
 
 func _ready() -> void:
 	_parse_args()
@@ -94,6 +97,13 @@ func _ready() -> void:
 	if _role == "server":
 		_start_server()
 	else:
+		if DisplayServer.get_name() != "headless" and _shader_prewarm != null:
+			# Compile the cloak pipelines before ENet/netfox starts its clock. Doing
+			# this after spawn can consume the rollback history on Intel Compatibility.
+			# Presentation gates still use a headless display and cannot produce the
+			# frame_post_draw signal even though they build presentation nodes.
+			await RenderingServer.frame_post_draw
+			_shader_prewarm.visible = false
 		_start_client()
 
 func _process(_delta: float) -> void:
@@ -117,10 +127,12 @@ func _process(_delta: float) -> void:
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
 		var mode := "COVERAGE EDITOR" if _combat_editor_active else "DRIVE + AUTO FIRE"
+		if not _combat_editor_active and local != null and bool(local.get("is_cloaked")):
+			mode = "DRIVE + CLOAKED (AUTO FIRE OFF)"
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s" % [
 			mode, id, speed,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  Space: burst  |  Tab/R: reverse  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  Space: burst  |  Tab: reverse  |  R: cloak  |  E: editor  |  C: cones"]
 	if _fps_label != null:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
@@ -611,6 +623,7 @@ func _build_presentation() -> void:
 	_camera.size = ARENA_CONFIG.CAMERA_SIZE
 	_camera.current = true
 	add_child(_camera)
+	_build_shader_prewarm()
 	_editor_stage = MeshInstance3D.new()
 	_editor_stage.name = "CoverageEditorStage"
 	var editor_plane := PlaneMesh.new()
@@ -650,6 +663,27 @@ func _build_presentation() -> void:
 	_fps_label.add_theme_font_size_override("font_size", 16)
 	_fps_label.add_theme_color_override("font_color", Color("aebfc3"))
 	hud.add_child(_fps_label)
+
+func _build_shader_prewarm() -> void:
+	_shader_prewarm = Node3D.new()
+	_shader_prewarm.name = "ShaderPrewarm"
+	_camera.add_child(_shader_prewarm)
+	_shader_prewarm.position = Vector3(0.0, 0.0, -2.0)
+	for shader in [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER]:
+		var instance := MeshInstance3D.new()
+		var sphere := SphereMesh.new()
+		sphere.radius = 0.001
+		sphere.height = 0.002
+		instance.mesh = sphere
+		var material := ShaderMaterial.new()
+		material.shader = shader
+		if shader == CLOAK_DISSOLVE_SHADER:
+			material.set_shader_parameter("cut_position", -999.0)
+		else:
+			material.set_shader_parameter("cloak_strength", 0.0)
+		instance.material_override = material
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_shader_prewarm.add_child(instance)
 
 func _update_editor_presentation(local: Node3D) -> void:
 	if local == null or _editor_stage == null:
@@ -913,6 +947,11 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2(0.0, -reach), "burst": false}
 		"reverse":
 			return {"cursor_offset": Vector2(16.0, 0.0), "burst": false, "reverse": true}
+		"cloak":
+			# Hold the level so rollback's rising-edge detector toggles exactly once.
+			# Burst is deliberately requested to prove cloak's move-only gate.
+			return {"cursor_offset": Vector2(16.0, 0.0), "burst": true,
+				"cloak_held": true, "editing": false}
 		"combat":
 			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 		"combat-edit":
@@ -952,7 +991,7 @@ func _on_tick(delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f shots=%d hits=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _combat_shot_count, _combat_hit_count])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d boosting=%d shots=%d hits=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_boosting_count(), _combat_shot_count, _combat_hit_count])
 		get_tree().quit()
 
 func _service_auto_combat(delta: float, tick: int) -> void:
@@ -962,7 +1001,7 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 		if body == null:
 			continue
 		var input := body.get_node_or_null("Input")
-		if input == null or bool(input.get("editing")):
+		if input == null or bool(input.get("editing")) or bool(body.get("is_cloaked")):
 			continue
 		var owner_id := int(body.name)
 		var config := _configuration_for(owner_id)
@@ -1122,6 +1161,18 @@ func _server_bump_count() -> int:
 	var total := 0
 	for child in _players.get_children():
 		total += int(child.get("wall_bump_count"))
+	return total
+
+func _server_cloaked_count() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += 1 if bool(child.get("is_cloaked")) else 0
+	return total
+
+func _server_boosting_count() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += 1 if bool(child.get("boost_active")) else 0
 	return total
 
 @rpc("authority", "call_remote", "unreliable")

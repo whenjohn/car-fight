@@ -15,6 +15,7 @@ var _overlay_visible := true
 var _selected_zone := 0
 var _flash_zone := -1
 var _flash_time := 0.0
+var _last_cloaked := false
 var _fills: Array[MeshInstance3D] = []
 var _edges: Array[MeshInstance3D] = []
 var _handles: Array[MeshInstance3D] = []
@@ -43,6 +44,10 @@ func _ready() -> void:
 	_rebuild()
 
 func _process(delta: float) -> void:
+	var cloaked := bool(get_parent().get("is_cloaked"))
+	if cloaked != _last_cloaked:
+		_last_cloaked = cloaked
+		_refresh_visibility()
 	_flash_time = maxf(_flash_time - delta, 0.0)
 	if _flash_time <= 0.0 and _flash_zone >= 0:
 		_flash_zone = -1
@@ -76,8 +81,9 @@ func flash_zone(index: int) -> void:
 	_flash_time = 0.14
 	_rebuild_materials()
 
-static func overlay_is_visible(editor_mode: bool, drive_overlay_visible: bool) -> bool:
-	return editor_mode or drive_overlay_visible
+static func overlay_is_visible(editor_mode: bool, drive_overlay_visible: bool,
+		cloaked: bool = false) -> bool:
+	return not cloaked and (editor_mode or drive_overlay_visible)
 
 func _rebuild() -> void:
 	for index in range(COVERAGE.ZONE_COUNT):
@@ -92,7 +98,7 @@ func _rebuild() -> void:
 	_rebuild_materials()
 
 func _rebuild_materials() -> void:
-	visible = overlay_is_visible(_editor_mode, _overlay_visible)
+	_refresh_visibility()
 	for index in range(COVERAGE.ZONE_COUNT):
 		var selected := _editor_mode and index == _selected_zone
 		var active := index == _flash_zone and _flash_time > 0.0
@@ -114,6 +120,9 @@ func _rebuild_materials() -> void:
 			# Handles must remain findable when collapsed underneath the Jeep.
 			handle_material.no_depth_test = true
 			handle.material_override = handle_material
+
+func _refresh_visibility() -> void:
+	visible = overlay_is_visible(_editor_mode, _overlay_visible, _last_cloaked)
 
 func _set_handle(handle: MeshInstance3D, point: Vector2) -> void:
 	handle.position = Vector3(point.x, 0.05, point.y)

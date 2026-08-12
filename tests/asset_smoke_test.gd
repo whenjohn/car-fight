@@ -54,6 +54,20 @@ func _init() -> void:
 		push_error("GRID_SHADOW_TEST FAIL: ground shader must receive real lighting and shadows")
 		quit(1)
 		return
+	var cloak_shader := load("res://fx/vehicle_cloak_dissolve.gdshader") as Shader
+	var ghost_shader := load("res://fx/vehicle_cloak_ghost.gdshader") as Shader
+	if cloak_shader == null or ghost_shader == null:
+		push_error("CLOAK_SHADER_TEST FAIL: vehicle cloak shaders did not load")
+		quit(1)
+		return
+	if "vehicle_forward" not in cloak_shader.code or "world_vertex.y - cut_height" in cloak_shader.code:
+		push_error("CLOAK_DIRECTION_TEST FAIL: dissolve must use the vehicle's longitudinal axis")
+		quit(1)
+		return
+	if JEEP_PRESENTATION.cloak_cut_position(0.0) <= JEEP_PRESENTATION.cloak_cut_position(1.0):
+		push_error("CLOAK_WIPE_TEST FAIL: cloak must cut front-to-back and return back-to-front")
+		quit(1)
+		return
 	var coverage_visual := COVERAGE_VISUAL.new()
 	var coverage_material := coverage_visual.call("_material", Color.WHITE) as StandardMaterial3D
 	if coverage_material.no_depth_test:
