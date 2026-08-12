@@ -84,6 +84,9 @@ func _init() -> void:
 	if float(head_on_bump["yaw_impulse"]) <= 0.0:
 		_failures += 1
 		push_error("head-on bump must add yaw on the preferred steering side")
+	if absf(float(head_on_bump["yaw_impulse"])) > 10.0:
+		_failures += 1
+		push_error("wall yaw impulse must stay below the sphere collider's spin threshold")
 
 	var glancing_bump := FOLLOW.wall_bump(
 		Vector3(1.0, 0.0, -1.0).normalized(), Vector3(8.0, 0.0, -8.0), Vector3.LEFT, -1.0, 2.2)

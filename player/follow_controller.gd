@@ -30,14 +30,14 @@ const ESCAPE_YAW_ACCEL := 10.0
 const ESCAPE_SIDE_KICK := 2.2
 const ESCAPE_DEFLECTION_ANGLE := PI * 0.5
 const ESCAPE_STEER_EPSILON := 0.08
-const WALL_BUMP_COOLDOWN := 0.32
+const WALL_BUMP_COOLDOWN := 0.55
 const WALL_BUMP_MIN_APPROACH := 0.10
-const WALL_BUMP_BASE_DELTA_SPEED := 1.15
-const WALL_BUMP_IMPACT_SCALE := 0.12
-const WALL_BUMP_MAX_DELTA_SPEED := 2.8
-const WALL_BUMP_BASE_YAW_IMPULSE := 22.0
-const WALL_BUMP_YAW_IMPACT_SCALE := 0.35
-const WALL_BUMP_MAX_YAW_IMPULSE := 28.0
+const WALL_BUMP_BASE_DELTA_SPEED := 1.8
+const WALL_BUMP_IMPACT_SCALE := 0.14
+const WALL_BUMP_MAX_DELTA_SPEED := 3.8
+const WALL_BUMP_BASE_YAW_IMPULSE := 7.0
+const WALL_BUMP_YAW_IMPACT_SCALE := 0.08
+const WALL_BUMP_MAX_YAW_IMPULSE := 9.0
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		burst_turn_sign: float, current_speed: float = 0.0) -> Dictionary:
