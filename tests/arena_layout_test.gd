@@ -1,13 +1,27 @@
 extends SceneTree
 
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
-const ARENA_HALF := 40.0
+const ARENA_CONFIG_PATH := "res://world/arena_config.gd"
 const SPAWNS := [
 	Vector2(-3.0, 0.0), Vector2(3.0, 0.0),
 	Vector2(0.0, -3.0), Vector2(0.0, 3.0),
 ]
 
 func _init() -> void:
+	var arena_config := load(ARENA_CONFIG_PATH)
+	if arena_config == null:
+		push_error("ARENA_LAYOUT_TEST FAIL: shared arena dimensions are missing")
+		quit(1)
+		return
+	var arena_half: float = float(arena_config.HALF_EXTENT)
+	if arena_half < 60.0:
+		push_error("ARENA_LAYOUT_TEST FAIL: expanded field must be at least 120 units wide")
+		quit(1)
+		return
+	if float(arena_config.WALL_HEIGHT) < VEHICLE_CONFIG.COLLISION_RADIUS * 2.0:
+		push_error("ARENA_LAYOUT_TEST FAIL: boundary walls must contain the vehicle collider")
+		quit(1)
+		return
 	var layout_script := load("res://world/arena_layout.gd")
 	if layout_script == null:
 		push_error("ARENA_LAYOUT_TEST FAIL: collision-object layout is missing")
@@ -29,7 +43,7 @@ func _init() -> void:
 			return
 		names[obstacle_name] = true
 		var footprint := Vector2(size.x, size.z).length() * 0.5
-		if maxf(absf(position.x), absf(position.z)) + footprint >= ARENA_HALF:
+		if maxf(absf(position.x), absf(position.z)) + footprint >= arena_half:
 			push_error("ARENA_LAYOUT_TEST FAIL: %s reaches outside the arena" % obstacle_name)
 			quit(1)
 			return

@@ -4,7 +4,8 @@ extends Node3D
 
 const DEFAULT_PORT := 10080
 const MAX_CLIENTS := 16
-const ARENA_HALF := 40.0
+const ARENA_CONFIG := preload("res://world/arena_config.gd")
+const ARENA_HALF := ARENA_CONFIG.HALF_EXTENT
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
@@ -295,7 +296,7 @@ func _spawn_player(data: Variant) -> Node:
 func _spawn_transform(slot: int) -> Transform3D:
 	if _reverse_test and slot == 0:
 		return Transform3D(Basis(Vector3.UP, -PI * 0.5),
-			Vector3(37.8, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0))
+			Vector3(ARENA_HALF - 2.2, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0))
 	if _course_test and slot == 0:
 		return Transform3D(Basis.IDENTITY,
 			Vector3(0.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 27.0))
@@ -415,10 +416,17 @@ func _build_arena() -> void:
 		Vector3(0.0, -0.5, 0.0), Color("202a2d"), 0.0, false)
 	if not _is_headless():
 		_build_shader_ground()
-	_add_static_box("WallNorth", Vector3(ARENA_HALF * 2.0 + 2.0, 2.0, 1.0), Vector3(0.0, 1.0, -ARENA_HALF), Color("596674"))
-	_add_static_box("WallSouth", Vector3(ARENA_HALF * 2.0 + 2.0, 2.0, 1.0), Vector3(0.0, 1.0, ARENA_HALF), Color("596674"))
-	_add_static_box("WallWest", Vector3(1.0, 2.0, ARENA_HALF * 2.0), Vector3(-ARENA_HALF, 1.0, 0.0), Color("596674"))
-	_add_static_box("WallEast", Vector3(1.0, 2.0, ARENA_HALF * 2.0), Vector3(ARENA_HALF, 1.0, 0.0), Color("596674"))
+	var wall_height: float = ARENA_CONFIG.WALL_HEIGHT
+	var wall_thickness: float = ARENA_CONFIG.WALL_THICKNESS
+	var wall_y := wall_height * 0.5
+	_add_static_box("WallNorth", Vector3(ARENA_HALF * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), Vector3(0.0, wall_y, -ARENA_HALF), Color("596674"))
+	_add_static_box("WallSouth", Vector3(ARENA_HALF * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), Vector3(0.0, wall_y, ARENA_HALF), Color("596674"))
+	_add_static_box("WallWest", Vector3(wall_thickness, wall_height, ARENA_HALF * 2.0),
+		Vector3(-ARENA_HALF, wall_y, 0.0), Color("596674"))
+	_add_static_box("WallEast", Vector3(wall_thickness, wall_height, ARENA_HALF * 2.0),
+		Vector3(ARENA_HALF, wall_y, 0.0), Color("596674"))
 	for obstacle in ARENA_LAYOUT.collision_objects():
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
