@@ -45,6 +45,7 @@ var _spawner: MultiplayerSpawner
 var _balls: Node3D
 var _ball_spawner: MultiplayerSpawner
 var _camera: Camera3D
+var _shadow_light: SpotLight3D
 var _status_label: Label
 
 func _ready() -> void:
@@ -72,6 +73,9 @@ func _process(_delta: float) -> void:
 	var offset := Vector3(sin(yaw) * horizontal, sin(pitch) * 80.0, cos(yaw) * horizontal)
 	_camera.global_position = target + offset
 	_camera.look_at(target, Vector3.UP)
+	if _shadow_light != null:
+		_shadow_light.global_position = target + Vector3(-32.0, 40.0, 34.0)
+		_shadow_light.look_at(target, Vector3.UP)
 	if _status_label != null:
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
@@ -469,15 +473,16 @@ func _build_presentation() -> void:
 	env.background_color = Color("10171d")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("b6cad3")
-	env.ambient_light_energy = 0.22
+	env.ambient_light_energy = 0.08
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 0.82
 	environment.environment = env
 	add_child(environment)
 	var light := DirectionalLight3D.new()
 	light.name = "ShadowSun"
 	light.rotation_degrees = Vector3(-42.0, -32.0, 0.0)
 	light.light_color = Color("fff1d4")
-	light.light_energy = 1.65
+	light.light_energy = 0.28
 	light.shadow_enabled = true
 	light.shadow_opacity = 0.88
 	light.shadow_bias = 0.025
@@ -486,6 +491,23 @@ func _build_presentation() -> void:
 	light.directional_shadow_max_distance = 110.0
 	light.directional_shadow_blend_splits = true
 	add_child(light)
+	# ANGLE's compatibility path does not consistently expose directional
+	# shadows on this Intel Mac. A broad real-time spotlight supplies a shadow
+	# map that the ground grid, roads, supports, cars, and ball all receive.
+	_shadow_light = SpotLight3D.new()
+	_shadow_light.name = "ArenaShadowLight"
+	_shadow_light.position = Vector3(-32.0, 40.0, 34.0)
+	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
+	_shadow_light.light_color = Color("fff0cf")
+	_shadow_light.light_energy = 1.75
+	_shadow_light.spot_range = 100.0
+	_shadow_light.spot_angle = 66.0
+	_shadow_light.spot_attenuation = 0.1
+	_shadow_light.shadow_enabled = true
+	_shadow_light.shadow_opacity = 0.92
+	_shadow_light.shadow_bias = 0.025
+	_shadow_light.shadow_normal_bias = 0.5
+	add_child(_shadow_light)
 	_camera = Camera3D.new()
 	_camera.name = "IsometricCamera"
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
