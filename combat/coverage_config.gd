@@ -12,6 +12,7 @@ const DEFAULT_WIDTH := PI * 0.5
 const MAX_RANGE := 24.0
 const MAX_WIDTH := deg_to_rad(150.0)
 const TOTAL_BUDGET := 4.0 * DEFAULT_RANGE * DEFAULT_RANGE
+const MIN_EDITOR_HANDLE_DISTANCE := 2.4
 
 static func default_ranges() -> PackedFloat32Array:
 	return PackedFloat32Array([DEFAULT_RANGE, DEFAULT_RANGE, DEFAULT_RANGE, DEFAULT_RANGE])
@@ -101,6 +102,12 @@ static func handle_positions(index: int, reach: float, width: float,
 		"left": edge_center - perpendicular * half_base,
 		"right": edge_center + perpendicular * half_base,
 	}
+
+static func editor_handle_positions(index: int, reach: float, width: float,
+		tip_outward: bool = false) -> Dictionary:
+	# Keep a recovery handle outside the Jeep even when the real cone is tiny.
+	# This affects only editor presentation and picking, never combat geometry.
+	return handle_positions(index, maxf(reach, MIN_EDITOR_HANDLE_DISTANCE), width, tip_outward)
 
 static func width_from_handle(index: int, reach: float, point: Vector2) -> float:
 	if reach <= 0.0001:

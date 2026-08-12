@@ -15,7 +15,7 @@ Networking is native ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: s
 
 Controls:
 
-- A normal client starts in the coverage editor. Drag a zone's centre handle to change range and either edge handle to change width, then press `Enter` to drive. Press `E` to return to editing.
+- A normal client starts in the coverage editor. Drag a zone's centre handle to change range and either edge handle to change width. Press `F` to flip its tip and `R` to restore all four presets, then press `Enter` to drive. Press `E` to return to editing. Editor handles remain recoverable outside the Jeep when a cone is collapsed.
 - Four triangular cones are preset at the Jeep's front, right, rear, and left. Their combined area cannot exceed the four default 90° cones at range 8. Narrowing or disabling one cone frees area for longer or wider coverage elsewhere.
 - Press `F` to flip the selected cone. A vehicle-pointing cone starts precise and widens with distance; an outward-pointing cone starts wide beside the Jeep and narrows toward its far tip.
 - Move the mouse around the Jeep to steer toward it.

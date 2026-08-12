@@ -118,7 +118,7 @@ func _process(_delta: float) -> void:
 		var mode := "COVERAGE EDITOR" if _combat_editor_active else "DRIVE + AUTO FIRE"
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s" % [
 			mode, id, speed,
-			"Drag cone handles  |  Enter: drive" if _combat_editor_active \
+			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
 			else "Mouse: drive  |  Space: burst  |  Tab/R: reverse  |  E: editor  |  C: cones"]
 	_update_editor_label()
 
@@ -669,7 +669,7 @@ func _update_editor_label() -> void:
 	var tips_outward: PackedByteArray = config["tips_outward"]
 	var used := COVERAGE.total_area(ranges, widths)
 	var direction_label := "OUTWARD TIP" if bool(tips_outward[_selected_zone]) else "VEHICLE TIP"
-	_editor_label.text = "%s  ·  range %.1f  ·  width %.0f°  ·  %s\nAREA  %.1f / %.1f\nF: flip selected cone" % [
+	_editor_label.text = "%s  ·  range %.1f  ·  width %.0f°  ·  %s\nAREA  %.1f / %.1f\nF: flip selected cone  ·  R: reset presets" % [
 		COVERAGE.ZONE_NAMES[_selected_zone], ranges[_selected_zone],
 		rad_to_deg(widths[_selected_zone]), direction_label, used, COVERAGE.TOTAL_BUDGET]
 
@@ -689,6 +689,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_F and _combat_editor_active:
 			_flip_selected_cone()
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_R and _combat_editor_active:
+			_reset_coverage_cones()
 			get_viewport().set_input_as_handled()
 	if not _combat_editor_active:
 		return
@@ -720,6 +723,18 @@ func _flip_selected_cone() -> void:
 	_update_local_coverage_visual()
 	_submit_local_coverage_config()
 
+func _reset_coverage_cones() -> void:
+	var id := multiplayer.get_unique_id()
+	_coverage_configs[id] = {
+		"ranges": COVERAGE.default_ranges(),
+		"widths": COVERAGE.default_widths(),
+		"tips_outward": COVERAGE.default_tips_outward(),
+	}
+	_coverage_drag.clear()
+	_selected_zone = 0
+	_update_local_coverage_visual()
+	_submit_local_coverage_config()
+
 func combat_editor_active(_body: Node3D) -> bool:
 	return _combat_editor_active
 
@@ -740,7 +755,7 @@ func _begin_coverage_drag(screen_position: Vector2) -> void:
 		if candidate_zone != _selected_zone:
 			zone_order.append(candidate_zone)
 	for zone in zone_order:
-		var handles: Dictionary = COVERAGE.handle_positions(zone, ranges[zone], widths[zone],
+		var handles: Dictionary = COVERAGE.editor_handle_positions(zone, ranges[zone], widths[zone],
 			bool(tips_outward[zone]))
 		for kind in ["range", "left", "right"]:
 			var distance := local.distance_to(handles[kind])

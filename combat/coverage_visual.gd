@@ -76,11 +76,14 @@ func flash_zone(index: int) -> void:
 	_flash_time = 0.14
 	_rebuild_materials()
 
+static func overlay_is_visible(editor_mode: bool, drive_overlay_visible: bool) -> bool:
+	return editor_mode or drive_overlay_visible
+
 func _rebuild() -> void:
 	for index in range(COVERAGE.ZONE_COUNT):
 		_fills[index].mesh = _cone_mesh(_ranges[index], _widths[index], bool(_tips_outward[index]))
 		_edges[index].mesh = _edge_mesh(_ranges[index], _widths[index], bool(_tips_outward[index]))
-		var handles := COVERAGE.handle_positions(index, _ranges[index], _widths[index],
+		var handles := COVERAGE.editor_handle_positions(index, _ranges[index], _widths[index],
 			bool(_tips_outward[index]))
 		var handle_offset := index * 3
 		_set_handle(_handles[handle_offset], handles["range"])
@@ -89,7 +92,7 @@ func _rebuild() -> void:
 	_rebuild_materials()
 
 func _rebuild_materials() -> void:
-	visible = _overlay_visible
+	visible = overlay_is_visible(_editor_mode, _overlay_visible)
 	for index in range(COVERAGE.ZONE_COUNT):
 		var selected := _editor_mode and index == _selected_zone
 		var active := index == _flash_zone and _flash_time > 0.0
@@ -105,9 +108,12 @@ func _rebuild_materials() -> void:
 		_edges[index].material_override = _material(Color(COVERAGE.ZONE_COLORS[index], edge_alpha))
 		for handle_index in range(3):
 			var handle := _handles[index * 3 + handle_index]
-			handle.visible = _editor_mode and _overlay_visible
-			handle.material_override = _material(Color(COVERAGE.ZONE_COLORS[index],
+			handle.visible = _editor_mode
+			var handle_material := _material(Color(COVERAGE.ZONE_COLORS[index],
 				1.0 if selected else 0.72))
+			# Handles must remain findable when collapsed underneath the Jeep.
+			handle_material.no_depth_test = true
+			handle.material_override = handle_material
 
 func _set_handle(handle: MeshInstance3D, point: Vector2) -> void:
 	handle.position = Vector3(point.x, 0.05, point.y)

@@ -34,6 +34,9 @@ func _init() -> void:
 		"outward-pointing cone starts wide beside the Jeep")
 	_check(not COVERAGE.point_in_zone(Vector2(1.0, -7.5), 0, 8.0, PI * 0.5, true),
 		"outward-pointing cone narrows toward its far tip")
+	var collapsed_handles := COVERAGE.editor_handle_positions(0, 0.0, PI * 0.5)
+	_check((collapsed_handles["range"] as Vector2).length() >= COVERAGE.MIN_EDITOR_HANDLE_DISTANCE,
+		"collapsed cones keep an editor recovery handle outside the Jeep")
 	var candidates: Array[Dictionary] = [
 		{"id": 1, "local_position": Vector2(0.0, -6.0), "visible": true},
 		{"id": 2, "local_position": Vector2(0.0, -3.0), "visible": true},

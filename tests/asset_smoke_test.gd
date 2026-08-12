@@ -58,6 +58,14 @@ func _init() -> void:
 		push_error("COVERAGE_DEPTH_TEST FAIL: cones must not draw through solid geometry")
 		quit(1)
 		return
+	if not COVERAGE_VISUAL.overlay_is_visible(true, false):
+		push_error("COVERAGE_EDITOR_VISIBILITY_TEST FAIL: editor must override the drive preference")
+		quit(1)
+		return
+	if COVERAGE_VISUAL.overlay_is_visible(false, false):
+		push_error("COVERAGE_DRIVE_VISIBILITY_TEST FAIL: drive preference must still hide cones")
+		quit(1)
+		return
 	if bool(ProjectSettings.get_setting(
 			"rendering/lights_and_shadows/positional_shadow/atlas_16_bits", true)):
 		push_error("SHADOW_DEPTH_TEST FAIL: long-range arena shadows need a 32-bit depth atlas")
