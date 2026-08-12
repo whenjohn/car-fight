@@ -24,10 +24,12 @@ func _init() -> void:
 	var moving := FOLLOW.command(Vector2(16.0, 0.0), 0.0, false, 0.0, 4.0)
 	_expect_close(moving["yaw_rate"], -1.334, 0.0001, "steering reaches useful authority only after moving")
 	var close_moving := FOLLOW.command(Vector2(4.0, 0.0), 0.0, false, 0.0, 4.0)
-	_expect_close(close_moving["yaw_rate"], -1.8515, 0.0001, "closer cursor sharpens the slower turn")
-	if absf(close_moving["yaw_rate"]) <= absf(moving["yaw_rate"]):
+	if absf(close_moving["yaw_rate"]) < absf(moving["yaw_rate"]) * 1.6:
 		_failures += 1
-		push_error("close cursor must steer more sharply than far cursor at the same road speed")
+		push_error("close cursor must have a substantially tighter turn than far cursor")
+	if float(close_moving["yaw_acceleration"]) <= float(moving["yaw_acceleration"]):
+		_failures += 1
+		push_error("close cursor must reach its tighter turn faster than far cursor")
 
 	var burst := FOLLOW.command(Vector2(3.0, 0.0), 0.0, true, 0.0, 14.0)
 	_expect_close(burst["speed"], 23.3333333, 0.0001, "Space forces full burst speed")

@@ -9,10 +9,11 @@ const DEADZONE := 1.0
 const MAX_DISTANCE := 16.0
 const CURVE := 1.0
 const HEADING_DEADZONE := 0.8
-const TURN_NEAR := 2.2
+const TURN_NEAR := 3.2
 const TURN_FAR := 1.45
 const TURN_CURSOR_CURVE := 1.0
-const TURN_ACCEL := 4.0
+const TURN_ACCEL_NEAR := 7.0
+const TURN_ACCEL_FAR := 4.0
 const STEERING_SPEED_REF := 4.0
 const HIGH_SPEED_TURN_SCALE := 0.72
 const BURST_SPEED := 23.3333333
@@ -51,7 +52,8 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	throttle = pow(throttle, CURVE)
 	var cursor_reach := clampf(distance / MAX_DISTANCE, 0.0, 1.0)
 	var top_speed := SPEED
-	var yaw_acceleration := TURN_ACCEL
+	var yaw_acceleration := lerpf(TURN_ACCEL_NEAR, TURN_ACCEL_FAR,
+		pow(cursor_reach, TURN_CURSOR_CURVE))
 	# Keep Starter FOLLOW's useful relationship: a close cursor asks for a
 	# tighter low-speed turn, while a far cursor asks for a broad fast arc.
 	var turn_cap := lerpf(TURN_NEAR, TURN_FAR, pow(cursor_reach, TURN_CURSOR_CURVE))
