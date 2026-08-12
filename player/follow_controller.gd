@@ -30,6 +30,16 @@ const ESCAPE_YAW_ACCEL := 10.0
 const ESCAPE_SIDE_KICK := 2.2
 const ESCAPE_DEFLECTION_ANGLE := PI * 0.5
 const ESCAPE_STEER_EPSILON := 0.08
+const WALL_DEFLECTION_DURATION := 0.30
+const WALL_DEFLECTION_COOLDOWN := 0.48
+const WALL_DEFLECTION_MIN_APPROACH := 0.10
+const WALL_DEFLECTION_KEEP_SPEED := 0.62
+const WALL_DEFLECTION_MIN_SPEED := 3.2
+const WALL_DEFLECTION_MAX_SPEED := 9.0
+const WALL_DEFLECTION_OUTWARD_WEIGHT := 0.34
+const WALL_DEFLECTION_TANGENT_WEIGHT := 0.94
+const WALL_DEFLECTION_YAW_RATE := 2.35
+const WALL_DEFLECTION_YAW_ACCEL := 11.0
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		burst_turn_sign: float, current_speed: float = 0.0) -> Dictionary:
@@ -127,3 +137,42 @@ static func escape_drive_direction(forward: Vector3, escape_sign: float) -> Vect
 		return planar_forward
 	return planar_forward.rotated(Vector3.UP,
 		signf(escape_sign) * ESCAPE_DEFLECTION_ANGLE).normalized()
+
+## Turn a static-body impact into a short glancing exit instead of a dead stop.
+## The supplied normal points away from the wall. Existing tangent motion wins;
+## a nearly head-on impact uses the driver's requested steering side.
+static func wall_deflection(forward: Vector3, velocity: Vector3,
+		wall_normal: Vector3, preferred_turn_sign: float) -> Dictionary:
+	var planar_forward := Vector3(forward.x, 0.0, forward.z).normalized()
+	var planar_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	var wall_out := Vector3(wall_normal.x, 0.0, wall_normal.z).normalized()
+	var motion := planar_velocity.normalized() if not planar_velocity.is_zero_approx() else planar_forward
+	if planar_forward.is_zero_approx() or wall_out.is_zero_approx() \
+			or -motion.dot(wall_out) < WALL_DEFLECTION_MIN_APPROACH:
+		return {
+			"active": false,
+			"direction": planar_forward,
+			"velocity": planar_velocity,
+			"turn_sign": 0.0,
+		}
+
+	var tangent := motion - wall_out * motion.dot(wall_out)
+	if tangent.length_squared() < 0.04:
+		var side := signf(preferred_turn_sign)
+		if is_zero_approx(side):
+			side = 1.0
+		tangent = planar_forward.rotated(Vector3.UP, side * PI * 0.5)
+	tangent = tangent.normalized()
+	var direction := (tangent * WALL_DEFLECTION_TANGENT_WEIGHT \
+		+ wall_out * WALL_DEFLECTION_OUTWARD_WEIGHT).normalized()
+	var turn_sign := signf(planar_forward.cross(direction).y)
+	if is_zero_approx(turn_sign):
+		turn_sign = signf(preferred_turn_sign)
+	var exit_speed := clampf(planar_velocity.length() * WALL_DEFLECTION_KEEP_SPEED,
+		WALL_DEFLECTION_MIN_SPEED, WALL_DEFLECTION_MAX_SPEED)
+	return {
+		"active": true,
+		"direction": direction,
+		"velocity": direction * exit_speed,
+		"turn_sign": turn_sign,
+	}

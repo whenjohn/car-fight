@@ -69,6 +69,31 @@ func _init() -> void:
 		_failures += 1
 		push_error("a normally moving launch must not trigger collision escape")
 
+	var head_on_deflection := FOLLOW.wall_deflection(
+		Vector3.RIGHT, Vector3(10.0, 0.0, 0.0), Vector3.LEFT, 1.0)
+	if not bool(head_on_deflection["active"]):
+		_failures += 1
+		push_error("a head-on wall impact must start a deflection")
+	var head_on_direction: Vector3 = head_on_deflection["direction"]
+	if head_on_direction.dot(Vector3.LEFT) <= 0.2:
+		_failures += 1
+		push_error("wall deflection must include a visible bump away from the wall")
+	if absf(head_on_direction.dot(Vector3.FORWARD)) <= 0.5:
+		_failures += 1
+		push_error("head-on wall deflection must choose a strong sideways exit")
+	_expect_close(head_on_deflection["turn_sign"], 1.0, 0.0001,
+		"head-on deflection honors the preferred steering side")
+
+	var glancing_deflection := FOLLOW.wall_deflection(
+		Vector3(1.0, 0.0, -1.0).normalized(), Vector3(8.0, 0.0, -8.0), Vector3.LEFT, -1.0)
+	var glancing_direction: Vector3 = glancing_deflection["direction"]
+	if not bool(glancing_deflection["active"]) or glancing_direction.z >= -0.5:
+		_failures += 1
+		push_error("a glancing impact must preserve travel along the wall")
+	if glancing_direction.x >= 0.0:
+		_failures += 1
+		push_error("a glancing impact must still point away from the wall")
+
 	if _failures == 0:
 		print("FOLLOW_TEST PASS")
 		quit()
