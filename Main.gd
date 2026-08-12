@@ -12,6 +12,7 @@ const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
+const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 
 var _role := "client"
@@ -25,6 +26,7 @@ var _latency_ms := 0
 var _jitter_ms := 0
 var _loss_pct := 0.0
 var _force_presentation := false
+var _course_test := false
 var _start_tick := -1
 var _next_spawn_slot := 0
 var _contact_seen := false
@@ -33,6 +35,8 @@ var _prediction_history := {}
 var _worst_correction_error := 0.0
 var _ball_seeded := false
 var _maximum_ball_speed := 0.0
+var _maximum_player_y := 0.0
+var _course_landed := false
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -83,6 +87,8 @@ func _parse_args() -> void:
 			_role = "proxy"
 		elif arg == "--presentation-test":
 			_force_presentation = true
+		elif arg == "--course-test":
+			_course_test = true
 		elif arg.begins_with("--host="):
 			_host = arg.get_slice("=", 1)
 		elif arg == "--host" and index + 1 < args.size():
@@ -226,13 +232,14 @@ func _spawn_player(data: Variant) -> Node:
 	body.name = str(owner_id)
 	body.set("owner_id", owner_id)
 	body.set("spawn_slot", slot)
-	body.gravity_scale = 0.0
+	body.gravity_scale = 1.0
 	body.mass = 2.2
 	body.linear_damp = 0.0
 	body.angular_damp = 0.0
-	body.axis_lock_linear_y = true
+	body.axis_lock_linear_y = false
 	body.axis_lock_angular_x = true
 	body.axis_lock_angular_z = true
+	body.can_sleep = false
 	body.continuous_cd = true
 	body.contact_monitor = true
 	body.max_contacts_reported = 8
@@ -240,8 +247,10 @@ func _spawn_player(data: Variant) -> Node:
 	body.position = spawn.origin
 	body.rotation.y = spawn.basis.get_euler().y
 	var physics_material := PhysicsMaterial.new()
-	physics_material.bounce = 0.35
-	physics_material.friction = 0.1
+	physics_material.bounce = 0.12
+	# The gameplay sphere stays upright instead of rolling like a wheel. Zero
+	# contact friction lets the explicit ground-vehicle drive own planar motion.
+	physics_material.friction = 0.0
 	body.physics_material_override = physics_material
 
 	var collision := CollisionShape3D.new()
@@ -269,9 +278,14 @@ func _spawn_player(data: Variant) -> Node:
 	return body
 
 func _spawn_transform(slot: int) -> Transform3D:
+	if _course_test and slot == 0:
+		return Transform3D(Basis.IDENTITY,
+			Vector3(0.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 27.0))
 	var positions := [
-		Vector3(-3.0, 0.0, 0.0), Vector3(3.0, 0.0, 0.0),
-		Vector3(0.0, 0.0, -3.0), Vector3(0.0, 0.0, 3.0),
+		Vector3(-3.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0),
+		Vector3(3.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0),
+		Vector3(0.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), -3.0),
+		Vector3(0.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 3.0),
 	]
 	var position: Vector3 = positions[slot % positions.size()]
 	var forward := -position.normalized()
@@ -284,15 +298,15 @@ func _spawn_ball(data: Variant) -> Node:
 	body.set_script(BALL_SCRIPT)
 	body.name = str(info.get("name", "ArenaBall"))
 	body.position = info.get("position", BALL_SCRIPT.SPAWN_POSITION)
-	body.gravity_scale = 0.0
+	body.gravity_scale = 1.0
 	body.mass = BALL_SCRIPT.MASS
 	body.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	body.linear_damp = BALL_SCRIPT.LINEAR_DAMP
 	body.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	body.angular_damp = 1.2
-	body.axis_lock_linear_y = true
-	body.axis_lock_angular_x = true
-	body.axis_lock_angular_z = true
+	body.axis_lock_linear_y = false
+	body.axis_lock_angular_x = false
+	body.axis_lock_angular_z = false
 	body.can_sleep = false
 	body.continuous_cd = true
 	body.contact_monitor = true
@@ -340,6 +354,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	var hull := Node3D.new()
 	hull.name = "GroundVehicleHull"
 	hull.set_script(HULL_SCRIPT)
+	hull.position.y = -PLAYER_RADIUS
 	body.add_child(hull)
 
 	var color := _peer_color(owner_id)
@@ -350,7 +365,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	pip_mesh.bottom_radius = 0.16
 	pip_mesh.height = 0.12
 	pip.mesh = pip_mesh
-	pip.position = Vector3(0.0, 1.68, 0.0)
+	pip.position = Vector3(0.0, 1.68 - PLAYER_RADIUS, 0.0)
 	pip.material_override = _material(color, true)
 	body.add_child(pip)
 
@@ -378,9 +393,8 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	body.add_child(line)
 
 func _build_arena() -> void:
-	# Bodies are Y-locked, so the floor is deliberately visual-only. A collider
-	# whose top is y=0 would start every spherical car half embedded in it and
-	# compromise horizontal contact resolution.
+	_add_static_box("GroundCollision", Vector3(ARENA_HALF * 2.0, 1.0, ARENA_HALF * 2.0),
+		Vector3(0.0, -0.5, 0.0), Color("202a2d"), 0.0, false)
 	if not _is_headless():
 		_build_shader_ground()
 	_add_static_box("WallNorth", Vector3(ARENA_HALF * 2.0 + 2.0, 2.0, 1.0), Vector3(0.0, 1.0, -ARENA_HALF), Color("596674"))
@@ -390,6 +404,15 @@ func _build_arena() -> void:
 	for obstacle in ARENA_LAYOUT.collision_objects():
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
+	_build_elevated_course()
+
+func _build_elevated_course() -> void:
+	var ramp: Dictionary = ELEVATED_COURSE.ramp()
+	_add_static_oriented_box(str(ramp["name"]), ramp["size"], ramp["position"],
+		ramp["color"], ramp["rotation"])
+	for road in ELEVATED_COURSE.upper_roads():
+		_add_static_oriented_box(str(road["name"]), road["size"], road["position"],
+			road["color"], road["rotation"])
 
 func _build_shader_ground() -> void:
 	var ground := MeshInstance3D.new()
@@ -405,17 +428,21 @@ func _build_shader_ground() -> void:
 	add_child(ground)
 
 func _add_static_box(node_name: String, size: Vector3, position: Vector3, color: Color,
-		yaw: float = 0.0) -> void:
+		yaw: float = 0.0, visible: bool = true) -> void:
+	_add_static_oriented_box(node_name, size, position, color, Vector3(0.0, yaw, 0.0), visible)
+
+func _add_static_oriented_box(node_name: String, size: Vector3, position: Vector3,
+		color: Color, rotation: Vector3, visible: bool = true) -> void:
 	var body := StaticBody3D.new()
 	body.name = node_name
 	body.position = position
-	body.rotation.y = yaw
+	body.rotation = rotation
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = size
 	collision.shape = shape
 	body.add_child(collision)
-	if not _is_headless():
+	if not _is_headless() and visible:
 		var mesh_instance := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
 		mesh.size = size
@@ -462,7 +489,8 @@ func cursor_offset_for(body: Node3D) -> Vector2:
 	var direction := _camera.project_ray_normal(mouse)
 	if absf(direction.y) < 0.00001:
 		return Vector2.ZERO
-	var t := (body.global_position.y - origin.y) / direction.y
+	var road_plane_y := body.global_position.y - PLAYER_RADIUS
+	var t := (road_plane_y - origin.y) / direction.y
 	if t < 0.0:
 		return Vector2.ZERO
 	var hit := origin + direction * t
@@ -490,6 +518,8 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 				target = (_balls.get_child(0) as Node3D).global_position
 			var delta := target - body.global_position
 			return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(16.0), "burst": false}
+		"ramp":
+			return {"cursor_offset": Vector2(0.0, -16.0), "burst": false}
 		_:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
@@ -505,6 +535,7 @@ func _on_tick(_delta: float, tick: int) -> void:
 	if multiplayer.is_server():
 		_track_server_contacts()
 		_track_server_ball()
+		_track_server_course()
 		if elapsed % 30 == 0:
 			for child in _players.get_children():
 				var body := child as Node3D
@@ -523,7 +554,7 @@ func _on_tick(_delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0])
 		get_tree().quit()
 
 func _server_escape_count() -> int:
@@ -570,6 +601,19 @@ func _track_server_ball() -> void:
 		var ball := child as RigidBody3D
 		if ball != null:
 			_maximum_ball_speed = maxf(_maximum_ball_speed, ball.linear_velocity.length())
+
+func _track_server_course() -> void:
+	var road_body_y := ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS) + ELEVATED_COURSE.ROAD_SURFACE_Y
+	for child in _players.get_children():
+		var body := child as RigidBody3D
+		if body == null:
+			continue
+		_maximum_player_y = maxf(_maximum_player_y, body.position.y)
+		if _maximum_player_y > road_body_y + 0.35 \
+				and absf(body.position.y - road_body_y) < 0.20 \
+				and absf(body.position.x) < 3.8 \
+				and body.position.z <= 4.5 and body.position.z >= -30.5:
+			_course_landed = true
 
 func _peer_color(id: int) -> Color:
 	var palette := [Color("63d8ff"), Color("ffb45e"), Color("b080ff"), Color("72df80"), Color("ff7096")]

@@ -6,7 +6,7 @@ const MASS := 0.85
 const BOUNCE := 0.72
 const FRICTION := 0.08
 const LINEAR_DAMP := 0.42
-const SPAWN_POSITION := Vector3(0.0, 0.0, 8.0)
+const SPAWN_POSITION := Vector3(-8.0, RADIUS + 0.04, 6.0)
 
 @onready var _rollback_sync: Node = $RollbackSynchronizer
 @onready var _interpolator: Node = $TickInterpolator

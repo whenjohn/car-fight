@@ -2,6 +2,7 @@ extends "res://addons/netfox.extras/physics/network-rigid-body-3d.gd"
 ## Server-owned Rapier body with client-owned input and local prediction.
 
 const FOLLOW := preload("res://player/follow_controller.gd")
+const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 
 var owner_id := 0
 var spawn_slot := 0
@@ -103,7 +104,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	horizontal = horizontal.move_toward(target_velocity, float(command["acceleration"]) * delta)
 	if bool(escape["started"]):
 		horizontal += drive_direction * FOLLOW.ESCAPE_SIDE_KICK
-	direct_state.linear_velocity = Vector3(horizontal.x, 0.0, horizontal.z)
+	direct_state.linear_velocity = FOLLOW.compose_drive_velocity(horizontal, velocity.y)
 	var current_yaw_rate: float = direct_state.angular_velocity.y
 	var target_yaw_rate := collision_escape_sign * FOLLOW.ESCAPE_YAW_RATE \
 		if bool(escape["active"]) else float(command["yaw_rate"])
@@ -120,6 +121,10 @@ func _static_contact_normal() -> Vector3:
 		var collider := direct_state.get_contact_collider_object(index)
 		if collider is StaticBody3D:
 			var normal: Vector3 = direct_state.get_contact_local_normal(index)
+			# Floor, ramp, and upper-road contacts support the car vertically; only
+			# near-vertical faces are walls that should produce a horizontal bump.
+			if absf(normal.y) > 0.45:
+				continue
 			normal.y = 0.0
 			if not normal.is_zero_approx():
 				return normal.normalized()
@@ -129,9 +134,11 @@ func _process(_delta: float) -> void:
 	if _cursor_marker == null or _cursor_line == null:
 		return
 	var offset: Vector2 = _input.cursor_offset
-	var target := global_position + Vector3(offset.x, 0.04, offset.y)
+	var road_plane_y := global_position.y - VEHICLE_CONFIG.COLLISION_RADIUS
+	var target := Vector3(global_position.x + offset.x, road_plane_y + 0.04,
+		global_position.z + offset.y)
 	_cursor_marker.global_position = target
-	var start := global_position + Vector3.UP * 0.08
+	var start := Vector3(global_position.x, road_plane_y + 0.08, global_position.z)
 	var distance := start.distance_to(target)
 	var planar_distance := offset.length()
 	_cursor_line.global_position = (start + target) * 0.5

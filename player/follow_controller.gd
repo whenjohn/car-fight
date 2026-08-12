@@ -98,6 +98,10 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		"throttle": throttle,
 	}
 
+## Mouse drive only owns the ground plane. Gravity, ramps, and impacts own Y.
+static func compose_drive_velocity(planar_velocity: Vector3, vertical_velocity: float) -> Vector3:
+	return Vector3(planar_velocity.x, vertical_velocity, planar_velocity.z)
+
 ## Rollback-safe stuck detector. A genuine launch clears ESCAPE_STALL_SPEED
 ## before the delay; a wall or another vehicle holding the body nearly still
 ## arms a brief side-steer escape without introducing a reverse control mode.

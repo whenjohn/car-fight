@@ -41,7 +41,7 @@ static func collision_objects() -> Array[Dictionary]:
 		{
 			"name": "BlockSouth",
 			"size": Vector3(4.0, 2.4, 4.0),
-			"position": Vector3(0.0, 1.2, 22.0),
+			"position": Vector3(-9.0, 1.2, 24.0),
 			"yaw": deg_to_rad(-12.0),
 			"color": Color("56656b"),
 		},
