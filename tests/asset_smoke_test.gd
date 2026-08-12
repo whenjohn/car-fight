@@ -5,6 +5,7 @@ const JEEP_PRESENTATION := preload("res://player/ground_vehicle_hull.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const COVERAGE_VISUAL := preload("res://combat/coverage_visual.gd")
 const TARGET_DUMMY := preload("res://combat/target_dummy.gd")
+const BOLT_VISUAL := preload("res://combat/bolt_visual.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -74,6 +75,20 @@ func _init() -> void:
 	if target_mesh == null or target_mesh.cast_shadow != \
 			GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
 		push_error("TARGET_SHADOW_TEST FAIL: stationary targets must not enter the dynamic shadow pass")
+		quit(1)
+		return
+	var bolt_mesh_a := BOLT_VISUAL._bolt_mesh()
+	var bolt_mesh_b := BOLT_VISUAL._bolt_mesh()
+	var bolt_material_a := BOLT_VISUAL._bolt_material(Color("63d8ff"))
+	var bolt_material_b := BOLT_VISUAL._bolt_material(Color("63d8ff"))
+	if bolt_mesh_a != bolt_mesh_b or bolt_material_a != bolt_material_b:
+		push_error("BOLT_RESOURCE_TEST FAIL: auto-fire bolts must share render resources")
+		quit(1)
+		return
+	var bolt_material := bolt_material_a as StandardMaterial3D
+	if bolt_material == null or bolt_material.emission_enabled \
+			or bolt_material.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED:
+		push_error("BOLT_SHADER_TEST FAIL: bolts must reuse the warmed unshaded shader variant")
 		quit(1)
 		return
 	if bool(ProjectSettings.get_setting(
