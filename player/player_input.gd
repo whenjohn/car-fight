@@ -5,6 +5,7 @@ var cursor_offset := Vector2.ZERO
 var burst := false
 var reverse := false
 var cloak_held := false
+var tractor := false
 # Safe spawn default: authority cannot fire before the owning client's first
 # gathered input declares that it has entered drive mode.
 var editing := true
@@ -17,6 +18,7 @@ func _gather() -> void:
 		burst = false
 		reverse = false
 		cloak_held = false
+		tractor = false
 		editing = true
 		return
 	if main.has_method("scripted_input_for") and main.is_scripted_client():
@@ -25,6 +27,7 @@ func _gather() -> void:
 		burst = bool(scripted.get("burst", false))
 		reverse = bool(scripted.get("reverse", false))
 		cloak_held = bool(scripted.get("cloak_held", false))
+		tractor = bool(scripted.get("tractor", false))
 		editing = bool(scripted.get("editing", false))
 		return
 	if main.has_method("cursor_offset_for"):
@@ -36,3 +39,6 @@ func _gather() -> void:
 	editing = bool(main.call("combat_editor_active", body)) \
 		if main.has_method("combat_editor_active") else false
 	cloak_held = Input.is_action_pressed("cloak") and not editing
+	# Match g2: poll the bare modifier directly so unrelated key events cannot
+	# make InputMap lose the held Shift level.
+	tractor = Input.is_key_pressed(KEY_SHIFT) and not editing

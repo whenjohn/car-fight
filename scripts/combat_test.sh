@@ -53,7 +53,7 @@ if ! rg -q 'RESULT players=1 .*shots=0 hits=0' "$log_dir/edit-server.log"; then
 	tail -100 "$log_dir/edit-server.log" >&2
 	exit 1
 fi
-if ! rg -q 'RESULT players=1 .*cloaked=1 boosting=0 shots=0 hits=0' "$log_dir/cloak-server.log"; then
+if ! rg -q 'RESULT players=1 .*cloaked=1 boosting=0 .*shots=0 hits=0 ballhits=0' "$log_dir/cloak-server.log"; then
 	echo "cloak did not stay server-authoritative and move-only; logs: $log_dir" >&2
 	tail -100 "$log_dir/cloak-server.log" >&2
 	exit 1

@@ -11,6 +11,7 @@ const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
+const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
@@ -28,6 +29,8 @@ const COMBAT_FIRE_INTERVAL_TICKS := 15
 const COMBAT_BOLT_SPEED := 30.0
 const COMBAT_BOLT_LIFETIME := 1.0
 const COMBAT_TARGET_RADIUS := 0.66
+const COMBAT_BALL_IMPULSE := 4.2
+const BALL_TARGET_ID_BASE := -1000
 
 var _role := "client"
 var _host := "127.0.0.1"
@@ -71,6 +74,7 @@ var _bolt_visuals := {}
 var _next_bolt_id := 1
 var _combat_shot_count := 0
 var _combat_hit_count := 0
+var _combat_ball_hit_count := 0
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -132,7 +136,7 @@ func _process(_delta: float) -> void:
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s" % [
 			mode, id, speed,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  Space: burst  |  Tab: reverse  |  R: cloak  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  R: cloak  |  E: editor  |  C: cones"]
 	if _fps_label != null:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
@@ -490,6 +494,40 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	line.material_override = _material(Color(color, 0.7), true)
 	line.visible = is_local
 	body.add_child(line)
+
+	if is_local:
+		var catch_ring := MeshInstance3D.new()
+		catch_ring.name = "TractorCatchRing"
+		catch_ring.top_level = true
+		var ring_mesh := TorusMesh.new()
+		ring_mesh.outer_radius = TRACTOR_CONTROLLER.VACUUM_RADIUS
+		ring_mesh.inner_radius = TRACTOR_CONTROLLER.VACUUM_RADIUS - 0.12
+		ring_mesh.rings = 36
+		ring_mesh.ring_segments = 6
+		catch_ring.mesh = ring_mesh
+		var ring_material := _material(Color(0.39, 0.82, 1.0, 0.86), true)
+		ring_material.emission_enabled = true
+		ring_material.emission = Color("63d8ff")
+		ring_material.emission_energy_multiplier = 1.8
+		catch_ring.material_override = ring_material
+		catch_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		catch_ring.visible = false
+		body.add_child(catch_ring)
+
+	var rope := MeshInstance3D.new()
+	rope.name = "TractorRope"
+	rope.top_level = true
+	var rope_mesh := BoxMesh.new()
+	rope_mesh.size = Vector3(0.065, 0.055, 1.0)
+	rope.mesh = rope_mesh
+	var rope_material := _material(Color(0.38, 0.78, 1.0, 0.88), true)
+	rope_material.emission_enabled = true
+	rope_material.emission = Color("63d8ff")
+	rope_material.emission_energy_multiplier = 2.1
+	rope.material_override = rope_material
+	rope.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rope.visible = false
+	body.add_child(rope)
 
 func _build_arena() -> void:
 	_add_static_box("GroundCollision", Vector3(ARENA_HALF * 2.0, 1.0, ARENA_HALF * 2.0),
@@ -952,6 +990,10 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			# Burst is deliberately requested to prove cloak's move-only gate.
 			return {"cursor_offset": Vector2(16.0, 0.0), "burst": true,
 				"cloak_held": true, "editing": false}
+		"tractor":
+			# Vacuum has no aim input. A zero drive cursor proves the ball enters
+			# solely because it is inside the centered field.
+			return {"cursor_offset": Vector2.ZERO, "tractor": true, "editing": false}
 		"combat":
 			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 		"combat-edit":
@@ -991,7 +1033,7 @@ func _on_tick(delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d boosting=%d shots=%d hits=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_boosting_count(), _combat_shot_count, _combat_hit_count])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count])
 		get_tree().quit()
 
 func _service_auto_combat(delta: float, tick: int) -> void:
@@ -1021,7 +1063,7 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 			_fire_combat_bolt(body, target, zone)
 
 func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
-		tip_outward: bool) -> StaticBody3D:
+		tip_outward: bool) -> Node3D:
 	var candidates: Array[Dictionary] = []
 	var by_id := {}
 	for target_node in _targets.get_children():
@@ -1033,10 +1075,19 @@ func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
 		candidates.append({"id": target_id, "local_position": local,
 			"visible": _has_target_line_of_sight(body, target)})
 		by_id[target_id] = target
+	for index in range(_balls.get_child_count()):
+		var ball := _balls.get_child(index) as RigidBody3D
+		if ball == null:
+			continue
+		var target_id := BALL_TARGET_ID_BASE - index
+		var local := COVERAGE.local_point(ball.global_position, body.global_transform)
+		candidates.append({"id": target_id, "local_position": local,
+			"visible": _has_target_line_of_sight(body, ball)})
+		by_id[target_id] = ball
 	var selected := AUTO_TARGETING.select_nearest(zone, reach, width, tip_outward, candidates)
-	return by_id.get(selected) as StaticBody3D
+	return by_id.get(selected) as Node3D
 
-func _has_target_line_of_sight(body: RigidBody3D, target: StaticBody3D) -> bool:
+func _has_target_line_of_sight(body: RigidBody3D, target: Node3D) -> bool:
 	var start := _combat_muzzle_origin(body, target.global_position)
 	var query := PhysicsRayQueryParameters3D.create(start, target.global_position, 1)
 	query.exclude = _combat_dynamic_rids()
@@ -1063,7 +1114,7 @@ func _combat_muzzle_origin(body: RigidBody3D, aim_point: Vector3) -> Vector3:
 	return body.global_position + planar.normalized() * 1.2 \
 		- Vector3.UP * (PLAYER_RADIUS - 0.82)
 
-func _fire_combat_bolt(body: RigidBody3D, target: StaticBody3D, zone: int) -> void:
+func _fire_combat_bolt(body: RigidBody3D, target: Node3D, zone: int) -> void:
 	var origin := _combat_muzzle_origin(body, target.global_position)
 	var velocity := (target.global_position - origin).normalized() * COMBAT_BOLT_SPEED
 	var bolt_id := _next_bolt_id
@@ -1086,7 +1137,7 @@ func _step_server_bolts(delta: float) -> void:
 		var wall_hit := get_world_3d().direct_space_state.intersect_ray(wall_query)
 		if not wall_hit.is_empty() and segment.length_squared() > 0.0001:
 			wall_fraction = start.distance_to(wall_hit["position"]) / segment.length()
-		var target_hit: StaticBody3D
+		var target_hit: Node3D
 		var target_fraction := 1.01
 		for target_node in _targets.get_children():
 			var target := target_node as StaticBody3D
@@ -1099,9 +1150,25 @@ func _step_server_bolts(delta: float) -> void:
 					and fraction < target_fraction:
 				target_hit = target
 				target_fraction = fraction
+		for ball_node in _balls.get_children():
+			var ball := ball_node as RigidBody3D
+			if ball == null or segment.length_squared() <= 0.0001:
+				continue
+			var fraction := clampf((ball.global_position - start).dot(segment) \
+				/ segment.length_squared(), 0.0, 1.0)
+			var closest := start + segment * fraction
+			if closest.distance_to(ball.global_position) <= BALL_SCRIPT.RADIUS \
+					and fraction < target_fraction:
+				target_hit = ball
+				target_fraction = fraction
 		if target_hit != null and target_fraction <= wall_fraction:
 			_combat_hit_count += 1
-			_register_target_hit.rpc(int(target_hit.get("target_id")))
+			if target_hit.is_in_group("arena_ball"):
+				var hit_direction: Vector3 = (bolt["velocity"] as Vector3).normalized()
+				target_hit.call("apply_external_impulse", hit_direction * COMBAT_BALL_IMPULSE)
+				_combat_ball_hit_count += 1
+			else:
+				_register_target_hit.rpc(int(target_hit.get("target_id")))
 			_end_combat_bolt.rpc(bolt_id)
 			_server_bolts.erase(bolt_id)
 			continue
@@ -1173,6 +1240,18 @@ func _server_boosting_count() -> int:
 	var total := 0
 	for child in _players.get_children():
 		total += 1 if bool(child.get("boost_active")) else 0
+	return total
+
+func _server_tractor_grabs() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += int(child.get("tractor_grab_count"))
+	return total
+
+func _server_tractor_ticks() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += int(child.get("tractor_reel_ticks"))
 	return total
 
 @rpc("authority", "call_remote", "unreliable")

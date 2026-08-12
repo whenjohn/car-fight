@@ -14,6 +14,9 @@ func _init() -> void:
 		_check(float(ball_script.MASS) < PLAYER_MASS, "ball is lighter than a car so impacts launch it")
 		_check(float(ball_script.BOUNCE) >= 0.5, "ball retains a visible bounce after impact")
 		_check(float(ball_script.LINEAR_DAMP) > 0.0, "ball eventually rolls to a stop")
+		var ball: Node = ball_script.new()
+		_check(ball.has_method("apply_external_impulse"), "ball accepts combat and tractor impulses")
+		ball.free()
 		var spawn: Vector3 = ball_script.SPAWN_POSITION
 		_check(absf(spawn.x) < 35.0 and absf(spawn.z) < 35.0, "ball starts inside the arena walls")
 		_check(spawn.distance_to(Vector3(-3.0, 0.0, 0.0)) > float(ball_script.RADIUS) + 1.55,

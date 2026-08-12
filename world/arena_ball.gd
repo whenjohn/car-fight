@@ -10,6 +10,7 @@ const SPAWN_POSITION := Vector3(-8.0, RADIUS + 0.04, 6.0)
 
 @onready var _rollback_sync: Node = $RollbackSynchronizer
 @onready var _interpolator: Node = $TickInterpolator
+var pending_impulse := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -26,3 +27,19 @@ func _ready() -> void:
 	_interpolator.root = self
 	_interpolator.add_property(self, "global_transform")
 	add_to_group("arena_ball")
+	add_to_group("tractorable")
+
+func _physics_rollback_tick(_delta: float, _tick: int) -> void:
+	if direct_state == null:
+		return
+	if pending_impulse.length_squared() > 0.0:
+		direct_state.apply_central_impulse(pending_impulse)
+		pending_impulse = Vector3.ZERO
+
+## Cross-body physics writes are queued and drained in the ball's own rollback
+## tick, matching g2's tractorable prop contract.
+func apply_external_impulse(impulse: Vector3) -> void:
+	pending_impulse += impulse
+
+func tractor_radius() -> float:
+	return RADIUS

@@ -3,6 +3,7 @@ extends "res://addons/netfox.extras/physics/network-rigid-body-3d.gd"
 
 const FOLLOW := preload("res://player/follow_controller.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
+const TRACTOR := preload("res://player/tractor_controller.gd")
 
 var owner_id := 0
 var spawn_slot := 0
@@ -11,6 +12,9 @@ var burst_turn_sign := 0.0
 var boost_active := false
 var is_cloaked := false
 var cloak_held_prev := false
+var tractor_ball_held := false
+var tractor_grab_count := 0
+var tractor_reel_ticks := 0
 var collision_stall_time := 0.0
 var collision_escape_time := 0.0
 var collision_escape_sign := 0.0
@@ -26,6 +30,10 @@ var landing_jostle_cooldown := 0.0
 @onready var _interpolator := get_node("TickInterpolator")
 var _cursor_marker: Node3D
 var _cursor_line: Node3D
+var _cursor_line_material: StandardMaterial3D
+var _cursor_line_color := Color.WHITE
+var _tractor_ring: Node3D
+var _tractor_rope: Node3D
 
 func _ready() -> void:
 	owner_id = int(name)
@@ -39,6 +47,9 @@ func _ready() -> void:
 	_sync.add_state(self, "boost_active")
 	_sync.add_state(self, "is_cloaked")
 	_sync.add_state(self, "cloak_held_prev")
+	_sync.add_state(self, "tractor_ball_held")
+	_sync.add_state(self, "tractor_grab_count")
+	_sync.add_state(self, "tractor_reel_ticks")
 	_sync.add_state(self, "collision_stall_time")
 	_sync.add_state(self, "collision_escape_time")
 	_sync.add_state(self, "collision_escape_sign")
@@ -52,6 +63,7 @@ func _ready() -> void:
 	_sync.add_input(_input, "burst")
 	_sync.add_input(_input, "reverse")
 	_sync.add_input(_input, "cloak_held")
+	_sync.add_input(_input, "tractor")
 	_sync.add_input(_input, "editing")
 	_sync.process_settings()
 
@@ -64,11 +76,19 @@ func _ready() -> void:
 	if local_player:
 		_cursor_marker = get_node_or_null("CursorMarker")
 		_cursor_line = get_node_or_null("CursorLine")
+		_tractor_ring = get_node_or_null("TractorCatchRing")
+		if _cursor_line != null:
+			_cursor_line_material = _cursor_line.get("material_override") as StandardMaterial3D
+			if _cursor_line_material != null:
+				_cursor_line_color = _cursor_line_material.albedo_color
+	_tractor_rope = get_node_or_null("TractorRope")
 
 func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	if direct_state == null:
 		return
 	_service_cloak_toggle(bool(_input.cloak_held))
+	# The vacuum is independent of navigation: Shift never changes the mouse's
+	# normal FOLLOW direction or speed command.
 	var offset: Vector2 = Vector2.ZERO if _input.editing else _input.cursor_offset
 	var velocity: Vector3 = direct_state.linear_velocity
 	var planar_speed := Vector2(velocity.x, velocity.z).length()
@@ -153,6 +173,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 		direct_state.apply_torque_impulse(Vector3.UP * bump_yaw_impulse)
 	if not landing_torque_impulse.is_zero_approx():
 		direct_state.apply_torque_impulse(landing_torque_impulse)
+	_service_tractor(delta)
 
 func _static_contact_normal() -> Vector3:
 	for index in range(direct_state.get_contact_count()):
@@ -170,12 +191,44 @@ func _static_contact_normal() -> Vector3:
 
 func _service_cloak_toggle(held: bool) -> void:
 	# The wire carries a held level. Only real input transitions write the
-	# rollback edge detector, so holding Q produces exactly one toggle.
+	# rollback edge detector, so holding R produces exactly one toggle.
 	if held == cloak_held_prev:
 		return
 	cloak_held_prev = held
 	if held:
 		is_cloaked = not is_cloaked
+
+func _service_tractor(delta: float) -> void:
+	if not bool(_input.tractor) or bool(_input.editing) or is_cloaked:
+		tractor_ball_held = false
+		return
+	var origin: Vector3 = direct_state.transform.origin
+	var pulled_any := false
+	for target_node in get_tree().get_nodes_in_group("tractorable"):
+		var target := target_node as RigidBody3D
+		if target == null or not target.has_method("apply_external_impulse") \
+				or not target.has_method("tractor_radius"):
+			continue
+		var target_radius := float(target.call("tractor_radius"))
+		if not TRACTOR.can_pull(origin, target.global_position, target_radius):
+			continue
+		if not tractor_ball_held and not pulled_any:
+			tractor_grab_count += 1
+		var target_velocity: Vector3 = target.linear_velocity
+		var pull := TRACTOR.reel(origin, direct_state.linear_velocity, mass,
+			target.global_position, target_velocity, target.mass,
+			VEHICLE_CONFIG.COLLISION_RADIUS, target_radius, delta)
+		target.call("apply_external_impulse", pull["target_impulse"])
+		direct_state.apply_central_impulse(pull["origin_impulse"])
+		tractor_reel_ticks += 1
+		pulled_any = true
+	tractor_ball_held = pulled_any
+
+func _arena_ball() -> Node:
+	var balls := get_node_or_null("/root/Main/Balls")
+	if balls == null or balls.get_child_count() == 0:
+		return null
+	return balls.get_child(0) as RigidBody3D
 
 func _static_support_normal() -> Vector3:
 	for index in range(direct_state.get_contact_count()):
@@ -189,11 +242,14 @@ func _static_support_normal() -> Vector3:
 	return Vector3.ZERO
 
 func _process(_delta: float) -> void:
+	_update_tractor_rope()
 	if _cursor_marker == null or _cursor_line == null:
 		return
 	if _input.editing or is_cloaked:
 		_cursor_marker.visible = false
 		_cursor_line.visible = false
+		if _tractor_ring != null:
+			_tractor_ring.visible = false
 		return
 	_cursor_marker.visible = true
 	var offset: Vector2 = _input.cursor_offset
@@ -209,6 +265,27 @@ func _process(_delta: float) -> void:
 	if planar_distance > 0.05:
 		_cursor_line.look_at(target, Vector3.UP)
 	_cursor_line.scale = Vector3(1.0, 1.0, distance)
+	if _cursor_line_material != null:
+		_cursor_line_material.albedo_color = _cursor_line_color
+		_cursor_line_material.emission = _cursor_line_color
+	if _tractor_ring != null:
+		_tractor_ring.visible = bool(_input.tractor)
+		_tractor_ring.global_position = Vector3(global_position.x,
+			road_plane_y + 0.06, global_position.z)
+
+func _update_tractor_rope() -> void:
+	if _tractor_rope == null:
+		return
+	var ball := _arena_ball()
+	_tractor_rope.visible = tractor_ball_held and not is_cloaked and ball != null
+	if not _tractor_rope.visible:
+		return
+	var start := global_position + Vector3.UP * 0.15
+	var finish: Vector3 = ball.global_position
+	var distance := start.distance_to(finish)
+	_tractor_rope.global_position = (start + finish) * 0.5
+	_tractor_rope.look_at(finish, Vector3.UP)
+	_tractor_rope.scale = Vector3(1.0, 1.0, distance)
 
 func speed() -> float:
 	return Vector2(linear_velocity.x, linear_velocity.z).length()
