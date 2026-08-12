@@ -38,6 +38,7 @@ func _ready() -> void:
 	_sync.add_state(self, "wall_bump_count")
 	_sync.add_input(_input, "cursor_offset")
 	_sync.add_input(_input, "burst")
+	_sync.add_input(_input, "reverse")
 	_sync.process_settings()
 
 	var local_player := owner_id == multiplayer.get_unique_id()
@@ -57,7 +58,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var velocity: Vector3 = direct_state.linear_velocity
 	var planar_speed := Vector2(velocity.x, velocity.z).length()
 	var command := FOLLOW.command(offset, direct_state.transform.basis.get_euler().y,
-		_input.burst, burst_turn_sign, planar_speed)
+		_input.burst, burst_turn_sign, planar_speed, _input.reverse)
 	burst_turn_sign = command["burst_turn_sign"]
 	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
 	var forward: Vector3 = -direct_state.transform.basis.z
@@ -81,7 +82,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 			wall_bump_count += 1
 			bump_started = true
 	var escape: Dictionary
-	if touching_static:
+	if touching_static or _input.reverse:
 		# Static contacts use Rapier plus the one-shot impulses above. The timed
 		# escape assist is reserved for cars wedged against other moving cars.
 		escape = {"stall_time": 0.0, "escape_time": 0.0, "escape_sign": 0.0,
@@ -99,7 +100,8 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 		aim = Vector3(offset.x, 0.0, offset.y).normalized()
 	var drive_direction := FOLLOW.escape_drive_direction(forward, collision_escape_sign) \
 		if bool(escape["active"]) else forward
-	var target_velocity: Vector3 = drive_direction * float(command["speed"])
+	var target_velocity: Vector3 = drive_direction * float(command["speed"]) \
+		* float(command["drive_sign"])
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	horizontal = horizontal.move_toward(target_velocity, float(command["acceleration"]) * delta)
 	if bool(escape["started"]):

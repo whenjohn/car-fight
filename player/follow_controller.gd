@@ -22,6 +22,10 @@ const BURST_TURN := 0.85
 const BURST_TURN_ACCEL := 3.0
 const BURST_FLIP_ON := deg_to_rad(150.0)
 const BURST_FLIP_OFF := deg_to_rad(110.0)
+const REVERSE_SPEED := 6.0
+const REVERSE_ACCEL := 14.0
+const REVERSE_TURN := 2.4
+const REVERSE_TURN_ACCEL := 7.0
 const ESCAPE_MIN_REQUEST_SPEED := 4.0
 const ESCAPE_STALL_SPEED := 0.6
 const ESCAPE_STALL_DELAY := 0.22
@@ -41,7 +45,7 @@ const WALL_BUMP_YAW_IMPACT_SCALE := 0.08
 const WALL_BUMP_MAX_YAW_IMPULSE := 9.0
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
-		burst_turn_sign: float, current_speed: float = 0.0) -> Dictionary:
+		burst_turn_sign: float, current_speed: float = 0.0, reverse: bool = false) -> Dictionary:
 	var distance := cursor_offset.length()
 	var desired_yaw := current_yaw
 	if distance > 0.0001:
@@ -58,7 +62,13 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	# tighter low-speed turn, while a far cursor asks for a broad fast arc.
 	var turn_cap := lerpf(TURN_NEAR, TURN_FAR, pow(cursor_reach, TURN_CURSOR_CURVE))
 
-	if burst and distance > DEADZONE:
+	if reverse:
+		throttle = 1.0
+		top_speed = REVERSE_SPEED
+		turn_cap = REVERSE_TURN
+		yaw_acceleration = REVERSE_TURN_ACCEL
+		burst_turn_sign = 0.0
+	elif burst and distance > DEADZONE:
 		throttle = 1.0
 		top_speed = BURST_SPEED
 		turn_cap = BURST_TURN
@@ -83,19 +93,22 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	var cursor_authority := clampf((distance - HEADING_DEADZONE) / (HEADING_DEADZONE * 0.5), 0.0, 1.0)
 	var steering_fraction := clampf(error / (PI * 0.5), -1.0, 1.0)
 	var target_speed := top_speed * throttle
-	var acceleration := BURST_ACCEL if burst and distance > DEADZONE else ACCEL
+	var acceleration := REVERSE_ACCEL if reverse \
+		else (BURST_ACCEL if burst and distance > DEADZONE else ACCEL)
 	if target_speed < current_speed:
 		acceleration = BRAKE
 
 	return {
 		"speed": target_speed,
 		"acceleration": acceleration,
-		"yaw_rate": steering_fraction * turn_cap * speed_authority * cursor_authority,
+		"yaw_rate": steering_fraction * turn_cap * speed_authority * cursor_authority \
+			* (-1.0 if reverse else 1.0),
 		"yaw_acceleration": yaw_acceleration,
 		"turn_cap": turn_cap * speed_authority,
 		"heading_error": error,
 		"burst_turn_sign": burst_turn_sign,
 		"throttle": throttle,
+		"drive_sign": -1.0 if reverse else 1.0,
 	}
 
 ## Mouse drive only owns the ground plane. Gravity, ramps, and impacts own Y.

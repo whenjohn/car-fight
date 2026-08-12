@@ -36,6 +36,18 @@ func _init() -> void:
 	_expect_close(burst["acceleration"], 32.0, 0.0001, "Space uses heavier burst acceleration")
 	_expect_close(burst["yaw_rate"], -0.85, 0.0001, "burst keeps a wider committed turn")
 
+	var reverse_idle := FOLLOW.command(Vector2.ZERO, 0.0, false, 0.0, 0.0, true)
+	_expect_close(reverse_idle["speed"], 6.0, 0.0001, "reverse works without cursor throttle")
+	_expect_close(reverse_idle["drive_sign"], -1.0, 0.0001, "reverse drives opposite vehicle forward")
+	_expect_close(reverse_idle["yaw_rate"], 0.0, 0.0001, "stopped reverse does not pivot")
+	var reverse_turn := FOLLOW.command(Vector2(16.0, 0.0), 0.0, false, 0.0, 4.0, true)
+	if signf(float(reverse_turn["yaw_rate"])) == signf(float(moving["yaw_rate"])):
+		_failures += 1
+		push_error("reverse must invert steering response like a ground vehicle")
+	if not InputMap.has_action("reverse"):
+		_failures += 1
+		push_error("R reverse action must exist in the project input map")
+
 	var escape := {
 		"stall_time": 0.0,
 		"escape_time": 0.0,

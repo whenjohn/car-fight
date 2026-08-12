@@ -18,5 +18,6 @@ fi
 "$project_root/scripts/network_test.sh"
 "$project_root/scripts/ball_test.sh"
 "$project_root/scripts/course_test.sh"
+"$project_root/scripts/reverse_test.sh"
 git -C "$project_root" diff --check
 echo "ALL_TESTS PASS"

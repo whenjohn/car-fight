@@ -34,6 +34,10 @@ burst={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"physical_keycode":32,"unicode":32)]
 }
+reverse={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":82,"unicode":114)]
+}
 
 [netfox]
 
@@ -50,4 +54,3 @@ common/physics_ticks_per_second=120
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
-

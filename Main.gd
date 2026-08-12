@@ -27,6 +27,7 @@ var _jitter_ms := 0
 var _loss_pct := 0.0
 var _force_presentation := false
 var _course_test := false
+var _reverse_test := false
 var _start_tick := -1
 var _next_spawn_slot := 0
 var _contact_seen := false
@@ -37,6 +38,7 @@ var _ball_seeded := false
 var _maximum_ball_speed := 0.0
 var _maximum_player_y := 0.0
 var _course_landed := false
+var _minimum_player_x := INF
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -73,7 +75,7 @@ func _process(_delta: float) -> void:
 	if _status_label != null:
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
-		_status_label.text = "CAR FIGHT  |  peer %d  |  %.1f u/s\nMouse: direction + distance speed  |  Space: burst" % [id, speed]
+		_status_label.text = "CAR FIGHT  |  peer %d  |  %.1f u/s\nMouse: direction + distance speed  |  Space: burst  |  Hold R: reverse" % [id, speed]
 
 func _parse_args() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -90,6 +92,8 @@ func _parse_args() -> void:
 			_force_presentation = true
 		elif arg == "--course-test":
 			_course_test = true
+		elif arg == "--reverse-test":
+			_reverse_test = true
 		elif arg.begins_with("--host="):
 			_host = arg.get_slice("=", 1)
 		elif arg == "--host" and index + 1 < args.size():
@@ -279,6 +283,9 @@ func _spawn_player(data: Variant) -> Node:
 	return body
 
 func _spawn_transform(slot: int) -> Transform3D:
+	if _reverse_test and slot == 0:
+		return Transform3D(Basis(Vector3.UP, -PI * 0.5),
+			Vector3(37.8, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0))
 	if _course_test and slot == 0:
 		return Transform3D(Basis.IDENTITY,
 			Vector3(0.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 27.0))
@@ -533,6 +540,8 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(16.0), "burst": false}
 		"ramp":
 			return {"cursor_offset": Vector2(0.0, -16.0), "burst": false}
+		"reverse":
+			return {"cursor_offset": Vector2(16.0, 0.0), "burst": false, "reverse": true}
 		_:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
@@ -567,7 +576,7 @@ func _on_tick(_delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d minx=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, _minimum_player_x])
 		get_tree().quit()
 
 func _server_escape_count() -> int:
@@ -621,6 +630,7 @@ func _track_server_course() -> void:
 		var body := child as RigidBody3D
 		if body == null:
 			continue
+		_minimum_player_x = minf(_minimum_player_x, body.position.x)
 		_maximum_player_y = maxf(_maximum_player_y, body.position.y)
 		if _maximum_player_y > road_body_y + 0.35 \
 				and absf(body.position.y - road_body_y) < 0.20 \
