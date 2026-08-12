@@ -554,6 +554,9 @@ func _add_static_oriented_box(node_name: String, size: Vector3, position: Vector
 		var mesh := BoxMesh.new()
 		mesh.size = size
 		mesh_instance.mesh = mesh
+		# Static arena geometry receives the vehicle/ball shadows but does not
+		# enter the moving spotlight's shadow pass every rendered frame.
+		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mesh_instance.material_override = _material(color)
 		mesh_instance.set_meta("arena_presentation", true)
 		body.add_child(mesh_instance)

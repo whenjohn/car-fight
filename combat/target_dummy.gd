@@ -47,6 +47,7 @@ func _build_presentation() -> void:
 	mesh.height = 1.5
 	mesh.radial_segments = 12
 	_mesh.mesh = mesh
+	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mesh)
 	_base_material = StandardMaterial3D.new()
 	_base_material.roughness = 0.58

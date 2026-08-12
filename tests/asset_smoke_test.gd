@@ -4,6 +4,7 @@ const JEEP_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const JEEP_PRESENTATION := preload("res://player/ground_vehicle_hull.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const COVERAGE_VISUAL := preload("res://combat/coverage_visual.gd")
+const TARGET_DUMMY := preload("res://combat/target_dummy.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -66,9 +67,23 @@ func _init() -> void:
 		push_error("COVERAGE_DRIVE_VISIBILITY_TEST FAIL: drive preference must still hide cones")
 		quit(1)
 		return
+	var target_dummy := TARGET_DUMMY.new()
+	target_dummy.call("setup", 0, true)
+	var target_meshes := target_dummy.find_children("*", "MeshInstance3D", true, false)
+	var target_mesh := target_meshes[0] as MeshInstance3D if not target_meshes.is_empty() else null
+	if target_mesh == null or target_mesh.cast_shadow != \
+			GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+		push_error("TARGET_SHADOW_TEST FAIL: stationary targets must not enter the dynamic shadow pass")
+		quit(1)
+		return
 	if bool(ProjectSettings.get_setting(
 			"rendering/lights_and_shadows/positional_shadow/atlas_16_bits", true)):
 		push_error("SHADOW_DEPTH_TEST FAIL: long-range arena shadows need a 32-bit depth atlas")
+		quit(1)
+		return
+	if int(ProjectSettings.get_setting(
+			"rendering/lights_and_shadows/positional_shadow/atlas_size", 4096)) != 2048:
+		push_error("SHADOW_ATLAS_TEST FAIL: arena shadow atlas must stay within the 2048 budget")
 		quit(1)
 		return
 	if int(ProjectSettings.get_setting(
@@ -87,6 +102,7 @@ func _init() -> void:
 		return
 	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded coverage_depth=enabled shadow_filter=hard shadow_depth=32bit")
 	coverage_visual.free()
+	target_dummy.free()
 	jeep.free()
 	quit()
 
