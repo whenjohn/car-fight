@@ -497,7 +497,6 @@ func _build_presentation() -> void:
 	_shadow_light = SpotLight3D.new()
 	_shadow_light.name = "ArenaShadowLight"
 	_shadow_light.position = Vector3(-32.0, 40.0, 34.0)
-	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
 	_shadow_light.light_color = Color("fff0cf")
 	_shadow_light.light_energy = 1.75
 	_shadow_light.spot_range = 100.0
@@ -508,6 +507,7 @@ func _build_presentation() -> void:
 	_shadow_light.shadow_bias = 0.025
 	_shadow_light.shadow_normal_bias = 0.5
 	add_child(_shadow_light)
+	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
 	_camera = Camera3D.new()
 	_camera.name = "IsometricCamera"
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
