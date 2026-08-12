@@ -7,10 +7,9 @@ const DRIVE_FILL_ALPHA := 0.018
 const DRIVE_EDGE_ALPHA := 0.055
 const EDIT_FILL_ALPHA := 0.16
 const EDIT_EDGE_ALPHA := 0.68
-const ARC_SEGMENTS := 28
-
 var _ranges := COVERAGE.default_ranges()
 var _widths := COVERAGE.default_widths()
+var _tips_outward := COVERAGE.default_tips_outward()
 var _editor_mode := true
 var _overlay_visible := true
 var _selected_zone := 0
@@ -49,9 +48,11 @@ func _process(delta: float) -> void:
 		_flash_zone = -1
 		_rebuild_materials()
 
-func set_configuration(ranges: PackedFloat32Array, widths: PackedFloat32Array) -> void:
+func set_configuration(ranges: PackedFloat32Array, widths: PackedFloat32Array,
+		tips_outward: PackedByteArray) -> void:
 	_ranges = ranges.duplicate()
 	_widths = widths.duplicate()
+	_tips_outward = tips_outward.duplicate()
 	if is_node_ready():
 		_rebuild()
 
@@ -77,9 +78,10 @@ func flash_zone(index: int) -> void:
 
 func _rebuild() -> void:
 	for index in range(COVERAGE.ZONE_COUNT):
-		_fills[index].mesh = _wedge_mesh(_ranges[index], _widths[index])
-		_edges[index].mesh = _edge_mesh(_ranges[index], _widths[index])
-		var handles := COVERAGE.handle_positions(index, _ranges[index], _widths[index])
+		_fills[index].mesh = _cone_mesh(_ranges[index], _widths[index], bool(_tips_outward[index]))
+		_edges[index].mesh = _edge_mesh(_ranges[index], _widths[index], bool(_tips_outward[index]))
+		var handles := COVERAGE.handle_positions(index, _ranges[index], _widths[index],
+			bool(_tips_outward[index]))
 		var handle_offset := index * 3
 		_set_handle(_handles[handle_offset], handles["range"])
 		_set_handle(_handles[handle_offset + 1], handles["left"])
@@ -110,30 +112,32 @@ func _rebuild_materials() -> void:
 func _set_handle(handle: MeshInstance3D, point: Vector2) -> void:
 	handle.position = Vector3(point.x, 0.05, point.y)
 
-func _wedge_mesh(reach: float, width: float) -> ArrayMesh:
-	var vertices := PackedVector3Array([Vector3(0.0, 0.01, 0.0)])
-	var indices := PackedInt32Array()
-	for step in range(ARC_SEGMENTS + 1):
-		var angle := -width * 0.5 + width * float(step) / ARC_SEGMENTS
-		vertices.append(Vector3(-sin(angle) * reach, 0.01, -cos(angle) * reach))
-		if step > 0:
-			indices.append_array(PackedInt32Array([0, step, step + 1]))
+func _cone_points(reach: float, width: float, tip_outward: bool) -> PackedVector3Array:
+	var half_base := reach * tan(width * 0.5)
+	if tip_outward:
+		return PackedVector3Array([
+			Vector3(-half_base, 0.01, 0.0), Vector3(half_base, 0.01, 0.0),
+			Vector3(0.0, 0.01, -reach)])
+	return PackedVector3Array([
+		Vector3.ZERO, Vector3(half_base, 0.01, -reach),
+		Vector3(-half_base, 0.01, -reach)])
+
+func _cone_mesh(reach: float, width: float, tip_outward: bool) -> ArrayMesh:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_INDEX] = indices
+	arrays[Mesh.ARRAY_VERTEX] = _cone_points(reach, width, tip_outward)
+	arrays[Mesh.ARRAY_INDEX] = PackedInt32Array([0, 1, 2])
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
 
-func _edge_mesh(reach: float, width: float) -> ImmediateMesh:
+func _edge_mesh(reach: float, width: float, tip_outward: bool) -> ImmediateMesh:
 	var mesh := ImmediateMesh.new()
 	mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	mesh.surface_add_vertex(Vector3.ZERO)
-	for step in range(ARC_SEGMENTS + 1):
-		var angle := -width * 0.5 + width * float(step) / ARC_SEGMENTS
-		mesh.surface_add_vertex(Vector3(-sin(angle) * reach, 0.035, -cos(angle) * reach))
-	mesh.surface_add_vertex(Vector3.ZERO)
+	var points := _cone_points(reach, width, tip_outward)
+	for point in points:
+		mesh.surface_add_vertex(Vector3(point.x, 0.035, point.z))
+	mesh.surface_add_vertex(Vector3(points[0].x, 0.035, points[0].z))
 	mesh.surface_end()
 	return mesh
 
@@ -151,4 +155,5 @@ func _material(color: Color) -> StandardMaterial3D:
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = color
 	material.no_depth_test = true
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material

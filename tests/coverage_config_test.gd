@@ -9,7 +9,7 @@ func _init() -> void:
 	var ranges := COVERAGE.default_ranges()
 	var widths := COVERAGE.default_widths()
 	_check(is_equal_approx(COVERAGE.total_area(ranges, widths), COVERAGE.TOTAL_BUDGET),
-		"default four-zone fan exactly fills the shared budget")
+		"default four-cone preset exactly fills the shared budget")
 	_check(COVERAGE.is_valid(ranges, widths), "default coverage is valid")
 	var specialized_ranges := PackedFloat32Array([16.0, 0.0, 0.0, 0.0])
 	var specialized_widths := PackedFloat32Array([PI * 0.5, 0.0, 0.0, 0.0])
@@ -28,13 +28,19 @@ func _init() -> void:
 		"front zone rejects a point beyond its angle")
 	_check(COVERAGE.point_in_zone(Vector2(7.0, 0.0), 1, 8.0, PI * 0.5),
 		"right zone is anchored to the Jeep's positive-X side")
+	_check(not COVERAGE.point_in_zone(Vector2(3.0, -1.0), 0, 8.0, PI * 0.5),
+		"vehicle-pointing cone is narrow beside the Jeep")
+	_check(COVERAGE.point_in_zone(Vector2(3.0, -1.0), 0, 8.0, PI * 0.5, true),
+		"outward-pointing cone starts wide beside the Jeep")
+	_check(not COVERAGE.point_in_zone(Vector2(1.0, -7.5), 0, 8.0, PI * 0.5, true),
+		"outward-pointing cone narrows toward its far tip")
 	var candidates: Array[Dictionary] = [
 		{"id": 1, "local_position": Vector2(0.0, -6.0), "visible": true},
 		{"id": 2, "local_position": Vector2(0.0, -3.0), "visible": true},
 		{"id": 3, "local_position": Vector2(0.0, -2.0), "visible": false},
 		{"id": 4, "local_position": Vector2(6.0, 0.0), "visible": true},
 	]
-	_check(TARGETING.select_nearest(0, 8.0, PI * 0.5, candidates) == 2,
+	_check(TARGETING.select_nearest(0, 8.0, PI * 0.5, false, candidates) == 2,
 		"nearest visible in-zone target wins; blocked and side targets are rejected")
 	if _failures.is_empty():
 		print("COVERAGE_CONFIG_TEST PASS")

@@ -61,6 +61,8 @@ var _coverage_overlay_visible := true
 var _selected_zone := 0
 var _coverage_drag := {}
 var _coverage_configs := {}
+var _editor_stage: MeshInstance3D
+var _editor_presentation_state := -1
 var _zone_last_fire_tick := {}
 var _server_bolts := {}
 var _bolt_visuals := {}
@@ -105,6 +107,8 @@ func _process(_delta: float) -> void:
 	var offset := Vector3(sin(yaw) * horizontal, sin(pitch) * 80.0, cos(yaw) * horizontal)
 	_camera.global_position = target + offset
 	_camera.look_at(target, Vector3.UP)
+	_camera.size = 30.0 if _combat_editor_active else ARENA_CONFIG.CAMERA_SIZE
+	_update_editor_presentation(local)
 	if _shadow_light != null:
 		_shadow_light.global_position = target + Vector3(-32.0, 40.0, 34.0)
 		_shadow_light.look_at(target, Vector3.UP)
@@ -230,7 +234,7 @@ func _on_peer_join(id: int) -> void:
 	_log("PEER_JOIN id=%d slot=%d" % [id, _next_spawn_slot])
 	_spawner.spawn({"id": id, "slot": _next_spawn_slot})
 	var config := _configuration_for(id)
-	_apply_coverage_config.rpc(id, config["ranges"], config["widths"])
+	_apply_coverage_config.rpc(id, config["ranges"], config["widths"], config["tips_outward"])
 	var target_counts := PackedInt32Array()
 	for target in _targets.get_children():
 		target_counts.append(int(target.get("hit_count")))
@@ -293,7 +297,8 @@ func _spawn_player(data: Variant) -> Node:
 	body.set("spawn_slot", slot)
 	if not _coverage_configs.has(owner_id):
 		_coverage_configs[owner_id] = {
-			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths()}
+			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths(),
+			"tips_outward": COVERAGE.default_tips_outward()}
 	body.gravity_scale = 1.0
 	body.mass = VEHICLE_CONFIG.MASS
 	body.linear_damp = 0.0
@@ -417,6 +422,7 @@ func _spawn_ball(data: Variant) -> Node:
 	return body
 
 func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
+	body.visible = not _combat_editor_active or owner_id == multiplayer.get_unique_id()
 	var hull := Node3D.new()
 	hull.name = "GroundVehicleHull"
 	hull.set_script(HULL_SCRIPT)
@@ -429,7 +435,8 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 		coverage_visual.position.y = -PLAYER_RADIUS + 0.09
 		body.add_child(coverage_visual)
 		var config: Dictionary = _configuration_for(owner_id)
-		coverage_visual.call("set_configuration", config["ranges"], config["widths"])
+		coverage_visual.call("set_configuration", config["ranges"], config["widths"],
+			config["tips_outward"])
 		coverage_visual.call("set_editor_mode", _combat_editor_active)
 		coverage_visual.call("set_overlay_visible", _coverage_overlay_visible)
 		coverage_visual.call("set_selected_zone", _selected_zone)
@@ -521,6 +528,7 @@ func _build_shader_ground() -> void:
 	material.shader = load("res://world/grid_ground.gdshader")
 	ground.material_override = material
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ground.set_meta("arena_presentation", true)
 	add_child(ground)
 
 func _add_static_box(node_name: String, size: Vector3, position: Vector3, color: Color,
@@ -544,6 +552,7 @@ func _add_static_oriented_box(node_name: String, size: Vector3, position: Vector
 		mesh.size = size
 		mesh_instance.mesh = mesh
 		mesh_instance.material_override = _material(color)
+		mesh_instance.set_meta("arena_presentation", true)
 		body.add_child(mesh_instance)
 	add_child(body)
 
@@ -592,6 +601,15 @@ func _build_presentation() -> void:
 	_camera.size = ARENA_CONFIG.CAMERA_SIZE
 	_camera.current = true
 	add_child(_camera)
+	_editor_stage = MeshInstance3D.new()
+	_editor_stage.name = "CoverageEditorStage"
+	var editor_plane := PlaneMesh.new()
+	editor_plane.size = Vector2(64.0, 64.0)
+	_editor_stage.mesh = editor_plane
+	_editor_stage.material_override = _material(Color("182125"))
+	_editor_stage.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_editor_stage.visible = false
+	add_child(_editor_stage)
 	var boost_blur := CanvasLayer.new()
 	boost_blur.name = "BoostVelocityBlur"
 	boost_blur.set_script(BOOST_VELOCITY_BLUR_SCRIPT)
@@ -612,6 +630,29 @@ func _build_presentation() -> void:
 	_editor_label.add_theme_color_override("font_color", Color("dce7e8"))
 	hud.add_child(_editor_label)
 
+func _update_editor_presentation(local: Node3D) -> void:
+	if local == null or _editor_stage == null:
+		return
+	_editor_stage.global_position = Vector3(local.global_position.x, 0.015, local.global_position.z)
+	var requested_state := 1 if _combat_editor_active else 0
+	if requested_state == _editor_presentation_state:
+		return
+	_editor_presentation_state = requested_state
+	for visual_node in find_children("*", "VisualInstance3D", true, false):
+		if bool(visual_node.get_meta("arena_presentation", false)):
+			(visual_node as VisualInstance3D).visible = not _combat_editor_active
+	_targets.visible = not _combat_editor_active
+	_balls.visible = not _combat_editor_active
+	_combat_bolts.visible = not _combat_editor_active
+	for player_node in _players.get_children():
+		var player := player_node as Node3D
+		if player != null:
+			player.visible = not _combat_editor_active or player == local
+	var peer_marker := local.get_node_or_null("PeerMarker") as VisualInstance3D
+	if peer_marker != null:
+		peer_marker.visible = not _combat_editor_active
+	_editor_stage.visible = _combat_editor_active
+
 func _update_editor_label() -> void:
 	if _editor_label == null:
 		return
@@ -621,10 +662,12 @@ func _update_editor_label() -> void:
 	var config := _configuration_for(multiplayer.get_unique_id())
 	var ranges: PackedFloat32Array = config["ranges"]
 	var widths: PackedFloat32Array = config["widths"]
+	var tips_outward: PackedByteArray = config["tips_outward"]
 	var used := COVERAGE.total_area(ranges, widths)
-	_editor_label.text = "%s  ·  range %.1f  ·  width %.0f°\nAREA  %.1f / %.1f" % [
+	var direction_label := "OUTWARD TIP" if bool(tips_outward[_selected_zone]) else "VEHICLE TIP"
+	_editor_label.text = "%s  ·  range %.1f  ·  width %.0f°  ·  %s\nAREA  %.1f / %.1f\nF: flip selected cone" % [
 		COVERAGE.ZONE_NAMES[_selected_zone], ranges[_selected_zone],
-		rad_to_deg(widths[_selected_zone]), used, COVERAGE.TOTAL_BUDGET]
+		rad_to_deg(widths[_selected_zone]), direction_label, used, COVERAGE.TOTAL_BUDGET]
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _role != "client" or not _scripted.is_empty():
@@ -639,6 +682,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_C and not _combat_editor_active:
 			_coverage_overlay_visible = not _coverage_overlay_visible
 			_update_local_coverage_visual()
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_F and _combat_editor_active:
+			_flip_selected_cone()
 			get_viewport().set_input_as_handled()
 	if not _combat_editor_active:
 		return
@@ -659,6 +705,17 @@ func _set_combat_editor_active(enabled: bool) -> void:
 	if not enabled:
 		_submit_local_coverage_config()
 
+func _flip_selected_cone() -> void:
+	var id := multiplayer.get_unique_id()
+	var config := _configuration_for(id)
+	var tips_outward: PackedByteArray = \
+		(config["tips_outward"] as PackedByteArray).duplicate()
+	tips_outward[_selected_zone] = 0 if bool(tips_outward[_selected_zone]) else 1
+	config["tips_outward"] = tips_outward
+	_coverage_configs[id] = config
+	_update_local_coverage_visual()
+	_submit_local_coverage_config()
+
 func combat_editor_active(_body: Node3D) -> bool:
 	return _combat_editor_active
 
@@ -671,10 +728,16 @@ func _begin_coverage_drag(screen_position: Vector2) -> void:
 	var config := _configuration_for(multiplayer.get_unique_id())
 	var ranges: PackedFloat32Array = config["ranges"]
 	var widths: PackedFloat32Array = config["widths"]
+	var tips_outward: PackedByteArray = config["tips_outward"]
 	var best_distance := 1.0
 	var best := {}
-	for zone in range(COVERAGE.ZONE_COUNT):
-		var handles: Dictionary = COVERAGE.handle_positions(zone, ranges[zone], widths[zone])
+	var zone_order := [_selected_zone]
+	for candidate_zone in range(COVERAGE.ZONE_COUNT):
+		if candidate_zone != _selected_zone:
+			zone_order.append(candidate_zone)
+	for zone in zone_order:
+		var handles: Dictionary = COVERAGE.handle_positions(zone, ranges[zone], widths[zone],
+			bool(tips_outward[zone]))
 		for kind in ["range", "left", "right"]:
 			var distance := local.distance_to(handles[kind])
 			if distance < best_distance:
@@ -696,14 +759,16 @@ func _drag_coverage(screen_position: Vector2) -> void:
 	var config := _configuration_for(id)
 	var ranges: PackedFloat32Array = (config["ranges"] as PackedFloat32Array).duplicate()
 	var widths: PackedFloat32Array = (config["widths"] as PackedFloat32Array).duplicate()
+	var tips_outward: PackedByteArray = \
+		(config["tips_outward"] as PackedByteArray).duplicate()
 	var zone := int(_coverage_drag["zone"])
 	if str(_coverage_drag["kind"]) == "range":
 		ranges[zone] = COVERAGE.clamp_range(zone, local.length(), ranges, widths)
 	else:
-		var point_heading := atan2(-local.x, -local.y)
-		var offset := absf(wrapf(point_heading - float(COVERAGE.ZONE_HEADINGS[zone]), -PI, PI))
-		widths[zone] = COVERAGE.clamp_width(zone, offset * 2.0, ranges, widths)
-	_coverage_configs[id] = {"ranges": ranges, "widths": widths}
+		var requested_width := COVERAGE.width_from_handle(zone, ranges[zone], local)
+		widths[zone] = COVERAGE.clamp_width(zone, requested_width, ranges, widths)
+	_coverage_configs[id] = {"ranges": ranges, "widths": widths,
+		"tips_outward": tips_outward}
 	_update_local_coverage_visual()
 
 func _finish_coverage_drag() -> void:
@@ -726,28 +791,32 @@ func _mouse_world_point(screen_position: Vector2, body: Node3D) -> Variant:
 func _configuration_for(owner_id: int) -> Dictionary:
 	if not _coverage_configs.has(owner_id):
 		_coverage_configs[owner_id] = {
-			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths()}
+			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths(),
+			"tips_outward": COVERAGE.default_tips_outward()}
 	return _coverage_configs[owner_id]
 
 func _submit_local_coverage_config() -> void:
 	var config := _configuration_for(multiplayer.get_unique_id())
-	_submit_coverage_config.rpc_id(1, config["ranges"], config["widths"])
+	_submit_coverage_config.rpc_id(1, config["ranges"], config["widths"],
+		config["tips_outward"])
 
 @rpc("any_peer", "call_remote", "reliable")
-func _submit_coverage_config(ranges: PackedFloat32Array, widths: PackedFloat32Array) -> void:
-	if not multiplayer.is_server() or not COVERAGE.is_valid(ranges, widths):
+func _submit_coverage_config(ranges: PackedFloat32Array, widths: PackedFloat32Array,
+		tips_outward: PackedByteArray) -> void:
+	if not multiplayer.is_server() or not COVERAGE.is_valid(ranges, widths, tips_outward):
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	if _players.get_node_or_null(str(sender)) == null:
 		return
-	_apply_coverage_config.rpc(sender, ranges, widths)
+	_apply_coverage_config.rpc(sender, ranges, widths, tips_outward)
 
 @rpc("authority", "call_local", "reliable")
 func _apply_coverage_config(owner_id: int, ranges: PackedFloat32Array,
-		widths: PackedFloat32Array) -> void:
-	if not COVERAGE.is_valid(ranges, widths):
+		widths: PackedFloat32Array, tips_outward: PackedByteArray) -> void:
+	if not COVERAGE.is_valid(ranges, widths, tips_outward):
 		return
-	_coverage_configs[owner_id] = {"ranges": ranges.duplicate(), "widths": widths.duplicate()}
+	_coverage_configs[owner_id] = {"ranges": ranges.duplicate(), "widths": widths.duplicate(),
+		"tips_outward": tips_outward.duplicate()}
 	if owner_id == multiplayer.get_unique_id():
 		_update_local_coverage_visual()
 
@@ -759,7 +828,8 @@ func _update_local_coverage_visual() -> void:
 	if visual == null:
 		return
 	var config := _configuration_for(multiplayer.get_unique_id())
-	visual.call("set_configuration", config["ranges"], config["widths"])
+	visual.call("set_configuration", config["ranges"], config["widths"],
+		config["tips_outward"])
 	visual.call("set_editor_mode", _combat_editor_active)
 	visual.call("set_overlay_visible", _coverage_overlay_visible)
 	visual.call("set_selected_zone", _selected_zone)
@@ -862,18 +932,21 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 		var config := _configuration_for(owner_id)
 		var ranges: PackedFloat32Array = config["ranges"]
 		var widths: PackedFloat32Array = config["widths"]
+		var tips_outward: PackedByteArray = config["tips_outward"]
 		for zone in range(COVERAGE.ZONE_COUNT):
 			var cooldown_key := "%d:%d" % [owner_id, zone]
 			if tick - int(_zone_last_fire_tick.get(cooldown_key, -COMBAT_FIRE_INTERVAL_TICKS)) \
 					< COMBAT_FIRE_INTERVAL_TICKS:
 				continue
-			var target := _acquire_target(body, zone, ranges[zone], widths[zone])
+			var target := _acquire_target(body, zone, ranges[zone], widths[zone],
+				bool(tips_outward[zone]))
 			if target == null:
 				continue
 			_zone_last_fire_tick[cooldown_key] = tick
 			_fire_combat_bolt(body, target, zone)
 
-func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float) -> StaticBody3D:
+func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
+		tip_outward: bool) -> StaticBody3D:
 	var candidates: Array[Dictionary] = []
 	var by_id := {}
 	for target_node in _targets.get_children():
@@ -885,7 +958,7 @@ func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float) -
 		candidates.append({"id": target_id, "local_position": local,
 			"visible": _has_target_line_of_sight(body, target)})
 		by_id[target_id] = target
-	var selected := AUTO_TARGETING.select_nearest(zone, reach, width, candidates)
+	var selected := AUTO_TARGETING.select_nearest(zone, reach, width, tip_outward, candidates)
 	return by_id.get(selected) as StaticBody3D
 
 func _has_target_line_of_sight(body: RigidBody3D, target: StaticBody3D) -> bool:
