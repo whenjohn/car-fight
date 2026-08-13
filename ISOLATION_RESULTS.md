@@ -57,3 +57,18 @@ a Camera3D does not produce the precursor.
 
 Conclusion: visible primitive geometry and a StandardMaterial3D do not produce
 the precursor without lighting, shadows, or animation.
+
+## Stage 4 — directional lighting without shadows
+
+- Revision: `90440d4`
+- Engine/driver/window/display contract: same as Stage 3
+- Added: normal material shading and one DirectionalLight3D
+- Shadows: explicitly disabled
+- Duration: approximately 26 seconds of telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: basic shaded geometry and directional lighting do not produce the
+precursor without shadow rendering or animation.
