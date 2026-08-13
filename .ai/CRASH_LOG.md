@@ -86,6 +86,8 @@ After commit `eac8bce`, an eighth approved rendered test reached at least tick 2
 
 After commit `e349f88`, a ninth approved rendered test reached at least tick 16260 (roughly 271 seconds at 60 Hz) and was stopped normally to build the separate driving course, without a WindowServer failure.
 
+After commit `db43dec`, the first controlled monitored windowed test ran for 423 seconds (about 7 minutes) and closed normally. Telemetry confirmed `windowed` for the entire run with no mode transitions; the player used both the arena and driving course, reached 27.98 units/s, and latched drift assist. WindowServer remained PID 19110, no telemetry gap reached the four-second stall threshold, and the filtered log contained no VBlank timeout, GPU reset, display-not-ready, invalid-display-time, display-mode-set, or WindowServer event-port-death message. Repeated thermal snapshots reported no thermal or performance warning and full CPU scheduler/speed limits. This is meaningful evidence for the fullscreen-only hypothesis, but one successful windowed run does not prove windowed mode can never trigger the issue.
+
 Relevant project settings across all three incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
