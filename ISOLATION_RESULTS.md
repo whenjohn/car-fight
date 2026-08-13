@@ -15,3 +15,17 @@
 Conclusion: an empty Godot Compatibility window in true fullscreen does not
 produce the known precursor. Godot fullscreen and native OpenGL alone are not
 sufficient; a later project/display/rendering building block is required.
+
+## Stage 1 — fixed viewport and stretch contract
+
+- Revision: `edee78b`
+- Engine/driver/window: same as Stage 0
+- Added: 1280 x 720 viewport and window overrides with `canvas_items` stretch
+- Duration: approximately 27 seconds of telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: car-fight's fixed viewport and stretch contract does not produce
+the precursor without additional rendered content.
