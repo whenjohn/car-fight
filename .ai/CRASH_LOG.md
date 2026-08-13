@@ -68,6 +68,8 @@ After commit `ef69f73`, a seventh approved rendered test reached at least tick 8
 
 After commit `eac8bce`, an eighth approved rendered test reached at least tick 23700 (roughly 395 seconds at 60 Hz) and was stopped normally to add a max-speed cursor reference, without a WindowServer failure.
 
+After commit `e349f88`, a ninth approved rendered test reached at least tick 16260 (roughly 271 seconds at 60 Hz) and was stopped normally to build the separate driving course, without a WindowServer failure.
+
 Relevant project settings at both incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

@@ -5,6 +5,7 @@ const FOLLOW := preload("res://player/follow_controller.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const TRACTOR := preload("res://player/tractor_controller.gd")
 const IMPACT := preload("res://player/impact_controller.gd")
+const MAP_LAYOUT := preload("res://world/map_layout.gd")
 
 var owner_id := 0
 var spawn_slot := 0
@@ -36,6 +37,9 @@ var wall_bump_count := 0
 var was_supported := false
 var landing_fall_speed := 0.0
 var landing_jostle_cooldown := 0.0
+var map_id := MAP_LAYOUT.ARENA
+var gate_cooldown := 0.0
+var gate_transition_count := 0
 
 @onready var _input := get_node("Input")
 @onready var _sync := get_node("RollbackSynchronizer")
@@ -88,6 +92,9 @@ func _ready() -> void:
 	_sync.add_state(self, "was_supported")
 	_sync.add_state(self, "landing_fall_speed")
 	_sync.add_state(self, "landing_jostle_cooldown")
+	_sync.add_state(self, "map_id")
+	_sync.add_state(self, "gate_cooldown")
+	_sync.add_state(self, "gate_transition_count")
 	_sync.add_input(_input, "cursor_offset")
 	_sync.add_input(_input, "burst")
 	_sync.add_input(_input, "reverse")
@@ -116,6 +123,8 @@ func _ready() -> void:
 
 func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	if direct_state == null:
+		return
+	if _service_jump_gate(delta):
 		return
 	var queued_linear_impulse := Vector3.ZERO
 	var queued_torque_impulse := Vector3.ZERO
@@ -261,6 +270,37 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 		direct_state.apply_central_impulse(queued_linear_impulse)
 	if not queued_torque_impulse.is_zero_approx():
 		direct_state.apply_torque_impulse(queued_torque_impulse)
+
+
+func _service_jump_gate(delta: float) -> bool:
+	gate_cooldown = maxf(gate_cooldown - delta, 0.0)
+	if gate_cooldown > 0.0:
+		return false
+	var transition := MAP_LAYOUT.transition(map_id,
+		direct_state.transform.origin, direct_state.transform.origin.y)
+	if transition.is_empty():
+		return false
+	var transform: Transform3D = direct_state.transform
+	transform.origin = transition["position"]
+	transform.basis = Basis(Vector3.UP, float(transition["yaw"]))
+	direct_state.transform = transform
+	direct_state.linear_velocity = Vector3.ZERO
+	direct_state.angular_velocity = Vector3.ZERO
+	map_id = int(transition["map_id"])
+	gate_cooldown = MAP_LAYOUT.GATE_COOLDOWN
+	gate_transition_count += 1
+	burst_turn_sign = 0.0
+	boost_active = false
+	brake_skid_amount = 0.0
+	drift_assist_amount = 0.0
+	drift_assist_charge = 0.0
+	drift_assist_side = 0.0
+	drift_assist_hold = 0.0
+	drift_assist_latched = false
+	collision_stall_time = 0.0
+	collision_escape_time = 0.0
+	wall_bump_cooldown = 0.0
+	return true
 
 func _static_contact_normal() -> Vector3:
 	for index in range(direct_state.get_contact_count()):

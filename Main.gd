@@ -31,6 +31,9 @@ const SHIELD_DRONE_SCRIPT := preload("res://combat/shield_drone.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
+const MAP_LAYOUT := preload("res://world/map_layout.gd")
+const DRIVING_COURSE_SCRIPT := preload("res://world/driving_course.gd")
+const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 const COMBAT_FIRE_INTERVAL_TICKS := 15
 const COMBAT_BOLT_SPEED := 30.0
@@ -54,6 +57,7 @@ var _loss_pct := 0.0
 var _force_presentation := false
 var _course_test := false
 var _reverse_test := false
+var _gate_test := false
 var _drone_enabled := true
 var _start_tick := -1
 var _next_spawn_slot := 0
@@ -103,6 +107,8 @@ var _status_label: Label
 var _editor_label: Label
 var _fps_label: Label
 var _shader_prewarm: Node3D
+var _driving_course: Node3D
+var _jump_gates: Node3D
 
 func _ready() -> void:
 	_parse_args()
@@ -150,12 +156,20 @@ func _process(_delta: float) -> void:
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
 		var mode := "COVERAGE EDITOR" if _combat_editor_active else "DRIVE + AUTO FIRE"
+		var location := "ARENA"
+		if local != null:
+			location = MAP_LAYOUT.map_name(int(local.get("map_id")))
+			if int(local.get("map_id")) == MAP_LAYOUT.DRIVING_COURSE:
+				var section: Dictionary = DRIVING_COURSE_SCRIPT.section_at(local.global_position)
+				location = "%s  ·  %s — %s%s" % [location, section["id"],
+					section["name"], "  ·  OFF TRACK" if DRIVING_COURSE_SCRIPT.off_track(
+						local.global_position) else ""]
 		if not _combat_editor_active and local != null and bool(local.get("is_cloaked")):
 			mode = "DRIVE + CLOAKED (AUTO FIRE OFF)"
 		elif not _combat_editor_active and local != null and bool(local.get("shield_up")):
 			mode = "DRIVE + SHIELDED"
-		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s" % [
-			mode, id, speed,
+		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
+			mode, id, speed, location,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
 			else "Mouse: drive  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
 	if _fps_label != null:
@@ -179,6 +193,8 @@ func _parse_args() -> void:
 			_course_test = true
 		elif arg == "--reverse-test":
 			_reverse_test = true
+		elif arg == "--gate-test":
+			_gate_test = true
 		elif arg == "--no-drone":
 			_drone_enabled = false
 		elif arg.begins_with("--host="):
@@ -331,8 +347,20 @@ func _build_world() -> void:
 	if not _is_headless():
 		_shield_drone.call("build_presentation")
 	_build_arena()
+	_driving_course = Node3D.new()
+	_driving_course.name = "DrivingCourse"
+	_driving_course.set_script(DRIVING_COURSE_SCRIPT)
+	_driving_course.call("setup", _players)
+	add_child(_driving_course)
+	_jump_gates = Node3D.new()
+	_jump_gates.name = "JumpGates"
+	_jump_gates.set_script(JUMP_GATES_SCRIPT)
+	_jump_gates.call("setup", _players)
+	add_child(_jump_gates)
 	_build_combat_targets()
 	if not _is_headless():
+		_driving_course.call("build_presentation")
+		_jump_gates.call("build_presentation")
 		_build_presentation()
 
 func _spawn_player(data: Variant) -> Node:
@@ -395,6 +423,9 @@ func _spawn_player(data: Variant) -> Node:
 	return body
 
 func _spawn_transform(slot: int) -> Transform3D:
+	if _gate_test and slot == 0:
+		return Transform3D(Basis.IDENTITY, Vector3(MAP_LAYOUT.ARENA_GATE.x,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), MAP_LAYOUT.ARENA_GATE.z))
 	if _reverse_test and slot == 0:
 		return Transform3D(Basis(Vector3.UP, -PI * 0.5),
 			Vector3(ARENA_HALF - 2.2, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0))
@@ -584,7 +615,7 @@ func _build_arena() -> void:
 	_add_static_box("GroundCollision", Vector3(ARENA_HALF * 2.0, 1.0, ARENA_HALF * 2.0),
 		Vector3(0.0, -0.5, 0.0), Color("202a2d"), 0.0, false)
 	if not _is_headless():
-		_build_shader_ground()
+		_build_shader_ground("ShaderGridGround", Vector3.ZERO, ARENA_HALF)
 	var wall_height: float = ARENA_CONFIG.WALL_HEIGHT
 	var wall_thickness: float = ARENA_CONFIG.WALL_THICKNESS
 	var wall_y := wall_height * 0.5
@@ -600,6 +631,27 @@ func _build_arena() -> void:
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
 	_build_elevated_course()
+	_build_driving_course_space()
+
+
+func _build_driving_course_space() -> void:
+	var center := MAP_LAYOUT.COURSE_CENTER
+	var half := MAP_LAYOUT.COURSE_HALF_EXTENT
+	_add_static_box("CourseGroundCollision", Vector3(half * 2.0, 1.0, half * 2.0),
+		center + Vector3(0.0, -0.5, 0.0), Color("182225"), 0.0, false)
+	if not _is_headless():
+		_build_shader_ground("CourseShaderGridGround", center, half)
+	var wall_height: float = ARENA_CONFIG.WALL_HEIGHT
+	var wall_thickness: float = ARENA_CONFIG.WALL_THICKNESS
+	var wall_y := wall_height * 0.5
+	_add_static_box("CourseWallNorth", Vector3(half * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), center + Vector3(0.0, wall_y, -half), Color("40545b"))
+	_add_static_box("CourseWallSouth", Vector3(half * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), center + Vector3(0.0, wall_y, half), Color("40545b"))
+	_add_static_box("CourseWallWest", Vector3(wall_thickness, wall_height, half * 2.0),
+		center + Vector3(-half, wall_y, 0.0), Color("40545b"))
+	_add_static_box("CourseWallEast", Vector3(wall_thickness, wall_height, half * 2.0),
+		center + Vector3(half, wall_y, 0.0), Color("40545b"))
 
 func _build_combat_targets() -> void:
 	var positions := TARGET_LAYOUT.positions()
@@ -621,12 +673,12 @@ func _build_elevated_course() -> void:
 		_add_static_box(str(support["name"]), support["size"], support["position"],
 			support["color"])
 
-func _build_shader_ground() -> void:
+func _build_shader_ground(node_name: String, center: Vector3, half_extent: float) -> void:
 	var ground := MeshInstance3D.new()
-	ground.name = "ShaderGridGround"
-	ground.position.y = -0.01
+	ground.name = node_name
+	ground.position = center + Vector3(0.0, -0.01, 0.0)
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(ARENA_HALF * 2.0, ARENA_HALF * 2.0)
+	plane.size = Vector2(half_extent * 2.0, half_extent * 2.0)
 	ground.mesh = plane
 	var material := ShaderMaterial.new()
 	material.shader = load("res://world/grid_ground.gdshader")
@@ -1069,6 +1121,12 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 		"combat-edit":
 			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": true}
+		"gate-loop":
+			if int(body.get("map_id")) == MAP_LAYOUT.DRIVING_COURSE:
+				var gate_delta := MAP_LAYOUT.course_gate() - body.global_position
+				return {"cursor_offset": Vector2(gate_delta.x, gate_delta.z).limit_length(
+					FOLLOW.MAX_DISTANCE), "burst": false, "editing": false}
+			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 		_:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
@@ -1101,10 +1159,10 @@ func _on_tick(delta: float, tick: int) -> void:
 				if int(old_tick) < tick - 240:
 					_prediction_history.erase(old_tick)
 			if elapsed % 60 == 0:
-				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed(), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
+				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f map=%d cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed(), int(local.get("map_id")), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d impacthits=%d shieldhits=%d impactmax=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d impacthits=%d shieldhits=%d impactmax=%.3f coursemaps=%d courseoff=%d gatetransitions=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed, _server_course_map_count(), _server_course_off_count(), _server_gate_transition_count()])
 		get_tree().quit()
 
 func _service_auto_combat(delta: float, tick: int) -> void:
@@ -1112,7 +1170,7 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 	_service_shield_drone(tick)
 	for player_node in _players.get_children():
 		var body := player_node as RigidBody3D
-		if body == null:
+		if body == null or int(body.get("map_id")) != MAP_LAYOUT.ARENA:
 			continue
 		var input := body.get_node_or_null("Input")
 		if input == null or bool(input.get("editing")) or bool(body.get("is_cloaked")):
@@ -1231,7 +1289,8 @@ func _nearest_drone_target() -> RigidBody3D:
 	var origin: Vector3 = _shield_drone.call("muzzle_position")
 	for player_node in _players.get_children():
 		var body := player_node as RigidBody3D
-		if body == null or bool(body.get("is_cloaked")):
+		if body == null or int(body.get("map_id")) != MAP_LAYOUT.ARENA \
+				or bool(body.get("is_cloaked")):
 			continue
 		var input := body.get_node_or_null("Input")
 		if input == null or bool(input.get("editing")):
@@ -1452,6 +1511,26 @@ func _server_boosting_count() -> int:
 	var total := 0
 	for child in _players.get_children():
 		total += 1 if bool(child.get("boost_active")) else 0
+	return total
+
+func _server_course_map_count() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += 1 if int(child.get("map_id")) == MAP_LAYOUT.DRIVING_COURSE else 0
+	return total
+
+func _server_course_off_count() -> int:
+	var total := 0
+	for child in _players.get_children():
+		if int(child.get("map_id")) == MAP_LAYOUT.DRIVING_COURSE \
+				and DRIVING_COURSE_SCRIPT.off_track(child.global_position):
+			total += 1
+	return total
+
+func _server_gate_transition_count() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += int(child.get("gate_transition_count"))
 	return total
 
 func _server_tractor_grabs() -> int:

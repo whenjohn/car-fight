@@ -17,6 +17,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/boost_afterimage_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/coverage_config_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_layout_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/driving_course_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/elevated_course_test.gd
 "$project_root/scripts/network_test.sh"
@@ -24,6 +25,7 @@ fi
 "$project_root/scripts/tractor_test.sh"
 "$project_root/scripts/course_test.sh"
 "$project_root/scripts/reverse_test.sh"
+"$project_root/scripts/gate_test.sh"
 "$project_root/scripts/combat_test.sh"
 "$project_root/scripts/shield_test.sh"
 git -C "$project_root" diff --check
