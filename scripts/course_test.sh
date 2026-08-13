@@ -17,7 +17,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-"$godot_bin" --headless --path "$project_root" -- --server --port "$server_port" \
+"$godot_bin" --headless --path "$project_root" -- --server --no-drone --port "$server_port" \
 	--course-test --ticks 600 >"$log_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8

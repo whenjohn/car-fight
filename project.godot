@@ -42,6 +42,10 @@ cloak={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"physical_keycode":82,"unicode":114)]
 }
+shield={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":81,"unicode":113)]
+}
 
 [netfox]
 

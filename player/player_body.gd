@@ -4,6 +4,7 @@ extends "res://addons/netfox.extras/physics/network-rigid-body-3d.gd"
 const FOLLOW := preload("res://player/follow_controller.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const TRACTOR := preload("res://player/tractor_controller.gd")
+const IMPACT := preload("res://player/impact_controller.gd")
 
 var owner_id := 0
 var spawn_slot := 0
@@ -12,6 +13,11 @@ var burst_turn_sign := 0.0
 var boost_active := false
 var is_cloaked := false
 var cloak_held_prev := false
+var shield_up := false
+var shield_held_prev := false
+var impact_recovery_time := 0.0
+var impact_hit_count := 0
+var shield_hit_count := 0
 var tractor_ball_held := false
 var tractor_grab_count := 0
 var tractor_reel_ticks := 0
@@ -34,6 +40,11 @@ var _cursor_line_material: StandardMaterial3D
 var _cursor_line_color := Color.WHITE
 var _tractor_ring: Node3D
 var _tractor_rope: Node3D
+var _pending_linear_impulse := Vector3.ZERO
+var _pending_torque_impulse := Vector3.ZERO
+var _pending_recovery_time := 0.0
+var _pending_impact_hits := 0
+var _pending_shield_hits := 0
 
 func _ready() -> void:
 	owner_id = int(name)
@@ -47,6 +58,11 @@ func _ready() -> void:
 	_sync.add_state(self, "boost_active")
 	_sync.add_state(self, "is_cloaked")
 	_sync.add_state(self, "cloak_held_prev")
+	_sync.add_state(self, "shield_up")
+	_sync.add_state(self, "shield_held_prev")
+	_sync.add_state(self, "impact_recovery_time")
+	_sync.add_state(self, "impact_hit_count")
+	_sync.add_state(self, "shield_hit_count")
 	_sync.add_state(self, "tractor_ball_held")
 	_sync.add_state(self, "tractor_grab_count")
 	_sync.add_state(self, "tractor_reel_ticks")
@@ -63,6 +79,7 @@ func _ready() -> void:
 	_sync.add_input(_input, "burst")
 	_sync.add_input(_input, "reverse")
 	_sync.add_input(_input, "cloak_held")
+	_sync.add_input(_input, "shield_held")
 	_sync.add_input(_input, "tractor")
 	_sync.add_input(_input, "editing")
 	_sync.process_settings()
@@ -86,7 +103,25 @@ func _ready() -> void:
 func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	if direct_state == null:
 		return
+	var queued_linear_impulse := Vector3.ZERO
+	var queued_torque_impulse := Vector3.ZERO
 	_service_cloak_toggle(bool(_input.cloak_held))
+	_service_shield_toggle(bool(_input.shield_held))
+	var rollback := get_node_or_null("/root/NetworkRollback")
+	if rollback != null and bool(rollback.call("is_rollback")):
+		impact_recovery_time = maxf(impact_recovery_time - delta, 0.0)
+		if not _pending_linear_impulse.is_zero_approx() \
+				or not _pending_torque_impulse.is_zero_approx():
+			queued_linear_impulse = _pending_linear_impulse
+			queued_torque_impulse = _pending_torque_impulse
+			_pending_linear_impulse = Vector3.ZERO
+			_pending_torque_impulse = Vector3.ZERO
+			impact_recovery_time = maxf(impact_recovery_time, _pending_recovery_time)
+			_pending_recovery_time = 0.0
+			impact_hit_count += _pending_impact_hits
+			shield_hit_count += _pending_shield_hits
+			_pending_impact_hits = 0
+			_pending_shield_hits = 0
 	# The vacuum is independent of navigation: Shift never changes the mouse's
 	# normal FOLLOW direction or speed command.
 	var offset: Vector2 = Vector2.ZERO if _input.editing else _input.cursor_offset
@@ -154,7 +189,9 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var target_velocity: Vector3 = drive_direction * float(command["speed"]) \
 		* float(command["drive_sign"])
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-	horizontal = horizontal.move_toward(target_velocity, float(command["acceleration"]) * delta)
+	var impact_acceleration_scale := IMPACT.acceleration_scale(impact_recovery_time)
+	horizontal = horizontal.move_toward(target_velocity,
+		float(command["acceleration"]) * impact_acceleration_scale * delta)
 	if bool(escape["started"]):
 		horizontal += drive_direction * FOLLOW.ESCAPE_SIDE_KICK
 	direct_state.linear_velocity = FOLLOW.compose_drive_velocity(horizontal, velocity.y)
@@ -174,6 +211,12 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	if not landing_torque_impulse.is_zero_approx():
 		direct_state.apply_torque_impulse(landing_torque_impulse)
 	_service_tractor(delta)
+	# Navigation writes explicit planar velocity above. Apply external hits last
+	# so that write cannot erase Rapier's queued impulse before the space step.
+	if not queued_linear_impulse.is_zero_approx():
+		direct_state.apply_central_impulse(queued_linear_impulse)
+	if not queued_torque_impulse.is_zero_approx():
+		direct_state.apply_torque_impulse(queued_torque_impulse)
 
 func _static_contact_normal() -> Vector3:
 	for index in range(direct_state.get_contact_count()):
@@ -197,6 +240,30 @@ func _service_cloak_toggle(held: bool) -> void:
 	cloak_held_prev = held
 	if held:
 		is_cloaked = not is_cloaked
+		if is_cloaked:
+			shield_up = false
+
+func _service_shield_toggle(held: bool) -> void:
+	if held == shield_held_prev:
+		return
+	shield_held_prev = held
+	if held:
+		if shield_up:
+			shield_up = false
+		elif not is_cloaked:
+			shield_up = true
+
+## Cross-body hit commands arrive after this body's current tick. Queue them
+## until its own rollback simulation owns a live direct_state, as the tractor
+## already does for the arena ball.
+func apply_external_impact(linear_impulse: Vector3, torque_impulse: Vector3,
+		recovery_time: float, shielded: bool) -> void:
+	_pending_linear_impulse += linear_impulse
+	_pending_torque_impulse += torque_impulse
+	_pending_recovery_time = maxf(_pending_recovery_time, recovery_time)
+	_pending_impact_hits += 1
+	if shielded:
+		_pending_shield_hits += 1
 
 func _service_tractor(delta: float) -> void:
 	if not bool(_input.tractor) or bool(_input.editing) or is_cloaked:

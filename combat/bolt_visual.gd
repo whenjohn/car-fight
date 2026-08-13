@@ -1,9 +1,14 @@
 extends Node3D
 ## Client-side presentation for a server-authored straight projectile.
 
+const IMPACT := preload("res://player/impact_controller.gd")
+const PLAYER_RADIUS := preload("res://player/vehicle_config.gd").COLLISION_RADIUS
+
 var bolt_id := 0
 var velocity := Vector3.ZERO
 var _age := 0.0
+var _hostile := false
+var _predicted_contact := false
 
 # Auto-fire can create four bolts per second while a target is in range. Keep
 # their render resources shared so entering a combat lane does not continually
@@ -11,10 +16,12 @@ var _age := 0.0
 static var _shared_mesh: SphereMesh
 static var _shared_materials := {}
 
-func setup(id: int, start: Vector3, shot_velocity: Vector3, color: Color) -> void:
+func setup(id: int, start: Vector3, shot_velocity: Vector3, color: Color,
+		hostile: bool = false) -> void:
 	bolt_id = id
 	global_position = start
 	velocity = shot_velocity
+	_hostile = hostile
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.mesh = _bolt_mesh()
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -22,7 +29,19 @@ func setup(id: int, start: Vector3, shot_velocity: Vector3, color: Color) -> voi
 	add_child(mesh_instance)
 
 func _process(delta: float) -> void:
-	global_position += velocity * delta
+	var start := global_position
+	var finish := start + velocity * delta
+	global_position = finish
+	if _hostile and not _predicted_contact:
+		var main := get_node_or_null("/root/Main")
+		var local: Node3D = main.call("local_player") if main != null else null
+		if local != null:
+			var fraction := IMPACT.segment_sphere_entry(start, finish,
+				local.global_position, PLAYER_RADIUS)
+			if fraction <= 1.0:
+				_predicted_contact = true
+				main.call("predict_drone_impact_visual", bolt_id, int(local.name),
+					start + (finish - start) * fraction, velocity.normalized())
 	_age += delta
 	if _age > 1.2:
 		queue_free()

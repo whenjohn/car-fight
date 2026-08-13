@@ -6,6 +6,8 @@ const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const COVERAGE_VISUAL := preload("res://combat/coverage_visual.gd")
 const TARGET_DUMMY := preload("res://combat/target_dummy.gd")
 const BOLT_VISUAL := preload("res://combat/bolt_visual.gd")
+const SHIELD_VISUAL := preload("res://fx/vehicle_shield.gd")
+const SHIELD_DRONE := preload("res://combat/shield_drone.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -66,6 +68,38 @@ func _init() -> void:
 		return
 	if JEEP_PRESENTATION.cloak_cut_position(0.0) <= JEEP_PRESENTATION.cloak_cut_position(1.0):
 		push_error("CLOAK_WIPE_TEST FAIL: cloak must cut front-to-back and return back-to-front")
+		quit(1)
+		return
+	var shield_shader := load("res://fx/vehicle_shield.gdshader") as Shader
+	if shield_shader == null or shield_shader.code.is_empty():
+		push_error("SHIELD_SHADER_TEST FAIL: glass shield shader did not load")
+		quit(1)
+		return
+	for required in ["shield_strength", "impact_direction", "impact_age",
+			"vertex_ripple", "screen_texture"]:
+		if required not in shield_shader.code:
+			push_error("SHIELD_SHADER_TEST FAIL: missing %s" % required)
+			quit(1)
+			return
+	if SHIELD_VISUAL.SHELL_RADIUS <= VEHICLE_CONFIG.COLLISION_RADIUS:
+		push_error("SHIELD_SHELL_TEST FAIL: shield must fully contain the gameplay collider")
+		quit(1)
+		return
+	var shield_visual := SHIELD_VISUAL.new()
+	shield_visual.call("_ready")
+	var shell := shield_visual.get_node_or_null("GlassShell") as MeshInstance3D
+	if shell == null or shell.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+		push_error("SHIELD_SHELL_TEST FAIL: glass shell must exist without shadow cost")
+		quit(1)
+		return
+	shield_visual.free()
+	if SHIELD_DRONE.FIRE_INTERVAL_TICKS < 120:
+		push_error("SHIELD_DRONE_TEST FAIL: fixture must retain its slow firing pace")
+		quit(1)
+		return
+	var main_source := FileAccess.get_file_as_string("res://Main.gd")
+	if "[CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER]" not in main_source:
+		push_error("SHIELD_PREWARM_TEST FAIL: shield pipeline must compile before ENet starts")
 		quit(1)
 		return
 	var coverage_visual := COVERAGE_VISUAL.new()

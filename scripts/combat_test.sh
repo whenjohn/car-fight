@@ -21,7 +21,7 @@ run_case() {
 	local case_name="$1"
 	local script_name="$2"
 	local case_port="$3"
-	"$godot_bin" --headless --path "$project_root" -- --server --port "$case_port" \
+	"$godot_bin" --headless --path "$project_root" -- --server --no-drone --port "$case_port" \
 		--ticks 300 >"$log_dir/$case_name-server.log" 2>&1 &
 	server_pid=$!
 	sleep 0.8
@@ -53,7 +53,7 @@ if ! rg -q 'RESULT players=1 .*shots=0 hits=0' "$log_dir/edit-server.log"; then
 	tail -100 "$log_dir/edit-server.log" >&2
 	exit 1
 fi
-if ! rg -q 'RESULT players=1 .*cloaked=1 boosting=0 .*shots=0 hits=0 ballhits=0' "$log_dir/cloak-server.log"; then
+if ! rg -q 'RESULT players=1 .*cloaked=1 shields=0 boosting=0 .*shots=0 hits=0 ballhits=0' "$log_dir/cloak-server.log"; then
 	echo "cloak did not stay server-authoritative and move-only; logs: $log_dir" >&2
 	tail -100 "$log_dir/cloak-server.log" >&2
 	exit 1

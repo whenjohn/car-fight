@@ -20,7 +20,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-"$godot_bin" --headless --path "$project_root" -- --server --port "$server_port" --ticks 480 >"$log_dir/server.log" 2>&1 &
+"$godot_bin" --headless --path "$project_root" -- --server --no-drone --port "$server_port" --ticks 480 >"$log_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
 "$godot_bin" --headless --path "$project_root" -- --proxy --port "$proxy_port" --to-port "$server_port" --latency 120 >"$log_dir/proxy.log" 2>&1 &

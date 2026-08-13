@@ -12,15 +12,20 @@ const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
 const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
+const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
+const SHIELD_SHADER := preload("res://fx/vehicle_shield.gdshader")
+const SHIELD_VISUAL_SCRIPT := preload("res://fx/vehicle_shield.gd")
+const IMPACT_FX_SCRIPT := preload("res://fx/impact_fx.gd")
 const COVERAGE := preload("res://combat/coverage_config.gd")
 const AUTO_TARGETING := preload("res://combat/auto_targeting.gd")
 const COVERAGE_VISUAL_SCRIPT := preload("res://combat/coverage_visual.gd")
 const TARGET_DUMMY_SCRIPT := preload("res://combat/target_dummy.gd")
 const TARGET_LAYOUT := preload("res://combat/target_layout.gd")
 const BOLT_VISUAL_SCRIPT := preload("res://combat/bolt_visual.gd")
+const SHIELD_DRONE_SCRIPT := preload("res://combat/shield_drone.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
@@ -31,6 +36,8 @@ const COMBAT_BOLT_LIFETIME := 1.0
 const COMBAT_TARGET_RADIUS := 0.66
 const COMBAT_BALL_IMPULSE := 4.2
 const BALL_TARGET_ID_BASE := -1000
+const BOLT_KIND_PLAYER := 0
+const BOLT_KIND_DRONE := 1
 
 var _role := "client"
 var _host := "127.0.0.1"
@@ -45,6 +52,7 @@ var _loss_pct := 0.0
 var _force_presentation := false
 var _course_test := false
 var _reverse_test := false
+var _drone_enabled := true
 var _start_tick := -1
 var _next_spawn_slot := 0
 var _contact_seen := false
@@ -75,6 +83,9 @@ var _next_bolt_id := 1
 var _combat_shot_count := 0
 var _combat_hit_count := 0
 var _combat_ball_hit_count := 0
+var _drone_last_fire_tick := -100000
+var _drone_shot_count := 0
+var _maximum_impact_speed := 0.0
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -82,6 +93,8 @@ var _balls: Node3D
 var _ball_spawner: MultiplayerSpawner
 var _targets: Node3D
 var _combat_bolts: Node3D
+var _shield_drone: Node3D
+var _impact_fx: Node3D
 var _camera: Camera3D
 var _shadow_light: SpotLight3D
 var _status_label: Label
@@ -111,6 +124,8 @@ func _ready() -> void:
 		_start_client()
 
 func _process(_delta: float) -> void:
+	if multiplayer.is_server():
+		_sample_impact_motion()
 	if _camera == null:
 		return
 	var local: Node3D = local_player()
@@ -133,10 +148,12 @@ func _process(_delta: float) -> void:
 		var mode := "COVERAGE EDITOR" if _combat_editor_active else "DRIVE + AUTO FIRE"
 		if not _combat_editor_active and local != null and bool(local.get("is_cloaked")):
 			mode = "DRIVE + CLOAKED (AUTO FIRE OFF)"
+		elif not _combat_editor_active and local != null and bool(local.get("shield_up")):
+			mode = "DRIVE + SHIELDED"
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s" % [
 			mode, id, speed,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  R: cloak  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
 	if _fps_label != null:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
@@ -158,6 +175,8 @@ func _parse_args() -> void:
 			_course_test = true
 		elif arg == "--reverse-test":
 			_reverse_test = true
+		elif arg == "--no-drone":
+			_drone_enabled = false
 		elif arg.begins_with("--host="):
 			_host = arg.get_slice("=", 1)
 		elif arg == "--host" and index + 1 < args.size():
@@ -300,6 +319,13 @@ func _build_world() -> void:
 	_combat_bolts = Node3D.new()
 	_combat_bolts.name = "CombatBolts"
 	add_child(_combat_bolts)
+	_shield_drone = Node3D.new()
+	_shield_drone.name = "ShieldTestDrone"
+	_shield_drone.set_script(SHIELD_DRONE_SCRIPT)
+	_shield_drone.position = SHIELD_DRONE_SCRIPT.ARENA_POSITION
+	add_child(_shield_drone)
+	if not _is_headless():
+		_shield_drone.call("build_presentation")
 	_build_arena()
 	_build_combat_targets()
 	if not _is_headless():
@@ -447,6 +473,10 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	hull.set_script(HULL_SCRIPT)
 	hull.position.y = -PLAYER_RADIUS
 	body.add_child(hull)
+	var shield_visual := Node3D.new()
+	shield_visual.name = "VehicleShield"
+	shield_visual.set_script(SHIELD_VISUAL_SCRIPT)
+	body.add_child(shield_visual)
 	if owner_id == multiplayer.get_unique_id():
 		var coverage_visual := Node3D.new()
 		coverage_visual.name = "CoverageDebug"
@@ -662,6 +692,10 @@ func _build_presentation() -> void:
 	_camera.current = true
 	add_child(_camera)
 	_build_shader_prewarm()
+	_impact_fx = Node3D.new()
+	_impact_fx.name = "ImpactFX"
+	_impact_fx.set_script(IMPACT_FX_SCRIPT)
+	add_child(_impact_fx)
 	_editor_stage = MeshInstance3D.new()
 	_editor_stage.name = "CoverageEditorStage"
 	var editor_plane := PlaneMesh.new()
@@ -707,7 +741,7 @@ func _build_shader_prewarm() -> void:
 	_shader_prewarm.name = "ShaderPrewarm"
 	_camera.add_child(_shader_prewarm)
 	_shader_prewarm.position = Vector3(0.0, 0.0, -2.0)
-	for shader in [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER]:
+	for shader in [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER]:
 		var instance := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
 		sphere.radius = 0.001
@@ -717,8 +751,11 @@ func _build_shader_prewarm() -> void:
 		material.shader = shader
 		if shader == CLOAK_DISSOLVE_SHADER:
 			material.set_shader_parameter("cut_position", -999.0)
-		else:
+		elif shader == CLOAK_GHOST_SHADER:
 			material.set_shader_parameter("cloak_strength", 0.0)
+		else:
+			material.set_shader_parameter("shield_strength", 0.0)
+			material.set_shader_parameter("impact_age", 1.2)
 		instance.material_override = material
 		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_shader_prewarm.add_child(instance)
@@ -737,6 +774,8 @@ func _update_editor_presentation(local: Node3D) -> void:
 	_targets.visible = not _combat_editor_active
 	_balls.visible = not _combat_editor_active
 	_combat_bolts.visible = not _combat_editor_active
+	if _shield_drone != null:
+		_shield_drone.visible = not _combat_editor_active and _drone_enabled
 	for player_node in _players.get_children():
 		var player := player_node as Node3D
 		if player != null:
@@ -990,6 +1029,14 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			# Burst is deliberately requested to prove cloak's move-only gate.
 			return {"cursor_offset": Vector2(16.0, 0.0), "burst": true,
 				"cloak_held": true, "editing": false}
+		"shield":
+			return {"cursor_offset": Vector2.ZERO, "shield_held": true,
+				"editing": false}
+		"cloak-shield":
+			return {"cursor_offset": Vector2.ZERO, "cloak_held": true,
+				"shield_held": true, "editing": false}
+		"drone-hit":
+			return {"cursor_offset": Vector2.ZERO, "editing": false}
 		"tractor":
 			# Vacuum has no aim input. A zero drive cursor proves the ball enters
 			# solely because it is inside the centered field.
@@ -1030,14 +1077,15 @@ func _on_tick(delta: float, tick: int) -> void:
 				if int(old_tick) < tick - 240:
 					_prediction_history.erase(old_tick)
 			if elapsed % 60 == 0:
-				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed()])
+				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed(), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d impacthits=%d shieldhits=%d impactmax=%.3f" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed])
 		get_tree().quit()
 
 func _service_auto_combat(delta: float, tick: int) -> void:
 	_step_server_bolts(delta)
+	_service_shield_drone(tick)
 	for player_node in _players.get_children():
 		var body := player_node as RigidBody3D
 		if body == null:
@@ -1120,9 +1168,59 @@ func _fire_combat_bolt(body: RigidBody3D, target: Node3D, zone: int) -> void:
 	var bolt_id := _next_bolt_id
 	_next_bolt_id += 1
 	_server_bolts[bolt_id] = {"position": origin, "velocity": velocity,
-		"age": 0.0, "shooter": int(body.name), "zone": zone}
+		"age": 0.0, "shooter": int(body.name), "zone": zone,
+		"kind": BOLT_KIND_PLAYER}
 	_combat_shot_count += 1
-	_spawn_combat_bolt.rpc(bolt_id, int(body.name), zone, origin, velocity)
+	_spawn_combat_bolt.rpc(bolt_id, int(body.name), zone, origin, velocity,
+		BOLT_KIND_PLAYER)
+
+func _service_shield_drone(tick: int) -> void:
+	if not _drone_enabled or _shield_drone == null or tick - _start_tick < SHIELD_DRONE_SCRIPT.ARM_TICKS:
+		return
+	if tick - _drone_last_fire_tick < SHIELD_DRONE_SCRIPT.FIRE_INTERVAL_TICKS:
+		return
+	var target := _nearest_drone_target()
+	if target == null:
+		return
+	var origin: Vector3 = _shield_drone.call("muzzle_position")
+	var target_position: Vector3 = target.global_position
+	var target_velocity: Vector3 = target.linear_velocity
+	target_velocity.y = 0.0
+	var lead_time := clampf(origin.distance_to(target_position)
+		/ SHIELD_DRONE_SCRIPT.BOLT_SPEED, 0.0, 0.75)
+	var aim_point := target_position + target_velocity * lead_time
+	var direction := (aim_point - origin).normalized()
+	if direction.is_zero_approx():
+		return
+	var bolt_id := _next_bolt_id
+	_next_bolt_id += 1
+	var velocity := direction * SHIELD_DRONE_SCRIPT.BOLT_SPEED
+	_server_bolts[bolt_id] = {"position": origin, "velocity": velocity,
+		"age": 0.0, "shooter": 0, "zone": -1, "kind": BOLT_KIND_DRONE}
+	_drone_last_fire_tick = tick
+	_drone_shot_count += 1
+	_spawn_combat_bolt.rpc(bolt_id, 0, -1, origin, velocity, BOLT_KIND_DRONE)
+
+func _nearest_drone_target() -> RigidBody3D:
+	var best: RigidBody3D
+	var best_distance := INF
+	var origin: Vector3 = _shield_drone.call("muzzle_position")
+	for player_node in _players.get_children():
+		var body := player_node as RigidBody3D
+		if body == null or bool(body.get("is_cloaked")):
+			continue
+		var input := body.get_node_or_null("Input")
+		if input == null or bool(input.get("editing")):
+			continue
+		var query := PhysicsRayQueryParameters3D.create(origin, body.global_position, 1)
+		query.exclude = _combat_dynamic_rids()
+		if not get_world_3d().direct_space_state.intersect_ray(query).is_empty():
+			continue
+		var distance := origin.distance_squared_to(body.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = body
+	return best
 
 func _step_server_bolts(delta: float) -> void:
 	for bolt_id_value in _server_bolts.keys():
@@ -1132,50 +1230,87 @@ func _step_server_bolts(delta: float) -> void:
 		var finish := start + (bolt["velocity"] as Vector3) * delta
 		var segment := finish - start
 		var wall_fraction := 1.01
+		var wall_position := finish
 		var wall_query := PhysicsRayQueryParameters3D.create(start, finish, 1)
 		wall_query.exclude = _combat_dynamic_rids()
 		var wall_hit := get_world_3d().direct_space_state.intersect_ray(wall_query)
 		if not wall_hit.is_empty() and segment.length_squared() > 0.0001:
 			wall_fraction = start.distance_to(wall_hit["position"]) / segment.length()
-		var target_hit: Node3D
-		var target_fraction := 1.01
-		for target_node in _targets.get_children():
-			var target := target_node as StaticBody3D
-			if target == null or segment.length_squared() <= 0.0001:
+			wall_position = wall_hit["position"]
+		var kind := int(bolt.get("kind", BOLT_KIND_PLAYER))
+		if kind == BOLT_KIND_DRONE:
+			var player_hit: RigidBody3D
+			var player_fraction := 1.01
+			for player_node in _players.get_children():
+				var player := player_node as RigidBody3D
+				if player == null:
+					continue
+				var input := player.get_node_or_null("Input")
+				if input != null and bool(input.get("editing")):
+					continue
+				var fraction := IMPACT_CONTROLLER.segment_sphere_entry(start, finish,
+					player.global_position, PLAYER_RADIUS)
+				if fraction < player_fraction:
+					player_fraction = fraction
+					player_hit = player
+			if player_hit != null and player_fraction <= wall_fraction:
+				var impact_position := start + segment * player_fraction
+				var incoming_direction: Vector3 = (bolt["velocity"] as Vector3).normalized()
+				var shielded := bool(player_hit.get("shield_up"))
+				var response := IMPACT_CONTROLLER.response(incoming_direction, shielded)
+				player_hit.call("apply_external_impact", response["linear_impulse"],
+					response["torque_impulse"], response["recovery_time"], shielded)
+				_register_player_impact.rpc(bolt_id, int(player_hit.name), impact_position,
+					incoming_direction, shielded)
+				_end_combat_bolt.rpc(bolt_id)
+				_server_bolts.erase(bolt_id)
 				continue
-			var fraction := clampf((target.global_position - start).dot(segment) \
-				/ segment.length_squared(), 0.0, 1.0)
-			var closest := start + segment * fraction
-			if closest.distance_to(target.global_position) <= COMBAT_TARGET_RADIUS \
-					and fraction < target_fraction:
-				target_hit = target
-				target_fraction = fraction
-		for ball_node in _balls.get_children():
-			var ball := ball_node as RigidBody3D
-			if ball == null or segment.length_squared() <= 0.0001:
+			if wall_fraction <= 1.0:
+				_register_world_impact.rpc(bolt_id, wall_position,
+					(bolt["velocity"] as Vector3).normalized())
+				_end_combat_bolt.rpc(bolt_id)
+				_server_bolts.erase(bolt_id)
 				continue
-			var fraction := clampf((ball.global_position - start).dot(segment) \
-				/ segment.length_squared(), 0.0, 1.0)
-			var closest := start + segment * fraction
-			if closest.distance_to(ball.global_position) <= BALL_SCRIPT.RADIUS \
-					and fraction < target_fraction:
-				target_hit = ball
-				target_fraction = fraction
-		if target_hit != null and target_fraction <= wall_fraction:
-			_combat_hit_count += 1
-			if target_hit.is_in_group("arena_ball"):
-				var hit_direction: Vector3 = (bolt["velocity"] as Vector3).normalized()
-				target_hit.call("apply_external_impulse", hit_direction * COMBAT_BALL_IMPULSE)
-				_combat_ball_hit_count += 1
-			else:
-				_register_target_hit.rpc(int(target_hit.get("target_id")))
-			_end_combat_bolt.rpc(bolt_id)
-			_server_bolts.erase(bolt_id)
-			continue
-		if wall_fraction <= 1.0:
-			_end_combat_bolt.rpc(bolt_id)
-			_server_bolts.erase(bolt_id)
-			continue
+		else:
+			var target_hit: Node3D
+			var target_fraction := 1.01
+			for target_node in _targets.get_children():
+				var target := target_node as StaticBody3D
+				if target == null or segment.length_squared() <= 0.0001:
+					continue
+				var fraction := clampf((target.global_position - start).dot(segment) \
+					/ segment.length_squared(), 0.0, 1.0)
+				var closest := start + segment * fraction
+				if closest.distance_to(target.global_position) <= COMBAT_TARGET_RADIUS \
+						and fraction < target_fraction:
+					target_hit = target
+					target_fraction = fraction
+			for ball_node in _balls.get_children():
+				var ball := ball_node as RigidBody3D
+				if ball == null or segment.length_squared() <= 0.0001:
+					continue
+				var fraction := clampf((ball.global_position - start).dot(segment) \
+					/ segment.length_squared(), 0.0, 1.0)
+				var closest := start + segment * fraction
+				if closest.distance_to(ball.global_position) <= BALL_SCRIPT.RADIUS \
+						and fraction < target_fraction:
+					target_hit = ball
+					target_fraction = fraction
+			if target_hit != null and target_fraction <= wall_fraction:
+				_combat_hit_count += 1
+				if target_hit.is_in_group("arena_ball"):
+					var hit_direction: Vector3 = (bolt["velocity"] as Vector3).normalized()
+					target_hit.call("apply_external_impulse", hit_direction * COMBAT_BALL_IMPULSE)
+					_combat_ball_hit_count += 1
+				else:
+					_register_target_hit.rpc(int(target_hit.get("target_id")))
+				_end_combat_bolt.rpc(bolt_id)
+				_server_bolts.erase(bolt_id)
+				continue
+			if wall_fraction <= 1.0:
+				_end_combat_bolt.rpc(bolt_id)
+				_server_bolts.erase(bolt_id)
+				continue
 		bolt["position"] = finish
 		bolt["age"] = float(bolt["age"]) + delta
 		if float(bolt["age"]) >= COMBAT_BOLT_LIFETIME:
@@ -1186,16 +1321,18 @@ func _step_server_bolts(delta: float) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _spawn_combat_bolt(bolt_id: int, shooter_id: int, zone: int,
-		origin: Vector3, velocity: Vector3) -> void:
+		origin: Vector3, velocity: Vector3, kind: int) -> void:
 	if not _is_headless():
 		var visual := Node3D.new()
 		visual.name = "Bolt_%d" % bolt_id
 		visual.set_script(BOLT_VISUAL_SCRIPT)
 		_combat_bolts.add_child(visual)
-		visual.call("setup", bolt_id, origin, velocity, COVERAGE.ZONE_COLORS[zone])
+		var color: Color = SHIELD_DRONE_SCRIPT.BOLT_COLOR if kind == BOLT_KIND_DRONE \
+			else COVERAGE.ZONE_COLORS[zone]
+		visual.call("setup", bolt_id, origin, velocity, color, kind == BOLT_KIND_DRONE)
 		_bolt_visuals[bolt_id] = visual
 	var local := local_player() as Node3D
-	if local != null and int(local.name) == shooter_id:
+	if kind == BOLT_KIND_PLAYER and local != null and int(local.name) == shooter_id:
 		var coverage_visual := local.get_node_or_null("CoverageDebug")
 		if coverage_visual != null:
 			coverage_visual.call("flash_zone", zone)
@@ -1206,6 +1343,35 @@ func _end_combat_bolt(bolt_id: int) -> void:
 	if visual != null and is_instance_valid(visual):
 		visual.queue_free()
 	_bolt_visuals.erase(bolt_id)
+
+@rpc("authority", "call_local", "reliable")
+func _register_player_impact(bolt_id: int, target_id: int, impact_position: Vector3,
+		incoming_direction: Vector3, shielded: bool) -> void:
+	_show_player_impact(bolt_id, target_id, impact_position, incoming_direction, shielded)
+
+func predict_drone_impact_visual(bolt_id: int, target_id: int, impact_position: Vector3,
+		incoming_direction: Vector3) -> void:
+	var target := _players.get_node_or_null(str(target_id))
+	if target == null:
+		return
+	_show_player_impact(bolt_id, target_id, impact_position, incoming_direction,
+		bool(target.get("shield_up")))
+
+func _show_player_impact(bolt_id: int, target_id: int, impact_position: Vector3,
+		incoming_direction: Vector3, shielded: bool) -> void:
+	if _impact_fx != null:
+		_impact_fx.call("burst", bolt_id, impact_position, incoming_direction, shielded)
+	var target := _players.get_node_or_null(str(target_id))
+	if shielded and target != null:
+		var shield_visual := target.get_node_or_null("VehicleShield")
+		if shield_visual != null:
+			shield_visual.call("register_impact", bolt_id, impact_position, incoming_direction)
+
+@rpc("authority", "call_local", "reliable")
+func _register_world_impact(bolt_id: int, impact_position: Vector3,
+		incoming_direction: Vector3) -> void:
+	if _impact_fx != null:
+		_impact_fx.call("burst", bolt_id, impact_position, incoming_direction, false)
 
 @rpc("authority", "call_local", "reliable")
 func _register_target_hit(target_id: int) -> void:
@@ -1234,6 +1400,24 @@ func _server_cloaked_count() -> int:
 	var total := 0
 	for child in _players.get_children():
 		total += 1 if bool(child.get("is_cloaked")) else 0
+	return total
+
+func _server_shield_count() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += 1 if bool(child.get("shield_up")) else 0
+	return total
+
+func _server_impact_hits() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += int(child.get("impact_hit_count"))
+	return total
+
+func _server_shield_hits() -> int:
+	var total := 0
+	for child in _players.get_children():
+		total += int(child.get("shield_hit_count"))
 	return total
 
 func _server_boosting_count() -> int:
@@ -1278,6 +1462,16 @@ func _track_server_contacts() -> void:
 				if not _contact_seen:
 					_log("CONTACT a=%s b=%s" % [a.name, b.name])
 				_contact_seen = true
+
+func _sample_impact_motion() -> void:
+	if _players == null:
+		return
+	for player_node in _players.get_children():
+		var body := player_node as RigidBody3D
+		if body == null or int(body.get("impact_hit_count")) <= 0:
+			continue
+		_maximum_impact_speed = maxf(_maximum_impact_speed,
+			Vector2(body.linear_velocity.x, body.linear_velocity.z).length())
 
 func _track_server_ball() -> void:
 	if _balls == null:
