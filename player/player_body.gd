@@ -12,6 +12,9 @@ var aim := Vector3(0.0, 0.0, -1.0)
 var burst_turn_sign := 0.0
 var boost_active := false
 var brake_skid_amount := 0.0
+var drift_assist_amount := 0.0
+var drift_assist_charge := 0.0
+var drift_assist_side := 0.0
 var is_cloaked := false
 var cloak_held_prev := false
 var shield_up := false
@@ -58,6 +61,9 @@ func _ready() -> void:
 	_sync.add_state(self, "burst_turn_sign")
 	_sync.add_state(self, "boost_active")
 	_sync.add_state(self, "brake_skid_amount")
+	_sync.add_state(self, "drift_assist_amount")
+	_sync.add_state(self, "drift_assist_charge")
+	_sync.add_state(self, "drift_assist_side")
 	_sync.add_state(self, "is_cloaked")
 	_sync.add_state(self, "cloak_held_prev")
 	_sync.add_state(self, "shield_up")
@@ -145,10 +151,17 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	was_supported = touching_support
 	var command := FOLLOW.command(offset, FOLLOW.heading_yaw(direct_state.transform.basis),
 		_input.burst and not _input.editing and not is_cloaked, burst_turn_sign, planar_speed,
-		_input.reverse and not _input.editing, touching_support)
+		_input.reverse and not _input.editing, touching_support, drift_assist_charge)
 	burst_turn_sign = command["burst_turn_sign"]
 	boost_active = bool(command["boost_active"])
 	brake_skid_amount = float(command["brake_skid_amount"])
+	drift_assist_amount = float(command["drift_assist_amount"])
+	if drift_assist_amount > 0.001:
+		drift_assist_side = signf(float(command["heading_error"]))
+	drift_assist_charge = FOLLOW.next_drift_assist_charge(drift_assist_charge,
+		drift_assist_amount, delta)
+	if drift_assist_charge <= 0.001:
+		drift_assist_side = 0.0
 	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
 	var forward: Vector3 = -direct_state.transform.basis.z
 	forward.y = 0.0

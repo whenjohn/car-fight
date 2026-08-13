@@ -66,6 +66,35 @@ func _init() -> void:
 	if float(airborne["drift_amount"]) != 0.0:
 		_failures += 1
 		push_error("automatic drift must require ground support")
+	var rear_corner := Vector2(sin(deg_to_rad(45.0)), cos(deg_to_rad(45.0))) * 4.0
+	var assisted := FOLLOW.command(rear_corner, 0.0, false, 0.0, FOLLOW.SPEED,
+		false, true, 1.0)
+	var directly_back := FOLLOW.command(Vector2(0.0, 4.0), 0.0, false, 0.0,
+		FOLLOW.SPEED, false, true, 1.0)
+	var slow_corner := FOLLOW.command(rear_corner, 0.0, false, 0.0, 4.0,
+		false, true, 1.0)
+	if float(assisted["drift_assist_amount"]) < 0.95 \
+			or float(assisted["yaw_acceleration"]) <= FOLLOW.DRIFT_YAW_ACCEL \
+			or float(assisted["acceleration"]) >= FOLLOW.DRIFT_VELOCITY_RESPONSE:
+		_failures += 1
+		push_error("peak braking in a rear corner must add bounded drift assistance")
+	if float(directly_back["drift_assist_amount"]) != 0.0:
+		_failures += 1
+		push_error("straight-back hard braking must stay outside the corner assist zones")
+	if float(slow_corner["drift_assist_amount"]) != 0.0:
+		_failures += 1
+		push_error("rear-corner placement must not assist without a hard high-speed brake")
+	var assist_charge := 0.0
+	for step in range(40):
+		assist_charge = FOLLOW.next_drift_assist_charge(assist_charge, 1.0, 1.0 / 60.0)
+	if assist_charge < 0.99:
+		_failures += 1
+		push_error("drift assist meter must reach MAX after a deliberate corner commit")
+	for step in range(28):
+		assist_charge = FOLLOW.next_drift_assist_charge(assist_charge, 0.0, 1.0 / 60.0)
+	if assist_charge > 0.001:
+		_failures += 1
+		push_error("drift assist meter must reset quickly after accelerating out")
 
 	var burst := FOLLOW.command(Vector2(3.0, 0.0), 0.0, true, 0.0, FOLLOW.SPEED)
 	_expect_close(burst["speed"], FOLLOW.BURST_SPEED, 0.0001, "Space forces full burst speed")

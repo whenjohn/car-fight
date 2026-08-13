@@ -12,6 +12,7 @@ const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
+const DRIFT_GUIDE_SCRIPT := preload("res://player/drift_guide.gd")
 const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
@@ -71,7 +72,7 @@ var _course_landing_tilt := 0.0
 var _maximum_player_tilt := 0.0
 var _minimum_player_x := INF
 var _combat_editor_active := false
-var _coverage_overlay_visible := true
+var _coverage_overlay_visible := false
 var _selected_zone := 0
 var _coverage_drag := {}
 var _coverage_configs := {}
@@ -105,7 +106,9 @@ var _shader_prewarm: Node3D
 
 func _ready() -> void:
 	_parse_args()
-	_combat_editor_active = _role == "client" and _scripted.is_empty()
+	# Launch directly into driving. The coverage editor remains available on E,
+	# and its cones remain opt-in during driving on C.
+	_combat_editor_active = false
 	if _role == "proxy":
 		_start_proxy()
 		return
@@ -479,6 +482,11 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	shield_visual.set_script(SHIELD_VISUAL_SCRIPT)
 	body.add_child(shield_visual)
 	if owner_id == multiplayer.get_unique_id():
+		var drift_guide := Node3D.new()
+		drift_guide.name = "DriftGuide"
+		drift_guide.set_script(DRIFT_GUIDE_SCRIPT)
+		drift_guide.position.y = -PLAYER_RADIUS + 0.11
+		body.add_child(drift_guide)
 		var coverage_visual := Node3D.new()
 		coverage_visual.name = "CoverageDebug"
 		coverage_visual.set_script(COVERAGE_VISUAL_SCRIPT)

@@ -2,6 +2,7 @@ extends SceneTree
 
 const JEEP_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const JEEP_PRESENTATION := preload("res://player/ground_vehicle_hull.gd")
+const DRIFT_GUIDE := preload("res://player/drift_guide.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const COVERAGE_VISUAL := preload("res://combat/coverage_visual.gd")
 const TARGET_DUMMY := preload("res://combat/target_dummy.gd")
@@ -189,6 +190,12 @@ func _init() -> void:
 			or not is_zero_approx(JEEP_PRESENTATION.wheel_roll_scale(1.0)) \
 			or JEEP_PRESENTATION.wheel_roll_scale(0.0) != 1.0:
 		push_error("JEEP_BRAKE_SKID_TEST FAIL: only hard braking may lock wheel presentation")
+		quit(1)
+		return
+	if absf(DRIFT_GUIDE.speed_fraction(9.0) - 0.5) > 0.001 \
+			or not is_zero_approx(DRIFT_GUIDE.boost_fraction(9.0)) \
+			or DRIFT_GUIDE.boost_fraction(28.0) < 0.999:
+		push_error("DRIFT_GUIDE_TEST FAIL: local rings must map road and burst speed continuously")
 		quit(1)
 		return
 	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded coverage_depth=enabled shadow_filter=hard shadow_depth=32bit")

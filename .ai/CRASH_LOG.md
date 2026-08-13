@@ -50,6 +50,10 @@ The game cannot directly terminate WindowServer, and the reports do not identify
 
 Treat the rendered client as the probable trigger for an operating-system/Intel graphics-driver deadlock. The likely shared path is Godot 4.7's Compatibility renderer using native macOS OpenGL, possibly involving real-time shadow rendering or window/display presentation. Recent driving logic and recent visual effects are not plausible common causes because the first incident occurred before they existed.
 
+### Later non-incident observation
+
+After commit `85c7285`, an explicitly approved rendered OpenGL play-test reached at least tick 11460 (roughly 191 seconds at 60 Hz) and was then stopped normally to make the next gameplay change. WindowServer did not fail during that run. This does not clear the rendering path—the two earlier incidents remain unexplained—but it shows the failure is not guaranteed at 69 seconds on every launch.
+
 Relevant project settings at both incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

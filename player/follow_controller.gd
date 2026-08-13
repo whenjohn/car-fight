@@ -28,6 +28,17 @@ const DRIFT_FULL_HEADING := deg_to_rad(75.0)
 const DRIFT_VELOCITY_RESPONSE := 3.5
 const DRIFT_TURN_BOOST := 1.28
 const DRIFT_YAW_ACCEL := 10.5
+const DRIFT_ASSIST_ZONE_INNER := deg_to_rad(100.0)
+const DRIFT_ASSIST_ZONE_FULL := deg_to_rad(120.0)
+const DRIFT_ASSIST_ZONE_FADE := deg_to_rad(155.0)
+const DRIFT_ASSIST_ZONE_OUTER := deg_to_rad(170.0)
+const DRIFT_ASSIST_BRAKE_ONSET := 0.72
+const DRIFT_ASSIST_BRAKE_FULL := 0.98
+const DRIFT_ASSIST_TURN_BOOST := 1.18
+const DRIFT_ASSIST_YAW_ACCEL := 13.0
+const DRIFT_ASSIST_VELOCITY_RESPONSE := 2.4
+const DRIFT_ASSIST_CHARGE_TIME := 0.65
+const DRIFT_ASSIST_RELEASE_TIME := 0.45
 const BURST_SPEED := 28.0
 const BURST_ACCEL := 38.0
 const BURST_TURN := 0.9
@@ -65,7 +76,7 @@ const LANDING_JOSTLE_COOLDOWN := 0.35
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		burst_turn_sign: float, current_speed: float = 0.0, reverse: bool = false,
-		grounded: bool = true) -> Dictionary:
+		grounded: bool = true, drift_assist_charge: float = 0.0) -> Dictionary:
 	var distance := cursor_offset.length()
 	var desired_yaw := current_yaw
 	if distance > 0.0001:
@@ -79,6 +90,8 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	var boost_active := false
 	var brake_skid_amount := 0.0
 	var drift_amount := 0.0
+	var drift_zone_amount := 0.0
+	var drift_assist_amount := 0.0
 	var yaw_acceleration := lerpf(TURN_ACCEL_NEAR, TURN_ACCEL_FAR,
 		pow(cursor_reach, TURN_CURSOR_CURVE))
 	# Keep Starter FOLLOW's useful relationship: a close cursor asks for a
@@ -115,11 +128,21 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	if grounded and not reverse and not boost_active:
 		brake_skid_amount = automatic_brake_skid(current_speed, target_speed)
 		drift_amount = automatic_drift(brake_skid_amount, error)
+		drift_zone_amount = automatic_drift_zone(error)
+		drift_assist_amount = automatic_drift_assist(brake_skid_amount, error)
 		# Pulling inward during a committed turn trades velocity correction for
 		# rotation. The old road momentum remains real, so the slide is authored
 		# entirely by mouse placement rather than a separate drift button.
 		turn_cap *= lerpf(1.0, DRIFT_TURN_BOOST, drift_amount)
 		yaw_acceleration = lerpf(yaw_acceleration, DRIFT_YAW_ACCEL, drift_amount)
+		# The rear-corner timing zones reinforce an already committed skid. They
+		# never initiate one: peak braking, ground contact, and the cursor angle
+		# must all qualify before the extra rotation and forward carry appear.
+		var assist_strength := drift_assist_amount * lerpf(0.55, 1.0,
+			clampf(drift_assist_charge, 0.0, 1.0))
+		turn_cap *= lerpf(1.0, DRIFT_ASSIST_TURN_BOOST, assist_strength)
+		yaw_acceleration = lerpf(yaw_acceleration, DRIFT_ASSIST_YAW_ACCEL,
+			assist_strength)
 
 	# Ackermann-like behavior without wheel contact simulation: no forward
 	# motion means no yaw. Authority ramps in over the first 4 units/s.
@@ -137,6 +160,8 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	if target_speed < current_speed:
 		acceleration = lerpf(BRAKE, BRAKE_SKID_VELOCITY_RESPONSE, brake_skid_amount)
 		acceleration = lerpf(acceleration, DRIFT_VELOCITY_RESPONSE, drift_amount)
+		acceleration = lerpf(acceleration, DRIFT_ASSIST_VELOCITY_RESPONSE,
+			drift_assist_amount)
 
 	return {
 		"speed": target_speed,
@@ -152,6 +177,8 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		"boost_active": boost_active,
 		"brake_skid_amount": brake_skid_amount,
 		"drift_amount": drift_amount,
+		"drift_zone_amount": drift_zone_amount,
+		"drift_assist_amount": drift_assist_amount,
 	}
 
 ## Pulling the line inward at road speed locks some tire response before the
@@ -169,6 +196,32 @@ static func automatic_drift(brake_skid_amount: float, heading_error: float) -> f
 	var turn_factor := smoothstep(DRIFT_MIN_HEADING, DRIFT_FULL_HEADING,
 		absf(heading_error))
 	return brake_skid_amount * turn_factor
+
+## A pair of soft zones centered on the rear corners. Sideways cursor placement
+## remains an ordinary powerslide and straight-back braking remains a spin-free
+## stop; only the diagonal timing window receives assistance.
+static func automatic_drift_zone(heading_error: float) -> float:
+	var angle := absf(wrapf(heading_error, -PI, PI))
+	var enter := smoothstep(DRIFT_ASSIST_ZONE_INNER, DRIFT_ASSIST_ZONE_FULL, angle)
+	var leave := 1.0 - smoothstep(DRIFT_ASSIST_ZONE_FADE,
+		DRIFT_ASSIST_ZONE_OUTER, angle)
+	return enter * leave
+
+static func automatic_drift_assist(brake_skid_amount: float, heading_error: float) -> float:
+	var brake_commit := smoothstep(DRIFT_ASSIST_BRAKE_ONSET,
+		DRIFT_ASSIST_BRAKE_FULL, clampf(brake_skid_amount, 0.0, 1.0))
+	return automatic_drift_zone(heading_error) * brake_commit
+
+## The meter turns a continuous mouse gesture into a readable timing window.
+## Filling means keep committing; MAX means move the cursor forward and drive
+## out. It drains quickly enough to reset between corners.
+static func next_drift_assist_charge(current_charge: float, assist_amount: float,
+		delta: float) -> float:
+	var charge := clampf(current_charge, 0.0, 1.0)
+	if assist_amount > 0.001:
+		return move_toward(charge, 1.0, delta / DRIFT_ASSIST_CHARGE_TIME \
+			* lerpf(0.55, 1.0, clampf(assist_amount, 0.0, 1.0)))
+	return move_toward(charge, 0.0, delta / DRIFT_ASSIST_RELEASE_TIME)
 
 ## Mouse drive only owns the ground plane. Gravity, ramps, and impacts own Y.
 static func compose_drive_velocity(planar_velocity: Vector3, vertical_velocity: float) -> Vector3:

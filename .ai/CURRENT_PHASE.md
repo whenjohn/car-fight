@@ -22,9 +22,13 @@
 - Exaggerated the arcade brake read: full wheel lock, 18-degree faster chassis dive, roughly halved straight-skid velocity correction again, and slightly more powerslide rotation.
 - Documented two nearly identical WindowServer watchdog failures in `.ai/CRASH_LOG.md`. In both, the rendered Godot 4.7 client had been alive for about 69 seconds and the same built-in Intel display framebuffer became unready. Treat the rendered client/native OpenGL path as a probable trigger, not a proven game-logic crash. No mitigation or project change was applied at the user's request.
 - Delayed the presentation-only hard-brake dive until skid intensity passes 72%, builds it to full near 98%, and slowed its easing to one-quarter of the previous response speed while retaining the exaggerated 18-degree peak. The complete `./scripts/test.sh` suite passes.
+- Made Drive the default launch mode with combat coverage cones hidden until `C` or the `E` editor is requested.
+- Added a local speed ring around the Jeep: normal speed fills the main arc, burst speed adds an outer orange arc, and peak braking brightens the display.
+- Added faint rear-corner drift zones centered around +/-135 degrees. Peak braking inside either zone adds bounded rotation and forward-carry assistance, fills a 0.65-second local timing meter, and displays `MAX -> GAS` before resetting after the cursor leaves. Straight-back braking and ordinary sideways powerslides remain unchanged.
+- Synchronized drift-assist amount, charge, and side through rollback state and added focused control/presentation regressions. The complete `./scripts/test.sh` suite passes.
 
 ## Next
 
 - Continue gameplay work, but do not automatically launch a rendered local client. Read `.ai/CRASH_LOG.md` first and get explicit approval before a rendered test because two attempts have killed WindowServer. Headless tests remain appropriate.
-- When rendered testing is authorized, play-test whether the delayed, slower 18-degree chassis dive now coincides with peak braking, alongside hard-brake distance, close carving, and transition into powerslide. Tune their relative strength by feel before adding persistent skid marks or combat-driving objectives.
+- When rendered testing is authorized, play-test the ring readability and drift sequence: reach speed, snap into a rear-corner zone, hold through brake/dive until `MAX -> GAS`, then throw the cursor forward and accelerate out. Tune zone angle, assist strength, and the 0.65-second timing window by feel.
 - Recheck the shield and hit feel at the new west clearing, then tune the shader/SFX layer. Audio remains intentionally unimplemented for this visual-first pass.
