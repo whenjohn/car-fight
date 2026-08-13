@@ -101,9 +101,16 @@ func _process(_delta: float) -> void:
 	var side := float(_body.get("drift_assist_side"))
 	var assist := clampf(float(_body.get("drift_assist_amount")), 0.0, 1.0)
 	var latched := bool(_body.get("drift_assist_latched"))
+	var rearm_ready := bool(_body.get("drift_assist_rearm_ready"))
 	var hold_fraction := clampf(float(_body.get("drift_assist_hold")) \
 		/ FOLLOW.DRIFT_ASSIST_ARM_TIME, 0.0, 1.0)
 	var ready := FOLLOW.drift_assist_ready_fraction(road_speed)
+	if not rearm_ready:
+		# A completed drift stays visibly spent until forward acceleration rearms
+		# it, matching the one-corner control rule instead of inviting a circle.
+		ready *= 0.08
+		assist = 0.0
+		hold_fraction = 0.0
 	_update_dynamic_meshes(road_speed, charge, side)
 	var brake_glow := smoothstep(0.65, 1.0, brake)
 	_speed_material.albedo_color = Color(SPEED_COLOR.lerp(BRAKE_COLOR, brake_glow),

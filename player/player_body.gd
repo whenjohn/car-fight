@@ -18,6 +18,7 @@ var drift_assist_charge := 0.0
 var drift_assist_side := 0.0
 var drift_assist_hold := 0.0
 var drift_assist_latched := false
+var drift_assist_rearm_ready := true
 var is_cloaked := false
 var cloak_held_prev := false
 var shield_up := false
@@ -73,6 +74,7 @@ func _ready() -> void:
 	_sync.add_state(self, "drift_assist_side")
 	_sync.add_state(self, "drift_assist_hold")
 	_sync.add_state(self, "drift_assist_latched")
+	_sync.add_state(self, "drift_assist_rearm_ready")
 	_sync.add_state(self, "is_cloaked")
 	_sync.add_state(self, "cloak_held_prev")
 	_sync.add_state(self, "shield_up")
@@ -172,13 +174,14 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var assist_sustain := FOLLOW.automatic_drift_assist_sustain(
 		float(probe["brake_skid_amount"]), float(probe["heading_error"]))
 	var assist_state := FOLLOW.next_drift_assist_state(drift_assist_hold,
-		drift_assist_latched, drift_assist_side,
+		drift_assist_latched, drift_assist_side, drift_assist_rearm_ready,
 		float(probe["drift_assist_amount"]) * 4.0, float(probe["heading_error"]),
 		float(probe["throttle"]), burst_requested, reverse_requested,
 		touching_support, planar_speed, assist_sustain, delta)
 	drift_assist_hold = float(assist_state["hold"])
 	drift_assist_latched = bool(assist_state["latched"])
 	drift_assist_side = float(assist_state["side"])
+	drift_assist_rearm_ready = bool(assist_state["rearm_ready"])
 	var command := FOLLOW.command(offset, current_yaw, burst_requested, burst_turn_sign,
 		planar_speed, reverse_requested, touching_support, drift_assist_charge,
 		drift_assist_latched, drift_assist_side)
@@ -297,6 +300,7 @@ func _service_jump_gate(delta: float) -> bool:
 	drift_assist_side = 0.0
 	drift_assist_hold = 0.0
 	drift_assist_latched = false
+	drift_assist_rearm_ready = true
 	collision_stall_time = 0.0
 	collision_escape_time = 0.0
 	wall_bump_cooldown = 0.0

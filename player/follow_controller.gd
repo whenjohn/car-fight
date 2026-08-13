@@ -251,35 +251,48 @@ static func automatic_drift_assist_sustain(brake_skid_amount: float,
 ## wedge. A far forward acceleration exits; otherwise reaching a natural side
 ## slip hands control back to the ordinary powerslide.
 static func next_drift_assist_state(current_hold: float, current_latched: bool,
-		current_side: float, entry_amount: float, heading_error: float,
+		current_side: float, current_rearm_ready: bool, entry_amount: float, heading_error: float,
 		throttle: float, burst: bool, reverse: bool, grounded: bool,
 		current_speed: float, sustain_amount: float, delta: float) -> Dictionary:
 	var hold := maxf(current_hold, 0.0)
 	var latched := current_latched
 	var side := signf(current_side)
+	var rearm_ready := current_rearm_ready
 	var angle := absf(wrapf(heading_error, -PI, PI))
 	if not grounded or reverse or current_speed < DRIFT_ASSIST_MIN_LATCH_SPEED:
-		return {"hold": 0.0, "latched": false, "side": side}
+		return {"hold": 0.0, "latched": false, "side": side,
+			"rearm_ready": true}
+	var accelerate_out := burst or (throttle >= DRIFT_ASSIST_ACCEL_EXIT_THROTTLE \
+		and angle <= DRIFT_ASSIST_ACCEL_EXIT_ANGLE)
 	if latched:
-		var accelerate_out := burst or (throttle >= DRIFT_ASSIST_ACCEL_EXIT_THROTTLE \
-			and angle <= DRIFT_ASSIST_ACCEL_EXIT_ANGLE)
 		var side_skid := angle <= DRIFT_ASSIST_SIDE_EXIT_ANGLE
 		if accelerate_out or side_skid:
-			return {"hold": 0.0, "latched": false, "side": side}
-		return {"hold": DRIFT_ASSIST_ARM_TIME, "latched": true, "side": side}
+			return {"hold": 0.0, "latched": false, "side": side,
+				"rearm_ready": accelerate_out}
+		return {"hold": DRIFT_ASSIST_ARM_TIME, "latched": true, "side": side,
+			"rearm_ready": rearm_ready}
+	# Releasing naturally into a side skid spends this drift. The player must
+	# drive forward before another rear-wedge gesture can arm; simply holding
+	# the cursor still while the Jeep rotates can no longer chain full circles.
+	if not rearm_ready:
+		return {"hold": 0.0, "latched": false, "side": side,
+			"rearm_ready": accelerate_out}
 	var arming_amount := entry_amount if hold <= 0.0 else sustain_amount
 	if arming_amount <= 0.35:
-		return {"hold": 0.0, "latched": false, "side": side}
+		return {"hold": 0.0, "latched": false, "side": side,
+			"rearm_ready": rearm_ready}
 	var requested_side := signf(wrapf(heading_error, -PI, PI))
 	if is_zero_approx(requested_side):
-		return {"hold": 0.0, "latched": false, "side": side}
+		return {"hold": 0.0, "latched": false, "side": side,
+			"rearm_ready": rearm_ready}
 	if not is_zero_approx(side) and requested_side != side:
 		hold = 0.0
 	side = requested_side
 	hold = minf(hold + delta * lerpf(0.65, 1.0,
 		clampf(arming_amount, 0.0, 1.0)), DRIFT_ASSIST_ARM_TIME)
 	latched = hold >= DRIFT_ASSIST_ARM_TIME
-	return {"hold": hold, "latched": latched, "side": side}
+	return {"hold": hold, "latched": latched, "side": side,
+		"rearm_ready": rearm_ready}
 
 ## The meter turns a continuous mouse gesture into a readable timing window.
 ## Filling means keep committing; MAX means move the cursor forward and drive

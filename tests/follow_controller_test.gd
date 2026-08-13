@@ -96,38 +96,48 @@ func _init() -> void:
 	if float(slow_corner["drift_assist_amount"]) != 0.0:
 		_failures += 1
 		push_error("rear-corner placement must not assist without a hard high-speed brake")
-	var latch_state := {"hold": 0.0, "latched": false, "side": 0.0}
+	var latch_state := {"hold": 0.0, "latched": false, "side": 0.0,
+		"rearm_ready": true}
 	for step in range(12):
 		latch_state = FOLLOW.next_drift_assist_state(latch_state["hold"],
-			latch_state["latched"], latch_state["side"], 1.0, deg_to_rad(135.0),
+			latch_state["latched"], latch_state["side"], latch_state["rearm_ready"],
+			1.0, deg_to_rad(135.0),
 			0.15, false, false, true, FOLLOW.SPEED, 1.0, 1.0 / 60.0)
 	if not bool(latch_state["latched"]) or float(latch_state["side"]) <= 0.0:
 		_failures += 1
 		push_error("a brief deliberate rear-corner hold must latch drift assistance")
 	var moving_wedge_state := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
-		latch_state["side"], 0.0, deg_to_rad(90.0), 0.15, false, false, true,
+		latch_state["side"], true, 0.0, deg_to_rad(90.0), 0.15, false, false, true,
 		FOLLOW.SPEED, 0.0, 1.0 / 60.0)
 	if not bool(moving_wedge_state["latched"]):
 		_failures += 1
 		push_error("latched assistance must not require chasing the rotating rear wedge")
 	var side_exit := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
-		latch_state["side"], 0.0, deg_to_rad(65.0), 0.15, false, false, true,
+		latch_state["side"], true, 0.0, deg_to_rad(65.0), 0.15, false, false, true,
 		FOLLOW.SPEED, 0.0, 1.0 / 60.0)
 	if bool(side_exit["latched"]):
 		_failures += 1
 		push_error("reaching a natural side skid must release automatic drift rotation")
-	var gas_exit := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
-		latch_state["side"], 0.0, 0.0, 1.0, false, false, true,
-		FOLLOW.SPEED, 0.0, 1.0 / 60.0)
-	if bool(gas_exit["latched"]):
+	var held_wedge := FOLLOW.next_drift_assist_state(0.0, false, side_exit["side"],
+		side_exit["rearm_ready"], 1.0, deg_to_rad(135.0), 0.15, false, false,
+		true, FOLLOW.SPEED, 1.0, 1.0 / 60.0)
+	if bool(held_wedge["latched"]) or float(held_wedge["hold"]) > 0.0 \
+			or bool(held_wedge["rearm_ready"]):
 		_failures += 1
-		push_error("hard forward acceleration must release latched drift assistance")
+		push_error("holding the rear wedge after a side-skid exit must not chain another circle")
+	var gas_exit := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
+		latch_state["side"], true, 0.0, 0.0, 1.0, false, false, true,
+		FOLLOW.SPEED, 0.0, 1.0 / 60.0)
+	if bool(gas_exit["latched"]) or not bool(gas_exit["rearm_ready"]):
+		_failures += 1
+		push_error("hard forward acceleration must release and rearm drift assistance")
 	var captured_state := FOLLOW.next_drift_assist_state(0.0, false, 0.0,
-		1.0, deg_to_rad(135.0), 0.15, false, false, true, FOLLOW.SPEED,
+		true, 1.0, deg_to_rad(135.0), 0.15, false, false, true, FOLLOW.SPEED,
 		1.0, 1.0 / 60.0)
 	for step in range(11):
 		captured_state = FOLLOW.next_drift_assist_state(captured_state["hold"],
-			captured_state["latched"], captured_state["side"], 0.0,
+			captured_state["latched"], captured_state["side"],
+			captured_state["rearm_ready"], 0.0,
 			deg_to_rad(135.0), 0.15, false, false, true, 10.0, 1.0,
 			1.0 / 60.0)
 	if not bool(captured_state["latched"]):
