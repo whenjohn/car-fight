@@ -87,3 +87,17 @@ precursor without shadow rendering or animation.
 
 Conclusion: a static shadow caster, receiving floor, and directional shadow
 pass do not produce the precursor without per-frame scene motion.
+
+## Stage 6 — animated caster and moving shadow
+
+- Revision: `607cbaf`
+- Engine/driver/window/display contract: same as Stage 5
+- Added: continuous per-frame rotation of the primitive and its shadow
+- Duration: approximately 27 seconds of telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: continuous transform updates and a moving dynamic shadow do not
+produce the precursor with primitive geometry.
