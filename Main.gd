@@ -1,8 +1,8 @@
 extends Node
-## Stage 9 actively simulates a colliding Rapier rigid body and static floor.
-## The Jeep is presentation on that body; netfox and networking remain disabled.
+## Stage 10 initializes netfox timing, rollback, events, and performance autoloads.
+## It creates no ENet peer or traffic; active physics and rendering match Stage 9.
 
-const STAGE := 9
+const STAGE := 10
 const JEEP_SCENE: PackedScene = preload("res://assets/ground_vehicle/Jeep.fbx")
 
 var _telemetry: FileAccess

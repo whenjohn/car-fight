@@ -14,7 +14,8 @@ Stop when the known `Invalid actual_host_time` precursor appears.
 7. Replace the primitive with the imported Jeep presentation mesh.
 8. Load Rapier and select it as the 3D physics engine, without physics bodies.
 9. Add one simulated rigid body and collider.
-10. Load netfox and add the minimal server/client shell.
+10. Load netfox autoload/tick infrastructure without creating ENet peers.
+11. Add the minimal ENet server/client shell and local traffic.
 
 Do not combine stages. A stage that reproduces the precursor identifies the
 smallest newly introduced subsystem to investigate.

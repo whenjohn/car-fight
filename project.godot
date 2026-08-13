@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 9: actively simulate Rapier bodies.
+; Car Fight fullscreen isolation — stage 10: initialize netfox autoloads.
 config_version=5
 
 [application]
@@ -6,6 +6,14 @@ config_version=5
 config/name="Car Fight Render Isolation"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+NetworkTime="*res://addons/netfox/network-time.gd"
+NetworkTimeSynchronizer="*res://addons/netfox/network-time-synchronizer.gd"
+NetworkRollback="*res://addons/netfox/rollback/network-rollback.gd"
+NetworkEvents="*res://addons/netfox/network-events.gd"
+NetworkPerformance="*res://addons/netfox/network-performance.gd"
 
 [display]
 
@@ -19,6 +27,11 @@ window/stretch/mode="canvas_items"
 
 common/physics_ticks_per_second=120
 3d/physics_engine="Rapier3D"
+
+[netfox]
+
+time/tickrate=60
+rollback/input_delay=8
 
 [rendering]
 
