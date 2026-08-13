@@ -33,7 +33,10 @@ func _init() -> void:
 	var close_moving := FOLLOW.command(Vector2(4.0, 0.0), 0.0, false, 0.0, 4.0)
 	if absf(close_moving["yaw_rate"]) < absf(moving["yaw_rate"]) * 1.6:
 		_failures += 1
-		push_error("close cursor must have a substantially tighter turn than far cursor")
+		push_error("close cursor must retain a meaningfully tighter turn than far cursor")
+	if absf(close_moving["yaw_rate"]) > absf(moving["yaw_rate"]) * 2.05:
+		_failures += 1
+		push_error("ordinary close-cursor steering must retain an arc instead of matching a drift turn")
 	if float(close_moving["yaw_acceleration"]) <= float(moving["yaw_acceleration"]):
 		_failures += 1
 		push_error("close cursor must reach its tighter turn faster than far cursor")
@@ -78,6 +81,9 @@ func _init() -> void:
 			or float(assisted["acceleration"]) > FOLLOW.DRIFT_ASSIST_VELOCITY_RESPONSE + 0.001:
 		_failures += 1
 		push_error("peak braking in a rear corner must begin arming bounded drift assistance")
+	if absf(float(assisted["yaw_rate"])) < absf(float(drifting["yaw_rate"])) * 1.25:
+		_failures += 1
+		push_error("a successful drift assist must turn materially tighter than an ordinary close-cursor miss")
 	if float(directly_back["drift_assist_amount"]) != 0.0:
 		_failures += 1
 		push_error("straight-back hard braking must stay outside the corner assist zones")
