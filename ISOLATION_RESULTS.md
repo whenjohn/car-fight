@@ -101,3 +101,18 @@ pass do not produce the precursor without per-frame scene motion.
 
 Conclusion: continuous transform updates and a moving dynamic shadow do not
 produce the precursor with primitive geometry.
+
+## Stage 7 — imported Jeep hierarchy
+
+- Revision: `c1e9895`
+- Engine/driver/window/display contract: same as Stage 6
+- Changed: replaced BoxMesh with freshly imported Jeep FBX scene hierarchy
+- Motion/shadows: same continuous rotation and moving shadow as Stage 6
+- Duration: approximately 24 seconds of telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: car-fight's imported Jeep hierarchy, its materials, and its moving
+shadow do not produce the precursor without physics or networking systems.
