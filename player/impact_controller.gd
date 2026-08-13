@@ -1,11 +1,12 @@
 extends RefCounted
 ## Pure incoming-hit math shared by rollback gameplay and focused tests.
 
-const DRONE_IMPULSE := 4.0
-const DRONE_TORQUE_IMPULSE := 0.45
+const DRONE_IMPULSE := 6.0
+const DRONE_TORQUE_IMPULSE := 3.0
 const SHIELD_PASSTHROUGH := 0.15
-const RECOVERY_TIME := 0.28
+const RECOVERY_TIME := 0.30
 const RECOVERY_ACCELERATION_SCALE := 0.25
+const RECOVERY_UPRIGHT_SCALE := 0.20
 
 static func response(incoming_direction: Vector3, shielded: bool) -> Dictionary:
 	var direction := incoming_direction
@@ -18,11 +19,16 @@ static func response(incoming_direction: Vector3, shielded: bool) -> Dictionary:
 		"linear_impulse": direction * DRONE_IMPULSE * scale,
 		"torque_impulse": Vector3.UP.cross(direction).normalized()
 			* DRONE_TORQUE_IMPULSE * scale,
-		"recovery_time": RECOVERY_TIME * scale,
+		# Absorption changes the shove, not how quickly the suspension settles.
+		# Keeping the short recovery window lets even the shielded body kick read.
+		"recovery_time": RECOVERY_TIME,
 	}
 
 static func acceleration_scale(recovery_time: float) -> float:
 	return RECOVERY_ACCELERATION_SCALE if recovery_time > 0.0 else 1.0
+
+static func upright_scale(recovery_time: float) -> float:
+	return RECOVERY_UPRIGHT_SCALE if recovery_time > 0.0 else 1.0
 
 ## Earliest point where a segment enters a sphere, expressed as 0..1.
 ## Returns a value above 1 when there is no contact.

@@ -21,6 +21,11 @@ func _init() -> void:
 			or IMPACT.acceleration_scale(0.0) != 1.0:
 		_fail("impact recovery must briefly soften only active drive correction")
 		return
+	if float(shielded["recovery_time"]) != float(unshielded["recovery_time"]) \
+			or IMPACT.upright_scale(IMPACT.RECOVERY_TIME) >= 1.0 \
+			or IMPACT.upright_scale(0.0) != 1.0:
+		_fail("shielded hits must retain a brief readable suspension recovery")
+		return
 	var fraction := IMPACT.segment_sphere_entry(Vector3(-2.0, 0.0, 0.0),
 		Vector3(2.0, 0.0, 0.0), Vector3.ZERO, 1.0)
 	if absf(fraction - 0.25) > 0.0001:

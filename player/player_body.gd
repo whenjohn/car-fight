@@ -204,7 +204,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	direct_state.angular_velocity = FOLLOW.compose_drive_angular_velocity(
 		direct_state.angular_velocity, yaw_rate)
 	direct_state.apply_torque(FOLLOW.upright_torque(direct_state.transform.basis,
-		direct_state.angular_velocity, mass))
+		direct_state.angular_velocity, mass) * IMPACT.upright_scale(impact_recovery_time))
 	if bump_started:
 		direct_state.apply_central_impulse(bump_linear_impulse)
 		direct_state.apply_torque_impulse(Vector3.UP * bump_yaw_impulse)

@@ -7,6 +7,7 @@
 - Added a freely toggled `Q` shield that absorbs 85% of the drone shove; cloak and shield are mutually exclusive, with cloak taking priority.
 - Added a glass bubble shader, localized shield ripple, ordinary impact burst, client-side visual prediction, and authoritative event deduplication.
 - Isolated the drone in the empty west clearing, with no red targets or arena structures beside it.
+- Increased authoritative drone shove and torque, and briefly relaxes suspension recovery after hits so shielded and unshielded body jostle remains visible.
 - Added focused impact math, presentation, and network gates; the complete `./scripts/test.sh` suite passes.
 
 ## Next

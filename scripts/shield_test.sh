@@ -77,9 +77,14 @@ fi
 
 hull_speed="$(print -r -- "$hull_result" | sed -E 's/.*impactmax=([0-9.]+).*/\1/')"
 shield_speed="$(print -r -- "$shield_result" | sed -E 's/.*impactmax=([0-9.]+).*/\1/')"
+hull_tilt="$(print -r -- "$hull_result" | sed -E 's/.*maxtilt=([0-9.]+).*/\1/')"
+shield_tilt="$(print -r -- "$shield_result" | sed -E 's/.*maxtilt=([0-9.]+).*/\1/')"
 if ! awk -v hull="$hull_speed" -v shield="$shield_speed" \
-	'BEGIN { exit !(hull >= 0.4 && shield < 0.3 && shield < hull * 0.5) }'; then
+		-v hull_tilt="$hull_tilt" -v shield_tilt="$shield_tilt" \
+	'BEGIN { exit !(hull >= 2.0 && shield >= 0.25 && shield < hull * 0.5 \
+		&& hull_tilt >= 5.0 && shield_tilt >= 0.8 && shield_tilt < hull_tilt * 0.5) }'; then
 	echo "shield did not substantially reduce trajectory shove: hull=$hull_speed shield=$shield_speed" >&2
+	echo "body jostle was not readable: hull_tilt=$hull_tilt shield_tilt=$shield_tilt" >&2
 	echo "$hull_result" >&2
 	echo "$shield_result" >&2
 	exit 1
@@ -90,5 +95,5 @@ if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.
 	exit 1
 fi
 
-echo "SHIELD_TEST PASS unshielded=${hull_speed} shielded=${shield_speed}"
+echo "SHIELD_TEST PASS unshielded=${hull_speed}/${hull_tilt}deg shielded=${shield_speed}/${shield_tilt}deg"
 echo "logs: $log_dir"
