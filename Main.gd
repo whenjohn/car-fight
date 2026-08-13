@@ -1,14 +1,19 @@
 extends Node
-## Stage 10 initializes netfox timing, rollback, events, and performance autoloads.
-## It creates no ENet peer or traffic; active physics and rendering match Stage 9.
+## Stage 11 adds a local ENet server/client connection and netfox time sync.
+## It still has no multiplayer spawning, replicated state, or rollback nodes.
 
-const STAGE := 10
+const STAGE := 11
 const JEEP_SCENE: PackedScene = preload("res://assets/ground_vehicle/Jeep.fbx")
+const DEFAULT_PORT := 10080
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
 var _quit_after_ticks := 0
 var _ticks := 0
+var _role := "client"
+var _host := "127.0.0.1"
+var _port := DEFAULT_PORT
+
 func _ready() -> void:
 	_parse_args()
 	_build_3d_view()
@@ -21,6 +26,23 @@ func _ready() -> void:
 		str(details["window_size"]),
 	])
 	_write("start", details)
+	_start_network()
+
+
+func _start_network() -> void:
+	var peer := ENetMultiplayerPeer.new()
+	var error := OK
+	if _role == "server":
+		error = peer.create_server(_port, 4)
+	else:
+		error = peer.create_client(_host, _port)
+	if error != OK:
+		push_error("ENet %s setup failed: %s" % [_role, error_string(error)])
+		get_tree().quit(2)
+		return
+	multiplayer.multiplayer_peer = peer
+	print("RENDER_ISOLATION_NETWORK role=%s host=%s port=%d" % [
+		_role, _host, _port])
 
 
 func _build_3d_view() -> void:
@@ -121,7 +143,21 @@ func _parse_args() -> void:
 	var args := OS.get_cmdline_user_args()
 	var index := 0
 	while index < args.size():
-		if args[index] == "--ticks" and index + 1 < args.size():
+		if args[index] == "--server":
+			_role = "server"
+		elif args[index] == "--client":
+			_role = "client"
+		elif args[index] == "--host" and index + 1 < args.size():
+			index += 1
+			_host = args[index]
+		elif args[index].begins_with("--host="):
+			_host = args[index].get_slice("=", 1)
+		elif args[index] == "--port" and index + 1 < args.size():
+			index += 1
+			_port = int(args[index])
+		elif args[index].begins_with("--port="):
+			_port = int(args[index].get_slice("=", 1))
+		elif args[index] == "--ticks" and index + 1 < args.size():
 			index += 1
 			_quit_after_ticks = int(args[index])
 		elif args[index].begins_with("--ticks="):
@@ -143,6 +179,7 @@ func _display_details() -> Dictionary:
 	var screen := DisplayServer.window_get_current_screen()
 	return {
 		"stage": STAGE,
+		"role": _role,
 		"display_driver": DisplayServer.get_name(),
 		"rendering_driver": str(RenderingServer.get_current_rendering_driver_name()),
 		"video_adapter": str(RenderingServer.get_video_adapter_name()),

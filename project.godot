@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 10: initialize netfox autoloads.
+; Car Fight fullscreen isolation — stage 11: add local ENet traffic.
 config_version=5
 
 [application]
