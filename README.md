@@ -1,6 +1,6 @@
 # Car Fight
 
-A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with Starter's FOLLOW mouse control, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
+A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
 Networking is native ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
 
@@ -19,7 +19,8 @@ Controls:
 - Four triangular cones are preset at the Jeep's front, right, rear, and left. Their combined area cannot exceed the four default 90° cones at range 8. Narrowing or disabling one cone frees area for longer or wider coverage elsewhere.
 - Press `F` to flip the selected cone. A vehicle-pointing cone starts precise and widens with distance; an outward-pointing cone starts wide beside the Jeep and narrows toward its far tip.
 - Move the mouse around the Jeep to steer toward it.
-- Cursor distance continuously controls speed: inside 1 world unit is stopped; at 16 units it reaches 14 units/s.
+- Cursor distance continuously controls speed: inside 1 world unit is stopped; at 20 units it reaches 14 units/s. The wider control radius and softened small-angle steering provide more room for precise throttle and racing-line adjustments.
+- Drifting needs no extra button. At road speed, pull the cursor inward while asking for a sharp direction change: the Jeep preserves more of its existing momentum and rotates into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
 - Hold `Space` to burst at 23.33 units/s with stronger acceleration and a wider, committed turn.
 - Press `Q` to toggle the vehicle shield. It absorbs 85% of an incoming drone bolt's shove while a localized glass ripple shows where the shot landed.
 - Press `R` to toggle cloak. Cloak and shield are mutually exclusive: cloaking lowers the shield, and the shield cannot be raised while cloaked.
@@ -31,7 +32,7 @@ Controls:
 - Drive mode keeps a deliberately faint coverage debug around the local Jeep. A firing zone flashes briefly; press `C` to hide or show the debug.
 - One stationary drone by itself in the empty west clearing arms after a short delay and fires once every two seconds at the nearest visible driving player. Its bolts lightly jostle and deflect an unshielded Jeep; cloak prevents targeting. The drone is a non-colliding shield-test fixture and cannot be targeted or destroyed.
 
-The floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
+The 168-unit-wide floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Its obstacles, outer targets, and shield-test clearing are spread across longer driving lines. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
 
 Four small fixed weapon mounts show the side zones. At runtime the combined CC0 mesh is split into a chassis and four wheel assemblies: only the chassis leans under turning load, the front tires visibly steer, and all tires spin with signed road speed. This rig is presentation-only; collision always uses the same server-authoritative, equal-mass sphere on every peer.
 

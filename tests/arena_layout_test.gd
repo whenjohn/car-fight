@@ -14,12 +14,17 @@ func _init() -> void:
 		quit(1)
 		return
 	var arena_half: float = float(arena_config.HALF_EXTENT)
-	if arena_half < 60.0:
-		push_error("ARENA_LAYOUT_TEST FAIL: expanded field must be at least 120 units wide")
+	if arena_half < 80.0:
+		push_error("ARENA_LAYOUT_TEST FAIL: driving field must be at least 160 units wide")
 		quit(1)
 		return
-	if float(arena_config.CAMERA_SIZE) < 34.0:
-		push_error("ARENA_LAYOUT_TEST FAIL: camera must show substantially more of the expanded field")
+	if float(arena_config.CAMERA_SIZE) < 40.0:
+		push_error("ARENA_LAYOUT_TEST FAIL: camera must show the longer driving lines")
+		quit(1)
+		return
+	var follow := load("res://player/follow_controller.gd")
+	if follow == null or float(follow.MAX_DISTANCE) / float(arena_config.CAMERA_SIZE) < 0.45:
+		push_error("ARENA_LAYOUT_TEST FAIL: wider camera must retain mouse control resolution")
 		quit(1)
 		return
 	if float(arena_config.WALL_HEIGHT) < VEHICLE_CONFIG.COLLISION_RADIUS * 2.0:
@@ -56,5 +61,14 @@ func _init() -> void:
 				push_error("ARENA_LAYOUT_TEST FAIL: %s blocks a spawn" % obstacle_name)
 				quit(1)
 				return
+	var target_layout := load("res://combat/target_layout.gd")
+	var uses_outer_field := false
+	for target_position in target_layout.positions():
+		uses_outer_field = uses_outer_field or maxf(absf(target_position.x),
+			absf(target_position.z)) >= 40.0
+	if not uses_outer_field:
+		push_error("ARENA_LAYOUT_TEST FAIL: targets must draw driving into the outer field")
+		quit(1)
+		return
 	print("ARENA_LAYOUT_TEST PASS objects=%d" % obstacles.size())
 	quit()

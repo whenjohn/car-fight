@@ -97,6 +97,13 @@ func _init() -> void:
 		push_error("SHIELD_DRONE_TEST FAIL: fixture must retain its slow firing pace")
 		quit(1)
 		return
+	var drone_range: float = SHIELD_DRONE.BOLT_SPEED * SHIELD_DRONE.BOLT_LIFETIME
+	var central_spawn_distance := Vector2(SHIELD_DRONE.ARENA_POSITION.x,
+		SHIELD_DRONE.ARENA_POSITION.z).length()
+	if drone_range <= central_spawn_distance:
+		push_error("SHIELD_DRONE_TEST FAIL: bolts must cross the expanded west clearing")
+		quit(1)
+		return
 	var main_source := FileAccess.get_file_as_string("res://Main.gd")
 	if "[CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER]" not in main_source:
 		push_error("SHIELD_PREWARM_TEST FAIL: shield pipeline must compile before ENet starts")

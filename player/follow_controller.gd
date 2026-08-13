@@ -6,9 +6,10 @@ const SPEED := 14.0
 const ACCEL := 18.0
 const BRAKE := 26.0
 const DEADZONE := 1.0
-const MAX_DISTANCE := 16.0
+const MAX_DISTANCE := 20.0
 const CURVE := 1.0
 const HEADING_DEADZONE := 0.8
+const STEERING_RESPONSE_CURVE := 1.2
 const TURN_NEAR := 3.2
 const TURN_FAR := 1.45
 const TURN_CURSOR_CURVE := 1.0
@@ -16,6 +17,15 @@ const TURN_ACCEL_NEAR := 7.0
 const TURN_ACCEL_FAR := 4.0
 const STEERING_SPEED_REF := 4.0
 const HIGH_SPEED_TURN_SCALE := 0.72
+const DRIFT_MIN_SPEED := 7.0
+const DRIFT_FULL_SPEED := 13.0
+const DRIFT_MIN_HEADING := deg_to_rad(30.0)
+const DRIFT_FULL_HEADING := deg_to_rad(85.0)
+const DRIFT_MIN_SPEED_DROP := 3.0
+const DRIFT_FULL_SPEED_DROP := 10.0
+const DRIFT_VELOCITY_RESPONSE := 7.5
+const DRIFT_TURN_BOOST := 1.15
+const DRIFT_YAW_ACCEL := 8.0
 const BURST_SPEED := 23.3333333
 const BURST_ACCEL := 32.0
 const BURST_TURN := 0.85
@@ -52,7 +62,8 @@ const LANDING_MAX_TORQUE_IMPULSE := 0.65
 const LANDING_JOSTLE_COOLDOWN := 0.35
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
-		burst_turn_sign: float, current_speed: float = 0.0, reverse: bool = false) -> Dictionary:
+		burst_turn_sign: float, current_speed: float = 0.0, reverse: bool = false,
+		grounded: bool = true) -> Dictionary:
 	var distance := cursor_offset.length()
 	var desired_yaw := current_yaw
 	if distance > 0.0001:
@@ -64,6 +75,7 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	var cursor_reach := clampf(distance / MAX_DISTANCE, 0.0, 1.0)
 	var top_speed := SPEED
 	var boost_active := false
+	var drift_amount := 0.0
 	var yaw_acceleration := lerpf(TURN_ACCEL_NEAR, TURN_ACCEL_FAR,
 		pow(cursor_reach, TURN_CURSOR_CURVE))
 	# Keep Starter FOLLOW's useful relationship: a close cursor asks for a
@@ -96,16 +108,28 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		var road_speed := clampf(current_speed / SPEED, 0.0, 1.0)
 		turn_cap *= lerpf(1.0, HIGH_SPEED_TURN_SCALE, road_speed)
 
+	var target_speed := top_speed * throttle
+	if grounded and not reverse and not boost_active:
+		drift_amount = automatic_drift(current_speed, target_speed, error)
+		# Pulling inward during a committed turn trades velocity correction for
+		# rotation. The old road momentum remains real, so the slide is authored
+		# entirely by mouse placement rather than a separate drift button.
+		turn_cap *= lerpf(1.0, DRIFT_TURN_BOOST, drift_amount)
+		yaw_acceleration = lerpf(yaw_acceleration, DRIFT_YAW_ACCEL, drift_amount)
+
 	# Ackermann-like behavior without wheel contact simulation: no forward
 	# motion means no yaw. Authority ramps in over the first 4 units/s.
 	var speed_authority := clampf(current_speed / STEERING_SPEED_REF, 0.0, 1.0)
 	var cursor_authority := clampf((distance - HEADING_DEADZONE) / (HEADING_DEADZONE * 0.5), 0.0, 1.0)
-	var steering_fraction := clampf(error / (PI * 0.5), -1.0, 1.0)
-	var target_speed := top_speed * throttle
+	var linear_steering := clampf(error / (PI * 0.5), -1.0, 1.0)
+	# Preserve the full turn cap while giving small heading corrections a wider,
+	# calmer mouse band for accurate racing lines and combat spacing.
+	var steering_fraction := signf(linear_steering) \
+		* pow(absf(linear_steering), STEERING_RESPONSE_CURVE)
 	var acceleration := REVERSE_ACCEL if reverse \
 		else (BURST_ACCEL if burst and distance > DEADZONE else ACCEL)
 	if target_speed < current_speed:
-		acceleration = BRAKE
+		acceleration = lerpf(BRAKE, DRIFT_VELOCITY_RESPONSE, drift_amount)
 
 	return {
 		"speed": target_speed,
@@ -119,7 +143,21 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		"throttle": throttle,
 		"drive_sign": -1.0 if reverse else 1.0,
 		"boost_active": boost_active,
+		"drift_amount": drift_amount,
 	}
+
+## Stateless automatic powerslide intent. Speed supplies commitment, heading
+## error supplies rotation, and pulling the cursor inward supplies braking.
+## All three must agree, so a wide fast turn remains planted.
+static func automatic_drift(current_speed: float, target_speed: float,
+		heading_error: float) -> float:
+	var speed_factor := smoothstep(DRIFT_MIN_SPEED, DRIFT_FULL_SPEED, current_speed)
+	var turn_factor := smoothstep(DRIFT_MIN_HEADING, DRIFT_FULL_HEADING,
+		absf(heading_error))
+	var speed_drop := maxf(current_speed - target_speed, 0.0)
+	var inward_factor := smoothstep(DRIFT_MIN_SPEED_DROP, DRIFT_FULL_SPEED_DROP,
+		speed_drop)
+	return speed_factor * turn_factor * inward_factor
 
 ## Mouse drive only owns the ground plane. Gravity, ramps, and impacts own Y.
 static func compose_drive_velocity(planar_velocity: Vector3, vertical_velocity: float) -> Vector3:

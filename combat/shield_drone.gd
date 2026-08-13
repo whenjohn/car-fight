@@ -3,11 +3,12 @@ extends Node3D
 ## this node deliberately has no collider and is never a player weapon target.
 
 # Isolated west clearing: no red targets or arena structures beside it.
-const ARENA_POSITION := Vector3(-22.0, 2.35, -8.0)
+const ARENA_POSITION := Vector3(-32.0, 2.35, -8.0)
 const MUZZLE_HEIGHT := 0.15
 const ARM_TICKS := 60
 const FIRE_INTERVAL_TICKS := 120
 const BOLT_SPEED := 22.0
+const BOLT_LIFETIME := 2.5
 const BOLT_COLOR := Color(1.0, 0.30, 0.18)
 
 var _ring: Node3D

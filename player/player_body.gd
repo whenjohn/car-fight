@@ -127,16 +127,6 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var offset: Vector2 = Vector2.ZERO if _input.editing else _input.cursor_offset
 	var velocity: Vector3 = direct_state.linear_velocity
 	var planar_speed := Vector2(velocity.x, velocity.z).length()
-	var command := FOLLOW.command(offset, FOLLOW.heading_yaw(direct_state.transform.basis),
-		_input.burst and not _input.editing and not is_cloaked, burst_turn_sign, planar_speed,
-		_input.reverse and not _input.editing)
-	burst_turn_sign = command["burst_turn_sign"]
-	boost_active = bool(command["boost_active"])
-	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
-	var forward: Vector3 = -direct_state.transform.basis.z
-	forward.y = 0.0
-	forward = forward.normalized()
-	wall_bump_cooldown = maxf(wall_bump_cooldown - delta, 0.0)
 	landing_jostle_cooldown = maxf(landing_jostle_cooldown - delta, 0.0)
 	var support_normal := _static_support_normal()
 	var touching_support := not support_normal.is_zero_approx()
@@ -151,6 +141,16 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	else:
 		landing_fall_speed = maxf(landing_fall_speed, maxf(-velocity.y, 0.0))
 	was_supported = touching_support
+	var command := FOLLOW.command(offset, FOLLOW.heading_yaw(direct_state.transform.basis),
+		_input.burst and not _input.editing and not is_cloaked, burst_turn_sign, planar_speed,
+		_input.reverse and not _input.editing, touching_support)
+	burst_turn_sign = command["burst_turn_sign"]
+	boost_active = bool(command["boost_active"])
+	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
+	var forward: Vector3 = -direct_state.transform.basis.z
+	forward.y = 0.0
+	forward = forward.normalized()
+	wall_bump_cooldown = maxf(wall_bump_cooldown - delta, 0.0)
 	var bump_started := false
 	var bump_linear_impulse := Vector3.ZERO
 	var bump_yaw_impulse := 0.0

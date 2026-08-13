@@ -7,6 +7,7 @@ const MAX_CLIENTS := 16
 const ARENA_CONFIG := preload("res://world/arena_config.gd")
 const ARENA_HALF := ARENA_CONFIG.HALF_EXTENT
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
+const FOLLOW := preload("res://player/follow_controller.gd")
 const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
@@ -995,7 +996,7 @@ func cursor_offset_for(body: Node3D) -> Vector2:
 		return Vector2.ZERO
 	var hit := origin + direction * t
 	var delta := hit - body.global_position
-	return Vector2(delta.x, delta.z).limit_length(16.0)
+	return Vector2(delta.x, delta.z).limit_length(FOLLOW.MAX_DISTANCE)
 
 func is_scripted_client() -> bool:
 	return not _scripted.is_empty()
@@ -1006,28 +1007,29 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			# Fixed opposing headings make the network gate test collision rather
 			# than the far-distance FOLLOW turning radius around a moving target.
 			var slot := int(body.get("spawn_slot"))
-			var intent := Vector2(16.0, 0.0) if slot % 2 == 0 else Vector2(-16.0, 0.0)
+			var intent := Vector2(FOLLOW.MAX_DISTANCE, 0.0) if slot % 2 == 0 \
+				else Vector2(-FOLLOW.MAX_DISTANCE, 0.0)
 			return {"cursor_offset": intent, "burst": _scripted == "converge-burst"}
 		"right":
-			return {"cursor_offset": Vector2(16.0, 0.0), "burst": false}
+			return {"cursor_offset": Vector2(FOLLOW.MAX_DISTANCE, 0.0), "burst": false}
 		"burst-right":
-			return {"cursor_offset": Vector2(16.0, 0.0), "burst": true}
+			return {"cursor_offset": Vector2(FOLLOW.MAX_DISTANCE, 0.0), "burst": true}
 		"ball":
 			var target := BALL_SCRIPT.SPAWN_POSITION
 			if _balls != null and _balls.get_child_count() > 0:
 				target = (_balls.get_child(0) as Node3D).global_position
 			var delta := target - body.global_position
-			return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(16.0), "burst": false}
+			return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(FOLLOW.MAX_DISTANCE), "burst": false}
 		"ramp":
 			# Slow near the end so the elevated-road drop lands before the arena wall.
-			var reach := 6.0 if body.position.z < -25.0 else 16.0
+			var reach := 6.0 if body.position.z < -25.0 else FOLLOW.MAX_DISTANCE
 			return {"cursor_offset": Vector2(0.0, -reach), "burst": false}
 		"reverse":
-			return {"cursor_offset": Vector2(16.0, 0.0), "burst": false, "reverse": true}
+			return {"cursor_offset": Vector2(FOLLOW.MAX_DISTANCE, 0.0), "burst": false, "reverse": true}
 		"cloak":
 			# Hold the level so rollback's rising-edge detector toggles exactly once.
 			# Burst is deliberately requested to prove cloak's move-only gate.
-			return {"cursor_offset": Vector2(16.0, 0.0), "burst": true,
+			return {"cursor_offset": Vector2(FOLLOW.MAX_DISTANCE, 0.0), "burst": true,
 				"cloak_held": true, "editing": false}
 		"shield":
 			return {"cursor_offset": Vector2.ZERO, "shield_held": true,
@@ -1313,7 +1315,9 @@ func _step_server_bolts(delta: float) -> void:
 				continue
 		bolt["position"] = finish
 		bolt["age"] = float(bolt["age"]) + delta
-		if float(bolt["age"]) >= COMBAT_BOLT_LIFETIME:
+		var lifetime: float = SHIELD_DRONE_SCRIPT.BOLT_LIFETIME \
+			if kind == BOLT_KIND_DRONE else COMBAT_BOLT_LIFETIME
+		if float(bolt["age"]) >= lifetime:
 			_end_combat_bolt.rpc(bolt_id)
 			_server_bolts.erase(bolt_id)
 		else:

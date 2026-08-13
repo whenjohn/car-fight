@@ -36,7 +36,11 @@ client_pid=""
 
 result_line="$(rg 'RESULT players=1 .*minx=' "$log_dir/server.log" | tail -1)"
 min_x="$(print -r -- "$result_line" | sed -E 's/.*minx=([-0-9.]+).*/\1/')"
-if [[ -z "$result_line" ]] || ! awk -v value="$min_x" 'BEGIN { exit !(value <= 56.0) }'; then
+arena_half="$(sed -nE 's/^const HALF_EXTENT := ([0-9.]+)$/\1/p' \
+	"$project_root/world/arena_config.gd")"
+if [[ -z "$result_line" || -z "$arena_half" ]] \
+		|| ! awk -v value="$min_x" -v edge="$arena_half" \
+		'BEGIN { exit !(value <= edge - 8.0) }'; then
 	echo "reverse did not back the wall-facing car clear: min x $min_x; logs: $log_dir" >&2
 	tail -100 "$log_dir/server.log" >&2
 	exit 1
