@@ -34,6 +34,7 @@ const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const DRIVING_COURSE_SCRIPT := preload("res://world/driving_course.gd")
 const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
+const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 const COMBAT_FIRE_INTERVAL_TICKS := 15
 const COMBAT_BOLT_SPEED := 30.0
@@ -112,6 +113,7 @@ var _jump_gates: Node3D
 
 func _ready() -> void:
 	_parse_args()
+	_start_crash_telemetry()
 	# Launch directly into driving. The coverage editor remains available on E,
 	# and its cones remain opt-in during driving on C.
 	_combat_editor_active = false
@@ -132,6 +134,17 @@ func _ready() -> void:
 			await RenderingServer.frame_post_draw
 			_shader_prewarm.visible = false
 		_start_client()
+
+func _start_crash_telemetry() -> void:
+	var telemetry_path := OS.get_environment("CAR_FIGHT_TELEMETRY_FILE")
+	if telemetry_path.is_empty():
+		return
+	var telemetry := Node.new()
+	telemetry.name = "CrashTelemetry"
+	telemetry.set_script(CRASH_TELEMETRY_SCRIPT)
+	telemetry.set("output_path", telemetry_path)
+	telemetry.set("role", _role)
+	add_child(telemetry)
 
 func _process(_delta: float) -> void:
 	if multiplayer.is_server():

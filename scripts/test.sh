@@ -18,6 +18,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/coverage_config_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_layout_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/driving_course_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/crash_telemetry_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/elevated_course_test.gd
 "$project_root/scripts/network_test.sh"

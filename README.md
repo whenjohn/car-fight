@@ -70,3 +70,21 @@ The deployment helper is intentionally manual and has not been run:
 ```
 
 It uses `ssh macai2-ts`, installs the isolated launchd label `com.whenjohn.car-fight-server`, listens on UDP `10080`, and does not touch g2 or Starter.
+
+# Monitored local play
+
+Because this Intel Mac has experienced WindowServer watchdog failures during rendered play, use the monitored launcher for future local tests:
+
+```sh
+./scripts/play_monitored.sh
+```
+
+It writes flushed game/render telemetry—including window mode, focus, screen, and fullscreen transitions—plus process and thermal samples, filtered macOS display/GPU logs, and short Godot stack samples if telemetry stalls to `.crash-runs/<timestamp>/`. It does not upload anything. Every rendered run still requires explicit approval.
+
+After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin`, and historical unified log to the last run with:
+
+```sh
+./scripts/collect_crash_run.sh
+```
+
+Validate the monitor without opening a rendered window with `./scripts/play_monitored.sh --headless --ticks 180`. All three known crashes occurred fullscreen, so normal monitored play explicitly starts windowed. Only use `--fullscreen` for an approved fullscreen comparison. A later one-variable driver comparison can use `--driver opengl3_angle`, but do not combine window-mode, driver, gameplay, or shader changes.
