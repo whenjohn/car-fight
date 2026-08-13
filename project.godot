@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 8: initialize Rapier3D.
+; Car Fight fullscreen isolation — stage 9: actively simulate Rapier bodies.
 config_version=5
 
 [application]
@@ -17,6 +17,7 @@ window/stretch/mode="canvas_items"
 
 [physics]
 
+common/physics_ticks_per_second=120
 3d/physics_engine="Rapier3D"
 
 [rendering]

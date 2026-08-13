@@ -1,17 +1,14 @@
 extends Node
-## Stage 8 initializes the Rapier3D extension and selects it as the physics engine.
-## No physics bodies or simulation have been added; rendering matches Stage 7.
+## Stage 9 actively simulates a colliding Rapier rigid body and static floor.
+## The Jeep is presentation on that body; netfox and networking remain disabled.
 
-const STAGE := 8
+const STAGE := 9
 const JEEP_SCENE: PackedScene = preload("res://assets/ground_vehicle/Jeep.fbx")
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
 var _quit_after_ticks := 0
 var _ticks := 0
-var _animated_node: Node3D
-
-
 func _ready() -> void:
 	_parse_args()
 	_build_3d_view()
@@ -47,13 +44,26 @@ func _build_3d_view() -> void:
 	world.add_child(camera)
 	camera.look_at(Vector3.ZERO, Vector3.UP)
 
+	var body := RigidBody3D.new()
+	body.name = "SimulatedJeepBody"
+	body.position = Vector3(0.0, 0.55, 0.0)
+	body.mass = 2.2
+	body.angular_velocity = Vector3(0.0, 1.35, 0.0)
+	body.continuous_cd = true
+	world.add_child(body)
+
+	var body_shape := CollisionShape3D.new()
+	var body_box := BoxShape3D.new()
+	body_box.size = Vector3(2.2, 1.1, 3.4)
+	body_shape.shape = body_box
+	body.add_child(body_shape)
+
 	var jeep := JEEP_SCENE.instantiate() as Node3D
 	jeep.name = "ImportedJeep"
 	jeep.scale = Vector3.ONE * 0.45
 	jeep.rotation.y = PI
-	jeep.position.y = -0.68
-	world.add_child(jeep)
-	_animated_node = jeep
+	jeep.position.y = -0.55
+	body.add_child(jeep)
 
 	var floor_material := StandardMaterial3D.new()
 	floor_material.albedo_color = Color(0.16, 0.19, 0.23)
@@ -66,6 +76,15 @@ func _build_3d_view() -> void:
 	floor.mesh = floor_mesh
 	floor.position.y = -0.75
 	world.add_child(floor)
+	var floor_body := StaticBody3D.new()
+	floor_body.name = "StaticFloorBody"
+	floor_body.position.y = -0.85
+	world.add_child(floor_body)
+	var floor_collision := CollisionShape3D.new()
+	var floor_box := BoxShape3D.new()
+	floor_box.size = Vector3(20.0, 0.2, 20.0)
+	floor_collision.shape = floor_box
+	floor_body.add_child(floor_collision)
 
 	var light := DirectionalLight3D.new()
 	light.name = "DirectionalLight3D"
@@ -76,8 +95,6 @@ func _build_3d_view() -> void:
 
 
 func _process(delta: float) -> void:
-	if _animated_node != null:
-		_animated_node.rotate_y(delta * 1.35)
 	_sample_elapsed += delta
 	if _sample_elapsed < 1.0:
 		return
