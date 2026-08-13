@@ -167,3 +167,19 @@ occur on this runtime path.
 
 Conclusion: active Rapier rigid-body simulation and collision do not produce
 the WindowServer precursor without netfox or networking.
+
+## Stage 10 — netfox initialized without ENet peers
+
+- Revision: `b0c20c4`
+- Engine/driver/window/display, rendering, and physics: same as Stage 9
+- Added: NetworkTime, time synchronizer, rollback, events, and performance
+  autoloads at a 60 Hz netfox tick rate
+- ENet peers/traffic: none
+- Duration: approximately 26 seconds of fullscreen telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: netfox initialization, timing, and rollback infrastructure do not
+produce the WindowServer precursor without an active multiplayer connection.
