@@ -108,6 +108,8 @@ Godot 4.7 reports these available macOS rendering drivers on this machine: `vulk
 
 `./scripts/collect_crash_run.sh` attaches any WindowServer/Godot `.ips` and `.spin` files created after the run began, recovers the matching historical unified log, snapshots the recovered display state, and writes short pre-failure tails. The monitor, collector, and flushed telemetry were validated with clean headless runs on 2026-08-13; the complete project test suite passes.
 
+`./scripts/crash_monitor_test.sh` is the safe fault-injection test. It uses `--fake-stall`, which is rejected unless the client is headless, pauses only Godot's main thread for seven seconds, then verifies that telemetry resumes and that the external watcher captured a real process stack. Do not test the monitor by exhausting GPU buffers, repeatedly changing display modes, killing WindowServer, or manufacturing thermal pressure; those approaches risk reproducing the system disruption and make the evidence harder to interpret.
+
 The first monitored isolation run should use the launcher's default windowed mode with the existing native OpenGL renderer. If that remains stable, fullscreen versus windowed is the first one-variable comparison because every known failure was fullscreen. ANGLE versus native OpenGL is the next comparison if fullscreen remains implicated. Do not combine window mode, renderer, gameplay, or shader changes, and do not deliberately run until failure.
 
 ## Evidence to collect after another spontaneous crash

@@ -88,3 +88,5 @@ After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin
 ```
 
 Validate the monitor without opening a rendered window with `./scripts/play_monitored.sh --headless --ticks 180`. All three known crashes occurred fullscreen, so normal monitored play explicitly starts windowed. Only use `--fullscreen` for an approved fullscreen comparison. A later one-variable driver comparison can use `--driver opengl3_angle`, but do not combine window-mode, driver, gameplay, or shader changes.
+
+To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.

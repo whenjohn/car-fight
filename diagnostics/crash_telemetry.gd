@@ -16,6 +16,10 @@ var _slow_frames := 0
 var _maximum_frame_seconds := 0.0
 var _last_slow_frame_event_msec := -10000
 var _last_window_mode := -1
+var _started_msec := 0
+var _fake_stall_after_seconds := -1.0
+var _fake_stall_duration_seconds := 0.0
+var _fake_stall_done := false
 
 
 func _ready() -> void:
@@ -30,6 +34,8 @@ func _ready() -> void:
 		set_process(false)
 		return
 	_last_window_mode = int(DisplayServer.window_get_mode())
+	_started_msec = Time.get_ticks_msec()
+	_configure_fake_stall()
 	var screen := DisplayServer.window_get_current_screen()
 	_write_record("start", {
 		"pid": OS.get_process_id(),
@@ -51,12 +57,15 @@ func _ready() -> void:
 		"screen_refresh_hz": DisplayServer.screen_get_refresh_rate(screen),
 		"cmdline": OS.get_cmdline_args(),
 		"user_args": OS.get_cmdline_user_args(),
+		"fake_stall_after_seconds": _fake_stall_after_seconds,
+		"fake_stall_duration_seconds": _fake_stall_duration_seconds,
 	})
 
 
 func _process(delta: float) -> void:
 	if _file == null:
 		return
+	_service_fake_stall()
 	_sample_elapsed += delta
 	_sample_frames += 1
 	var window_mode := int(DisplayServer.window_get_mode())
@@ -167,6 +176,31 @@ func _write_record(event: String, data: Dictionary) -> void:
 
 func _rendering_string(method: String) -> String:
 	return str(RenderingServer.call(method)) if RenderingServer.has_method(method) else "unknown"
+
+
+func _configure_fake_stall() -> void:
+	# Fault injection is intentionally limited to a monitored headless client. It
+	# must never make a rendered test—or WindowServer itself—less stable.
+	if role != "client" or DisplayServer.get_name() != "headless":
+		return
+	var after_text := OS.get_environment("CAR_FIGHT_FAKE_STALL_AFTER_SECONDS")
+	var duration_text := OS.get_environment("CAR_FIGHT_FAKE_STALL_DURATION_SECONDS")
+	if after_text.is_empty() or duration_text.is_empty():
+		return
+	_fake_stall_after_seconds = maxf(float(after_text), 0.25)
+	_fake_stall_duration_seconds = maxf(float(duration_text), 0.25)
+
+
+func _service_fake_stall() -> void:
+	if _fake_stall_done or _fake_stall_after_seconds < 0.0:
+		return
+	var elapsed_seconds := float(Time.get_ticks_msec() - _started_msec) / 1000.0
+	if elapsed_seconds < _fake_stall_after_seconds:
+		return
+	_fake_stall_done = true
+	_write_record("fake_stall_begin", {"duration_seconds": _fake_stall_duration_seconds})
+	OS.delay_msec(roundi(_fake_stall_duration_seconds * 1000.0))
+	_write_record("fake_stall_end", {"duration_seconds": _fake_stall_duration_seconds})
 
 
 func _vector2i_array(value: Vector2i) -> Array[int]:

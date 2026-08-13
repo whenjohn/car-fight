@@ -8,6 +8,7 @@ port="${CAR_FIGHT_PORT:-10080}"
 monitor_root="${CAR_FIGHT_MONITOR_ROOT:-$project_root/.crash-runs}"
 headless=0
 fullscreen=0
+fake_stall=0
 ticks=0
 rendering_driver="${CAR_FIGHT_RENDERING_DRIVER:-}"
 
@@ -19,6 +20,10 @@ while (( $# > 0 )); do
 			;;
 		--fullscreen)
 			fullscreen=1
+			shift
+			;;
+		--fake-stall)
+			fake_stall=1
 			shift
 			;;
 		--ticks)
@@ -48,6 +53,10 @@ if (( headless == 1 && fullscreen == 1 )); then
 	echo "--headless and --fullscreen cannot be combined" >&2
 	exit 2
 fi
+if (( fake_stall == 1 && headless == 0 )); then
+	echo "--fake-stall is restricted to --headless monitor tests" >&2
+	exit 2
+fi
 
 run_stamp="$(date '+%Y%m%d-%H%M%S')"
 run_dir="$monitor_root/$run_stamp"
@@ -72,6 +81,7 @@ initial_windowserver_pid="${initial_windowserver_pid:-unknown}"
 	echo "port=$port"
 	echo "headless=$headless"
 	echo "fullscreen_requested=$fullscreen"
+	echo "fake_stall=$fake_stall"
 	echo "ticks=$ticks"
 	echo "rendering_driver=${rendering_driver:-project-default}"
 	echo "windowserver_pid_start=$initial_windowserver_pid"
@@ -104,6 +114,13 @@ elif (( fullscreen == 1 )); then
 	client_display_args=(--fullscreen)
 fi
 
+fake_stall_after=""
+fake_stall_duration=""
+if (( fake_stall == 1 )); then
+	fake_stall_after="1.5"
+	fake_stall_duration="7.0"
+fi
+
 CAR_FIGHT_TELEMETRY_FILE="$run_dir/server.telemetry.jsonl" \
 	"$godot_bin" "${driver_args[@]}" --headless --path "$project_root" -- \
 	--server --port "$port" > "$run_dir/server.log" 2>&1 &
@@ -122,6 +139,8 @@ if ! kill -0 "$server_pid" >/dev/null 2>&1; then
 	exit "$server_status"
 fi
 CAR_FIGHT_TELEMETRY_FILE="$run_dir/client.telemetry.jsonl" \
+	CAR_FIGHT_FAKE_STALL_AFTER_SECONDS="$fake_stall_after" \
+	CAR_FIGHT_FAKE_STALL_DURATION_SECONDS="$fake_stall_duration" \
 	"$godot_bin" "${driver_args[@]}" "${client_display_args[@]}" \
 	--path "$project_root" -- "${client_user_args[@]}" \
 	> "$run_dir/client.log" 2>&1 &
