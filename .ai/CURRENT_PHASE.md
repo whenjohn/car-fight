@@ -28,9 +28,11 @@
 - Synchronized drift-assist amount, charge, and side through rollback state and added focused control/presentation regressions. The complete `./scripts/test.sh` suite passes.
 - Replaced each thin drift-zone bar with a translucent cursor wedge spanning 1.55-6.3 units, showing the full area that gives maximum assist from normal top speed.
 - Strengthened assisted yaw and momentum preservation, then added a bounded 0.85 rad/s path carve. During a committed rear-corner brake the chassis rotates faster than its travel direction while the velocity path bends around the corner, producing a sharper high-speed sliding turn rather than an in-place spin. The complete `./scripts/test.sh` suite passes.
+- Expanded each drift target to a broad 1.3-9.0 unit rear wedge covering 90-178 degrees. Wedges are nearly invisible below drift-entry speed, become readable as the Jeep approaches full speed, and brighten on entry/activation.
+- Replaced continuous moving-zone tracking with a rollback-synchronized latch: hold a qualifying rear wedge for 0.18 seconds to store the drift side, after which assistance continues without chasing the rotating wedge. Far forward acceleration exits immediately; reaching a 72-degree natural side slip releases into the ordinary powerslide. Low speed, reverse, and leaving the ground also cancel the latch. The complete `./scripts/test.sh` suite passes.
 
 ## Next
 
 - Continue gameplay work, but do not automatically launch a rendered local client. Read `.ai/CRASH_LOG.md` first and get explicit approval before a rendered test because two attempts have killed WindowServer. Headless tests remain appropriate.
-- When rendered testing is authorized, play-test whether the broad wedges clearly communicate maximum effect and whether the stronger assist now slides around a sharp corner: reach speed, snap into a rear wedge, hold through brake/dive until `MAX -> GAS`, then throw the cursor forward and accelerate out. Tune chassis rotation versus 0.85 rad/s path carve by feel.
+- When rendered testing is authorized, play-test the latched sequence: reach speed until the wedges become visible, hold either wedge for roughly 0.18 seconds, then stop chasing it while the auto-drift carries into a side skid; throw the cursor far forward whenever ready to accelerate out. Tune wedge visibility, arm time, and the 72-degree handoff by feel.
 - Recheck the shield and hit feel at the new west clearing, then tune the shader/SFX layer. Audio remains intentionally unimplemented for this visual-first pass.

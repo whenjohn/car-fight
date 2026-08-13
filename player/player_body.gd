@@ -15,6 +15,8 @@ var brake_skid_amount := 0.0
 var drift_assist_amount := 0.0
 var drift_assist_charge := 0.0
 var drift_assist_side := 0.0
+var drift_assist_hold := 0.0
+var drift_assist_latched := false
 var is_cloaked := false
 var cloak_held_prev := false
 var shield_up := false
@@ -64,6 +66,8 @@ func _ready() -> void:
 	_sync.add_state(self, "drift_assist_amount")
 	_sync.add_state(self, "drift_assist_charge")
 	_sync.add_state(self, "drift_assist_side")
+	_sync.add_state(self, "drift_assist_hold")
+	_sync.add_state(self, "drift_assist_latched")
 	_sync.add_state(self, "is_cloaked")
 	_sync.add_state(self, "cloak_held_prev")
 	_sync.add_state(self, "shield_up")
@@ -149,17 +153,28 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	else:
 		landing_fall_speed = maxf(landing_fall_speed, maxf(-velocity.y, 0.0))
 	was_supported = touching_support
-	var command := FOLLOW.command(offset, FOLLOW.heading_yaw(direct_state.transform.basis),
-		_input.burst and not _input.editing and not is_cloaked, burst_turn_sign, planar_speed,
-		_input.reverse and not _input.editing, touching_support, drift_assist_charge)
+	var current_yaw := FOLLOW.heading_yaw(direct_state.transform.basis)
+	var burst_requested: bool = _input.burst and not _input.editing and not is_cloaked
+	var reverse_requested: bool = _input.reverse and not _input.editing
+	var probe := FOLLOW.command(offset, current_yaw, burst_requested, burst_turn_sign,
+		planar_speed, reverse_requested, touching_support, drift_assist_charge)
+	var assist_state := FOLLOW.next_drift_assist_state(drift_assist_hold,
+		drift_assist_latched, drift_assist_side,
+		float(probe["drift_assist_amount"]) * 4.0, float(probe["heading_error"]),
+		float(probe["throttle"]), burst_requested, reverse_requested,
+		touching_support, planar_speed, delta)
+	drift_assist_hold = float(assist_state["hold"])
+	drift_assist_latched = bool(assist_state["latched"])
+	drift_assist_side = float(assist_state["side"])
+	var command := FOLLOW.command(offset, current_yaw, burst_requested, burst_turn_sign,
+		planar_speed, reverse_requested, touching_support, drift_assist_charge,
+		drift_assist_latched, drift_assist_side)
 	burst_turn_sign = command["burst_turn_sign"]
 	boost_active = bool(command["boost_active"])
 	brake_skid_amount = float(command["brake_skid_amount"])
 	drift_assist_amount = float(command["drift_assist_amount"])
-	if drift_assist_amount > 0.001:
-		drift_assist_side = signf(float(command["heading_error"]))
 	drift_assist_charge = FOLLOW.next_drift_assist_charge(drift_assist_charge,
-		drift_assist_amount, delta)
+		drift_assist_amount if drift_assist_latched else 0.0, delta)
 	if drift_assist_charge <= 0.001:
 		drift_assist_side = 0.0
 	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0

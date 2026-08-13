@@ -28,16 +28,23 @@ const DRIFT_FULL_HEADING := deg_to_rad(75.0)
 const DRIFT_VELOCITY_RESPONSE := 3.5
 const DRIFT_TURN_BOOST := 1.28
 const DRIFT_YAW_ACCEL := 10.5
-const DRIFT_ASSIST_ZONE_INNER := deg_to_rad(100.0)
-const DRIFT_ASSIST_ZONE_FULL := deg_to_rad(120.0)
-const DRIFT_ASSIST_ZONE_FADE := deg_to_rad(155.0)
-const DRIFT_ASSIST_ZONE_OUTER := deg_to_rad(170.0)
-const DRIFT_ASSIST_BRAKE_ONSET := 0.72
-const DRIFT_ASSIST_BRAKE_FULL := 0.98
+const DRIFT_ASSIST_ZONE_INNER := deg_to_rad(90.0)
+const DRIFT_ASSIST_ZONE_FULL := deg_to_rad(112.0)
+const DRIFT_ASSIST_ZONE_FADE := deg_to_rad(165.0)
+const DRIFT_ASSIST_ZONE_OUTER := deg_to_rad(178.0)
+const DRIFT_ASSIST_BRAKE_ONSET := 0.45
+const DRIFT_ASSIST_BRAKE_FULL := 0.80
+const DRIFT_ASSIST_READY_MIN_SPEED := 14.0
+const DRIFT_ASSIST_READY_FULL_SPEED := 17.0
 const DRIFT_ASSIST_TURN_BOOST := 1.35
 const DRIFT_ASSIST_YAW_ACCEL := 16.0
 const DRIFT_ASSIST_VELOCITY_RESPONSE := 1.35
 const DRIFT_ASSIST_PATH_TURN_RATE := 0.85
+const DRIFT_ASSIST_ARM_TIME := 0.18
+const DRIFT_ASSIST_SIDE_EXIT_ANGLE := deg_to_rad(72.0)
+const DRIFT_ASSIST_ACCEL_EXIT_THROTTLE := 0.72
+const DRIFT_ASSIST_ACCEL_EXIT_ANGLE := deg_to_rad(85.0)
+const DRIFT_ASSIST_MIN_LATCH_SPEED := 8.0
 const DRIFT_ASSIST_CHARGE_TIME := 0.65
 const DRIFT_ASSIST_RELEASE_TIME := 0.45
 const BURST_SPEED := 28.0
@@ -77,7 +84,8 @@ const LANDING_JOSTLE_COOLDOWN := 0.35
 
 static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		burst_turn_sign: float, current_speed: float = 0.0, reverse: bool = false,
-		grounded: bool = true, drift_assist_charge: float = 0.0) -> Dictionary:
+		grounded: bool = true, drift_assist_charge: float = 0.0,
+		drift_assist_latched: bool = false, drift_assist_side: float = 0.0) -> Dictionary:
 	var distance := cursor_offset.length()
 	var desired_yaw := current_yaw
 	if distance > 0.0001:
@@ -130,7 +138,11 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		brake_skid_amount = automatic_brake_skid(current_speed, target_speed)
 		drift_amount = automatic_drift(brake_skid_amount, error)
 		drift_zone_amount = automatic_drift_zone(error)
-		drift_assist_amount = automatic_drift_assist(brake_skid_amount, error)
+		var entry_amount := automatic_drift_assist_entry(current_speed,
+			brake_skid_amount, error)
+		drift_assist_amount = 1.0 if drift_assist_latched else entry_amount * 0.25
+		if drift_assist_latched:
+			drift_amount = maxf(drift_amount, 1.0)
 		# Pulling inward during a committed turn trades velocity correction for
 		# rotation. The old road momentum remains real, so the slide is authored
 		# entirely by mouse placement rather than a separate drift button.
@@ -154,6 +166,10 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	# calmer mouse band for accurate racing lines and combat spacing.
 	var steering_fraction := signf(linear_steering) \
 		* pow(absf(linear_steering), STEERING_RESPONSE_CURVE)
+	var yaw_rate := steering_fraction * turn_cap * speed_authority * cursor_authority \
+		* (-1.0 if reverse else 1.0)
+	if drift_assist_latched and not is_zero_approx(drift_assist_side):
+		yaw_rate = signf(drift_assist_side) * turn_cap * speed_authority
 	# A long line means more than a higher target speed: it also asks the Jeep
 	# to reach that speed harder, preserving fine control near the body.
 	var acceleration := REVERSE_ACCEL if reverse else (BURST_ACCEL \
@@ -167,8 +183,7 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	return {
 		"speed": target_speed,
 		"acceleration": acceleration,
-		"yaw_rate": steering_fraction * turn_cap * speed_authority * cursor_authority \
-			* (-1.0 if reverse else 1.0),
+		"yaw_rate": yaw_rate,
 		"yaw_acceleration": yaw_acceleration,
 		"turn_cap": turn_cap * speed_authority,
 		"heading_error": error,
@@ -208,10 +223,50 @@ static func automatic_drift_zone(heading_error: float) -> float:
 		DRIFT_ASSIST_ZONE_OUTER, angle)
 	return enter * leave
 
-static func automatic_drift_assist(brake_skid_amount: float, heading_error: float) -> float:
+static func drift_assist_ready_fraction(current_speed: float) -> float:
+	return smoothstep(DRIFT_ASSIST_READY_MIN_SPEED,
+		DRIFT_ASSIST_READY_FULL_SPEED, current_speed)
+
+static func automatic_drift_assist_entry(current_speed: float,
+		brake_skid_amount: float, heading_error: float) -> float:
 	var brake_commit := smoothstep(DRIFT_ASSIST_BRAKE_ONSET,
 		DRIFT_ASSIST_BRAKE_FULL, clampf(brake_skid_amount, 0.0, 1.0))
-	return automatic_drift_zone(heading_error) * brake_commit
+	return automatic_drift_zone(heading_error) * brake_commit \
+		* drift_assist_ready_fraction(current_speed)
+
+## A short deliberate hold commits the chosen side. Once latched, the changing
+## vehicle-relative cursor angle no longer has to remain inside the moving
+## wedge. A far forward acceleration exits; otherwise reaching a natural side
+## slip hands control back to the ordinary powerslide.
+static func next_drift_assist_state(current_hold: float, current_latched: bool,
+		current_side: float, entry_amount: float, heading_error: float,
+		throttle: float, burst: bool, reverse: bool, grounded: bool,
+		current_speed: float, delta: float) -> Dictionary:
+	var hold := maxf(current_hold, 0.0)
+	var latched := current_latched
+	var side := signf(current_side)
+	var angle := absf(wrapf(heading_error, -PI, PI))
+	if not grounded or reverse or current_speed < DRIFT_ASSIST_MIN_LATCH_SPEED:
+		return {"hold": 0.0, "latched": false, "side": side}
+	if latched:
+		var accelerate_out := burst or (throttle >= DRIFT_ASSIST_ACCEL_EXIT_THROTTLE \
+			and angle <= DRIFT_ASSIST_ACCEL_EXIT_ANGLE)
+		var side_skid := angle <= DRIFT_ASSIST_SIDE_EXIT_ANGLE
+		if accelerate_out or side_skid:
+			return {"hold": 0.0, "latched": false, "side": side}
+		return {"hold": DRIFT_ASSIST_ARM_TIME, "latched": true, "side": side}
+	if entry_amount <= 0.35:
+		return {"hold": 0.0, "latched": false, "side": side}
+	var requested_side := signf(wrapf(heading_error, -PI, PI))
+	if is_zero_approx(requested_side):
+		return {"hold": 0.0, "latched": false, "side": side}
+	if not is_zero_approx(side) and requested_side != side:
+		hold = 0.0
+	side = requested_side
+	hold = minf(hold + delta * lerpf(0.65, 1.0,
+		clampf(entry_amount, 0.0, 1.0)), DRIFT_ASSIST_ARM_TIME)
+	latched = hold >= DRIFT_ASSIST_ARM_TIME
+	return {"hold": hold, "latched": latched, "side": side}
 
 ## The meter turns a continuous mouse gesture into a readable timing window.
 ## Filling means keep committing; MAX means move the cursor forward and drive

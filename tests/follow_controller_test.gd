@@ -68,22 +68,48 @@ func _init() -> void:
 		push_error("automatic drift must require ground support")
 	var rear_corner := Vector2(sin(deg_to_rad(45.0)), cos(deg_to_rad(45.0))) * 4.0
 	var assisted := FOLLOW.command(rear_corner, 0.0, false, 0.0, FOLLOW.SPEED,
-		false, true, 1.0)
+		false, true, 1.0, true, -1.0)
 	var directly_back := FOLLOW.command(Vector2(0.0, 4.0), 0.0, false, 0.0,
 		FOLLOW.SPEED, false, true, 1.0)
 	var slow_corner := FOLLOW.command(rear_corner, 0.0, false, 0.0, 4.0,
 		false, true, 1.0)
 	if float(assisted["drift_assist_amount"]) < 0.95 \
 			or float(assisted["yaw_acceleration"]) <= FOLLOW.DRIFT_YAW_ACCEL \
-			or float(assisted["acceleration"]) >= FOLLOW.DRIFT_VELOCITY_RESPONSE:
+			or float(assisted["acceleration"]) > FOLLOW.DRIFT_ASSIST_VELOCITY_RESPONSE + 0.001:
 		_failures += 1
-		push_error("peak braking in a rear corner must add bounded drift assistance")
+		push_error("peak braking in a rear corner must begin arming bounded drift assistance")
 	if float(directly_back["drift_assist_amount"]) != 0.0:
 		_failures += 1
 		push_error("straight-back hard braking must stay outside the corner assist zones")
 	if float(slow_corner["drift_assist_amount"]) != 0.0:
 		_failures += 1
 		push_error("rear-corner placement must not assist without a hard high-speed brake")
+	var latch_state := {"hold": 0.0, "latched": false, "side": 0.0}
+	for step in range(12):
+		latch_state = FOLLOW.next_drift_assist_state(latch_state["hold"],
+			latch_state["latched"], latch_state["side"], 1.0, deg_to_rad(135.0),
+			0.15, false, false, true, FOLLOW.SPEED, 1.0 / 60.0)
+	if not bool(latch_state["latched"]) or float(latch_state["side"]) <= 0.0:
+		_failures += 1
+		push_error("a brief deliberate rear-corner hold must latch drift assistance")
+	var moving_wedge_state := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
+		latch_state["side"], 0.0, deg_to_rad(90.0), 0.15, false, false, true,
+		FOLLOW.SPEED, 1.0 / 60.0)
+	if not bool(moving_wedge_state["latched"]):
+		_failures += 1
+		push_error("latched assistance must not require chasing the rotating rear wedge")
+	var side_exit := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
+		latch_state["side"], 0.0, deg_to_rad(65.0), 0.15, false, false, true,
+		FOLLOW.SPEED, 1.0 / 60.0)
+	if bool(side_exit["latched"]):
+		_failures += 1
+		push_error("reaching a natural side skid must release automatic drift rotation")
+	var gas_exit := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
+		latch_state["side"], 0.0, 0.0, 1.0, false, false, true,
+		FOLLOW.SPEED, 1.0 / 60.0)
+	if bool(gas_exit["latched"]):
+		_failures += 1
+		push_error("hard forward acceleration must release latched drift assistance")
 	var carved := FOLLOW.drift_carve_velocity(Vector3(0.0, 0.0, -18.0),
 		1.0, 1.0, 1.0, 0.5)
 	if carved.x >= -1.0 or absf(carved.length() - 18.0) > 0.001:

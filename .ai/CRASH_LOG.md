@@ -56,6 +56,8 @@ After commit `85c7285`, an explicitly approved rendered OpenGL play-test reached
 
 After commit `2fe2cc8`, another explicitly approved rendered test reached at least tick 7980 (roughly 133 seconds at 60 Hz) and was stopped normally for drift tuning, again without a WindowServer failure.
 
+After commit `52891e3`, a third approved rendered test also reached at least tick 7980 (roughly 133 seconds at 60 Hz) and was stopped normally for the next drift-assist revision, without a WindowServer failure.
+
 Relevant project settings at both incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

@@ -7,12 +7,12 @@ const FOLLOW := preload("res://player/follow_controller.gd")
 const RING_RADIUS := 3.05
 const RING_THICKNESS := 0.055
 const BOOST_RADIUS := 3.20
-const ZONE_INNER_RADIUS := 1.55
-const ZONE_OUTER_RADIUS := 6.30
-const ZONE_METER_RADIUS := 6.42
+const ZONE_INNER_RADIUS := 1.30
+const ZONE_OUTER_RADIUS := 9.00
+const ZONE_METER_RADIUS := 9.12
 const ZONE_METER_THICKNESS := 0.18
-const ZONE_START := deg_to_rad(100.0)
-const ZONE_END := deg_to_rad(170.0)
+const ZONE_START := FOLLOW.DRIFT_ASSIST_ZONE_INNER
+const ZONE_END := FOLLOW.DRIFT_ASSIST_ZONE_OUTER
 const SPEED_ARC_START := deg_to_rad(-135.0)
 const SPEED_ARC_END := deg_to_rad(135.0)
 const ARC_SEGMENTS := 48
@@ -90,6 +90,9 @@ func _process(_delta: float) -> void:
 	var charge := clampf(float(_body.get("drift_assist_charge")), 0.0, 1.0)
 	var side := float(_body.get("drift_assist_side"))
 	var assist := clampf(float(_body.get("drift_assist_amount")), 0.0, 1.0)
+	var hold_fraction := clampf(float(_body.get("drift_assist_hold")) \
+		/ FOLLOW.DRIFT_ASSIST_ARM_TIME, 0.0, 1.0)
+	var ready := FOLLOW.drift_assist_ready_fraction(road_speed)
 	_update_dynamic_meshes(road_speed, charge, side)
 	var brake_glow := smoothstep(0.65, 1.0, brake)
 	_speed_material.albedo_color = Color(SPEED_COLOR.lerp(BRAKE_COLOR, brake_glow),
@@ -97,14 +100,13 @@ func _process(_delta: float) -> void:
 	_speed_material.emission = SPEED_COLOR.lerp(BRAKE_COLOR, brake_glow)
 	_speed_material.emission_energy_multiplier = lerpf(1.1, 3.3, brake_glow)
 	_base_material.albedo_color.a = lerpf(0.13, 0.38, brake_glow)
-	_left_zone_material.albedo_color.a = lerpf(0.075, 0.26,
-		assist if side > 0.0 else 0.0)
-	_right_zone_material.albedo_color.a = lerpf(0.075, 0.26,
-		assist if side < 0.0 else 0.0)
-	_left_zone_material.emission_energy_multiplier = lerpf(0.20, 1.35,
-		assist if side > 0.0 else 0.0)
-	_right_zone_material.emission_energy_multiplier = lerpf(0.20, 1.35,
-		assist if side < 0.0 else 0.0)
+	var resting_alpha := lerpf(0.008, 0.115, ready)
+	var left_active := maxf(hold_fraction, assist) if side > 0.0 else 0.0
+	var right_active := maxf(hold_fraction, assist) if side < 0.0 else 0.0
+	_left_zone_material.albedo_color.a = lerpf(resting_alpha, 0.29, left_active)
+	_right_zone_material.albedo_color.a = lerpf(resting_alpha, 0.29, right_active)
+	_left_zone_material.emission_energy_multiplier = lerpf(0.08, 1.55, left_active)
+	_right_zone_material.emission_energy_multiplier = lerpf(0.08, 1.55, right_active)
 	_max_label.visible = charge >= 0.985 and not is_zero_approx(side)
 	if _max_label.visible:
 		_max_label.position.x = -4.15 * side
