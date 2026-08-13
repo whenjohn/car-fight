@@ -29,7 +29,7 @@ func _init() -> void:
 		var south_edge := road_position.z + road_size.z * 0.5
 		var gap := lip_z - south_edge
 		_check(gap >= 2.0 and gap <= 6.0, "ramp has a visible but reachable launch gap")
-		for speed in [14.0, 23.3333333]:
+		for speed in [FOLLOW.SPEED, FOLLOW.BURST_SPEED]:
 			var flight_range: float = float(speed) * float(speed) * sin(2.0 * ramp_rotation.x) / 9.8
 			var landing_z: float = lip_z - flight_range
 			_check(landing_z <= south_edge and landing_z >= road_position.z - road_size.z * 0.5,

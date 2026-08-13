@@ -19,14 +19,14 @@ Controls:
 - Four triangular cones are preset at the Jeep's front, right, rear, and left. Their combined area cannot exceed the four default 90° cones at range 8. Narrowing or disabling one cone frees area for longer or wider coverage elsewhere.
 - Press `F` to flip the selected cone. A vehicle-pointing cone starts precise and widens with distance; an outward-pointing cone starts wide beside the Jeep and narrows toward its far tip.
 - Move the mouse around the Jeep to steer toward it.
-- Cursor distance continuously controls speed: inside 1 world unit is stopped; at 20 units it reaches 14 units/s. The wider control radius and softened small-angle steering provide more room for precise throttle and racing-line adjustments.
-- Drifting needs no extra button. At road speed, pull the cursor inward while asking for a sharp direction change: the Jeep preserves more of its existing momentum and rotates into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
-- Hold `Space` to burst at 23.33 units/s with stronger acceleration and a wider, committed turn.
+- Cursor distance continuously controls speed and acceleration: inside 1 world unit is stopped; at 20 units it requests 18 units/s and the strongest normal acceleration. The wider control radius and softened small-angle steering provide room for precise throttle and racing-line adjustments.
+- Braking and drifting need no extra button. At road speed, pull the cursor inward to lock some tire response and skid under braking. Add a sharp direction change to rotate that same skid into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
+- Hold `Space` to burst at 28 units/s with stronger acceleration and a wider, committed turn.
 - Press `Q` to toggle the vehicle shield. It absorbs 85% of an incoming drone bolt's shove while a localized glass ripple shows where the shot landed.
 - Press `R` to toggle cloak. Cloak and shield are mutually exclusive: cloaking lowers the shield, and the shield cannot be raised while cloaked.
 - Hold `Shift` to vacuum the arena ball toward the Jeep. The field does not change normal mouse steering.
 - Hold `Tab` to reverse at low speed.
-- Steering behaves like a ground vehicle: the Jeep cannot pivot while stopped, yaw builds with road speed, and the turning circle widens at high speed. Pulling the cursor closer lowers the requested speed and sharpens the turn, preserving Starter FOLLOW's useful slow/tight versus fast/wide relationship.
+- Steering behaves like a ground vehicle: the Jeep cannot pivot while stopped, yaw builds with road speed, and the turning circle widens at high speed. The close cursor band has stronger, faster steering for carving; pulling farther away progressively trades that rotation for acceleration and speed.
 - If a collision holds the Jeep nearly stationary while movement is still requested, a short side bump and forced steer peel it away. Cursor steering chooses the escape side; a stable per-player side handles a perfectly straight impact. There is no automatic reverse mode.
 - In drive mode, each zone independently acquires the nearest visible stationary target dummy inside its wedge and fires four bolts per second. Walls and obstacles block acquisition and bolts. Hits flash the dummy and increment its permanent session hit count.
 - Drive mode keeps a deliberately faint coverage debug around the local Jeep. A firing zone flashes briefly; press `C` to hide or show the debug.

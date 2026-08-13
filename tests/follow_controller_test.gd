@@ -19,12 +19,17 @@ func _init() -> void:
 	var stopped_turn := FOLLOW.command(full_offset, 0.0, false, 0.0, 0.0)
 	_expect_close(stopped_turn["yaw_rate"], 0.0, 0.0001, "a stopped ground vehicle cannot pivot")
 
-	var full := FOLLOW.command(full_offset, 0.0, false, 0.0, 14.0)
-	_expect_close(full["speed"], 14.0, 0.0001, "far cursor reaches normal top speed")
-	_expect_close(full["yaw_rate"], -1.044, 0.0001, "top-speed steering has a wide ground-vehicle radius")
+	var full := FOLLOW.command(full_offset, 0.0, false, 0.0, FOLLOW.SPEED)
+	_expect_close(full["speed"], FOLLOW.SPEED, 0.0001, "far cursor reaches normal top speed")
+	_expect_close(full["acceleration"], FOLLOW.ACCEL, 0.0001,
+		"far cursor requests full drive acceleration")
+	if float(full["acceleration"]) <= float(half["acceleration"]):
+		_failures += 1
+		push_error("cursor length must continuously increase drive acceleration")
+	_expect_close(full["yaw_rate"], -1.05, 0.0001, "top-speed steering has a wide ground-vehicle radius")
 
 	var moving := FOLLOW.command(full_offset, 0.0, false, 0.0, 4.0)
-	_expect_close(moving["yaw_rate"], -1.334, 0.0001, "steering reaches useful authority only after moving")
+	_expect_close(moving["yaw_rate"], -1.4, 0.0001, "steering reaches useful authority only after moving")
 	var close_moving := FOLLOW.command(Vector2(4.0, 0.0), 0.0, false, 0.0, 4.0)
 	if absf(close_moving["yaw_rate"]) < absf(moving["yaw_rate"]) * 1.6:
 		_failures += 1
@@ -35,17 +40,25 @@ func _init() -> void:
 
 	var fine_angle := deg_to_rad(15.0)
 	var fine_offset := Vector2(sin(fine_angle), -cos(fine_angle)) * FOLLOW.MAX_DISTANCE
-	var fine := FOLLOW.command(fine_offset, 0.0, false, 0.0, 14.0)
+	var fine := FOLLOW.command(fine_offset, 0.0, false, 0.0, FOLLOW.SPEED)
 	if absf(float(fine["yaw_rate"])) >= absf(float(full["yaw_rate"])) * (15.0 / 90.0):
 		_failures += 1
 		push_error("small heading corrections must use the expanded precision band")
 
-	var planted := FOLLOW.command(full_offset, 0.0, false, 0.0, 14.0)
-	var drifting := FOLLOW.command(Vector2(4.0, 0.0), 0.0, false, 0.0, 14.0)
-	var airborne := FOLLOW.command(Vector2(4.0, 0.0), 0.0, false, 0.0, 14.0, false, false)
+	var planted := FOLLOW.command(full_offset, 0.0, false, 0.0, FOLLOW.SPEED)
+	var straight_skid := FOLLOW.command(Vector2(0.0, -4.0), 0.0, false, 0.0,
+		FOLLOW.SPEED)
+	var drifting := FOLLOW.command(Vector2(4.0, 0.0), 0.0, false, 0.0, FOLLOW.SPEED)
+	var airborne := FOLLOW.command(Vector2(4.0, 0.0), 0.0, false, 0.0,
+		FOLLOW.SPEED, false, false)
 	if float(planted["drift_amount"]) != 0.0:
 		_failures += 1
 		push_error("a wide full-speed turn must remain planted")
+	if float(straight_skid["brake_skid_amount"]) < 0.95 \
+			or float(straight_skid["drift_amount"]) != 0.0 \
+			or float(straight_skid["acceleration"]) >= FOLLOW.BRAKE:
+		_failures += 1
+		push_error("pulling inward from top speed must skid before adding rotation")
 	if float(drifting["drift_amount"]) < 0.95 \
 			or float(drifting["acceleration"]) >= FOLLOW.BRAKE:
 		_failures += 1
@@ -54,10 +67,10 @@ func _init() -> void:
 		_failures += 1
 		push_error("automatic drift must require ground support")
 
-	var burst := FOLLOW.command(Vector2(3.0, 0.0), 0.0, true, 0.0, 14.0)
-	_expect_close(burst["speed"], 23.3333333, 0.0001, "Space forces full burst speed")
-	_expect_close(burst["acceleration"], 32.0, 0.0001, "Space uses heavier burst acceleration")
-	_expect_close(burst["yaw_rate"], -0.85, 0.0001, "burst keeps a wider committed turn")
+	var burst := FOLLOW.command(Vector2(3.0, 0.0), 0.0, true, 0.0, FOLLOW.SPEED)
+	_expect_close(burst["speed"], FOLLOW.BURST_SPEED, 0.0001, "Space forces full burst speed")
+	_expect_close(burst["acceleration"], FOLLOW.BURST_ACCEL, 0.0001, "Space uses heavier burst acceleration")
+	_expect_close(burst["yaw_rate"], -0.9, 0.0001, "burst keeps a wider committed turn")
 
 	var reverse_idle := FOLLOW.command(Vector2.ZERO, 0.0, false, 0.0, 0.0, true)
 	_expect_close(reverse_idle["speed"], 6.0, 0.0001, "reverse works without cursor throttle")

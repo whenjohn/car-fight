@@ -8,13 +8,15 @@ const BLUR := preload("res://fx/boost_velocity_blur.gd")
 var _failures: Array[String] = []
 
 func _init() -> void:
-	var burst := FOLLOW.command(Vector2(16.0, 0.0), 0.0, true, 0.0, 14.0)
+	var burst := FOLLOW.command(Vector2(FOLLOW.MAX_DISTANCE, 0.0), 0.0, true, 0.0,
+		FOLLOW.SPEED)
 	_check(bool(burst.get("boost_active", false)),
 		"Space burst exposes a synchronized boost FX state")
 	var idle := FOLLOW.command(Vector2.ZERO, 0.0, true, 0.0, 0.0)
 	_check(not bool(idle.get("boost_active", true)),
 		"Space without drive intent does not emit boost afterimages")
-	var reverse := FOLLOW.command(Vector2(16.0, 0.0), 0.0, true, 0.0, 4.0, true)
+	var reverse := FOLLOW.command(Vector2(FOLLOW.MAX_DISTANCE, 0.0), 0.0, true, 0.0,
+		4.0, true)
 	_check(not bool(reverse.get("boost_active", true)),
 		"reverse takes priority over the boost FX")
 

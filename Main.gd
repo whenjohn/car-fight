@@ -1343,9 +1343,11 @@ func _spawn_combat_bolt(bolt_id: int, shooter_id: int, zone: int,
 
 @rpc("authority", "call_local", "reliable")
 func _end_combat_bolt(bolt_id: int) -> void:
-	var visual: Node = _bolt_visuals.get(bolt_id)
-	if visual != null and is_instance_valid(visual):
-		visual.queue_free()
+	# Reliable end events may overlap prediction cleanup. Keep the dictionary
+	# lookup untyped so a previously freed Object can be rejected safely.
+	var visual: Variant = _bolt_visuals.get(bolt_id)
+	if is_instance_valid(visual):
+		(visual as Node).queue_free()
 	_bolt_visuals.erase(bolt_id)
 
 @rpc("authority", "call_local", "reliable")

@@ -11,6 +11,7 @@ var spawn_slot := 0
 var aim := Vector3(0.0, 0.0, -1.0)
 var burst_turn_sign := 0.0
 var boost_active := false
+var brake_skid_amount := 0.0
 var is_cloaked := false
 var cloak_held_prev := false
 var shield_up := false
@@ -56,6 +57,7 @@ func _ready() -> void:
 	_sync.add_state(self, "physics_state")
 	_sync.add_state(self, "burst_turn_sign")
 	_sync.add_state(self, "boost_active")
+	_sync.add_state(self, "brake_skid_amount")
 	_sync.add_state(self, "is_cloaked")
 	_sync.add_state(self, "cloak_held_prev")
 	_sync.add_state(self, "shield_up")
@@ -146,6 +148,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 		_input.reverse and not _input.editing, touching_support)
 	burst_turn_sign = command["burst_turn_sign"]
 	boost_active = bool(command["boost_active"])
+	brake_skid_amount = float(command["brake_skid_amount"])
 	var fallback_sign := 1.0 if owner_id % 2 == 0 else -1.0
 	var forward: Vector3 = -direct_state.transform.basis.z
 	forward.y = 0.0
@@ -156,6 +159,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var bump_yaw_impulse := 0.0
 	var wall_normal := _static_contact_normal()
 	var touching_static := not wall_normal.is_zero_approx()
+	var touching_player := _touching_player_body()
 	if wall_bump_cooldown <= 0.0 and touching_static:
 		var preferred_sign := signf(float(command["heading_error"])) \
 			if absf(float(command["heading_error"])) >= FOLLOW.ESCAPE_STEER_EPSILON \
@@ -168,13 +172,19 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 			wall_bump_count += 1
 			bump_started = true
 	var escape: Dictionary
-	if touching_static or (_input.reverse and not _input.editing):
+	if touching_static or not touching_player or (_input.reverse and not _input.editing):
 		# Static contacts use Rapier plus the one-shot impulses above. The timed
 		# escape assist is reserved for cars wedged against other moving cars.
 		escape = {"stall_time": 0.0, "escape_time": 0.0, "escape_sign": 0.0,
 			"active": false, "started": false}
 	else:
-		escape = FOLLOW.collision_escape(float(command["speed"]), planar_speed,
+		# World speed can remain high when one car pushes another. Measure motion
+		# along this driver's requested direction so the losing car still peels
+		# away, without mistaking a free powerslide for a collision stall.
+		var requested_direction := forward * float(command["drive_sign"])
+		var requested_progress := maxf(Vector3(velocity.x, 0.0, velocity.z).dot(
+			requested_direction), 0.0)
+		escape = FOLLOW.collision_escape(float(command["speed"]), requested_progress,
 			float(command["heading_error"]), collision_stall_time, collision_escape_time,
 			collision_escape_sign, delta, fallback_sign)
 	collision_stall_time = escape["stall_time"]
@@ -231,6 +241,13 @@ func _static_contact_normal() -> Vector3:
 			if not normal.is_zero_approx():
 				return normal.normalized()
 	return Vector3.ZERO
+
+func _touching_player_body() -> bool:
+	for index in range(direct_state.get_contact_count()):
+		var collider := direct_state.get_contact_collider_object(index) as RigidBody3D
+		if collider != null and collider.get_parent() == get_parent():
+			return true
+	return false
 
 func _service_cloak_toggle(held: bool) -> void:
 	# The wire carries a held level. Only real input transitions write the

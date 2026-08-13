@@ -2,34 +2,36 @@ extends RefCounted
 ## Starter's mouse FOLLOW intent adapted to a ground vehicle. Cursor distance
 ## still controls throttle, but steering now needs forward motion and widens at speed.
 
-const SPEED := 14.0
-const ACCEL := 18.0
-const BRAKE := 26.0
+const SPEED := 18.0
+const ACCEL_NEAR := 14.0
+const ACCEL := 27.0
+const BRAKE := 32.0
 const DEADZONE := 1.0
 const MAX_DISTANCE := 20.0
 const CURVE := 1.0
 const HEADING_DEADZONE := 0.8
 const STEERING_RESPONSE_CURVE := 1.2
-const TURN_NEAR := 3.2
-const TURN_FAR := 1.45
+const TURN_NEAR := 4.0
+const TURN_FAR := 1.5
 const TURN_CURSOR_CURVE := 1.0
-const TURN_ACCEL_NEAR := 7.0
-const TURN_ACCEL_FAR := 4.0
-const STEERING_SPEED_REF := 4.0
-const HIGH_SPEED_TURN_SCALE := 0.72
-const DRIFT_MIN_SPEED := 7.0
-const DRIFT_FULL_SPEED := 13.0
-const DRIFT_MIN_HEADING := deg_to_rad(30.0)
-const DRIFT_FULL_HEADING := deg_to_rad(85.0)
-const DRIFT_MIN_SPEED_DROP := 3.0
-const DRIFT_FULL_SPEED_DROP := 10.0
+const TURN_ACCEL_NEAR := 10.0
+const TURN_ACCEL_FAR := 4.5
+const STEERING_SPEED_REF := 3.2
+const HIGH_SPEED_TURN_SCALE := 0.70
+const BRAKE_SKID_MIN_SPEED := 9.0
+const BRAKE_SKID_FULL_SPEED := 17.0
+const BRAKE_SKID_MIN_SPEED_DROP := 4.0
+const BRAKE_SKID_FULL_SPEED_DROP := 13.0
+const BRAKE_SKID_VELOCITY_RESPONSE := 15.0
+const DRIFT_MIN_HEADING := deg_to_rad(25.0)
+const DRIFT_FULL_HEADING := deg_to_rad(75.0)
 const DRIFT_VELOCITY_RESPONSE := 7.5
 const DRIFT_TURN_BOOST := 1.15
-const DRIFT_YAW_ACCEL := 8.0
-const BURST_SPEED := 23.3333333
-const BURST_ACCEL := 32.0
-const BURST_TURN := 0.85
-const BURST_TURN_ACCEL := 3.0
+const DRIFT_YAW_ACCEL := 10.5
+const BURST_SPEED := 28.0
+const BURST_ACCEL := 38.0
+const BURST_TURN := 0.9
+const BURST_TURN_ACCEL := 3.4
 const BURST_FLIP_ON := deg_to_rad(150.0)
 const BURST_FLIP_OFF := deg_to_rad(110.0)
 const REVERSE_SPEED := 6.0
@@ -75,6 +77,7 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	var cursor_reach := clampf(distance / MAX_DISTANCE, 0.0, 1.0)
 	var top_speed := SPEED
 	var boost_active := false
+	var brake_skid_amount := 0.0
 	var drift_amount := 0.0
 	var yaw_acceleration := lerpf(TURN_ACCEL_NEAR, TURN_ACCEL_FAR,
 		pow(cursor_reach, TURN_CURSOR_CURVE))
@@ -110,7 +113,8 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 
 	var target_speed := top_speed * throttle
 	if grounded and not reverse and not boost_active:
-		drift_amount = automatic_drift(current_speed, target_speed, error)
+		brake_skid_amount = automatic_brake_skid(current_speed, target_speed)
+		drift_amount = automatic_drift(brake_skid_amount, error)
 		# Pulling inward during a committed turn trades velocity correction for
 		# rotation. The old road momentum remains real, so the slide is authored
 		# entirely by mouse placement rather than a separate drift button.
@@ -126,10 +130,13 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 	# calmer mouse band for accurate racing lines and combat spacing.
 	var steering_fraction := signf(linear_steering) \
 		* pow(absf(linear_steering), STEERING_RESPONSE_CURVE)
-	var acceleration := REVERSE_ACCEL if reverse \
-		else (BURST_ACCEL if burst and distance > DEADZONE else ACCEL)
+	# A long line means more than a higher target speed: it also asks the Jeep
+	# to reach that speed harder, preserving fine control near the body.
+	var acceleration := REVERSE_ACCEL if reverse else (BURST_ACCEL \
+		if burst and distance > DEADZONE else lerpf(ACCEL_NEAR, ACCEL, throttle))
 	if target_speed < current_speed:
-		acceleration = lerpf(BRAKE, DRIFT_VELOCITY_RESPONSE, drift_amount)
+		acceleration = lerpf(BRAKE, BRAKE_SKID_VELOCITY_RESPONSE, brake_skid_amount)
+		acceleration = lerpf(acceleration, DRIFT_VELOCITY_RESPONSE, drift_amount)
 
 	return {
 		"speed": target_speed,
@@ -143,21 +150,25 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		"throttle": throttle,
 		"drive_sign": -1.0 if reverse else 1.0,
 		"boost_active": boost_active,
+		"brake_skid_amount": brake_skid_amount,
 		"drift_amount": drift_amount,
 	}
 
-## Stateless automatic powerslide intent. Speed supplies commitment, heading
-## error supplies rotation, and pulling the cursor inward supplies braking.
-## All three must agree, so a wide fast turn remains planted.
-static func automatic_drift(current_speed: float, target_speed: float,
-		heading_error: float) -> float:
-	var speed_factor := smoothstep(DRIFT_MIN_SPEED, DRIFT_FULL_SPEED, current_speed)
+## Pulling the line inward at road speed locks some tire response before the
+## player turns. This makes straight hard braking slide, while a heading change
+## continuously turns the same skid into a powerslide.
+static func automatic_brake_skid(current_speed: float, target_speed: float) -> float:
+	var speed_factor := smoothstep(BRAKE_SKID_MIN_SPEED, BRAKE_SKID_FULL_SPEED,
+		current_speed)
+	var speed_drop := maxf(current_speed - target_speed, 0.0)
+	var inward_factor := smoothstep(BRAKE_SKID_MIN_SPEED_DROP,
+		BRAKE_SKID_FULL_SPEED_DROP, speed_drop)
+	return speed_factor * inward_factor
+
+static func automatic_drift(brake_skid_amount: float, heading_error: float) -> float:
 	var turn_factor := smoothstep(DRIFT_MIN_HEADING, DRIFT_FULL_HEADING,
 		absf(heading_error))
-	var speed_drop := maxf(current_speed - target_speed, 0.0)
-	var inward_factor := smoothstep(DRIFT_MIN_SPEED_DROP, DRIFT_FULL_SPEED_DROP,
-		speed_drop)
-	return speed_factor * turn_factor * inward_factor
+	return brake_skid_amount * turn_factor
 
 ## Mouse drive only owns the ground plane. Gravity, ramps, and impacts own Y.
 static func compose_drive_velocity(planar_velocity: Vector3, vertical_velocity: float) -> Vector3:
