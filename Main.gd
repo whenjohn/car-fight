@@ -1,8 +1,8 @@
 extends Node
-## Stage 0 contains no 2D or 3D content. It only opens Godot's rendered window
-## and emits low-rate evidence so fullscreen behavior can be compared safely.
+## Stage 1 still contains no 2D or 3D content. It adds only car-fight's original
+## 1280 x 720 viewport/window overrides and canvas_items stretch contract.
 
-const STAGE := 0
+const STAGE := 1
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
