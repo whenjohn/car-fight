@@ -108,6 +108,8 @@ After commit `ee562b4`, a second monitored windowed course test ran for 534 seco
 
 On 2026-08-13, the active engine at `/Applications/Godot47.app` was updated from 4.7 stable (`5b4e0cb0f`) to the official 4.7.1 maintenance release (`a13da4feb`). The downloaded universal macOS archive matched its published SHA-256 and passed strict code-signature verification. The previous engine remains at `/Applications/Godot470.app` for rollback. The complete headless project suite and the seven-second crash-monitor fault test pass under 4.7.1. No rendered fullscreen test has yet been performed with 4.7.1, so the update must not be treated as a fullscreen-crash fix.
 
+The first monitored Godot 4.7.1 windowed baseline ran for 587 seconds (9 minutes 47 seconds) at commit `0a9171c`. Telemetry remained windowed, covered both maps, reached 27.98 units/s, latched drift assist, and had no gap longer than 2.46 seconds. The filtered display log contained zero invalid-display-time, VBlank-timeout, GPU-reset, display-not-ready, or WindowServer-event-port-death events. Both Godot processes stopped with the monitor after the user finished. This establishes normal windowed operation under 4.7.1 but does not test or clear fullscreen.
+
 Relevant project settings across the four incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
