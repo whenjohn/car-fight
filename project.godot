@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 2: add a camera and 3D world clear.
+; Car Fight fullscreen isolation — stage 3: add one unshaded primitive.
 config_version=5
 
 [application]

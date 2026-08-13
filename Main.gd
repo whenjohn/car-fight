@@ -1,8 +1,8 @@
 extends Node
-## Stage 2 adds a 3D world, camera, and clear color. It still contains no mesh,
-## light, shadow, animation, physics, networking, addon, or imported asset.
+## Stage 3 adds one static unshaded BoxMesh. It still contains no light, shadow,
+## animation, physics, networking, addon, or imported asset.
 
-const STAGE := 2
+const STAGE := 3
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
@@ -12,7 +12,7 @@ var _ticks := 0
 
 func _ready() -> void:
 	_parse_args()
-	_build_empty_3d_view()
+	_build_3d_view()
 	_open_telemetry()
 	var details := _display_details()
 	print("RENDER_ISOLATION_READY stage=%d driver=%s mode=%s size=%s" % [
@@ -24,7 +24,7 @@ func _ready() -> void:
 	_write("start", details)
 
 
-func _build_empty_3d_view() -> void:
+func _build_3d_view() -> void:
 	var world := Node3D.new()
 	world.name = "Empty3DWorld"
 	add_child(world)
@@ -44,6 +44,17 @@ func _build_empty_3d_view() -> void:
 	camera.current = true
 	world.add_child(camera)
 	camera.look_at(Vector3.ZERO, Vector3.UP)
+
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color(0.12, 0.72, 0.95)
+	var box := BoxMesh.new()
+	box.size = Vector3(2.5, 1.5, 2.0)
+	box.material = material
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = "UnshadedBox"
+	mesh_instance.mesh = box
+	world.add_child(mesh_instance)
 
 
 func _process(delta: float) -> void:
