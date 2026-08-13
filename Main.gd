@@ -1,14 +1,15 @@
 extends Node
-## Stage 6 rotates the primitive continuously, forcing its transform and dynamic
-## shadow to update every frame. Physics, networking, addons, and imports remain off.
+## Stage 7 replaces the primitive with car-fight's imported Jeep FBX hierarchy.
+## The same simple rotation and shadow remain; physics, networking, and addons are off.
 
-const STAGE := 6
+const STAGE := 7
+const JEEP_SCENE: PackedScene = preload("res://assets/ground_vehicle/Jeep.fbx")
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
 var _quit_after_ticks := 0
 var _ticks := 0
-var _animated_mesh: MeshInstance3D
+var _animated_node: Node3D
 
 
 func _ready() -> void:
@@ -46,18 +47,13 @@ func _build_3d_view() -> void:
 	world.add_child(camera)
 	camera.look_at(Vector3.ZERO, Vector3.UP)
 
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.12, 0.72, 0.95)
-	material.roughness = 0.72
-	var box := BoxMesh.new()
-	box.size = Vector3(2.5, 1.5, 2.0)
-	box.material = material
-	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.name = "LitBox"
-	mesh_instance.mesh = box
-	mesh_instance.position.y = 0.25
-	world.add_child(mesh_instance)
-	_animated_mesh = mesh_instance
+	var jeep := JEEP_SCENE.instantiate() as Node3D
+	jeep.name = "ImportedJeep"
+	jeep.scale = Vector3.ONE * 0.45
+	jeep.rotation.y = PI
+	jeep.position.y = -0.68
+	world.add_child(jeep)
+	_animated_node = jeep
 
 	var floor_material := StandardMaterial3D.new()
 	floor_material.albedo_color = Color(0.16, 0.19, 0.23)
@@ -80,8 +76,8 @@ func _build_3d_view() -> void:
 
 
 func _process(delta: float) -> void:
-	if _animated_mesh != null:
-		_animated_mesh.rotate_y(delta * 1.35)
+	if _animated_node != null:
+		_animated_node.rotate_y(delta * 1.35)
 	_sample_elapsed += delta
 	if _sample_elapsed < 1.0:
 		return

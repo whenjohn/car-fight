@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 6: animate caster and shadow.
+; Car Fight fullscreen isolation — stage 7: use the imported Jeep mesh.
 config_version=5
 
 [application]
