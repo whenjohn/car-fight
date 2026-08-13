@@ -13,6 +13,9 @@ const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
 const BODY_ROLL_MAX := deg_to_rad(11.0)
 const BODY_ROLL_SPEED_REF := 8.0
+const BODY_BRAKE_PITCH_MAX := deg_to_rad(9.0)
+const BODY_BRAKE_PITCH_SPEED_REF := 12.0
+const LOCKED_WHEEL_ROLL_SCALE := 0.08
 const BOOST_ECHO_COUNT := 4
 const BOOST_ECHO_INTERVAL := 0.075
 const BOOST_ECHO_LIFETIME := 0.34
@@ -54,15 +57,20 @@ func _process(delta: float) -> void:
 	var rigid := _body as RigidBody3D
 	if rigid != null and _chassis_lean != null:
 		var planar_speed := Vector2(rigid.linear_velocity.x, rigid.linear_velocity.z).length()
+		var brake_skid := float(_body.get("brake_skid_amount"))
 		var steer_fraction := clampf(rigid.angular_velocity.y / STEER_RATE_REFERENCE, -1.0, 1.0)
 		var target_roll := chassis_roll_target(rigid.angular_velocity.y, planar_speed)
 		_chassis_lean.rotation.z = lerp_angle(_chassis_lean.rotation.z, target_roll, 1.0 - exp(-9.0 * delta))
+		var target_pitch := chassis_brake_pitch_target(brake_skid, planar_speed)
+		_chassis_lean.rotation.x = lerp_angle(_chassis_lean.rotation.x, target_pitch,
+			1.0 - exp(-13.0 * delta))
 		var target_steer := steer_fraction * MAX_VISUAL_STEER
 		for steer_node in _front_steer_nodes:
 			steer_node.rotation.y = lerp_angle(steer_node.rotation.y, target_steer, 1.0 - exp(-12.0 * delta))
 		var forward := -rigid.global_basis.z
 		var signed_speed := rigid.linear_velocity.dot(forward)
-		_wheel_spin_angle = fposmod(_wheel_spin_angle + signed_speed / WHEEL_RADIUS * delta, TAU)
+		_wheel_spin_angle = fposmod(_wheel_spin_angle + signed_speed / WHEEL_RADIUS * delta \
+			* wheel_roll_scale(brake_skid), TAU)
 		for spin_node in _wheel_spin_nodes:
 			spin_node.rotation.x = _wheel_spin_angle
 		_update_boost_echoes(delta, bool(_body.get("boost_active")), planar_speed)
@@ -72,6 +80,14 @@ static func chassis_roll_target(yaw_rate: float, road_speed: float) -> float:
 	var steer_load := clampf(yaw_rate / STEER_RATE_REFERENCE, -1.0, 1.0)
 	var speed_load := clampf(road_speed / BODY_ROLL_SPEED_REF, 0.0, 1.0)
 	return -steer_load * speed_load * BODY_ROLL_MAX
+
+static func chassis_brake_pitch_target(brake_skid: float, road_speed: float) -> float:
+	var skid_load := clampf(brake_skid, 0.0, 1.0)
+	var speed_load := clampf(road_speed / BODY_BRAKE_PITCH_SPEED_REF, 0.0, 1.0)
+	return -skid_load * speed_load * BODY_BRAKE_PITCH_MAX
+
+static func wheel_roll_scale(brake_skid: float) -> float:
+	return lerpf(1.0, LOCKED_WHEEL_ROLL_SCALE, clampf(brake_skid, 0.0, 1.0))
 
 static func cloak_cut_position(amount: float) -> float:
 	return lerpf(CLOAK_CUT_FRONT, CLOAK_CUT_BACK, clampf(amount, 0.0, 1.0))

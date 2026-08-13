@@ -170,6 +170,18 @@ func _init() -> void:
 		push_error("JEEP_ROLL_TEST FAIL: stopped chassis must remain level")
 		quit(1)
 		return
+	var brake_pitch_degrees := rad_to_deg(
+		JEEP_PRESENTATION.chassis_brake_pitch_target(1.0, 18.0))
+	if absf(brake_pitch_degrees + 9.0) > 0.001:
+		push_error("JEEP_BRAKE_PITCH_TEST FAIL: hard braking must pitch the chassis forward")
+		quit(1)
+		return
+	if not is_zero_approx(JEEP_PRESENTATION.chassis_brake_pitch_target(0.0, 18.0)) \
+			or JEEP_PRESENTATION.wheel_roll_scale(1.0) > 0.10 \
+			or JEEP_PRESENTATION.wheel_roll_scale(0.0) != 1.0:
+		push_error("JEEP_BRAKE_SKID_TEST FAIL: only hard braking may lock wheel presentation")
+		quit(1)
+		return
 	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded coverage_depth=enabled shadow_filter=hard shadow_depth=32bit")
 	coverage_visual.free()
 	target_dummy.free()

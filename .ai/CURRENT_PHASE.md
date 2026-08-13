@@ -18,8 +18,9 @@
 - Split inward-pull handling into automatic straight brake skid and turn-driven powerslide amounts, so braking can lose tire response before rotation develops.
 - Made dynamic collision escape measure progress along each driver's request only while player bodies touch, preventing free skids from being mistaken for stalls.
 - Made duplicate projectile cleanup tolerate an already-freed presentation node, removing the nonfatal runtime error found during live play.
+- Lengthened hard-brake momentum, slightly strengthened powerslide rotation, nearly locks visual wheel roll during a full skid, and pitches only the presentation chassis up to 9 degrees forward.
 
 ## Next
 
-- Play-test the faster acceleration, close carving, straight braking skid, and transition into powerslide. Tune their relative strength by feel before adding skid presentation or combat-driving objectives.
+- Play-test hard-brake distance, 9-degree chassis dive, close carving, and the transition into powerslide. Tune their relative strength by feel before adding persistent skid marks or combat-driving objectives.
 - Recheck the shield and hit feel at the new west clearing, then tune the shader/SFX layer. Audio remains intentionally unimplemented for this visual-first pass.

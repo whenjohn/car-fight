@@ -1021,8 +1021,10 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			var delta := target - body.global_position
 			return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(FOLLOW.MAX_DISTANCE), "burst": false}
 		"ramp":
-			# Slow near the end so the elevated-road drop lands before the arena wall.
-			var reach := 6.0 if body.position.z < -25.0 else FOLLOW.MAX_DISTANCE
+			# Begin the inward braking request before the road edge. Automatic skid
+			# now preserves more momentum, so the deterministic landing needs the
+			# same longer braking approach a player would use.
+			var reach := 6.0 if body.position.z < -20.0 else FOLLOW.MAX_DISTANCE
 			return {"cursor_offset": Vector2(0.0, -reach), "burst": false}
 		"reverse":
 			return {"cursor_offset": Vector2(FOLLOW.MAX_DISTANCE, 0.0), "burst": false, "reverse": true}
