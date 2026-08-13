@@ -29,3 +29,17 @@ sufficient; a later project/display/rendering building block is required.
 
 Conclusion: car-fight's fixed viewport and stretch contract does not produce
 the precursor without additional rendered content.
+
+## Stage 2 — empty 3D world and camera
+
+- Revision: `fdbc0ef`
+- Engine/driver/window/display contract: same as Stage 1
+- Added: WorldEnvironment clear color and one current Camera3D
+- Duration: approximately 26 seconds of telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: creating and continuously presenting an empty 3D viewport through
+a Camera3D does not produce the precursor.
