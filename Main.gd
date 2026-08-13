@@ -523,6 +523,18 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	marker.material_override = _material(Color(color, 0.85), true)
 	marker.visible = is_local
 	body.add_child(marker)
+	var max_speed_marker := MeshInstance3D.new()
+	max_speed_marker.name = "MaxSpeedMarker"
+	max_speed_marker.top_level = true
+	var max_speed_mesh := CylinderMesh.new()
+	max_speed_mesh.top_radius = 0.15
+	max_speed_mesh.bottom_radius = 0.15
+	max_speed_mesh.height = 0.045
+	max_speed_marker.mesh = max_speed_mesh
+	max_speed_marker.material_override = _material(Color("fff1b8"), true)
+	max_speed_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	max_speed_marker.visible = is_local
+	body.add_child(max_speed_marker)
 
 	var line := MeshInstance3D.new()
 	line.name = "CursorLine"

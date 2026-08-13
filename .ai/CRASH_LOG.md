@@ -66,6 +66,8 @@ After commit `48c77be`, a sixth approved rendered test reached at least tick 310
 
 After commit `ef69f73`, a seventh approved rendered test reached at least tick 8220 (roughly 137 seconds at 60 Hz) and was stopped normally because ordinary close-cursor powerslides still turned too tightly, without a WindowServer failure.
 
+After commit `eac8bce`, an eighth approved rendered test reached at least tick 23700 (roughly 395 seconds at 60 Hz) and was stopped normally to add a max-speed cursor reference, without a WindowServer failure.
+
 Relevant project settings at both incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

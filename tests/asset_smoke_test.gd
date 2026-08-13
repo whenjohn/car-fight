@@ -110,6 +110,10 @@ func _init() -> void:
 		push_error("SHIELD_PREWARM_TEST FAIL: shield pipeline must compile before ENet starts")
 		quit(1)
 		return
+	if "MaxSpeedMarker" not in main_source:
+		push_error("CURSOR_SPEED_MARKER_TEST FAIL: local cursor path must show its max-speed point")
+		quit(1)
+		return
 	var coverage_visual := COVERAGE_VISUAL.new()
 	var coverage_material := coverage_visual.call("_material", Color.WHITE) as StandardMaterial3D
 	if coverage_material.no_depth_test:

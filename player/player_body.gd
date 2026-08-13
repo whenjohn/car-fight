@@ -41,6 +41,7 @@ var landing_jostle_cooldown := 0.0
 @onready var _sync := get_node("RollbackSynchronizer")
 @onready var _interpolator := get_node("TickInterpolator")
 var _cursor_marker: Node3D
+var _max_speed_marker: Node3D
 var _cursor_line: Node3D
 var _cursor_line_material: StandardMaterial3D
 var _cursor_line_color := Color.WHITE
@@ -104,6 +105,7 @@ func _ready() -> void:
 		_interpolator.enabled = false
 	if local_player:
 		_cursor_marker = get_node_or_null("CursorMarker")
+		_max_speed_marker = get_node_or_null("MaxSpeedMarker")
 		_cursor_line = get_node_or_null("CursorLine")
 		_tractor_ring = get_node_or_null("TractorCatchRing")
 		if _cursor_line != null:
@@ -363,6 +365,8 @@ func _process(_delta: float) -> void:
 		return
 	if _input.editing or is_cloaked:
 		_cursor_marker.visible = false
+		if _max_speed_marker != null:
+			_max_speed_marker.visible = false
 		_cursor_line.visible = false
 		if _tractor_ring != null:
 			_tractor_ring.visible = false
@@ -376,6 +380,13 @@ func _process(_delta: float) -> void:
 	var start := Vector3(global_position.x, road_plane_y + 0.08, global_position.z)
 	var distance := start.distance_to(target)
 	var planar_distance := offset.length()
+	if _max_speed_marker != null:
+		_max_speed_marker.visible = planar_distance > 0.05
+		if _max_speed_marker.visible:
+			var max_offset := offset.normalized() * FOLLOW.MAX_DISTANCE
+			_max_speed_marker.global_position = Vector3(
+				global_position.x + max_offset.x, road_plane_y + 0.075,
+				global_position.z + max_offset.y)
 	_cursor_line.global_position = (start + target) * 0.5
 	_cursor_line.visible = planar_distance > 0.05
 	if planar_distance > 0.05:
