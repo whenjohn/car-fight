@@ -72,3 +72,18 @@ the precursor without lighting, shadows, or animation.
 
 Conclusion: basic shaded geometry and directional lighting do not produce the
 precursor without shadow rendering or animation.
+
+## Stage 5 — static directional shadows
+
+- Revision: `64c59b2`
+- Engine/driver/window/display contract: same as Stage 4
+- Added: receiving PlaneMesh and enabled directional shadows
+- Scene motion: none
+- Duration: approximately 23 seconds of telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: a static shadow caster, receiving floor, and directional shadow
+pass do not produce the precursor without per-frame scene motion.
