@@ -6,7 +6,7 @@
 - Added authoritative player impacts with a small linear deflection, torque jostle, and short steering-recovery window.
 - Added a freely toggled `Q` shield that absorbs 85% of the drone shove; cloak and shield are mutually exclusive, with cloak taking priority.
 - Added a glass bubble shader, localized shield ripple, ordinary impact burst, client-side visual prediction, and authoritative event deduplication.
-- Moved the drone out from beneath the elevated road into the open northeast clearing so it is visible from the starting area.
+- Moved the drone out from beneath the elevated road and away from the red target cluster into the far-east clearing.
 - Added focused impact math, presentation, and network gates; the complete `./scripts/test.sh` suite passes.
 
 ## Next
