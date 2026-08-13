@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 3: add one unshaded primitive.
+; Car Fight fullscreen isolation — stage 4: add directional lighting.
 config_version=5
 
 [application]

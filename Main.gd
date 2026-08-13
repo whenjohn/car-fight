@@ -1,8 +1,8 @@
 extends Node
-## Stage 3 adds one static unshaded BoxMesh. It still contains no light, shadow,
-## animation, physics, networking, addon, or imported asset.
+## Stage 4 shades the static BoxMesh with one DirectionalLight3D. Shadows remain
+## disabled, and there is still no animation, physics, networking, or import.
 
-const STAGE := 3
+const STAGE := 4
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
@@ -46,8 +46,8 @@ func _build_3d_view() -> void:
 	camera.look_at(Vector3.ZERO, Vector3.UP)
 
 	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.albedo_color = Color(0.12, 0.72, 0.95)
+	material.roughness = 0.72
 	var box := BoxMesh.new()
 	box.size = Vector3(2.5, 1.5, 2.0)
 	box.material = material
@@ -55,6 +55,13 @@ func _build_3d_view() -> void:
 	mesh_instance.name = "UnshadedBox"
 	mesh_instance.mesh = box
 	world.add_child(mesh_instance)
+
+	var light := DirectionalLight3D.new()
+	light.name = "DirectionalLight3D"
+	light.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
+	light.light_energy = 1.25
+	light.shadow_enabled = false
+	world.add_child(light)
 
 
 func _process(delta: float) -> void:
