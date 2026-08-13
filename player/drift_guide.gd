@@ -31,6 +31,7 @@ var _right_zone: MeshInstance3D
 var _left_meter: MeshInstance3D
 var _right_meter: MeshInstance3D
 var _max_label: Label3D
+var _assist_label: Label3D
 var _base_material: StandardMaterial3D
 var _speed_material: StandardMaterial3D
 var _boost_material: StandardMaterial3D
@@ -75,6 +76,15 @@ func _ready() -> void:
 	_max_label.no_depth_test = true
 	_max_label.visible = false
 	add_child(_max_label)
+	_assist_label = Label3D.new()
+	_assist_label.name = "DriftAssistLabel"
+	_assist_label.text = "DRIFT ASSIST"
+	_assist_label.font_size = 30
+	_assist_label.outline_size = 8
+	_assist_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_assist_label.no_depth_test = true
+	_assist_label.visible = false
+	add_child(_assist_label)
 	_update_dynamic_meshes(0.0, 0.0, 0.0)
 
 func _process(_delta: float) -> void:
@@ -90,6 +100,7 @@ func _process(_delta: float) -> void:
 	var charge := clampf(float(_body.get("drift_assist_charge")), 0.0, 1.0)
 	var side := float(_body.get("drift_assist_side"))
 	var assist := clampf(float(_body.get("drift_assist_amount")), 0.0, 1.0)
+	var latched := bool(_body.get("drift_assist_latched"))
 	var hold_fraction := clampf(float(_body.get("drift_assist_hold")) \
 		/ FOLLOW.DRIFT_ASSIST_ARM_TIME, 0.0, 1.0)
 	var ready := FOLLOW.drift_assist_ready_fraction(road_speed)
@@ -103,10 +114,21 @@ func _process(_delta: float) -> void:
 	var resting_alpha := lerpf(0.008, 0.115, ready)
 	var left_active := maxf(hold_fraction, assist) if side > 0.0 else 0.0
 	var right_active := maxf(hold_fraction, assist) if side < 0.0 else 0.0
-	_left_zone_material.albedo_color.a = lerpf(resting_alpha, 0.29, left_active)
-	_right_zone_material.albedo_color.a = lerpf(resting_alpha, 0.29, right_active)
-	_left_zone_material.emission_energy_multiplier = lerpf(0.08, 1.55, left_active)
-	_right_zone_material.emission_energy_multiplier = lerpf(0.08, 1.55, right_active)
+	var left_latched := latched and side > 0.0
+	var right_latched := latched and side < 0.0
+	var inactive_alpha := minf(resting_alpha, 0.025) if latched else resting_alpha
+	_left_zone_material.albedo_color.a = 0.68 if left_latched \
+		else lerpf(inactive_alpha, 0.29, left_active)
+	_right_zone_material.albedo_color.a = 0.68 if right_latched \
+		else lerpf(inactive_alpha, 0.29, right_active)
+	_left_zone_material.emission_energy_multiplier = 4.5 if left_latched \
+		else lerpf(0.08, 1.55, left_active)
+	_right_zone_material.emission_energy_multiplier = 4.5 if right_latched \
+		else lerpf(0.08, 1.55, right_active)
+	_assist_label.visible = latched and not is_zero_approx(side)
+	if _assist_label.visible:
+		_assist_label.position = Vector3(-3.7 * side, 0.30, 3.7)
+		_assist_label.modulate = LEFT_ZONE_COLOR if side > 0.0 else RIGHT_ZONE_COLOR
 	_max_label.visible = charge >= 0.985 and not is_zero_approx(side)
 	if _max_label.visible:
 		_max_label.position.x = -4.15 * side
