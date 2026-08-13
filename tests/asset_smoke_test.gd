@@ -176,6 +176,15 @@ func _init() -> void:
 		push_error("JEEP_BRAKE_PITCH_TEST FAIL: hard braking must pitch the chassis forward")
 		quit(1)
 		return
+	if not is_zero_approx(JEEP_PRESENTATION.chassis_brake_pitch_target(0.70, 18.0)):
+		push_error("JEEP_BRAKE_PITCH_TEST FAIL: chassis dive must wait for peak braking")
+		quit(1)
+		return
+	var approaching_peak_pitch := absf(JEEP_PRESENTATION.chassis_brake_pitch_target(0.85, 18.0))
+	if approaching_peak_pitch <= 0.0 or approaching_peak_pitch >= deg_to_rad(10.0):
+		push_error("JEEP_BRAKE_PITCH_TEST FAIL: chassis dive must build progressively near peak braking")
+		quit(1)
+		return
 	if not is_zero_approx(JEEP_PRESENTATION.chassis_brake_pitch_target(0.0, 18.0)) \
 			or not is_zero_approx(JEEP_PRESENTATION.wheel_roll_scale(1.0)) \
 			or JEEP_PRESENTATION.wheel_roll_scale(0.0) != 1.0:

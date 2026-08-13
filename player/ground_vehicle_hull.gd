@@ -15,6 +15,9 @@ const BODY_ROLL_MAX := deg_to_rad(11.0)
 const BODY_ROLL_SPEED_REF := 8.0
 const BODY_BRAKE_PITCH_MAX := deg_to_rad(18.0)
 const BODY_BRAKE_PITCH_SPEED_REF := 12.0
+const BODY_BRAKE_PITCH_ONSET := 0.72
+const BODY_BRAKE_PITCH_FULL := 0.98
+const BODY_BRAKE_PITCH_RESPONSE := 4.5
 const LOCKED_WHEEL_ROLL_SCALE := 0.0
 const BOOST_ECHO_COUNT := 4
 const BOOST_ECHO_INTERVAL := 0.075
@@ -63,7 +66,7 @@ func _process(delta: float) -> void:
 		_chassis_lean.rotation.z = lerp_angle(_chassis_lean.rotation.z, target_roll, 1.0 - exp(-9.0 * delta))
 		var target_pitch := chassis_brake_pitch_target(brake_skid, planar_speed)
 		_chassis_lean.rotation.x = lerp_angle(_chassis_lean.rotation.x, target_pitch,
-			1.0 - exp(-18.0 * delta))
+			1.0 - exp(-BODY_BRAKE_PITCH_RESPONSE * delta))
 		var target_steer := steer_fraction * MAX_VISUAL_STEER
 		for steer_node in _front_steer_nodes:
 			steer_node.rotation.y = lerp_angle(steer_node.rotation.y, target_steer, 1.0 - exp(-12.0 * delta))
@@ -82,7 +85,10 @@ static func chassis_roll_target(yaw_rate: float, road_speed: float) -> float:
 	return -steer_load * speed_load * BODY_ROLL_MAX
 
 static func chassis_brake_pitch_target(brake_skid: float, road_speed: float) -> float:
-	var skid_load := clampf(brake_skid, 0.0, 1.0)
+	# Hold the chassis level through ordinary deceleration. The dramatic dive
+	# belongs to the peak tire-lock moment, then eases in slowly enough to read.
+	var skid_load := smoothstep(BODY_BRAKE_PITCH_ONSET, BODY_BRAKE_PITCH_FULL,
+		clampf(brake_skid, 0.0, 1.0))
 	var speed_load := clampf(road_speed / BODY_BRAKE_PITCH_SPEED_REF, 0.0, 1.0)
 	return -skid_load * speed_load * BODY_BRAKE_PITCH_MAX
 
