@@ -151,3 +151,19 @@ it recorded separately while continuing the runtime fullscreen isolation.
 Conclusion: loading Rapier during an ordinary fullscreen runtime does not
 produce the WindowServer precursor. The separate editor-shutdown crash does not
 occur on this runtime path.
+
+## Stage 9 — active Rapier simulation
+
+- Revision: `6125a60`
+- Engine/driver/window/display contract and presentation: same as Stage 8
+- Added: 120 Hz physics, one active rigid body/collider, gravity, angular
+  velocity, and a static collidable floor
+- Networking/netfox: absent
+- Duration: approximately 27 seconds of fullscreen telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: active Rapier rigid-body simulation and collision do not produce
+the WindowServer precursor without netfox or networking.
