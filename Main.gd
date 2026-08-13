@@ -1,13 +1,14 @@
 extends Node
-## Stage 5 adds a static receiving floor and enables directional shadows. There
-## is still no animation, physics, networking, addon, or imported asset.
+## Stage 6 rotates the primitive continuously, forcing its transform and dynamic
+## shadow to update every frame. Physics, networking, addons, and imports remain off.
 
-const STAGE := 5
+const STAGE := 6
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
 var _quit_after_ticks := 0
 var _ticks := 0
+var _animated_mesh: MeshInstance3D
 
 
 func _ready() -> void:
@@ -56,6 +57,7 @@ func _build_3d_view() -> void:
 	mesh_instance.mesh = box
 	mesh_instance.position.y = 0.25
 	world.add_child(mesh_instance)
+	_animated_mesh = mesh_instance
 
 	var floor_material := StandardMaterial3D.new()
 	floor_material.albedo_color = Color(0.16, 0.19, 0.23)
@@ -78,6 +80,8 @@ func _build_3d_view() -> void:
 
 
 func _process(delta: float) -> void:
+	if _animated_mesh != null:
+		_animated_mesh.rotate_y(delta * 1.35)
 	_sample_elapsed += delta
 	if _sample_elapsed < 1.0:
 		return

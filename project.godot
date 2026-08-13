@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 5: add a shadow pass.
+; Car Fight fullscreen isolation — stage 6: animate caster and shadow.
 config_version=5
 
 [application]
