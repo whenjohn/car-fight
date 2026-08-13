@@ -43,3 +43,17 @@ the precursor without additional rendered content.
 
 Conclusion: creating and continuously presenting an empty 3D viewport through
 a Camera3D does not produce the precursor.
+
+## Stage 3 — static unshaded primitive
+
+- Revision: `e61497d`
+- Engine/driver/window/display contract: same as Stage 2
+- Added: one static BoxMesh and one unshaded StandardMaterial3D
+- Duration: approximately 26 seconds of telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: visible primitive geometry and a StandardMaterial3D do not produce
+the precursor without lighting, shadows, or animation.
