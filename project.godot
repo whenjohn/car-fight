@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 1: add the original display contract.
+; Car Fight fullscreen isolation — stage 2: add a camera and 3D world clear.
 config_version=5
 
 [application]

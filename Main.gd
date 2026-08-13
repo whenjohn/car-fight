@@ -1,8 +1,8 @@
 extends Node
-## Stage 1 still contains no 2D or 3D content. It adds only car-fight's original
-## 1280 x 720 viewport/window overrides and canvas_items stretch contract.
+## Stage 2 adds a 3D world, camera, and clear color. It still contains no mesh,
+## light, shadow, animation, physics, networking, addon, or imported asset.
 
-const STAGE := 1
+const STAGE := 2
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
@@ -12,6 +12,7 @@ var _ticks := 0
 
 func _ready() -> void:
 	_parse_args()
+	_build_empty_3d_view()
 	_open_telemetry()
 	var details := _display_details()
 	print("RENDER_ISOLATION_READY stage=%d driver=%s mode=%s size=%s" % [
@@ -21,6 +22,28 @@ func _ready() -> void:
 		str(details["window_size"]),
 	])
 	_write("start", details)
+
+
+func _build_empty_3d_view() -> void:
+	var world := Node3D.new()
+	world.name = "Empty3DWorld"
+	add_child(world)
+
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0.025, 0.04, 0.065)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
+	var world_environment := WorldEnvironment.new()
+	world_environment.name = "WorldEnvironment"
+	world_environment.environment = environment
+	world.add_child(world_environment)
+
+	var camera := Camera3D.new()
+	camera.name = "Camera3D"
+	camera.position = Vector3(0.0, 3.0, 8.0)
+	camera.current = true
+	world.add_child(camera)
+	camera.look_at(Vector3.ZERO, Vector3.UP)
 
 
 func _process(delta: float) -> void:
