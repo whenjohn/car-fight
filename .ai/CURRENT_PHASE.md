@@ -26,9 +26,11 @@
 - Added a local speed ring around the Jeep: normal speed fills the main arc, burst speed adds an outer orange arc, and peak braking brightens the display.
 - Added faint rear-corner drift zones centered around +/-135 degrees. Peak braking inside either zone adds bounded rotation and forward-carry assistance, fills a 0.65-second local timing meter, and displays `MAX -> GAS` before resetting after the cursor leaves. Straight-back braking and ordinary sideways powerslides remain unchanged.
 - Synchronized drift-assist amount, charge, and side through rollback state and added focused control/presentation regressions. The complete `./scripts/test.sh` suite passes.
+- Replaced each thin drift-zone bar with a translucent cursor wedge spanning 1.55-6.3 units, showing the full area that gives maximum assist from normal top speed.
+- Strengthened assisted yaw and momentum preservation, then added a bounded 0.85 rad/s path carve. During a committed rear-corner brake the chassis rotates faster than its travel direction while the velocity path bends around the corner, producing a sharper high-speed sliding turn rather than an in-place spin. The complete `./scripts/test.sh` suite passes.
 
 ## Next
 
 - Continue gameplay work, but do not automatically launch a rendered local client. Read `.ai/CRASH_LOG.md` first and get explicit approval before a rendered test because two attempts have killed WindowServer. Headless tests remain appropriate.
-- When rendered testing is authorized, play-test the ring readability and drift sequence: reach speed, snap into a rear-corner zone, hold through brake/dive until `MAX -> GAS`, then throw the cursor forward and accelerate out. Tune zone angle, assist strength, and the 0.65-second timing window by feel.
+- When rendered testing is authorized, play-test whether the broad wedges clearly communicate maximum effect and whether the stronger assist now slides around a sharp corner: reach speed, snap into a rear wedge, hold through brake/dive until `MAX -> GAS`, then throw the cursor forward and accelerate out. Tune chassis rotation versus 0.85 rad/s path carve by feel.
 - Recheck the shield and hit feel at the new west clearing, then tune the shader/SFX layer. Audio remains intentionally unimplemented for this visual-first pass.

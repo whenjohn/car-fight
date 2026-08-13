@@ -84,6 +84,11 @@ func _init() -> void:
 	if float(slow_corner["drift_assist_amount"]) != 0.0:
 		_failures += 1
 		push_error("rear-corner placement must not assist without a hard high-speed brake")
+	var carved := FOLLOW.drift_carve_velocity(Vector3(0.0, 0.0, -18.0),
+		1.0, 1.0, 1.0, 0.5)
+	if carved.x >= -1.0 or absf(carved.length() - 18.0) > 0.001:
+		_failures += 1
+		push_error("drift assistance must bend high-speed momentum around the corner without killing speed")
 	var assist_charge := 0.0
 	for step in range(40):
 		assist_charge = FOLLOW.next_drift_assist_charge(assist_charge, 1.0, 1.0 / 60.0)

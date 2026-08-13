@@ -54,6 +54,8 @@ Treat the rendered client as the probable trigger for an operating-system/Intel 
 
 After commit `85c7285`, an explicitly approved rendered OpenGL play-test reached at least tick 11460 (roughly 191 seconds at 60 Hz) and was then stopped normally to make the next gameplay change. WindowServer did not fail during that run. This does not clear the rendering path—the two earlier incidents remain unexplained—but it shows the failure is not guaranteed at 69 seconds on every launch.
 
+After commit `2fe2cc8`, another explicitly approved rendered test reached at least tick 7980 (roughly 133 seconds at 60 Hz) and was stopped normally for drift tuning, again without a WindowServer failure.
+
 Relevant project settings at both incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

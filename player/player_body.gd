@@ -215,6 +215,8 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var impact_acceleration_scale := IMPACT.acceleration_scale(impact_recovery_time)
 	horizontal = horizontal.move_toward(target_velocity,
 		float(command["acceleration"]) * impact_acceleration_scale * delta)
+	horizontal = FOLLOW.drift_carve_velocity(horizontal, drift_assist_side,
+		drift_assist_amount, drift_assist_charge, delta)
 	if bool(escape["started"]):
 		horizontal += drive_direction * FOLLOW.ESCAPE_SIDE_KICK
 	direct_state.linear_velocity = FOLLOW.compose_drive_velocity(horizontal, velocity.y)

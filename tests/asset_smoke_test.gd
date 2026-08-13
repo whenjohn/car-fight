@@ -198,6 +198,10 @@ func _init() -> void:
 		push_error("DRIFT_GUIDE_TEST FAIL: local rings must map road and burst speed continuously")
 		quit(1)
 		return
+	if DRIFT_GUIDE.ZONE_OUTER_RADIUS - DRIFT_GUIDE.ZONE_INNER_RADIUS < 4.0:
+		push_error("DRIFT_GUIDE_TEST FAIL: rear drift targets must be cursor areas, not thin bars")
+		quit(1)
+		return
 	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded coverage_depth=enabled shadow_filter=hard shadow_depth=32bit")
 	coverage_visual.free()
 	target_dummy.free()

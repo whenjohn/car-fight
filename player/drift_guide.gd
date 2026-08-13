@@ -7,8 +7,10 @@ const FOLLOW := preload("res://player/follow_controller.gd")
 const RING_RADIUS := 3.05
 const RING_THICKNESS := 0.055
 const BOOST_RADIUS := 3.20
-const ZONE_RADIUS := 3.55
-const ZONE_THICKNESS := 0.34
+const ZONE_INNER_RADIUS := 1.55
+const ZONE_OUTER_RADIUS := 6.30
+const ZONE_METER_RADIUS := 6.42
+const ZONE_METER_THICKNESS := 0.18
 const ZONE_START := deg_to_rad(100.0)
 const ZONE_END := deg_to_rad(170.0)
 const SPEED_ARC_START := deg_to_rad(-135.0)
@@ -43,18 +45,20 @@ func _ready() -> void:
 	_base_material = _material(Color(SPEED_COLOR, 0.13), 0.20)
 	_speed_material = _material(Color(SPEED_COLOR, 0.72), 1.1)
 	_boost_material = _material(Color(BOOST_COLOR, 0.86), 1.8)
-	_left_zone_material = _material(Color(LEFT_ZONE_COLOR, 0.16), 0.32)
-	_right_zone_material = _material(Color(RIGHT_ZONE_COLOR, 0.16), 0.32)
+	_left_zone_material = _material(Color(LEFT_ZONE_COLOR, 0.075), 0.20)
+	_right_zone_material = _material(Color(RIGHT_ZONE_COLOR, 0.075), 0.20)
 	_base_ring = _mesh_node("SpeedRingBase",
 		_arc_mesh(RING_RADIUS, RING_THICKNESS, SPEED_ARC_START, SPEED_ARC_END, 1.0),
 		_base_material)
 	_speed_ring = _mesh_node("SpeedRingFill", ImmediateMesh.new(), _speed_material)
 	_boost_ring = _mesh_node("BurstRingFill", ImmediateMesh.new(), _boost_material)
 	_left_zone = _mesh_node("LeftDriftZone",
-		_arc_mesh(ZONE_RADIUS, ZONE_THICKNESS, ZONE_START, ZONE_END, 1.0),
+		_sector_mesh(ZONE_INNER_RADIUS, ZONE_OUTER_RADIUS,
+			ZONE_START, ZONE_END),
 		_left_zone_material)
 	_right_zone = _mesh_node("RightDriftZone",
-		_arc_mesh(ZONE_RADIUS, ZONE_THICKNESS, -ZONE_START, -ZONE_END, 1.0),
+		_sector_mesh(ZONE_INNER_RADIUS, ZONE_OUTER_RADIUS,
+			-ZONE_START, -ZONE_END),
 		_right_zone_material)
 	_left_meter = _mesh_node("LeftDriftMeter", ImmediateMesh.new(),
 		_material(Color(LEFT_ZONE_COLOR, 0.88), 2.0))
@@ -93,17 +97,18 @@ func _process(_delta: float) -> void:
 	_speed_material.emission = SPEED_COLOR.lerp(BRAKE_COLOR, brake_glow)
 	_speed_material.emission_energy_multiplier = lerpf(1.1, 3.3, brake_glow)
 	_base_material.albedo_color.a = lerpf(0.13, 0.38, brake_glow)
-	_left_zone_material.albedo_color.a = lerpf(0.16, 0.48,
+	_left_zone_material.albedo_color.a = lerpf(0.075, 0.26,
 		assist if side > 0.0 else 0.0)
-	_right_zone_material.albedo_color.a = lerpf(0.16, 0.48,
+	_right_zone_material.albedo_color.a = lerpf(0.075, 0.26,
 		assist if side < 0.0 else 0.0)
-	_left_zone_material.emission_energy_multiplier = lerpf(0.32, 1.5,
+	_left_zone_material.emission_energy_multiplier = lerpf(0.20, 1.35,
 		assist if side > 0.0 else 0.0)
-	_right_zone_material.emission_energy_multiplier = lerpf(0.32, 1.5,
+	_right_zone_material.emission_energy_multiplier = lerpf(0.20, 1.35,
 		assist if side < 0.0 else 0.0)
 	_max_label.visible = charge >= 0.985 and not is_zero_approx(side)
 	if _max_label.visible:
-		_max_label.position.x = -2.55 * side
+		_max_label.position.x = -4.15 * side
+		_max_label.position.z = 4.15
 
 func _update_dynamic_meshes(road_speed: float, charge: float, side: float) -> void:
 	var speed_step := clampi(roundi(speed_fraction(road_speed) * ARC_SEGMENTS), 0, ARC_SEGMENTS)
@@ -120,9 +125,9 @@ func _update_dynamic_meshes(road_speed: float, charge: float, side: float) -> vo
 	if charge_step != _last_charge_step:
 		_last_charge_step = charge_step
 		var meter_fraction := float(charge_step) / 16.0
-		_left_meter.mesh = _arc_mesh(ZONE_RADIUS, ZONE_THICKNESS * 0.66,
+		_left_meter.mesh = _arc_mesh(ZONE_METER_RADIUS, ZONE_METER_THICKNESS,
 			ZONE_START, ZONE_END, meter_fraction)
-		_right_meter.mesh = _arc_mesh(ZONE_RADIUS, ZONE_THICKNESS * 0.66,
+		_right_meter.mesh = _arc_mesh(ZONE_METER_RADIUS, ZONE_METER_THICKNESS,
 			-ZONE_START, -ZONE_END, meter_fraction)
 	_left_meter.visible = side > 0.0 and charge > 0.001
 	_right_meter.visible = side < 0.0 and charge > 0.001
@@ -163,6 +168,22 @@ func _arc_mesh(radius: float, thickness: float, start_angle: float,
 		var outer0 := _arc_point(outer, angle0)
 		var inner1 := _arc_point(inner, angle1)
 		var outer1 := _arc_point(outer, angle1)
+		for point in [inner0, outer0, outer1, inner0, outer1, inner1]:
+			mesh.surface_add_vertex(point)
+	mesh.surface_end()
+	return mesh
+
+func _sector_mesh(inner_radius: float, outer_radius: float, start_angle: float,
+		end_angle: float) -> ImmediateMesh:
+	var mesh := ImmediateMesh.new()
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for step in range(ARC_SEGMENTS):
+		var angle0 := lerpf(start_angle, end_angle, float(step) / ARC_SEGMENTS)
+		var angle1 := lerpf(start_angle, end_angle, float(step + 1) / ARC_SEGMENTS)
+		var inner0 := _arc_point(inner_radius, angle0)
+		var outer0 := _arc_point(outer_radius, angle0)
+		var inner1 := _arc_point(inner_radius, angle1)
+		var outer1 := _arc_point(outer_radius, angle1)
 		for point in [inner0, outer0, outer1, inner0, outer1, inner1]:
 			mesh.surface_add_vertex(point)
 	mesh.surface_end()

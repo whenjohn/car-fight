@@ -34,9 +34,10 @@ const DRIFT_ASSIST_ZONE_FADE := deg_to_rad(155.0)
 const DRIFT_ASSIST_ZONE_OUTER := deg_to_rad(170.0)
 const DRIFT_ASSIST_BRAKE_ONSET := 0.72
 const DRIFT_ASSIST_BRAKE_FULL := 0.98
-const DRIFT_ASSIST_TURN_BOOST := 1.18
-const DRIFT_ASSIST_YAW_ACCEL := 13.0
-const DRIFT_ASSIST_VELOCITY_RESPONSE := 2.4
+const DRIFT_ASSIST_TURN_BOOST := 1.35
+const DRIFT_ASSIST_YAW_ACCEL := 16.0
+const DRIFT_ASSIST_VELOCITY_RESPONSE := 1.35
+const DRIFT_ASSIST_PATH_TURN_RATE := 0.85
 const DRIFT_ASSIST_CHARGE_TIME := 0.65
 const DRIFT_ASSIST_RELEASE_TIME := 0.45
 const BURST_SPEED := 28.0
@@ -222,6 +223,19 @@ static func next_drift_assist_charge(current_charge: float, assist_amount: float
 		return move_toward(charge, 1.0, delta / DRIFT_ASSIST_CHARGE_TIME \
 			* lerpf(0.55, 1.0, clampf(assist_amount, 0.0, 1.0)))
 	return move_toward(charge, 0.0, delta / DRIFT_ASSIST_RELEASE_TIME)
+
+## Rotate the road momentum gradually toward the selected corner without
+## snapping it to the chassis. The body turns much faster than this path, so
+## the Jeep visibly travels sideways while still carving around the corner.
+static func drift_carve_velocity(planar_velocity: Vector3, assist_side: float,
+		assist_amount: float, assist_charge: float, delta: float) -> Vector3:
+	if planar_velocity.length_squared() <= 0.0001 or is_zero_approx(assist_side) \
+			or assist_amount <= 0.001:
+		return planar_velocity
+	var strength := clampf(assist_amount, 0.0, 1.0) \
+		* lerpf(0.45, 1.0, clampf(assist_charge, 0.0, 1.0))
+	return planar_velocity.rotated(Vector3.UP,
+		signf(assist_side) * DRIFT_ASSIST_PATH_TURN_RATE * strength * delta)
 
 ## Mouse drive only owns the ground plane. Gravity, ramps, and impacts own Y.
 static func compose_drive_velocity(planar_velocity: Vector3, vertical_velocity: float) -> Vector3:
