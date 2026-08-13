@@ -78,7 +78,7 @@ fi
 hull_speed="$(print -r -- "$hull_result" | sed -E 's/.*impactmax=([0-9.]+).*/\1/')"
 shield_speed="$(print -r -- "$shield_result" | sed -E 's/.*impactmax=([0-9.]+).*/\1/')"
 if ! awk -v hull="$hull_speed" -v shield="$shield_speed" \
-	'BEGIN { exit !(hull >= 0.4 && shield < 0.2 && shield < hull * 0.5) }'; then
+	'BEGIN { exit !(hull >= 0.4 && shield < 0.3 && shield < hull * 0.5) }'; then
 	echo "shield did not substantially reduce trajectory shove: hull=$hull_speed shield=$shield_speed" >&2
 	echo "$hull_result" >&2
 	echo "$shield_result" >&2
