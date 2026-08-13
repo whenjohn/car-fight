@@ -93,7 +93,7 @@ system_profiler SPDisplaysDataType > "$run_dir/displays-start.txt" 2>&1 || true
 ioreg -l -w 0 -r -c AppleBacklightDisplay > "$run_dir/backlight-start.txt" 2>&1 || true
 pmset -g therm > "$run_dir/thermal-start.txt" 2>&1 || true
 
-log_predicate='((process == "Godot") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "OpenGL") OR (eventMessage CONTAINS[c] "GPU") OR (eventMessage CONTAINS[c] "IOAccelerator"))) OR (process == "watchdogd") OR ((process == "WindowServer") AND ((eventMessage CONTAINS[c] "event port") OR (eventMessage CONTAINS[c] "actual_host_time") OR (eventMessage CONTAINS[c] "not ready") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "surface"))) OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display"))) OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "Setting display mode")'
+log_predicate='((process == "Godot") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "OpenGL") OR (eventMessage CONTAINS[c] "GPU") OR (eventMessage CONTAINS[c] "IOAccelerator"))) OR ((process == "watchdogd") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "userspace_watchdog_timeout") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "type 409"))) OR ((process == "WindowServer") AND ((eventMessage CONTAINS[c] "event port") OR (eventMessage CONTAINS[c] "actual_host_time") OR (eventMessage CONTAINS[c] "not ready") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "surface"))) OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display"))) OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "Setting display mode")'
 /usr/bin/log stream --style compact --level info --predicate "$log_predicate" \
 	> "$run_dir/unified-live.log" 2>&1 &
 log_pid=$!
@@ -225,9 +225,14 @@ set -e
 
 end_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
 end_windowserver_pid="${end_windowserver_pid:-missing}"
+recovered_windowserver_pid="$(sed -n 's/^windowserver_pid_recovered=//p' \
+	"$run_dir/metadata.txt" | tail -1)"
 end_local="$(date '+%Y-%m-%d %H:%M:%S')"
 if [[ "$initial_windowserver_pid" == <-> && "$end_windowserver_pid" == <-> \
 		&& "$initial_windowserver_pid" != "$end_windowserver_pid" ]]; then
+	run_state="windowserver-restarted"
+elif [[ "$initial_windowserver_pid" == <-> && "$recovered_windowserver_pid" == <-> \
+		&& "$initial_windowserver_pid" != "$recovered_windowserver_pid" ]]; then
 	run_state="windowserver-restarted"
 elif (( client_status == 0 )); then
 	run_state="clean"

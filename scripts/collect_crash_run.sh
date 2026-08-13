@@ -28,7 +28,7 @@ find /Library/Logs/DiagnosticReports /Users/johnnguyen/Library/Logs/DiagnosticRe
 
 start_local="$(sed -n 's/^start_local=//p' "$run_dir/metadata.txt" | head -1)"
 end_local="$(date '+%Y-%m-%d %H:%M:%S')"
-log_predicate='((process == "Godot") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "OpenGL") OR (eventMessage CONTAINS[c] "GPU") OR (eventMessage CONTAINS[c] "IOAccelerator"))) OR (process == "watchdogd") OR ((process == "WindowServer") AND ((eventMessage CONTAINS[c] "event port") OR (eventMessage CONTAINS[c] "actual_host_time") OR (eventMessage CONTAINS[c] "not ready") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "surface"))) OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display"))) OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "Setting display mode")'
+log_predicate='((process == "Godot") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "OpenGL") OR (eventMessage CONTAINS[c] "GPU") OR (eventMessage CONTAINS[c] "IOAccelerator"))) OR ((process == "watchdogd") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "userspace_watchdog_timeout") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "type 409"))) OR ((process == "WindowServer") AND ((eventMessage CONTAINS[c] "event port") OR (eventMessage CONTAINS[c] "actual_host_time") OR (eventMessage CONTAINS[c] "not ready") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "surface"))) OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display"))) OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "Setting display mode")'
 if [[ -n "$start_local" ]]; then
 	/usr/bin/log show --style compact --start "$start_local" --end "$end_local" \
 		--predicate "$log_predicate" > "$run_dir/unified-recovered.log" 2>&1 || true
@@ -37,14 +37,49 @@ fi
 system_profiler SPDisplaysDataType > "$run_dir/displays-recovered.txt" 2>&1 || true
 ioreg -l -w 0 -r -c AppleBacklightDisplay > "$run_dir/backlight-recovered.txt" 2>&1 || true
 pmset -g therm > "$run_dir/thermal-recovered.txt" 2>&1 || true
+start_windowserver_pid="$(sed -n 's/^windowserver_pid_start=//p' \
+	"$run_dir/metadata.txt" | head -1)"
+recovered_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
+server_pid="$(sed -n 's/^server_pid=//p' "$run_dir/metadata.txt" | head -1)"
+client_pid="$(sed -n 's/^client_pid=//p' "$run_dir/metadata.txt" | head -1)"
+server_alive=0
+client_alive=0
+if [[ "$server_pid" == <-> ]] && kill -0 "$server_pid" >/dev/null 2>&1; then
+	server_alive=1
+fi
+if [[ "$client_pid" == <-> ]] && kill -0 "$client_pid" >/dev/null 2>&1; then
+	client_alive=1
+fi
+collector_state="collected"
+if [[ "$start_windowserver_pid" == <-> && "$recovered_windowserver_pid" == <-> \
+		&& "$start_windowserver_pid" != "$recovered_windowserver_pid" ]]; then
+	collector_state="windowserver-restarted"
+	print -r -- "$collector_state" > "$run_dir/state"
+fi
 {
 	echo "collected_local=$end_local"
-	echo "windowserver_pid_recovered=$(pgrep -x WindowServer | head -1 || true)"
+	echo "windowserver_pid_recovered=$recovered_windowserver_pid"
+	echo "server_alive_at_collection=$server_alive"
+	echo "client_alive_at_collection=$client_alive"
 	echo "report_count=$(find "$reports_dir" -type f | wc -l | tr -d ' ')"
+	echo "collector_state=$collector_state"
 } >> "$run_dir/metadata.txt"
 if command -v rg >/dev/null 2>&1; then
-	rg -n -m 80 '"incident"|"captureTime"|"thermalPressureLevel"|"displayState"|VBlank|DisplayID|FB RegID|Process: +Godot|Footprint:|Time Since Fork:|CPU Time:' \
-		"$reports_dir" > "$run_dir/report-summary.txt" 2>/dev/null || true
+	{
+		rg -n -m 30 '"incident"|"captureTime"|"thermalPressureLevel"|"displayState"|VBlank|DisplayID|FB RegID' \
+			"$reports_dir" 2>/dev/null || true
+		find "$reports_dir" -type f -name '*.spin' -print0 2>/dev/null \
+			| while IFS= read -r -d '' report; do
+				awk '
+					/^Process: +WindowServer|^Process: +Godot/ { capture = 1; fields = 0 }
+					capture && /^(Process:|Footprint:|Time Since Fork:|CPU Time:)/ {
+						print FNR ":" $0
+						fields++
+						if (fields == 4) capture = 0
+					}
+				' "$report"
+			done
+	} > "$run_dir/report-summary.txt"
 fi
 if [[ -f "$run_dir/client.telemetry.jsonl" ]]; then
 	tail -120 "$run_dir/client.telemetry.jsonl" \
