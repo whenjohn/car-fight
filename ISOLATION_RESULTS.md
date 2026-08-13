@@ -123,12 +123,15 @@ shadow do not produce the precursor without physics or networking systems.
 - No physics body or collider has been added yet.
 - The initial headless editor scan completed, then Godot crashed while quitting.
 - macOS displayed the reported "Godot quit unexpectedly" prompt.
-- Crash report: `~/Library/Logs/DiagnosticReports/Godot-2026-08-13-181809.ips`
+- Matching crash reports: `Godot-2026-08-13-175007.ips` from the initial
+  inherited-addon scan and `Godot-2026-08-13-181809.ips` from Stage 8, both in
+  `~/Library/Logs/DiagnosticReports/`.
 - Report signature: `EXC_BAD_ACCESS`, `SIGABRT`, faulting main thread, with
   `libgodot_rapier.macos.dylib` loaded.
 - A subsequent ordinary headless game runtime initialized Rapier, ran Stage 8,
   and exited normally.
 
-This is a distinct Godot/Rapier editor-shutdown or extension-unload fault. It is
+This reproducible signature is a distinct Godot/Rapier editor-shutdown or
+extension-unload fault. It is
 not the fullscreen WindowServer failure and produced no display watchdog. Keep
 it recorded separately while continuing the runtime fullscreen isolation.
