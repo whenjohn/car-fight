@@ -1,4 +1,4 @@
-; Car Fight fullscreen isolation — stage 7: use the imported Jeep mesh.
+; Car Fight fullscreen isolation — stage 8: initialize Rapier3D.
 config_version=5
 
 [application]
@@ -14,6 +14,10 @@ window/size/viewport_height=720
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
+
+[physics]
+
+3d/physics_engine="Rapier3D"
 
 [rendering]
 

@@ -1,8 +1,8 @@
 extends Node
-## Stage 7 replaces the primitive with car-fight's imported Jeep FBX hierarchy.
-## The same simple rotation and shadow remain; physics, networking, and addons are off.
+## Stage 8 initializes the Rapier3D extension and selects it as the physics engine.
+## No physics bodies or simulation have been added; rendering matches Stage 7.
 
-const STAGE := 7
+const STAGE := 8
 const JEEP_SCENE: PackedScene = preload("res://assets/ground_vehicle/Jeep.fbx")
 
 var _telemetry: FileAccess
