@@ -1,8 +1,8 @@
 extends Node
-## Stage 4 shades the static BoxMesh with one DirectionalLight3D. Shadows remain
-## disabled, and there is still no animation, physics, networking, or import.
+## Stage 5 adds a static receiving floor and enables directional shadows. There
+## is still no animation, physics, networking, addon, or imported asset.
 
-const STAGE := 4
+const STAGE := 5
 
 var _telemetry: FileAccess
 var _sample_elapsed := 0.0
@@ -52,15 +52,28 @@ func _build_3d_view() -> void:
 	box.size = Vector3(2.5, 1.5, 2.0)
 	box.material = material
 	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.name = "UnshadedBox"
+	mesh_instance.name = "LitBox"
 	mesh_instance.mesh = box
+	mesh_instance.position.y = 0.25
 	world.add_child(mesh_instance)
+
+	var floor_material := StandardMaterial3D.new()
+	floor_material.albedo_color = Color(0.16, 0.19, 0.23)
+	floor_material.roughness = 0.9
+	var floor_mesh := PlaneMesh.new()
+	floor_mesh.size = Vector2(20.0, 20.0)
+	floor_mesh.material = floor_material
+	var floor := MeshInstance3D.new()
+	floor.name = "ShadowFloor"
+	floor.mesh = floor_mesh
+	floor.position.y = -0.75
+	world.add_child(floor)
 
 	var light := DirectionalLight3D.new()
 	light.name = "DirectionalLight3D"
 	light.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
 	light.light_energy = 1.25
-	light.shadow_enabled = false
+	light.shadow_enabled = true
 	world.add_child(light)
 
 
