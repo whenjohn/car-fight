@@ -20,7 +20,7 @@ Controls:
 - Press `F` to flip the selected cone. A vehicle-pointing cone starts precise and widens with distance; an outward-pointing cone starts wide beside the Jeep and narrows toward its far tip.
 - Move the mouse around the Jeep to steer toward it.
 - Cursor distance continuously controls speed and acceleration: inside 1 world unit is stopped; at 20 units it requests 18 units/s and the strongest normal acceleration. The wider control radius and softened small-angle steering provide room for precise throttle and racing-line adjustments.
-- Braking and drifting need no extra button. At road speed, pull the cursor inward to lock some tire response and preserve a long braking skid; the wheels visibly lock and the chassis dives forward. Add a sharp direction change to rotate that same skid into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
+- Braking and drifting need no extra button. At road speed, pull the cursor inward to fully lock the wheels and preserve an exaggerated forward skid; the chassis snaps into a pronounced 18-degree dive. Add a sharp direction change to rotate that same skid into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
 - Hold `Space` to burst at 28 units/s with stronger acceleration and a wider, committed turn.
 - Press `Q` to toggle the vehicle shield. It absorbs 85% of an incoming drone bolt's shove while a localized glass ripple shows where the shot landed.
 - Press `R` to toggle cloak. Cloak and shield are mutually exclusive: cloaking lowers the shield, and the shield cannot be raised while cloaked.

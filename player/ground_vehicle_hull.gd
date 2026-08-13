@@ -13,9 +13,9 @@ const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
 const BODY_ROLL_MAX := deg_to_rad(11.0)
 const BODY_ROLL_SPEED_REF := 8.0
-const BODY_BRAKE_PITCH_MAX := deg_to_rad(9.0)
+const BODY_BRAKE_PITCH_MAX := deg_to_rad(18.0)
 const BODY_BRAKE_PITCH_SPEED_REF := 12.0
-const LOCKED_WHEEL_ROLL_SCALE := 0.08
+const LOCKED_WHEEL_ROLL_SCALE := 0.0
 const BOOST_ECHO_COUNT := 4
 const BOOST_ECHO_INTERVAL := 0.075
 const BOOST_ECHO_LIFETIME := 0.34
@@ -63,7 +63,7 @@ func _process(delta: float) -> void:
 		_chassis_lean.rotation.z = lerp_angle(_chassis_lean.rotation.z, target_roll, 1.0 - exp(-9.0 * delta))
 		var target_pitch := chassis_brake_pitch_target(brake_skid, planar_speed)
 		_chassis_lean.rotation.x = lerp_angle(_chassis_lean.rotation.x, target_pitch,
-			1.0 - exp(-13.0 * delta))
+			1.0 - exp(-18.0 * delta))
 		var target_steer := steer_fraction * MAX_VISUAL_STEER
 		for steer_node in _front_steer_nodes:
 			steer_node.rotation.y = lerp_angle(steer_node.rotation.y, target_steer, 1.0 - exp(-12.0 * delta))

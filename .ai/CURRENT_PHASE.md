@@ -19,8 +19,9 @@
 - Made dynamic collision escape measure progress along each driver's request only while player bodies touch, preventing free skids from being mistaken for stalls.
 - Made duplicate projectile cleanup tolerate an already-freed presentation node, removing the nonfatal runtime error found during live play.
 - Lengthened hard-brake momentum, slightly strengthened powerslide rotation, nearly locks visual wheel roll during a full skid, and pitches only the presentation chassis up to 9 degrees forward.
+- Exaggerated the arcade brake read: full wheel lock, 18-degree faster chassis dive, roughly halved straight-skid velocity correction again, and slightly more powerslide rotation.
 
 ## Next
 
-- Play-test hard-brake distance, 9-degree chassis dive, close carving, and the transition into powerslide. Tune their relative strength by feel before adding persistent skid marks or combat-driving objectives.
+- Play-test the exaggerated hard-brake distance, 18-degree chassis dive, close carving, and transition into powerslide. Tune their relative strength by feel before adding persistent skid marks or combat-driving objectives.
 - Recheck the shield and hit feel at the new west clearing, then tune the shader/SFX layer. Audio remains intentionally unimplemented for this visual-first pass.

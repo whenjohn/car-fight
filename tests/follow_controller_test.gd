@@ -56,7 +56,7 @@ func _init() -> void:
 		push_error("a wide full-speed turn must remain planted")
 	if float(straight_skid["brake_skid_amount"]) < 0.95 \
 			or float(straight_skid["drift_amount"]) != 0.0 \
-			or float(straight_skid["acceleration"]) > 10.0:
+			or float(straight_skid["acceleration"]) > 5.0:
 		_failures += 1
 		push_error("pulling inward from top speed must preserve a dramatic braking skid")
 	if float(drifting["drift_amount"]) < 0.95 \
