@@ -29,24 +29,37 @@ No renderer, lighting, shader, gameplay, or launch-script change has been made i
 - Rendered Godot: PID 13667, 68 seconds since fork, 342.52 MB falling to 322.52 MB, 1.979 seconds CPU.
 - The rendered client resigned active at 03:23:35.733. At 03:24:04.564 it recorded the WindowServer event port dying. There was no preceding Godot rendering exception in the macOS unified log; subsequent Godot XPC errors were consequences of WindowServer termination.
 
+### 2026-08-13 13:15:37 -0500
+
+- Incident ID: `B70D5564-ABA3-43FB-9BCB-48134CBE61C4`
+- WindowServer report: `/Library/Logs/DiagnosticReports/WindowServer-2026-08-13-131537.ips`
+- Stackshot: `/Library/Logs/DiagnosticReports/WindowServer_2026-08-13-131545_JBook2.userspace_watchdog_timeout.spin`
+- Project revision: `9f219c5` (`Add gated driving test course`), launched through the project play script for the first live driving-course test.
+- Headless Godot: PID 19087, 156 seconds since fork, 54.93 MB footprint, 1.594 seconds sampled CPU time in the stackshot.
+- Rendered Godot: PID 19091, 156 seconds since fork, 378.26 MB footprint, 3.257 seconds sampled CPU time in the stackshot.
+- The rendered client's main-thread samples include native OpenGL `GLEngine`, `AppleIntelICLGraphicsGLDriver`, `IOAccelerator`, and `IOAcceleratorFamily2` frames. This confirms that it was actively using the implicated graphics stack but does not identify a particular game draw call.
+- The report again says the built-in DisplayID `0x4280f40` was not ready, with framebuffer registry ID 4294968498 and on-glass surfaces active/waiting. It recorded `displayState: OFF` and heavy thermal pressure.
+- At 13:15:37.922, immediately after the report capture time, `AppleIntelICLLPGraphicsFramebuffer` logged `FB0: VBlank Timeout Timer called in 51ms`. At 13:15:38.036, the rendered Godot client received notification that the WindowServer event port had died. A replacement WindowServer then repeatedly read/set and mode-set the built-in display while recovering the login session.
+- There is no corresponding new Godot crash report. The latest user-level Godot reports predate this incident, again indicating that WindowServer/display service failed around a still-running client rather than Godot producing an ordinary application crash.
+
 ## Shared system signature
 
 - Hardware: MacBookPro16,2, Intel Iris Plus Graphics, device `0x8a53`, up to 1536 MB.
 - OS: macOS 26.6.1, build 25G76.
 - Report type: WindowServer bug type 409, watchdog termination.
 - Watchdog reason: `monitoring timed out for service` and WindowServer was not alive.
-- Same affected display in both reports: DisplayID `0x4280f40` / decimal 69734208.
-- Same framebuffer registry ID in both reports: 4294968498.
+- Same affected display in all three reports: DisplayID `0x4280f40` / decimal 69734208.
+- Same framebuffer registry ID in all three reports: 4294968498.
 - IOKit associates framebuffer 4294968498 with `AppleBacklightDisplay`; it is the MacBook's built-in panel, not an external display.
 - WindowServer reported the display as not ready, with on-glass surfaces active/waiting.
-- Both reports recorded `displayState: OFF`.
-- The August 13 event had nominal thermal pressure; the August 11 event had moderate pressure. Thermal overload is therefore not a shared explanation.
-- Unified logs around the August 13 failure show `AppleIntelICLLPGraphicsFramebuffer` repeatedly reading and setting the built-in display mode in a tight loop.
+- All three reports recorded `displayState: OFF`.
+- Thermal pressure varied across the incidents: moderate on August 11, nominal at 03:24 on August 13, and heavy at 13:15 on August 13. Heat may have contributed to the third event, but it is not required by the shared failure signature.
+- Unified logs around the August 13 failures show `AppleIntelICLLPGraphicsFramebuffer` repeatedly reading and setting the built-in display mode. The third incident additionally captured an explicit framebuffer VBlank timeout at the failure boundary.
 - Neither Godot process showed runaway CPU use or an extreme memory footprint.
 
 ## Current assessment
 
-The game cannot directly terminate WindowServer, and the reports do not identify a specific GDScript or draw call. However, two nearly identical failures with the same rendered Godot workload, same framebuffer, and almost identical time-to-failure make coincidence unlikely.
+The game cannot directly terminate WindowServer, and the reports do not identify a specific GDScript or draw call. However, three nearly identical watchdog failures with the same rendered Godot workload, same framebuffer, and same built-in display state make coincidence unlikely. The third run lasted about 156 seconds rather than 69, so a fixed time-to-failure is no longer part of the shared signature.
 
 Treat the rendered client as the probable trigger for an operating-system/Intel graphics-driver deadlock. The likely shared path is Godot 4.7's Compatibility renderer using native macOS OpenGL, possibly involving real-time shadow rendering or window/display presentation. Recent driving logic and recent visual effects are not plausible common causes because the first incident occurred before they existed.
 
@@ -70,13 +83,26 @@ After commit `eac8bce`, an eighth approved rendered test reached at least tick 2
 
 After commit `e349f88`, a ninth approved rendered test reached at least tick 16260 (roughly 271 seconds at 60 Hz) and was stopped normally to build the separate driving course, without a WindowServer failure.
 
-Relevant project settings at both incidents:
+Relevant project settings across all three incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
 - 1280 x 720 viewport/window override
 - Godot 4.7 x86_64 official application
 
 Godot 4.7 reports these available macOS rendering drivers on this machine: `vulkan`, `opengl3`, `opengl3_angle`, and `dummy`. Native Metal is not implemented for Intel Macs; RenderingDevice uses Vulkan through MoltenVK there. ANGLE is also available as an alternate Compatibility driver.
+
+## Next-session priority: monitored rendered launches
+
+Before another rendered test, add a small monitoring wrapper around the existing play script. It should preserve enough evidence to align game activity with a future display failure without trying to intentionally cause one:
+
+1. Create a timestamped run directory and record the commit, exact launch command, start time, server/client PIDs, Godot version, renderer/driver, display inventory, and current thermal state.
+2. Preserve separate server and client stdout/stderr logs with timestamps instead of relying on the interactive terminal buffer.
+3. Sample each Godot process's CPU, resident memory, thread count, and state at a short interval. Also sample WindowServer and basic system/thermal pressure without requiring an invasive profiler for normal play.
+4. Continuously stream a narrowly filtered unified log for `Godot`, `WindowServer`, `watchdogd`, `powerd`, `AppleIntelICLLPGraphicsFramebuffer`, and GPU/IOAccelerator timeout/reset messages.
+5. On normal exit, mark the run clean and retain the bundle. After a login-session recovery, a separate collection command should copy the newest WindowServer `.ips`/`.spin` metadata and the matching pre-crash logs into that run directory.
+6. Only after this capture path works headlessly should another rendered run be requested, and it still requires the user's explicit approval.
+
+The first monitored isolation run should change only one graphics variable, with ANGLE versus native OpenGL the strongest initial comparison. Do not combine a renderer change with gameplay or shader changes, and do not deliberately run until failure.
 
 ## Evidence to collect after another spontaneous crash
 
@@ -86,9 +112,9 @@ Do not intentionally reproduce the crash solely to gather these items. After reb
 2. Record the exact wall-clock crash time, what was visible, whether the game had focus, whether the display dimmed/turned off, and approximately how long the client had been open.
 3. Record the current commit with `git rev-parse HEAD` and whether the client was launched by `./scripts/play.sh`, the editor, or another command.
 4. In the `.spin`, find all Godot process blocks and record PID, time since fork, footprint, CPU time, and main-thread stack.
-5. Compare the report's DisplayID, framebuffer registry ID, `displayState`, thermal pressure, watchdog reason, and surface transaction state with the two incidents above.
+5. Compare the report's DisplayID, framebuffer registry ID, `displayState`, thermal pressure, watchdog reason, and surface transaction state with the three incidents above.
 6. Inspect the read-only unified log for roughly 90 seconds before and 30 seconds after the incident. Focus on `Godot`, `WindowServer`, `powerd`, `watchdogd`, and `AppleIntelICLLPGraphicsFramebuffer`. Preserve any GPU reset, display sleep/wake, mode-set, swap/present, or WindowServer-port-death events.
-7. Check whether a new Godot crash report exists. Absence matters: in the first two incidents WindowServer was killed while Godot remained a client of the failed display service.
+7. Check whether a new Godot crash report exists. Absence matters: in all three incidents WindowServer was killed while Godot remained a client of the failed display service.
 
 Suggested read-only commands, with timestamps replaced by the new incident window:
 
@@ -107,4 +133,4 @@ If the user later chooses to investigate experimentally, use one variable at a t
 3. Alternatively test Compatibility through `opengl3_angle` to bypass native OpenGL while retaining the Compatibility renderer.
 4. Only after establishing a stable alternate rendering path should individual shaders/effects be reintroduced or blamed.
 
-Every rendered test requires explicit user approval because both known attempts ended in a system-level WindowServer restart/crash.
+Every rendered test requires explicit user approval because the workload has now coincided with three system-level WindowServer restarts/crashes, even though several intervening approved runs ended normally.
