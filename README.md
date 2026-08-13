@@ -29,7 +29,7 @@ Controls:
 - If a collision holds the Jeep nearly stationary while movement is still requested, a short side bump and forced steer peel it away. Cursor steering chooses the escape side; a stable per-player side handles a perfectly straight impact. There is no automatic reverse mode.
 - In drive mode, each zone independently acquires the nearest visible stationary target dummy inside its wedge and fires four bolts per second. Walls and obstacles block acquisition and bolts. Hits flash the dummy and increment its permanent session hit count.
 - Drive mode keeps a deliberately faint coverage debug around the local Jeep. A firing zone flashes briefly; press `C` to hide or show the debug.
-- One stationary drone in the far-east clearing, separated from the red target cluster, arms after a short delay and fires once every two seconds at the nearest visible driving player. Its bolts lightly jostle and deflect an unshielded Jeep; cloak prevents targeting. The drone is a non-colliding shield-test fixture and cannot be targeted or destroyed.
+- One stationary drone by itself in the empty west clearing arms after a short delay and fires once every two seconds at the nearest visible driving player. Its bolts lightly jostle and deflect an unshielded Jeep; cloak prevents targeting. The drone is a non-colliding shield-test fixture and cannot be targeted or destroyed.
 
 The floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
 
