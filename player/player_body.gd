@@ -158,11 +158,13 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var reverse_requested: bool = _input.reverse and not _input.editing
 	var probe := FOLLOW.command(offset, current_yaw, burst_requested, burst_turn_sign,
 		planar_speed, reverse_requested, touching_support, drift_assist_charge)
+	var assist_sustain := FOLLOW.automatic_drift_assist_sustain(
+		float(probe["brake_skid_amount"]), float(probe["heading_error"]))
 	var assist_state := FOLLOW.next_drift_assist_state(drift_assist_hold,
 		drift_assist_latched, drift_assist_side,
 		float(probe["drift_assist_amount"]) * 4.0, float(probe["heading_error"]),
 		float(probe["throttle"]), burst_requested, reverse_requested,
-		touching_support, planar_speed, delta)
+		touching_support, planar_speed, assist_sustain, delta)
 	drift_assist_hold = float(assist_state["hold"])
 	drift_assist_latched = bool(assist_state["latched"])
 	drift_assist_side = float(assist_state["side"])

@@ -229,10 +229,17 @@ static func drift_assist_ready_fraction(current_speed: float) -> float:
 
 static func automatic_drift_assist_entry(current_speed: float,
 		brake_skid_amount: float, heading_error: float) -> float:
+	return automatic_drift_assist_sustain(brake_skid_amount, heading_error) \
+		* drift_assist_ready_fraction(current_speed)
+
+## Once a high-speed entry has begun, braking is allowed to reduce road speed
+## without defeating the gesture. The cursor must still remain committed to the
+## rear corner until the short latch timer completes.
+static func automatic_drift_assist_sustain(brake_skid_amount: float,
+		heading_error: float) -> float:
 	var brake_commit := smoothstep(DRIFT_ASSIST_BRAKE_ONSET,
 		DRIFT_ASSIST_BRAKE_FULL, clampf(brake_skid_amount, 0.0, 1.0))
-	return automatic_drift_zone(heading_error) * brake_commit \
-		* drift_assist_ready_fraction(current_speed)
+	return automatic_drift_zone(heading_error) * brake_commit
 
 ## A short deliberate hold commits the chosen side. Once latched, the changing
 ## vehicle-relative cursor angle no longer has to remain inside the moving
@@ -241,7 +248,7 @@ static func automatic_drift_assist_entry(current_speed: float,
 static func next_drift_assist_state(current_hold: float, current_latched: bool,
 		current_side: float, entry_amount: float, heading_error: float,
 		throttle: float, burst: bool, reverse: bool, grounded: bool,
-		current_speed: float, delta: float) -> Dictionary:
+		current_speed: float, sustain_amount: float, delta: float) -> Dictionary:
 	var hold := maxf(current_hold, 0.0)
 	var latched := current_latched
 	var side := signf(current_side)
@@ -255,7 +262,8 @@ static func next_drift_assist_state(current_hold: float, current_latched: bool,
 		if accelerate_out or side_skid:
 			return {"hold": 0.0, "latched": false, "side": side}
 		return {"hold": DRIFT_ASSIST_ARM_TIME, "latched": true, "side": side}
-	if entry_amount <= 0.35:
+	var arming_amount := entry_amount if hold <= 0.0 else sustain_amount
+	if arming_amount <= 0.35:
 		return {"hold": 0.0, "latched": false, "side": side}
 	var requested_side := signf(wrapf(heading_error, -PI, PI))
 	if is_zero_approx(requested_side):
@@ -264,7 +272,7 @@ static func next_drift_assist_state(current_hold: float, current_latched: bool,
 		hold = 0.0
 	side = requested_side
 	hold = minf(hold + delta * lerpf(0.65, 1.0,
-		clampf(entry_amount, 0.0, 1.0)), DRIFT_ASSIST_ARM_TIME)
+		clampf(arming_amount, 0.0, 1.0)), DRIFT_ASSIST_ARM_TIME)
 	latched = hold >= DRIFT_ASSIST_ARM_TIME
 	return {"hold": hold, "latched": latched, "side": side}
 

@@ -60,6 +60,8 @@ After commit `52891e3`, a third approved rendered test also reached at least tic
 
 After commit `e9ea5d9`, a fourth approved rendered test reached at least tick 35040 (roughly 584 seconds at 60 Hz) and was stopped normally to improve drift-assist activation feedback, without a WindowServer failure.
 
+After commit `20005eb`, a fifth approved rendered test reached at least tick 3240 (roughly 54 seconds at 60 Hz) and was stopped normally after identifying that braking speed loss canceled drift-assist arming, without a WindowServer failure.
+
 Relevant project settings at both incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

@@ -88,28 +88,39 @@ func _init() -> void:
 	for step in range(12):
 		latch_state = FOLLOW.next_drift_assist_state(latch_state["hold"],
 			latch_state["latched"], latch_state["side"], 1.0, deg_to_rad(135.0),
-			0.15, false, false, true, FOLLOW.SPEED, 1.0 / 60.0)
+			0.15, false, false, true, FOLLOW.SPEED, 1.0, 1.0 / 60.0)
 	if not bool(latch_state["latched"]) or float(latch_state["side"]) <= 0.0:
 		_failures += 1
 		push_error("a brief deliberate rear-corner hold must latch drift assistance")
 	var moving_wedge_state := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
 		latch_state["side"], 0.0, deg_to_rad(90.0), 0.15, false, false, true,
-		FOLLOW.SPEED, 1.0 / 60.0)
+		FOLLOW.SPEED, 0.0, 1.0 / 60.0)
 	if not bool(moving_wedge_state["latched"]):
 		_failures += 1
 		push_error("latched assistance must not require chasing the rotating rear wedge")
 	var side_exit := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
 		latch_state["side"], 0.0, deg_to_rad(65.0), 0.15, false, false, true,
-		FOLLOW.SPEED, 1.0 / 60.0)
+		FOLLOW.SPEED, 0.0, 1.0 / 60.0)
 	if bool(side_exit["latched"]):
 		_failures += 1
 		push_error("reaching a natural side skid must release automatic drift rotation")
 	var gas_exit := FOLLOW.next_drift_assist_state(latch_state["hold"], true,
 		latch_state["side"], 0.0, 0.0, 1.0, false, false, true,
-		FOLLOW.SPEED, 1.0 / 60.0)
+		FOLLOW.SPEED, 0.0, 1.0 / 60.0)
 	if bool(gas_exit["latched"]):
 		_failures += 1
 		push_error("hard forward acceleration must release latched drift assistance")
+	var captured_state := FOLLOW.next_drift_assist_state(0.0, false, 0.0,
+		1.0, deg_to_rad(135.0), 0.15, false, false, true, FOLLOW.SPEED,
+		1.0, 1.0 / 60.0)
+	for step in range(11):
+		captured_state = FOLLOW.next_drift_assist_state(captured_state["hold"],
+			captured_state["latched"], captured_state["side"], 0.0,
+			deg_to_rad(135.0), 0.15, false, false, true, 10.0, 1.0,
+			1.0 / 60.0)
+	if not bool(captured_state["latched"]):
+		_failures += 1
+		push_error("braking after a valid high-speed wedge entry must not cancel arming")
 	var carved := FOLLOW.drift_carve_velocity(Vector3(0.0, 0.0, -18.0),
 		1.0, 1.0, 1.0, 0.5)
 	if carved.x >= -1.0 or absf(carved.length() - 18.0) > 0.001:
