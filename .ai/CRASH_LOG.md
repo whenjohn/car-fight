@@ -106,11 +106,13 @@ After commit `db43dec`, the first controlled monitored windowed test ran for 423
 
 After commit `ee562b4`, a second monitored windowed course test ran for 534 seconds (about 9 minutes) before the wrapper was stopped normally after the user finished. Telemetry stayed windowed, covered both maps, reached 17.99 units/s, and latched drift assist. The filtered log contained no invalid-display-time, VBlank-timeout, WindowServer-event-port-death, or actual GPU-reset event. Together, the two monitored windowed sessions total nearly 16 minutes without the fullscreen failure signature.
 
-Relevant project settings across all three incidents:
+On 2026-08-13, the active engine at `/Applications/Godot47.app` was updated from 4.7 stable (`5b4e0cb0f`) to the official 4.7.1 maintenance release (`a13da4feb`). The downloaded universal macOS archive matched its published SHA-256 and passed strict code-signature verification. The previous engine remains at `/Applications/Godot470.app` for rollback. The complete headless project suite and the seven-second crash-monitor fault test pass under 4.7.1. No rendered fullscreen test has yet been performed with 4.7.1, so the update must not be treated as a fullscreen-crash fix.
+
+Relevant project settings across the four incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
 - 1280 x 720 viewport/window override
-- Godot 4.7 x86_64 official application
+- Godot 4.7 x86_64 official application (`5b4e0cb0f`; all four preserved incidents predate the 4.7.1 update)
 
 Godot 4.7 reports these available macOS rendering drivers on this machine: `vulkan`, `opengl3`, `opengl3_angle`, and `dummy`. Native Metal is not implemented for Intel Macs; RenderingDevice uses Vulkan through MoltenVK there. ANGLE is also available as an alternate Compatibility driver.
 
