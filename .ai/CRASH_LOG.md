@@ -64,6 +64,8 @@ After commit `20005eb`, a fifth approved rendered test reached at least tick 324
 
 After commit `48c77be`, a sixth approved rendered test reached at least tick 31020 (roughly 517 seconds at 60 Hz) and was stopped normally to separate ordinary close-cursor turning from successful drift cornering, without a WindowServer failure.
 
+After commit `ef69f73`, a seventh approved rendered test reached at least tick 8220 (roughly 137 seconds at 60 Hz) and was stopped normally because ordinary close-cursor powerslides still turned too tightly, without a WindowServer failure.
+
 Relevant project settings at both incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

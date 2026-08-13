@@ -31,7 +31,7 @@ func _init() -> void:
 	var moving := FOLLOW.command(full_offset, 0.0, false, 0.0, 4.0)
 	_expect_close(moving["yaw_rate"], -1.4, 0.0001, "steering reaches useful authority only after moving")
 	var close_moving := FOLLOW.command(Vector2(4.0, 0.0), 0.0, false, 0.0, 4.0)
-	if absf(close_moving["yaw_rate"]) < absf(moving["yaw_rate"]) * 1.6:
+	if absf(close_moving["yaw_rate"]) < absf(moving["yaw_rate"]) * 1.55:
 		_failures += 1
 		push_error("close cursor must retain a meaningfully tighter turn than far cursor")
 	if absf(close_moving["yaw_rate"]) > absf(moving["yaw_rate"]) * 2.05:
@@ -66,6 +66,9 @@ func _init() -> void:
 			or float(drifting["acceleration"]) >= FOLLOW.BRAKE:
 		_failures += 1
 		push_error("pulling inward during a sharp fast turn must automatically slide")
+	if absf(float(drifting["yaw_rate"])) > absf(float(full["yaw_rate"])) * 1.9:
+		_failures += 1
+		push_error("an ordinary high-speed powerslide must retain a broad arc")
 	if float(airborne["drift_amount"]) != 0.0:
 		_failures += 1
 		push_error("automatic drift must require ground support")
