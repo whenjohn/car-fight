@@ -135,3 +135,19 @@ This reproducible signature is a distinct Godot/Rapier editor-shutdown or
 extension-unload fault. It is
 not the fullscreen WindowServer failure and produced no display watchdog. Keep
 it recorded separately while continuing the runtime fullscreen isolation.
+
+## Stage 8 — Rapier initialized without physics bodies
+
+- Revision: `7c51bc4`
+- Engine/driver/window/display contract and rendered scene: same as Stage 7
+- Added: Rapier3D extension loaded and selected as the 3D physics engine
+- Physics bodies: none
+- Duration: approximately 25 seconds of fullscreen telemetry
+- Result: clean
+- `Invalid actual_host_time`: 0
+- VBlank timeout, GPU reset, display-not-ready, event-port death: 0
+- Both Godot processes stopped after the probe.
+
+Conclusion: loading Rapier during an ordinary fullscreen runtime does not
+produce the WindowServer precursor. The separate editor-shutdown crash does not
+occur on this runtime path.
