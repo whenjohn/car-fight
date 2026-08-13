@@ -59,9 +59,9 @@ func _init() -> void:
 		push_error("a wide full-speed turn must remain planted")
 	if float(straight_skid["brake_skid_amount"]) < 0.95 \
 			or float(straight_skid["drift_amount"]) != 0.0 \
-			or float(straight_skid["acceleration"]) > 5.0:
+			or float(straight_skid["acceleration"]) > 3.3:
 		_failures += 1
-		push_error("pulling inward from top speed must preserve a dramatic braking skid")
+		push_error("pulling inward from top speed must preserve slow, dramatic braking momentum")
 	if float(drifting["drift_amount"]) < 0.95 \
 			or float(drifting["acceleration"]) >= FOLLOW.BRAKE:
 		_failures += 1
@@ -69,6 +69,9 @@ func _init() -> void:
 	if absf(float(drifting["yaw_rate"])) > absf(float(full["yaw_rate"])) * 1.9:
 		_failures += 1
 		push_error("an ordinary high-speed powerslide must retain a broad arc")
+	if absf(float(drifting["yaw_rate"])) >= absf(float(close_moving["yaw_rate"])) * 0.72:
+		_failures += 1
+		push_error("locked tires at high speed must steer materially worse than a low-speed close turn")
 	if float(airborne["drift_amount"]) != 0.0:
 		_failures += 1
 		push_error("automatic drift must require ground support")

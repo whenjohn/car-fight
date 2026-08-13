@@ -22,10 +22,11 @@ const BRAKE_SKID_MIN_SPEED := 9.0
 const BRAKE_SKID_FULL_SPEED := 17.0
 const BRAKE_SKID_MIN_SPEED_DROP := 4.0
 const BRAKE_SKID_FULL_SPEED_DROP := 13.0
-const BRAKE_SKID_VELOCITY_RESPONSE := 4.5
+const BRAKE_SKID_VELOCITY_RESPONSE := 3.2
+const BRAKE_SKID_STEERING_GRIP := 0.68
 const DRIFT_MIN_HEADING := deg_to_rad(25.0)
 const DRIFT_FULL_HEADING := deg_to_rad(75.0)
-const DRIFT_VELOCITY_RESPONSE := 3.5
+const DRIFT_VELOCITY_RESPONSE := 2.6
 const DRIFT_TURN_BOOST := 1.10
 const DRIFT_YAW_ACCEL := 10.5
 const DRIFT_ASSIST_ZONE_INNER := deg_to_rad(90.0)
@@ -143,9 +144,13 @@ static func command(cursor_offset: Vector2, current_yaw: float, burst: bool,
 		drift_assist_amount = 1.0 if drift_assist_latched else entry_amount * 0.25
 		if drift_assist_latched:
 			drift_amount = maxf(drift_amount, 1.0)
-		# Pulling inward during a committed turn trades velocity correction for
-		# rotation. The old road momentum remains real, so the slide is authored
-		# entirely by mouse placement rather than a separate drift button.
+		# Locked front tires cannot give ordinary braking both instant speed loss
+		# and a tight corner. Preserve forward momentum and wash out steering as
+		# the skid builds; a successful rear-corner latch earns that grip back
+		# through the assist multiplier below.
+		turn_cap *= lerpf(1.0, BRAKE_SKID_STEERING_GRIP, brake_skid_amount)
+		# Pulling inward during a committed turn still adds some body rotation,
+		# but the old road momentum remains real and carries the Jeep wide.
 		turn_cap *= lerpf(1.0, DRIFT_TURN_BOOST, drift_amount)
 		yaw_acceleration = lerpf(yaw_acceleration, DRIFT_YAW_ACCEL, drift_amount)
 		# The rear-corner timing zones reinforce an already committed skid. They
