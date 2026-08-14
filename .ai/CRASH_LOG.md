@@ -58,7 +58,7 @@ No renderer, lighting, shader, gameplay, or launch-script change has been made i
 - The system report recorded heavy thermal pressure, but the pre-failure process sampler reported no macOS thermal or performance warning. Godot memory and CPU use did not run away before the failure.
 - This controlled A/B result strongly isolates fullscreen presentation on the native Intel OpenGL/display path. It does not identify a game draw call and does not prove whether Godot, macOS 26.6.1, or the Intel driver owns the underlying defect, but it makes current gameplay logic, course content, and ordinary process memory/CPU exhaustion implausible causes.
 
-### 2026-08-14 01:37:06 -0500 — minimal Stage 10 post-wake reproduction
+### 2026-08-14 01:37:06 -0500 — minimal Stage 10 reproduction in an affected display session
 
 - Incident ID: `AFEF1DCD-F77C-4EE2-BB15-CD64A924D9D2`
 - Captured run: `/private/tmp/car-fight-stage10-recheck/.crash-runs/20260814-013607`
@@ -69,7 +69,7 @@ No renderer, lighting, shader, gameplay, or launch-script change has been made i
 - Client telemetry remained regular at 115-117 FPS through 01:36:35. Both exact Godot PIDs, 50302 and 50305, were stopped before the watchdog report and neither appears in the 01:37:12 stackshot.
 - At 01:37:06.377 the Intel framebuffer logged `FB0: VBlank Timeout Timer called in 51ms`. The watchdog report says the same display and framebuffer were not ready with active/waiting surface transactions; WindowServer PID 27448 was replaced by PID 50563.
 - The report recorded `displayState: OFF` and nominal thermal pressure. This incident rules out heat as a required condition and shows that WindowServer can cross the watchdog boundary after the triggering fullscreen client has already exited.
-- A Stage 11 probe about one minute after the confirmed wake had shown the same precursor without player input. The Stage 10 recheck proves that ENet/time synchronization was not the cause; both reproductions occurred in the newly awakened display session, strongly implicating the built-in display's post-wake or long-lived WindowServer state.
+- A Stage 11 probe about one minute after the confirmed wake had shown the same precursor without player input. Stage 10 then proved that ENet/time synchronization is not required once the display session is affected. Because Stage 11 ran first and Stage 10 followed its precursor, this order does not fully rule out ENet, wake, accumulated fullscreen transitions, or another state change as the initial activator.
 
 ## Shared system signature
 
@@ -93,7 +93,7 @@ The game cannot directly terminate WindowServer, and the reports do not identify
 
 Treat fullscreen native-OpenGL presentation on this Intel Mac as the reproducible trigger condition for an operating-system/graphics-driver deadlock. The evidence does not yet distinguish a Godot fullscreen integration defect from a macOS 26.6.1 or Intel driver defect, and Godot 4.7.1 reproduces the exact early display-timestamp signature. Recent driving logic and visual effects are not plausible common causes because the first incident occurred before they existed, and the game loop remained alive through the controlled failure.
 
-The user also recalls the same failure from the project's earliest prototype period. Combined with the first preserved incident predating the later driving, course, combat, and presentation work, this rules those additions out as the origin of the problem. The staged reconstruction strengthens that result: stages 0-10 were clean before sleep, while the unchanged Stage 10 build failed four minutes after a confirmed deep-idle wake without ENet or input. Investigation should concentrate on fullscreen presentation and the Intel framebuffer's post-wake state rather than another game building block.
+The user also recalls the same failure from the project's earliest prototype period. Combined with the first preserved incident predating the later driving, course, combat, and presentation work, this rules those additions out as the origin of the problem. The staged reconstruction strengthens the state-dependent diagnosis: stages 0-10 were initially clean, then Stage 11 and the unchanged Stage 10 both failed in the later affected session. Power history confirms a wake before that pair, but it is not a universal prerequisite: the 03:24 incident has no immediate preceding wake, and the 14:04 incident occurred without another sleep after the 13:15 WindowServer restart. Investigation should concentrate on intermittent/stateful fullscreen presentation through the Intel framebuffer rather than assuming a particular game building block or wake event.
 
 ### Later non-incident observation
 
