@@ -129,6 +129,21 @@ Later at commit `03672ea`, an explicitly approved one-variable fullscreen compar
 
 On 2026-08-14, the enhanced monitor ran isolation Stage 10 first in WindowServer PID 50563, before Stage 11 or any other rendered Godot probe in that WindowServer session. The minimal build had netfox autoloads but no ENet peers, traffic, player input, spawning, or replication. True native-OpenGL fullscreen telemetry began at 02:07:28; WindowServer emitted 853 `Invalid actual_host_time` errors from 02:07:30.044 through 02:07:47.439. This cleanly establishes that active networking and input are not required to initiate the precursor. Both Godot processes were stopped and WindowServer was watched for 120 seconds; it remained PID 50563 with no VBlank timeout, display-not-ready event, GPU reset, event-port death, or new crash report. Synchronized snapshots found no thermal warning, memory exhaustion, or GPU recovery (`recoveryCount=0`). The Godot sample showed ordinary Intel OpenGL/IOAccelerator rendering work; a routine `CheckOOM` frame is not evidence of an out-of-memory condition. Evidence: `/private/tmp/car-fight-stage10-recheck/.crash-runs/20260814-020722`.
 
+Later that same WindowServer session, g2 ran visibly normally under Godot 4.7.1,
+native OpenGL Compatibility, Rapier, netfox, and its full isometric presentation.
+Its local log spans approximately 02:23:50 through 02:30:49. The unified log
+was clean until the user entered true fullscreen at about 02:27:26, then
+WindowServer emitted 5,569 matching `Invalid actual_host_time` errors for the
+same built-in DisplayID `0x4280f40` through 02:30:46. The game remained playable
+and WindowServer PID 50563 survived, proving that a visually successful
+fullscreen session is not a clean diagnostic result and that the precursor
+does not always escalate to a watchdog. Apple documents `CVTimeStamp.hostTime`
+as system time in a display timestamp and `CVDisplayLink` as display-refresh
+synchronization; this supports display-frame timing rather than game/network
+clock timing. Community reports independently show the exact error under broken
+macOS refresh timing, but no official Apple root-cause statement or matching
+Godot issue has been found.
+
 Relevant project settings across the five incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

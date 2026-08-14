@@ -20,6 +20,11 @@ var _started_msec := 0
 var _fake_stall_after_seconds := -1.0
 var _fake_stall_duration_seconds := 0.0
 var _fake_stall_done := false
+var _runtime_fullscreen_after_seconds := -1.0
+var _runtime_fullscreen_done := false
+var _auto_quit_after_seconds := -1.0
+var _auto_quit_done := false
+var _spike_process_started_msec := -1
 
 
 func _ready() -> void:
@@ -36,6 +41,7 @@ func _ready() -> void:
 	_last_window_mode = int(DisplayServer.window_get_mode())
 	_started_msec = Time.get_ticks_msec()
 	_configure_fake_stall()
+	_configure_fullscreen_spike()
 	var screen := DisplayServer.window_get_current_screen()
 	_write_record("start", {
 		"pid": OS.get_process_id(),
@@ -59,6 +65,8 @@ func _ready() -> void:
 		"user_args": OS.get_cmdline_user_args(),
 		"fake_stall_after_seconds": _fake_stall_after_seconds,
 		"fake_stall_duration_seconds": _fake_stall_duration_seconds,
+		"runtime_fullscreen_after_seconds": _runtime_fullscreen_after_seconds,
+		"auto_quit_after_seconds": _auto_quit_after_seconds,
 	})
 
 
@@ -66,6 +74,7 @@ func _process(delta: float) -> void:
 	if _file == null:
 		return
 	_service_fake_stall()
+	_service_fullscreen_spike()
 	_sample_elapsed += delta
 	_sample_frames += 1
 	var window_mode := int(DisplayServer.window_get_mode())
@@ -201,6 +210,45 @@ func _service_fake_stall() -> void:
 	_write_record("fake_stall_begin", {"duration_seconds": _fake_stall_duration_seconds})
 	OS.delay_msec(roundi(_fake_stall_duration_seconds * 1000.0))
 	_write_record("fake_stall_end", {"duration_seconds": _fake_stall_duration_seconds})
+
+
+func _configure_fullscreen_spike() -> void:
+	# The fullscreen spike is opt-in, client-only, and never runs on a headless
+	# display. The launcher supplies both values only for a named experiment.
+	if role != "client" or DisplayServer.get_name() == "headless":
+		return
+	var fullscreen_after := OS.get_environment(
+		"CAR_FIGHT_RUNTIME_FULLSCREEN_AFTER_SECONDS")
+	if not fullscreen_after.is_empty():
+		_runtime_fullscreen_after_seconds = maxf(float(fullscreen_after), 0.25)
+	var auto_quit_after := OS.get_environment("CAR_FIGHT_AUTO_QUIT_AFTER_SECONDS")
+	if not auto_quit_after.is_empty():
+		_auto_quit_after_seconds = maxf(float(auto_quit_after), 1.0)
+
+
+func _service_fullscreen_spike() -> void:
+	# Count from the first processed frame, not from _ready(). Main builds and
+	# warms the 3D world synchronously, which must not consume the windowed lead-in.
+	if _spike_process_started_msec < 0:
+		_spike_process_started_msec = Time.get_ticks_msec()
+		return
+	var elapsed_seconds := float(
+		Time.get_ticks_msec() - _spike_process_started_msec) / 1000.0
+	if not _runtime_fullscreen_done and _runtime_fullscreen_after_seconds >= 0.0 \
+			and elapsed_seconds >= _runtime_fullscreen_after_seconds:
+		_runtime_fullscreen_done = true
+		_write_record("runtime_fullscreen_requested", {
+			"elapsed_seconds": elapsed_seconds,
+			"previous_window_mode": int(DisplayServer.window_get_mode()),
+			"previous_window_mode_name": _window_mode_name(
+				int(DisplayServer.window_get_mode())),
+		})
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	if not _auto_quit_done and _auto_quit_after_seconds >= 0.0 \
+			and elapsed_seconds >= _auto_quit_after_seconds:
+		_auto_quit_done = true
+		_write_record("auto_quit", {"elapsed_seconds": elapsed_seconds})
+		get_tree().quit()
 
 
 func _vector2i_array(value: Vector2i) -> Array[int]:

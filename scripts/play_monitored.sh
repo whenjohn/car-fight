@@ -11,8 +11,14 @@ fullscreen=0
 fake_stall=0
 ticks=0
 rendering_driver="${CAR_FIGHT_RENDERING_DRIVER:-}"
+rendering_method="${CAR_FIGHT_RENDERING_METHOD:-}"
 deep_capture=0
 post_exit_seconds=-1
+runtime_fullscreen_after=""
+run_seconds=""
+max_fps=""
+disable_vsync=0
+stop_on_precursor=0
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -35,6 +41,30 @@ while (( $# > 0 )); do
 		--driver)
 			rendering_driver="${2:?--driver requires a value}"
 			shift 2
+			;;
+		--rendering-method)
+			rendering_method="${2:?--rendering-method requires a value}"
+			shift 2
+			;;
+		--runtime-fullscreen-after)
+			runtime_fullscreen_after="${2:?--runtime-fullscreen-after requires a value}"
+			shift 2
+			;;
+		--run-seconds)
+			run_seconds="${2:?--run-seconds requires a value}"
+			shift 2
+			;;
+		--max-fps)
+			max_fps="${2:?--max-fps requires a value}"
+			shift 2
+			;;
+		--disable-vsync)
+			disable_vsync=1
+			shift
+			;;
+		--stop-on-precursor)
+			stop_on_precursor=1
+			shift
 			;;
 		--deep-capture)
 			deep_capture=1
@@ -65,6 +95,24 @@ if (( headless == 1 && fullscreen == 1 )); then
 fi
 if (( fake_stall == 1 && headless == 0 )); then
 	echo "--fake-stall is restricted to --headless monitor tests" >&2
+	exit 2
+fi
+if (( headless == 1 )) && [[ -n "$runtime_fullscreen_after" || -n "$run_seconds" ]]; then
+	echo "runtime fullscreen controls require a rendered client" >&2
+	exit 2
+fi
+if (( fullscreen == 1 )) && [[ -n "$runtime_fullscreen_after" ]]; then
+	echo "--fullscreen and --runtime-fullscreen-after cannot be combined" >&2
+	exit 2
+fi
+for numeric_value in "$runtime_fullscreen_after" "$run_seconds" "$max_fps"; do
+	if [[ -n "$numeric_value" && "$numeric_value" != <-> && "$numeric_value" != <->.<-> ]]; then
+		echo "fullscreen timing and FPS values must be non-negative numbers" >&2
+		exit 2
+	fi
+done
+if (( stop_on_precursor == 1 && deep_capture == 0 )); then
+	echo "--stop-on-precursor requires --deep-capture" >&2
 	exit 2
 fi
 if [[ "$post_exit_seconds" != -1 && "$post_exit_seconds" != <-> ]]; then
@@ -101,6 +149,13 @@ initial_windowserver_pid="${initial_windowserver_pid:-unknown}"
 	echo "fake_stall=$fake_stall"
 	echo "ticks=$ticks"
 	echo "rendering_driver=${rendering_driver:-project-default}"
+	echo "rendering_method=${rendering_method:-project-default}"
+	echo "runtime_fullscreen_after=${runtime_fullscreen_after:-none}"
+	echo "run_seconds=${run_seconds:-manual}"
+	echo "max_fps=${max_fps:-project-default}"
+	echo "disable_vsync=$disable_vsync"
+	echo "stop_on_precursor=$stop_on_precursor"
+	echo "fullscreen_spike_approach=${CAR_FIGHT_FULLSCREEN_SPIKE_APPROACH:-none}"
 	echo "deep_capture=$deep_capture"
 	echo "post_exit_seconds=$post_exit_seconds"
 	echo "windowserver_pid_start=$initial_windowserver_pid"
@@ -128,12 +183,21 @@ fi
 	> "$run_dir/unified-live.log" 2>&1 &
 log_pid=$!
 
-typeset -a driver_args client_display_args client_user_args
-driver_args=()
+typeset -a client_engine_args client_display_args client_user_args
+client_engine_args=()
 client_display_args=(--windowed)
 client_user_args=(--client --host 127.0.0.1 --port "$port" --name monitored)
 if [[ -n "$rendering_driver" ]]; then
-	driver_args=(--rendering-driver "$rendering_driver")
+	client_engine_args+=(--rendering-driver "$rendering_driver")
+fi
+if [[ -n "$rendering_method" ]]; then
+	client_engine_args+=(--rendering-method "$rendering_method")
+fi
+if [[ -n "$max_fps" ]]; then
+	client_engine_args+=(--max-fps "$max_fps")
+fi
+if (( disable_vsync == 1 )); then
+	client_engine_args+=(--disable-vsync)
 fi
 if (( headless == 1 )); then
 	client_display_args=(--headless)
@@ -152,7 +216,7 @@ if (( fake_stall == 1 )); then
 fi
 
 CAR_FIGHT_TELEMETRY_FILE="$run_dir/server.telemetry.jsonl" \
-	"$godot_bin" "${driver_args[@]}" --headless --path "$project_root" -- \
+	"$godot_bin" --headless --path "$project_root" -- \
 	--server --port "$port" > "$run_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
@@ -171,7 +235,9 @@ fi
 CAR_FIGHT_TELEMETRY_FILE="$run_dir/client.telemetry.jsonl" \
 	CAR_FIGHT_FAKE_STALL_AFTER_SECONDS="$fake_stall_after" \
 	CAR_FIGHT_FAKE_STALL_DURATION_SECONDS="$fake_stall_duration" \
-	"$godot_bin" "${driver_args[@]}" "${client_display_args[@]}" \
+	CAR_FIGHT_RUNTIME_FULLSCREEN_AFTER_SECONDS="$runtime_fullscreen_after" \
+	CAR_FIGHT_AUTO_QUIT_AFTER_SECONDS="$run_seconds" \
+	"$godot_bin" "${client_engine_args[@]}" "${client_display_args[@]}" \
 	--path "$project_root" -- "${client_user_args[@]}" \
 	> "$run_dir/client.log" 2>&1 &
 client_pid=$!
@@ -200,6 +266,14 @@ watch_display_precursor() {
 			"$snapshot_script" "$run_dir" precursor \
 				"$server_pid" "$client_pid" "$initial_windowserver_pid" \
 				> "$run_dir/precursor-snapshot.log" 2>&1 || true
+			if (( stop_on_precursor == 1 )); then
+				{
+					echo "precursor_stop_local=$(date '+%Y-%m-%d %H:%M:%S')"
+					echo "precursor_stop_epoch=$(date '+%s')"
+				} >> "$run_dir/metadata.txt"
+				touch "$run_dir/precursor-stop.marker"
+				kill "$client_pid" >/dev/null 2>&1 || true
+			fi
 			return
 		fi
 		sleep 0.25
@@ -352,6 +426,8 @@ if [[ "$initial_windowserver_pid" == <-> && "$end_windowserver_pid" == <-> \
 elif [[ "$initial_windowserver_pid" == <-> && "$recovered_windowserver_pid" == <-> \
 		&& "$initial_windowserver_pid" != "$recovered_windowserver_pid" ]]; then
 	run_state="windowserver-restarted"
+elif [[ -f "$run_dir/precursor.marker" ]]; then
+	run_state="precursor"
 elif (( client_status == 0 )); then
 	run_state="clean"
 else
