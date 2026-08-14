@@ -18,16 +18,35 @@ fi
 
 reports_dir="$run_dir/reports"
 mkdir -p "$reports_dir"
+start_epoch="$(sed -n 's/^start_epoch=//p' "$run_dir/metadata.txt" | head -1)"
 find /Library/Logs/DiagnosticReports /Users/johnnguyen/Library/Logs/DiagnosticReports \
 	-maxdepth 1 -type f -newer "$run_dir/started.marker" \
 	\( -name 'WindowServer*.ips' -o -name 'WindowServer*.spin' \
 		-o -name 'Godot*.ips' -o -name 'Godot*.spin' \) -print0 2>/dev/null \
 	| while IFS= read -r -d '' report; do
+		report_time_text=""
+		case "$report" in
+			*.ips)
+				report_time_text="$(sed -n \
+					's/.*"captureTime" : "\([^"]*\)".*/\1/p' "$report" | head -1)"
+				;;
+			*.spin)
+				report_time_text="$(sed -n \
+					's/^Date\/Time: *\([0-9-]* [0-9:]*\).*/\1/p' "$report" | head -1)"
+				;;
+		esac
+		if [[ "$start_epoch" == <-> && -n "$report_time_text" ]]; then
+			report_time_short="$(print -r -- "$report_time_text" | cut -c1-19)"
+			report_epoch="$(date -j -f '%Y-%m-%d %H:%M:%S' \
+				"$report_time_short" '+%s' 2>/dev/null || true)"
+			if [[ "$report_epoch" == <-> ]] && (( report_epoch < start_epoch )); then
+				continue
+			fi
+		fi
 		cp -p "$report" "$reports_dir/"
 	done
 
 start_local="$(sed -n 's/^start_local=//p' "$run_dir/metadata.txt" | head -1)"
-start_epoch="$(sed -n 's/^start_epoch=//p' "$run_dir/metadata.txt" | head -1)"
 deep_capture="$(sed -n 's/^deep_capture=//p' "$run_dir/metadata.txt" | head -1)"
 end_local="$(date '+%Y-%m-%d %H:%M:%S')"
 log_predicate='((process == "Godot") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "OpenGL") OR (eventMessage CONTAINS[c] "GPU") OR (eventMessage CONTAINS[c] "IOAccelerator"))) OR ((process == "watchdogd") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "userspace_watchdog_timeout") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "type 409"))) OR ((process == "WindowServer") AND ((eventMessage CONTAINS[c] "event port") OR (eventMessage CONTAINS[c] "actual_host_time") OR (eventMessage CONTAINS[c] "not ready") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "surface"))) OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display"))) OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "Setting display mode")'

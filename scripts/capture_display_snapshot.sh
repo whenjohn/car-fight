@@ -41,7 +41,8 @@ ioreg -l -w 0 -r -c IOAccelerator \
 typeset -a sample_pids
 sample_pids=()
 for watched_pid in "$@"; do
-	if [[ "$watched_pid" != <-> ]] || ! kill -0 "$watched_pid" >/dev/null 2>&1; then
+	if [[ "$watched_pid" != <-> ]] \
+			|| ! ps -p "$watched_pid" -o pid= >/dev/null 2>&1; then
 		continue
 	fi
 	ps -M -p "$watched_pid" > "$snapshot_dir/threads-$watched_pid.txt" 2>&1 || true
