@@ -27,8 +27,16 @@ find /Library/Logs/DiagnosticReports /Users/johnnguyen/Library/Logs/DiagnosticRe
 	done
 
 start_local="$(sed -n 's/^start_local=//p' "$run_dir/metadata.txt" | head -1)"
+start_epoch="$(sed -n 's/^start_epoch=//p' "$run_dir/metadata.txt" | head -1)"
+deep_capture="$(sed -n 's/^deep_capture=//p' "$run_dir/metadata.txt" | head -1)"
 end_local="$(date '+%Y-%m-%d %H:%M:%S')"
 log_predicate='((process == "Godot") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "OpenGL") OR (eventMessage CONTAINS[c] "GPU") OR (eventMessage CONTAINS[c] "IOAccelerator"))) OR ((process == "watchdogd") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "userspace_watchdog_timeout") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "type 409"))) OR ((process == "WindowServer") AND ((eventMessage CONTAINS[c] "event port") OR (eventMessage CONTAINS[c] "actual_host_time") OR (eventMessage CONTAINS[c] "not ready") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "surface"))) OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display"))) OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "Setting display mode")'
+if [[ "$deep_capture" == "1" ]]; then
+	log_predicate='(process == "Godot") OR (process == "WindowServer") OR (process == "watchdogd") OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display") OR (eventMessage CONTAINS[c] "sleep") OR (eventMessage CONTAINS[c] "wake"))) OR (senderImagePath CONTAINS[c] "AppleIntelICL") OR (senderImagePath CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "Setting display mode")'
+	if [[ "$start_epoch" == <-> ]]; then
+		start_local="$(date -r "$((start_epoch - 600))" '+%Y-%m-%d %H:%M:%S')"
+	fi
+fi
 if [[ -n "$start_local" ]]; then
 	/usr/bin/log show --style compact --start "$start_local" --end "$end_local" \
 		--predicate "$log_predicate" > "$run_dir/unified-recovered.log" 2>&1 || true
@@ -37,6 +45,12 @@ fi
 system_profiler SPDisplaysDataType > "$run_dir/displays-recovered.txt" 2>&1 || true
 ioreg -l -w 0 -r -c AppleBacklightDisplay > "$run_dir/backlight-recovered.txt" 2>&1 || true
 pmset -g therm > "$run_dir/thermal-recovered.txt" 2>&1 || true
+pmset -g assertions > "$run_dir/power-assertions-recovered.txt" 2>&1 || true
+pmset -g log | tail -1000 > "$run_dir/power-history-recovered.txt" 2>&1 || true
+ioreg -l -w 0 -r -c AppleIntelFramebuffer \
+	> "$run_dir/intel-framebuffer-recovered.txt" 2>&1 || true
+ioreg -l -w 0 -r -c IOAccelerator \
+	> "$run_dir/ioaccelerator-recovered.txt" 2>&1 || true
 start_windowserver_pid="$(sed -n 's/^windowserver_pid_start=//p' \
 	"$run_dir/metadata.txt" | head -1)"
 recovered_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
@@ -78,7 +92,16 @@ if command -v rg >/dev/null 2>&1; then
 						if (fields == 4) capture = 0
 					}
 				' "$report"
-			done
+				done
+		for log_file in "$run_dir/unified-live.log" "$run_dir/unified-recovered.log"; do
+			if [[ -f "$log_file" ]]; then
+				invalid_count="$(rg -c 'Invalid actual_host_time' "$log_file" 2>/dev/null || true)"
+				echo "$log_file Invalid actual_host_time count: ${invalid_count:-0}"
+				rg 'Invalid actual_host_time' "$log_file" 2>/dev/null | sed -n '1p;$p' || true
+				rg -i 'VBlank|display.*not ready|event port.*(dead|died)|GPU Reset' \
+					"$log_file" 2>/dev/null | tail -20 || true
+			fi
+		done
 	} > "$run_dir/report-summary.txt"
 fi
 if [[ -f "$run_dir/client.telemetry.jsonl" ]]; then

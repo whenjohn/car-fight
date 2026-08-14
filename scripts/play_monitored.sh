@@ -11,6 +11,8 @@ fullscreen=0
 fake_stall=0
 ticks=0
 rendering_driver="${CAR_FIGHT_RENDERING_DRIVER:-}"
+deep_capture=0
+post_exit_seconds=-1
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -32,6 +34,14 @@ while (( $# > 0 )); do
 			;;
 		--driver)
 			rendering_driver="${2:?--driver requires a value}"
+			shift 2
+			;;
+		--deep-capture)
+			deep_capture=1
+			shift
+			;;
+		--post-exit-seconds)
+			post_exit_seconds="${2:?--post-exit-seconds requires a value}"
 			shift 2
 			;;
 		*)
@@ -56,6 +66,13 @@ fi
 if (( fake_stall == 1 && headless == 0 )); then
 	echo "--fake-stall is restricted to --headless monitor tests" >&2
 	exit 2
+fi
+if [[ "$post_exit_seconds" != -1 && "$post_exit_seconds" != <-> ]]; then
+	echo "--post-exit-seconds must be a non-negative integer" >&2
+	exit 2
+fi
+if (( post_exit_seconds < 0 )); then
+	post_exit_seconds=$((deep_capture == 1 && fullscreen == 1 ? 90 : 0))
 fi
 
 run_stamp="$(date '+%Y%m%d-%H%M%S')"
@@ -84,6 +101,8 @@ initial_windowserver_pid="${initial_windowserver_pid:-unknown}"
 	echo "fake_stall=$fake_stall"
 	echo "ticks=$ticks"
 	echo "rendering_driver=${rendering_driver:-project-default}"
+	echo "deep_capture=$deep_capture"
+	echo "post_exit_seconds=$post_exit_seconds"
 	echo "windowserver_pid_start=$initial_windowserver_pid"
 	echo "uname=$(uname -a)"
 } > "$run_dir/metadata.txt"
@@ -92,8 +111,19 @@ sw_vers > "$run_dir/os.txt" 2>&1 || true
 system_profiler SPDisplaysDataType > "$run_dir/displays-start.txt" 2>&1 || true
 ioreg -l -w 0 -r -c AppleBacklightDisplay > "$run_dir/backlight-start.txt" 2>&1 || true
 pmset -g therm > "$run_dir/thermal-start.txt" 2>&1 || true
+if (( deep_capture == 1 )); then
+	pmset -g assertions > "$run_dir/power-assertions-start.txt" 2>&1 || true
+	pmset -g log | tail -1000 > "$run_dir/power-history-start.txt" 2>&1 || true
+	ioreg -l -w 0 -r -c AppleIntelFramebuffer \
+		> "$run_dir/intel-framebuffer-start.txt" 2>&1 || true
+	ioreg -l -w 0 -r -c IOAccelerator \
+		> "$run_dir/ioaccelerator-start.txt" 2>&1 || true
+fi
 
 log_predicate='((process == "Godot") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "OpenGL") OR (eventMessage CONTAINS[c] "GPU") OR (eventMessage CONTAINS[c] "IOAccelerator"))) OR ((process == "watchdogd") AND ((eventMessage CONTAINS[c] "WindowServer") OR (eventMessage CONTAINS[c] "userspace_watchdog_timeout") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "type 409"))) OR ((process == "WindowServer") AND ((eventMessage CONTAINS[c] "event port") OR (eventMessage CONTAINS[c] "actual_host_time") OR (eventMessage CONTAINS[c] "not ready") OR (eventMessage CONTAINS[c] "unresponsive") OR (eventMessage CONTAINS[c] "surface"))) OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display"))) OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "Setting display mode")'
+if (( deep_capture == 1 )); then
+	log_predicate='(process == "Godot") OR (process == "WindowServer") OR (process == "watchdogd") OR ((process == "powerd") AND ((eventMessage CONTAINS[c] "thermal") OR (eventMessage CONTAINS[c] "display") OR (eventMessage CONTAINS[c] "sleep") OR (eventMessage CONTAINS[c] "wake"))) OR (senderImagePath CONTAINS[c] "AppleIntelICL") OR (senderImagePath CONTAINS[c] "IOAccelerator") OR (eventMessage CONTAINS[c] "VBlank") OR (eventMessage CONTAINS[c] "GPU Reset") OR (eventMessage CONTAINS[c] "Setting display mode")'
+fi
 /usr/bin/log stream --style compact --level info --predicate "$log_predicate" \
 	> "$run_dir/unified-live.log" 2>&1 &
 log_pid=$!
@@ -151,6 +181,31 @@ client_pid=$!
 	echo "client_pid=$client_pid"
 } >> "$run_dir/metadata.txt"
 
+snapshot_script="$(cd "$(dirname "$0")" && pwd)/capture_display_snapshot.sh"
+start_snapshot_pid=""
+precursor_watcher_pid=""
+
+watch_display_precursor() {
+	local marker="$run_dir/precursor.marker"
+	local precursor_line=""
+	while true; do
+		precursor_line="$(rg -m 1 'Invalid actual_host_time' \
+			"$run_dir/unified-live.log" 2>/dev/null || true)"
+		if [[ -n "$precursor_line" ]]; then
+			print -r -- "$precursor_line" > "$marker"
+			{
+				echo "precursor_detected_local=$(date '+%Y-%m-%d %H:%M:%S')"
+				echo "precursor_detected_epoch=$(date '+%s')"
+			} >> "$run_dir/metadata.txt"
+			"$snapshot_script" "$run_dir" precursor \
+				"$server_pid" "$client_pid" "$initial_windowserver_pid" \
+				> "$run_dir/precursor-snapshot.log" 2>&1 || true
+			return
+		fi
+		sleep 0.25
+	done
+}
+
 sample_processes() {
 	local sample_count=0
 	local watched_pids="$server_pid,$client_pid"
@@ -200,19 +255,35 @@ sample_processes &
 process_sampler_pid=$!
 sample_on_stall &
 stall_sampler_pid=$!
+if (( deep_capture == 1 )); then
+	"$snapshot_script" "$run_dir" start \
+		"$server_pid" "$client_pid" "$initial_windowserver_pid" \
+		> "$run_dir/start-snapshot.log" 2>&1 &
+	start_snapshot_pid=$!
+	watch_display_precursor &
+	precursor_watcher_pid=$!
+fi
 
 cleanup() {
-	for pid in "$stall_sampler_pid" "$process_sampler_pid" "$log_pid" \
+	for pid in "$precursor_watcher_pid" "$start_snapshot_pid" \
+			"$stall_sampler_pid" "$process_sampler_pid" "$log_pid" \
 			"$client_pid" "$server_pid"; do
-		kill "$pid" >/dev/null 2>&1 || true
+		if [[ "$pid" == <-> ]] && (( pid > 1 )); then
+			kill "$pid" >/dev/null 2>&1 || true
+		fi
 	done
-	wait "$stall_sampler_pid" "$process_sampler_pid" "$log_pid" \
-		"$client_pid" "$server_pid" 2>/dev/null || true
+	wait 2>/dev/null || true
 }
 trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+requested_exit_status=0
+handle_signal() {
+	requested_exit_status="$1"
+	echo "signal received; stopping Godot and preserving post-exit evidence"
+	kill "$client_pid" "$server_pid" >/dev/null 2>&1 || true
+}
+trap 'handle_signal 129' HUP
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
 
 echo "monitored run: $run_dir"
 echo "server PID $server_pid, client PID $client_pid, WindowServer PID $initial_windowserver_pid"
@@ -222,6 +293,53 @@ set +e
 wait "$client_pid"
 client_status=$?
 set -e
+if (( requested_exit_status != 0 )); then
+	client_status="$requested_exit_status"
+fi
+
+kill "$server_pid" >/dev/null 2>&1 || true
+wait "$server_pid" 2>/dev/null || true
+
+if (( deep_capture == 1 )); then
+	"$snapshot_script" "$run_dir" client-exit "$initial_windowserver_pid" \
+		> "$run_dir/client-exit-snapshot.log" 2>&1 || true
+fi
+
+if (( post_exit_seconds > 0 )); then
+	echo "Godot stopped; watching WindowServer for $post_exit_seconds seconds"
+	post_exit_start_epoch="$(date '+%s')"
+	post_exit_deadline=$((post_exit_start_epoch + post_exit_seconds))
+	while (( $(date '+%s') < post_exit_deadline )); do
+		current_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
+		{
+			echo "timestamp=$(date '+%Y-%m-%d %H:%M:%S') epoch=$(date '+%s')"
+			echo "windowserver_pid=${current_windowserver_pid:-missing}"
+			if [[ "$current_windowserver_pid" == <-> ]]; then
+				ps -p "$current_windowserver_pid" \
+					-o pid=,ppid=,state=,%cpu=,%mem=,rss=,vsz=,etime=,time=,command= \
+					2>&1 || true
+			fi
+			echo
+		} >> "$run_dir/post-exit-windowserver.log"
+		if [[ "$initial_windowserver_pid" == <-> \
+				&& "$current_windowserver_pid" == <-> \
+				&& "$initial_windowserver_pid" != "$current_windowserver_pid" ]]; then
+			touch "$run_dir/windowserver-restarted.marker"
+		fi
+		sleep 1
+	done
+	{
+		echo "post_exit_watch_started_epoch=$post_exit_start_epoch"
+		echo "post_exit_watch_ended_epoch=$(date '+%s')"
+	} >> "$run_dir/metadata.txt"
+fi
+
+if (( deep_capture == 1 )); then
+	end_snapshot_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
+	"$snapshot_script" "$run_dir" post-exit \
+		"${end_snapshot_windowserver_pid:-unknown}" \
+		> "$run_dir/post-exit-snapshot.log" 2>&1 || true
+fi
 
 end_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
 end_windowserver_pid="${end_windowserver_pid:-missing}"
