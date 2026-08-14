@@ -202,3 +202,39 @@ without any player input system. However, it ran roughly seven hours after the
 clean Stage 10 probe, across a likely display sleep/wake interval. Treat active
 ENet/time synchronization as the leading changed subsystem, not as proven cause,
 until Stage 10 is rechecked immediately under the same current display state.
+
+## Stage 10 recheck — same build after the overnight display-state change
+
+- Revision: `7131f14` (the recorded clean Stage 10 result, detached in a fresh
+  recheck worktree)
+- Engine/driver/window/content: identical to the earlier clean Stage 10 probe
+- ENet peers/traffic and player input: absent
+- Start: 2026-08-14 01:36:07 -0500
+- Result: known fullscreen precursor reproduced, followed by a delayed
+  WindowServer watchdog
+- `Invalid actual_host_time`: 623 from 01:36:11.280 through 01:36:21.904
+- The fullscreen client continued producing regular 115-117 FPS telemetry
+  through 01:36:35 and was then stopped along with the headless server.
+- Neither Godot process appears in the 01:37:12 watchdog stackshot.
+- At 01:37:06 the Intel framebuffer logged a VBlank timeout; WindowServer was
+  terminated with DisplayID `0x4280f40` not ready and restarted as a new PID.
+- Incident: `AFEF1DCD-F77C-4EE2-BB15-CD64A924D9D2`
+- Report: `WindowServer-2026-08-14-013706.ips`
+- Thermal pressure: nominal; report display state: off
+- Collected bundle:
+  `/private/tmp/car-fight-stage10-recheck/.crash-runs/20260814-013607`
+
+Conclusion: Stage 11's ENet addition was correlation, not the cause. The exact
+Stage 10 build that had completed cleanly before the long gap reproduced the
+precursor immediately afterward without ENet or input. The changed variable was
+external to the project, most plausibly the built-in display's sleep/wake or
+long-lived WindowServer state. Once the invalid-timestamp loop begins, closing
+Godot does not guarantee recovery: the framebuffer and WindowServer can fail
+after both game processes have exited.
+
+The staged experiment therefore does not identify a game building block as the
+trigger. Stages 0-10 were all clean in the earlier display session, while Stage
+10 and Stage 11 both failed in the later session. Any further isolation should
+test the display-session transition itself, starting with the smallest stage,
+and requires explicit approval because even a short stopped probe can lead to a
+delayed system-level crash.
