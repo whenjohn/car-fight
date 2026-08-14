@@ -244,3 +244,37 @@ next comparison would require a fresh WindowServer session and Stage 10 first,
 before Stage 11 or a series of fullscreen transitions. It still requires
 explicit approval because even a short stopped probe can lead to a delayed
 system-level crash.
+
+## Stage 10 clean-order probe — before Stage 11 in the restarted WindowServer
+
+- Revision: `7131f14`, unchanged from both prior Stage 10 probes
+- WindowServer: PID 50563, created by recovery from the 01:37 watchdog
+- Test order: first rendered/fullscreen Godot probe in this WindowServer
+  session; Stage 11 had not run
+- ENet peers/traffic, player input, spawning, and replication: absent
+- Start: 2026-08-14 02:07:22 -0500
+- Fullscreen telemetry start: 02:07:28
+- Result: known precursor reproduced
+- `Invalid actual_host_time`: 853 in the recovered log, from 02:07:30.044
+  through 02:07:47.439
+- The run was stopped at the precursor. Both Godot processes exited, then the
+  monitor observed WindowServer for 120 seconds.
+- WindowServer remained PID 50563. No VBlank timeout, display-not-ready event,
+  event-port death, GPU reset, or new crash report occurred during the watch.
+- Synchronized start, precursor, client-exit, and post-exit snapshots show no
+  thermal warning or memory exhaustion. The Intel accelerator reported
+  `recoveryCount=0`; the Godot sample remained in ordinary OpenGL/IOAccelerator
+  rendering work.
+- Evidence bundle:
+  `/private/tmp/car-fight-stage10-recheck/.crash-runs/20260814-020722`
+
+Conclusion: active ENet, network traffic, and player input are not required to
+initiate the precursor. Stage 10 reproduced before Stage 11 ran in this
+WindowServer session. Networking was merely where the earlier ordered ladder
+first happened to encounter the intermittent display state.
+
+Stage 10 still includes netfox timing/rollback autoloads, so the next strict
+building-block boundary is Stage 9 versus Stage 10 after a full machine reboot.
+A WindowServer restart alone may not reset all Intel framebuffer/kernel state.
+Run Stage 9 first after reboot; only run Stage 10 afterward if Stage 9 is clean.
+Both remain risky fullscreen tests requiring explicit approval.
