@@ -2,7 +2,7 @@
 set -euo pipefail
 unsetopt BG_NICE
 
-project_root="$(cd "$(dirname "$0")/.." && pwd)"
+project_root="${CAR_FIGHT_PROJECT_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 port="${CAR_FIGHT_PORT:-10080}"
 monitor_root="${CAR_FIGHT_MONITOR_ROOT:-$project_root/.crash-runs}"

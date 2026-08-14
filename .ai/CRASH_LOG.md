@@ -58,29 +58,42 @@ No renderer, lighting, shader, gameplay, or launch-script change has been made i
 - The system report recorded heavy thermal pressure, but the pre-failure process sampler reported no macOS thermal or performance warning. Godot memory and CPU use did not run away before the failure.
 - This controlled A/B result strongly isolates fullscreen presentation on the native Intel OpenGL/display path. It does not identify a game draw call and does not prove whether Godot, macOS 26.6.1, or the Intel driver owns the underlying defect, but it makes current gameplay logic, course content, and ordinary process memory/CPU exhaustion implausible causes.
 
+### 2026-08-14 01:37:06 -0500 — minimal Stage 10 post-wake reproduction
+
+- Incident ID: `AFEF1DCD-F77C-4EE2-BB15-CD64A924D9D2`
+- Captured run: `/private/tmp/car-fight-stage10-recheck/.crash-runs/20260814-013607`
+- WindowServer report: `/Library/Logs/DiagnosticReports/WindowServer-2026-08-14-013706.ips`
+- Stackshot: `/Library/Logs/DiagnosticReports/WindowServer_2026-08-14-013712_JBook2.userspace_watchdog_timeout.spin`
+- Isolation revision: `7131f14`, the exact Stage 10 build that had completed a clean 26-second fullscreen probe earlier in the same WindowServer session. This minimal project has one imported Jeep, simple lighting/shadows, one active Rapier body, and initialized netfox autoloads, but no ENet peers, player input, spawning, replication, combat, course, or car-fight gameplay.
+- After an approximately seven-hour gap that likely included display sleep/wake, the same build immediately produced 623 `Invalid actual_host_time` errors for DisplayID `0x4280f40`, from 01:36:11.280 through 01:36:21.904.
+- Client telemetry remained regular at 115-117 FPS through 01:36:35. Both exact Godot PIDs, 50302 and 50305, were stopped before the watchdog report and neither appears in the 01:37:12 stackshot.
+- At 01:37:06.377 the Intel framebuffer logged `FB0: VBlank Timeout Timer called in 51ms`. The watchdog report says the same display and framebuffer were not ready with active/waiting surface transactions; WindowServer PID 27448 was replaced by PID 50563.
+- The report recorded `displayState: OFF` and nominal thermal pressure. This incident rules out heat as a required condition and shows that WindowServer can cross the watchdog boundary after the triggering fullscreen client has already exited.
+- A Stage 11 probe immediately beforehand had shown the same precursor without player input. The Stage 10 recheck proves that ENet/time synchronization was not the cause; the relevant changed state was outside the project, most plausibly the built-in display's sleep/wake or long-lived WindowServer state.
+
 ## Shared system signature
 
 - Hardware: MacBookPro16,2, Intel Iris Plus Graphics, device `0x8a53`, up to 1536 MB.
 - OS: macOS 26.6.1, build 25G76.
 - Report type: WindowServer bug type 409, watchdog termination.
 - Watchdog reason: `monitoring timed out for service` and WindowServer was not alive.
-- Same affected display in all four reports: DisplayID `0x4280f40` / decimal 69734208.
-- Same framebuffer registry ID in all four reports: 4294968498.
+- Same affected display in all five reports: DisplayID `0x4280f40` / decimal 69734208.
+- Same framebuffer registry ID in all five reports: 4294968498.
 - IOKit associates framebuffer 4294968498 with `AppleBacklightDisplay`; it is the MacBook's built-in panel, not an external display.
 - WindowServer reported the display as not ready, with on-glass surfaces active/waiting.
-- All four reports recorded `displayState: OFF`.
-- All four failures occurred while the game was fullscreen. The controlled comparison at `ba96b6d` kept build, renderer, scene, and launch arrangement constant: windowed remained clean for 423 seconds, while fullscreen immediately produced thousands of invalid display timestamps and reproduced the watchdog after 192 seconds. No known windowed play session has produced this failure.
+- All five reports recorded `displayState: OFF`.
+- All five failures followed a fullscreen game session. The controlled comparison at `ba96b6d` kept build, renderer, scene, and launch arrangement constant: windowed remained clean for 423 seconds, while fullscreen immediately produced thousands of invalid display timestamps and reproduced the watchdog after 192 seconds. In the fifth incident both Godot processes had exited before the delayed WindowServer watchdog. No known windowed play session has produced this failure.
 - Thermal pressure varied across the incidents: moderate on August 11, nominal at 03:24 on August 13, and heavy for both later August 13 reports. Heat may have contributed to the later events, but it is not required by the shared failure signature.
-- Unified logs around the August 13 failures show `AppleIntelICLLPGraphicsFramebuffer` repeatedly reading and setting the built-in display mode. The third and fourth incidents additionally captured an explicit framebuffer VBlank timeout at the failure boundary.
+- Unified logs around the failures show `AppleIntelICLLPGraphicsFramebuffer` repeatedly reading and setting the built-in display mode. The third, fourth, and fifth incidents additionally captured an explicit framebuffer VBlank timeout at the failure boundary.
 - Neither Godot process showed runaway CPU use or an extreme memory footprint.
 
 ## Current assessment
 
-The game cannot directly terminate WindowServer, and the reports do not identify a specific GDScript or draw call. However, four nearly identical watchdog failures with the same rendered Godot workload, same framebuffer, and same built-in display state make coincidence unlikely. Time to failure varies, so a fixed countdown is not part of the shared signature.
+The game cannot directly terminate WindowServer, and the reports do not identify a specific GDScript or draw call. However, five nearly identical watchdog failures with the same fullscreen presentation path, framebuffer, and built-in display state make coincidence unlikely. Time to failure varies, so a fixed countdown is not part of the shared signature.
 
 Treat fullscreen native-OpenGL presentation on this Intel Mac as the reproducible trigger condition for an operating-system/graphics-driver deadlock. The evidence does not yet distinguish a Godot fullscreen integration defect from a macOS 26.6.1 or Intel driver defect, and Godot 4.7.1 reproduces the exact early display-timestamp signature. Recent driving logic and visual effects are not plausible common causes because the first incident occurred before they existed, and the game loop remained alive through the controlled failure.
 
-The user also recalls the same failure from the project's earliest prototype period. Combined with the first preserved incident predating the later driving, course, combat, and presentation work, this rules those additions out as the origin of the problem. Investigation should concentrate on the small original overlap: fullscreen presentation, Godot 4.7 Compatibility/native OpenGL, the Intel framebuffer, and the basic scene render path.
+The user also recalls the same failure from the project's earliest prototype period. Combined with the first preserved incident predating the later driving, course, combat, and presentation work, this rules those additions out as the origin of the problem. The staged reconstruction strengthens that result: stages 0-10 were clean before a long display-session gap, while the unchanged Stage 10 build failed immediately afterward without ENet or input. Investigation should concentrate on fullscreen presentation, the Intel framebuffer, and display sleep/wake or long-lived WindowServer state rather than another game building block.
 
 ### Later non-incident observation
 
@@ -112,11 +125,13 @@ The first monitored Godot 4.7.1 windowed baseline ran for 587 seconds (9 minutes
 
 At commit `03672ea`, an explicitly approved monitored fullscreen comparison tested Godot 4.7.1 with the same native `opengl3` path. The run was stopped proactively after 20 seconds rather than waiting for another system crash. Fullscreen telemetry began at 17:19:58; from 17:20:01.062 through 17:20:18.585, WindowServer emitted 736 `Invalid actual_host_time` errors for the same DisplayID `0x4280f40`. There were no corresponding VBlank timeout, GPU reset, or event-port-death events because the client was stopped as soon as the known precursor was confirmed. WindowServer remained PID 27448 and both exact Godot processes ended. Godot 4.7.1 therefore does not fix the native-OpenGL fullscreen defect on this machine.
 
-Relevant project settings across the four incidents:
+Later at commit `03672ea`, an explicitly approved one-variable fullscreen comparison used Godot 4.7.1's `opengl3_angle` driver. Runtime output confirmed OpenGL ES 3.0 through ANGLE 2.1.1 and the ANGLE Metal Renderer on the Intel Iris Plus GPU; telemetry confirmed true 2880 x 1800 fullscreen. WindowServer emitted the first `Invalid actual_host_time` for the same DisplayID `0x4280f40` in the same second telemetry began and recorded 235 instances from 17:36:22.419 through 17:36:40.408. The run was stopped after about 18 seconds, before any VBlank timeout, GPU reset, event-port death, or watchdog. WindowServer stayed alive and both exact Godot processes stopped. ANGLE therefore does not remove the known fullscreen failure precursor and should not be adopted as a macOS workaround for this machine.
+
+Relevant project settings across the five incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
 - 1280 x 720 viewport/window override
-- Godot 4.7 x86_64 official application (`5b4e0cb0f`; all four preserved incidents predate the 4.7.1 update)
+- Godot 4.7 x86_64 official application (`5b4e0cb0f`; all five preserved incidents used 4.7.0, while 4.7.1 separately reproduced the precursor)
 
 Godot 4.7 reports these available macOS rendering drivers on this machine: `vulkan`, `opengl3`, `opengl3_angle`, and `dummy`. Native Metal is not implemented for Intel Macs; RenderingDevice uses Vulkan through MoltenVK there. ANGLE is also available as an alternate Compatibility driver.
 
@@ -136,7 +151,7 @@ Godot 4.7 reports these available macOS rendering drivers on this machine: `vulk
 
 `./scripts/crash_monitor_test.sh` is the safe fault-injection test. It uses `--fake-stall`, which is rejected unless the client is headless, pauses only Godot's main thread for seven seconds, then verifies that telemetry resumes and that the external watcher captured a real process stack. Do not test the monitor by exhausting GPU buffers, repeatedly changing display modes, killing WindowServer, or manufacturing thermal pressure; those approaches risk reproducing the system disruption and make the evidence harder to interpret.
 
-The native-OpenGL windowed/fullscreen comparison is complete: windowed ran cleanly for 423 seconds and fullscreen reproduced the failure after 192 seconds. Use windowed mode for ordinary development on this machine. ANGLE fullscreen is the next one-variable diagnostic comparison only if the user explicitly accepts another possible login-session crash; it is not required for gameplay work. Do not combine window mode, renderer, gameplay, or shader changes, and do not deliberately run until failure.
+The native-OpenGL windowed/fullscreen comparison is complete: windowed ran cleanly for 423 seconds and fullscreen reproduced the failure after 192 seconds. The follow-up ANGLE fullscreen comparison produced the same invalid-display-timestamp precursor immediately, so changing the Compatibility backend does not make fullscreen safe. Use windowed mode for ordinary development on this machine. Do not repeat either fullscreen comparison merely to reconfirm the result, and do not deliberately run until failure.
 
 ## Evidence to collect after another spontaneous crash
 
@@ -146,9 +161,9 @@ Do not intentionally reproduce the crash solely to gather these items. After reb
 2. Record the exact wall-clock crash time, what was visible, whether the game had focus, whether the display dimmed/turned off, and approximately how long the client had been open.
 3. Record the current commit with `git rev-parse HEAD` and whether the client was launched by `./scripts/play.sh`, the editor, or another command.
 4. In the `.spin`, find all Godot process blocks and record PID, time since fork, footprint, CPU time, and main-thread stack.
-5. Compare the report's DisplayID, framebuffer registry ID, `displayState`, thermal pressure, watchdog reason, and surface transaction state with the four incidents above.
+5. Compare the report's DisplayID, framebuffer registry ID, `displayState`, thermal pressure, watchdog reason, and surface transaction state with the five incidents above.
 6. Inspect the read-only unified log for roughly 90 seconds before and 30 seconds after the incident. Focus on `Godot`, `WindowServer`, `powerd`, `watchdogd`, and `AppleIntelICLLPGraphicsFramebuffer`. Preserve any GPU reset, display sleep/wake, mode-set, swap/present, or WindowServer-port-death events.
-7. Check whether a new Godot crash report exists. Absence matters: in all four incidents WindowServer was killed while Godot remained a client of the failed display service.
+7. Check whether a new Godot crash report exists. Absence matters: in the first four incidents WindowServer was killed while Godot remained a client of the failed display service; in the fifth, both Godot processes had already exited and were absent from the watchdog stackshot.
 
 Suggested read-only commands, with timestamps replaced by the new incident window:
 
@@ -164,7 +179,7 @@ If the user later chooses to investigate experimentally, use one variable at a t
 
 1. Keep ordinary development tests windowed through `play_monitored.sh`; do not enter fullscreen. This mode completed the controlled baseline without the display-error signature.
 2. Do not repeat native-OpenGL fullscreen merely to reconfirm it. The controlled run already reproduced the failure and captured sufficient evidence.
-3. If further renderer isolation is worth the disruption risk, compare fullscreen native OpenGL with `--driver opengl3_angle` while holding the scene constant, and only with explicit approval.
-4. Consider Vulkan/MoltenVK only after the window-mode and ANGLE comparisons. Change shadows, frame limits, and individual effects in later separate tests rather than bundling them with the renderer change.
+3. Do not repeat the ANGLE fullscreen comparison. It produced the same invalid-display-timestamp precursor within the first telemetry second.
+4. Consider Vulkan/MoltenVK only as a separately approved future diagnostic. Change shadows, frame limits, and individual effects in later separate tests rather than bundling them with the renderer change.
 
-Every rendered test requires explicit user approval because fullscreen native OpenGL has now coincided with four system-level WindowServer restarts/crashes, including a controlled reproduction, even though several intervening approved runs ended normally.
+Every rendered test requires explicit user approval because fullscreen native OpenGL has now coincided with five system-level WindowServer restarts/crashes, including controlled minimal reproductions, even though several intervening approved runs ended normally. A probe must not be treated as safe merely because Godot was stopped after the precursor; the fifth watchdog occurred afterward.
