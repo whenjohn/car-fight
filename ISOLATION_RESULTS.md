@@ -225,19 +225,22 @@ project change, but the display wake was an important uncontrolled variable.
 - Collected bundle:
   `/private/tmp/car-fight-stage10-recheck/.crash-runs/20260814-013607`
 
-Conclusion: Stage 11's ENet addition was correlation, not the cause. The exact
-Stage 10 build that had completed cleanly before the long gap reproduced the
-precursor immediately afterward without ENet or input. The changed variable was
-external to the project. The power log confirms that both failures occurred in
-the newly awakened display session: Stage 11 about one minute after the 01:32:29
-wake, and Stage 10 about four minutes after it. This strongly implicates the
-built-in display's post-wake or long-lived WindowServer state. Once the
-invalid-timestamp loop begins, closing Godot does not guarantee recovery: the
-framebuffer and WindowServer can fail after both game processes have exited.
+Conclusion: the exact Stage 10 build that had completed cleanly earlier can
+reproduce the precursor without ENet or input once the WindowServer/display
+session is affected. This rules out those systems as requirements for sustaining
+the failure, but it does not prove what first put the session into that state:
+Stage 11 ran first after wake, then Stage 10 ran after Stage 11's precursor.
+ENet, the confirmed wake, accumulated fullscreen transitions, and other
+long-lived display state are therefore still order-confounded. Historical
+incidents also occurred after long active development periods, so wake is not a
+required trigger. Once the invalid-timestamp loop begins, closing Godot does not
+guarantee recovery: the framebuffer and WindowServer can fail after both game
+processes have exited.
 
 The staged experiment therefore does not identify a game building block as the
 trigger. Stages 0-10 were all clean in the earlier display session, while Stage
-10 and Stage 11 both failed in the later session. Any further isolation should
-test the display-session transition itself, starting with the smallest stage,
-and requires explicit approval because even a short stopped probe can lead to a
-delayed system-level crash.
+11 and then Stage 10 both failed in the later, already affected session. A valid
+next comparison would require a fresh WindowServer session and Stage 10 first,
+before Stage 11 or a series of fullscreen transitions. It still requires
+explicit approval because even a short stopped probe can lead to a delayed
+system-level crash.
