@@ -199,9 +199,10 @@ produce the WindowServer precursor without an active multiplayer connection.
 
 Stage 11 is the first isolation stage to reproduce the precursor, and it did so
 without any player input system. However, it ran roughly seven hours after the
-clean Stage 10 probe, across a likely display sleep/wake interval. Treat active
-ENet/time synchronization as the leading changed subsystem, not as proven cause,
-until Stage 10 is rechecked immediately under the same current display state.
+clean Stage 10 probe. The macOS power log confirms sleep at 01:28:43 and wake
+from deep idle at 01:32:29 due to lid-open/user activity, roughly one minute
+before Stage 11 reproduced the precursor. ENet/time synchronization was the
+project change, but the display wake was an important uncontrolled variable.
 
 ## Stage 10 recheck — same build after the overnight display-state change
 
@@ -227,10 +228,12 @@ until Stage 10 is rechecked immediately under the same current display state.
 Conclusion: Stage 11's ENet addition was correlation, not the cause. The exact
 Stage 10 build that had completed cleanly before the long gap reproduced the
 precursor immediately afterward without ENet or input. The changed variable was
-external to the project, most plausibly the built-in display's sleep/wake or
-long-lived WindowServer state. Once the invalid-timestamp loop begins, closing
-Godot does not guarantee recovery: the framebuffer and WindowServer can fail
-after both game processes have exited.
+external to the project. The power log confirms that both failures occurred in
+the newly awakened display session: Stage 11 about one minute after the 01:32:29
+wake, and Stage 10 about four minutes after it. This strongly implicates the
+built-in display's post-wake or long-lived WindowServer state. Once the
+invalid-timestamp loop begins, closing Godot does not guarantee recovery: the
+framebuffer and WindowServer can fail after both game processes have exited.
 
 The staged experiment therefore does not identify a game building block as the
 trigger. Stages 0-10 were all clean in the earlier display session, while Stage
