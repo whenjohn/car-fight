@@ -65,11 +65,11 @@ No renderer, lighting, shader, gameplay, or launch-script change has been made i
 - WindowServer report: `/Library/Logs/DiagnosticReports/WindowServer-2026-08-14-013706.ips`
 - Stackshot: `/Library/Logs/DiagnosticReports/WindowServer_2026-08-14-013712_JBook2.userspace_watchdog_timeout.spin`
 - Isolation revision: `7131f14`, the exact Stage 10 build that had completed a clean 26-second fullscreen probe earlier in the same WindowServer session. This minimal project has one imported Jeep, simple lighting/shadows, one active Rapier body, and initialized netfox autoloads, but no ENet peers, player input, spawning, replication, combat, course, or car-fight gameplay.
-- After an approximately seven-hour gap that likely included display sleep/wake, the same build immediately produced 623 `Invalid actual_host_time` errors for DisplayID `0x4280f40`, from 01:36:11.280 through 01:36:21.904.
+- macOS power history confirms sleep at 01:28:43 and wake from deep idle at 01:32:29 due to lid-open/user activity. About four minutes after that wake, the same build immediately produced 623 `Invalid actual_host_time` errors for DisplayID `0x4280f40`, from 01:36:11.280 through 01:36:21.904.
 - Client telemetry remained regular at 115-117 FPS through 01:36:35. Both exact Godot PIDs, 50302 and 50305, were stopped before the watchdog report and neither appears in the 01:37:12 stackshot.
 - At 01:37:06.377 the Intel framebuffer logged `FB0: VBlank Timeout Timer called in 51ms`. The watchdog report says the same display and framebuffer were not ready with active/waiting surface transactions; WindowServer PID 27448 was replaced by PID 50563.
 - The report recorded `displayState: OFF` and nominal thermal pressure. This incident rules out heat as a required condition and shows that WindowServer can cross the watchdog boundary after the triggering fullscreen client has already exited.
-- A Stage 11 probe immediately beforehand had shown the same precursor without player input. The Stage 10 recheck proves that ENet/time synchronization was not the cause; the relevant changed state was outside the project, most plausibly the built-in display's sleep/wake or long-lived WindowServer state.
+- A Stage 11 probe about one minute after the confirmed wake had shown the same precursor without player input. The Stage 10 recheck proves that ENet/time synchronization was not the cause; both reproductions occurred in the newly awakened display session, strongly implicating the built-in display's post-wake or long-lived WindowServer state.
 
 ## Shared system signature
 
@@ -93,7 +93,7 @@ The game cannot directly terminate WindowServer, and the reports do not identify
 
 Treat fullscreen native-OpenGL presentation on this Intel Mac as the reproducible trigger condition for an operating-system/graphics-driver deadlock. The evidence does not yet distinguish a Godot fullscreen integration defect from a macOS 26.6.1 or Intel driver defect, and Godot 4.7.1 reproduces the exact early display-timestamp signature. Recent driving logic and visual effects are not plausible common causes because the first incident occurred before they existed, and the game loop remained alive through the controlled failure.
 
-The user also recalls the same failure from the project's earliest prototype period. Combined with the first preserved incident predating the later driving, course, combat, and presentation work, this rules those additions out as the origin of the problem. The staged reconstruction strengthens that result: stages 0-10 were clean before a long display-session gap, while the unchanged Stage 10 build failed immediately afterward without ENet or input. Investigation should concentrate on fullscreen presentation, the Intel framebuffer, and display sleep/wake or long-lived WindowServer state rather than another game building block.
+The user also recalls the same failure from the project's earliest prototype period. Combined with the first preserved incident predating the later driving, course, combat, and presentation work, this rules those additions out as the origin of the problem. The staged reconstruction strengthens that result: stages 0-10 were clean before sleep, while the unchanged Stage 10 build failed four minutes after a confirmed deep-idle wake without ENet or input. Investigation should concentrate on fullscreen presentation and the Intel framebuffer's post-wake state rather than another game building block.
 
 ### Later non-incident observation
 
