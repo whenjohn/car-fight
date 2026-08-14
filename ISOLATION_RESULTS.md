@@ -183,3 +183,22 @@ the WindowServer precursor without netfox or networking.
 
 Conclusion: netfox initialization, timing, and rollback infrastructure do not
 produce the WindowServer precursor without an active multiplayer connection.
+
+## Stage 11 — local ENet connection and netfox time synchronization
+
+- Revision: `9064d76`
+- Added: localhost ENet server/client lifecycle, tick-rate handshake, timestamp
+  exchange, and active netfox time synchronization
+- Multiplayer spawning, replication, rollback nodes, and player input: absent
+- Result: known fullscreen precursor reproduced
+- `Invalid actual_host_time`: 275 from 01:33:37.439 through 01:33:47.773
+- The first error occurred in the same second fullscreen telemetry began.
+- The run was stopped before a VBlank timeout, display-not-ready condition,
+  event-port death, or WindowServer watchdog.
+- Both Godot processes stopped after the probe.
+
+Stage 11 is the first isolation stage to reproduce the precursor, and it did so
+without any player input system. However, it ran roughly seven hours after the
+clean Stage 10 probe, across a likely display sleep/wake interval. Treat active
+ENet/time synchronization as the leading changed subsystem, not as proven cause,
+until Stage 10 is rechecked immediately under the same current display state.
