@@ -144,6 +144,22 @@ clock timing. Community reports independently show the exact error under broken
 macOS refresh timing, but no official Apple root-cause statement or matching
 Godot issue has been found.
 
+Later on 2026-08-14, the same branch was prepared on `macai2`, a second machine
+with the same key 2 GHz quad-core Intel i5, 16 GB memory, and Intel Iris Plus
+hardware profile. The official notarized Godot 4.7.1 build
+(`a13da4feb`) was installed, the prior 4.7.0 build was preserved, and the full
+headless project suite plus the `vulkan-runtime-vsync` dry run passed. No
+fullscreen probe was launched. A bounded 30-second native-OpenGL windowed run
+then validated remote rendering and the monitor pipeline while the laptop lid
+was closed. The built-in display was powered off and telemetry reported screen
+2880 x 1800 at 0 Hz, an unfocused 1280 x 720 window, and no mode transition.
+The client auto-quit normally, WindowServer remained PID 197 through the
+10-second post-exit watch, and the filtered log contained no invalid timestamp,
+VBlank, display-not-ready, GPU-reset, event-port-death, or watchdog signature.
+This is a clean harness smoke test only: the powered-off panel makes it neither
+an active-display windowed baseline nor evidence about fullscreen behavior.
+Evidence: `/Users/macai2/Projects/car-fight-mac-intel-fullscreen/.crash-runs/20260814-175603`.
+
 Relevant project settings across the five incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

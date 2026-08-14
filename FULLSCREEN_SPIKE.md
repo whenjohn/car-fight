@@ -11,6 +11,9 @@ presentation setup or frame pacing can avoid the built-in Intel display's
 - Minimal isolation reproduced without ENet, input, spawning, or replication.
 - A later g2 session remained visibly playable but emitted 5,569 matching
   WindowServer errors from `02:27:26` until fullscreen ended at `02:30:46`.
+- A same-spec `macai2` closed-lid windowed smoke test completed cleanly, but its
+  powered-off panel reported 0 Hz. It validates the remote capture path only
+  and must not be treated as an active-panel baseline or fullscreen result.
 
 The visible game surviving is therefore not a clean result. A pass requires
 zero `Invalid actual_host_time` messages and no later VBlank/display/watchdog
