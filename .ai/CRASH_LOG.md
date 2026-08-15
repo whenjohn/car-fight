@@ -186,6 +186,21 @@ Vulkan/MoltenVK is therefore a distinct and more severe Intel graphics failure,
 not a viable fullscreen workaround. Evidence:
 `/Users/johnnguyen/Projects/car-fight-mac-intel-fullscreen/.fullscreen-spike-runs/20260814-212728`.
 
+On 2026-08-15, the clean-room Stage 0 control at commit `d9ab176` ran true
+native-OpenGL fullscreen for 30 seconds with only an engine-created camera,
+light, plane, box, and materials. Telemetry confirmed `window_mode=3`, a focused
+2880 x 1800 window, 118-120 FPS, two draw calls, 14 primitives, and a normal
+auto-quit. It recorded zero `Invalid actual_host_time` errors, no VBlank timeout,
+GPU reset, WindowServer event-port death, watchdog, or crash report. WindowServer
+remained PID 213 through the 120-second post-exit watch. The Intel framebuffer
+did log one `Not Ready for Transaction Processing` line at 11:09:16, so the
+conservative harness state is `display-precursor`, not pass. The same isolated
+line also appeared during the preceding windowed control at 11:04:22, making it
+non-discriminating in this pair; importantly, the stronger invalid-timestamp
+signature seen immediately in full car-fight and in the comparison project did
+not appear in this basic render control. Evidence:
+`/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-110856-stage0-control`.
+
 Relevant project settings across the five earlier native-OpenGL watchdog incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

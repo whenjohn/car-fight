@@ -26,7 +26,8 @@ usage() {
 Usage:
   ./scripts/render_bisect.sh list
   ./scripts/render_bisect.sh run stage0-control --dry-run [--seconds N]
-  ./scripts/render_bisect.sh run stage0-control --accept-crash-risk [--seconds N]
+  ./scripts/render_bisect.sh run stage0-control --accept-crash-risk \
+    [--startup-fullscreen] [--seconds N]
 
 A real rendered run can trigger the Intel display-driver failure. Save work and
 run only one stage per boot. The launcher never enters fullscreen itself.
@@ -47,6 +48,7 @@ shift 2
 accept_risk=0
 dry_run=0
 run_seconds=30
+fullscreen_entry="manual"
 while (( $# > 0 )); do
 	case "$1" in
 		--accept-crash-risk)
@@ -55,6 +57,10 @@ while (( $# > 0 )); do
 			;;
 		--dry-run)
 			dry_run=1
+			shift
+			;;
+		--startup-fullscreen)
+			fullscreen_entry="startup"
 			shift
 			;;
 		--seconds)
@@ -91,13 +97,17 @@ typeset -a command
 command=(
 	"$godot_bin"
 	--rendering-driver opengl3
-	--windowed
-	--path "$control_root"
 )
+if [[ "$fullscreen_entry" == "startup" ]]; then
+	command+=(--fullscreen)
+else
+	command+=(--windowed)
+fi
+command+=(--path "$control_root")
 echo "stage=$stage"
 echo "duration_seconds=$run_seconds"
 echo "post_fullscreen_watch_seconds=$post_exit_seconds"
-echo "fullscreen_entry=manual"
+echo "fullscreen_entry=$fullscreen_entry"
 echo "control_project=$control_root"
 echo "command=${(q-)command}"
 if (( dry_run == 1 )); then
@@ -138,7 +148,7 @@ windowserver_pid_start="$(pgrep -x WindowServer | head -1 || true)"
 	echo "deep_capture=1"
 	echo "windowserver_pid_start=$windowserver_pid_start"
 	echo "server_pid=none"
-	echo "fullscreen_entry=manual"
+	echo "fullscreen_entry=$fullscreen_entry"
 	echo "commit=$(git -C "$project_root" rev-parse HEAD)"
 } > "$run_dir/metadata.txt"
 print -r -- "running" > "$run_dir/state"
@@ -158,11 +168,16 @@ client_pid=$!
 echo "client_pid=$client_pid" >> "$run_dir/metadata.txt"
 
 echo "Render control started (PID $client_pid)."
-echo "Enter fullscreen manually if you are ready; the probe exits after ${run_seconds}s."
+if [[ "$fullscreen_entry" == "manual" ]]; then
+	echo "Enter fullscreen manually if you are ready; the probe exits after ${run_seconds}s."
+else
+	echo "Startup fullscreen requested; the probe exits after ${run_seconds}s."
+fi
 echo "Evidence: $run_dir"
 
-deadline=$(( EPOCHSECONDS + run_seconds + 20 ))
-while kill -0 "$client_pid" >/dev/null 2>&1 && (( EPOCHSECONDS < deadline )); do
+deadline=$(( $(date '+%s') + run_seconds + 20 ))
+while kill -0 "$client_pid" >/dev/null 2>&1 \
+		&& (( $(date '+%s') < deadline )); do
 	{
 		date '+time=%Y-%m-%d %H:%M:%S'
 		ps -p "$client_pid,$windowserver_pid_start" \
@@ -198,11 +213,19 @@ if rg -q '"window_mode":(3|4)|"event":"window_mode_change".*"window_mode":(3|4)'
 		"$run_dir/client.telemetry.jsonl" 2>/dev/null; then
 	fullscreen_seen=1
 fi
+display_precursor_seen=0
+invalid_host_time_count="$(rg -c 'Invalid actual_host_time' \
+	"$run_dir/unified-live.log" 2>/dev/null || true)"
+invalid_host_time_count="${invalid_host_time_count:-0}"
+if rg -q -i 'Not Ready for Transaction Processing|VBlank timeout|GPU Reset|event port.*(dead|died)' \
+		"$run_dir/unified-live.log" 2>/dev/null; then
+	display_precursor_seen=1
+fi
 
-if (( fullscreen_seen == 1 )); then
-	echo "Fullscreen was observed; watching WindowServer for ${post_exit_seconds}s after exit."
-	post_exit_deadline=$(( EPOCHSECONDS + post_exit_seconds ))
-	while (( EPOCHSECONDS < post_exit_deadline )); do
+if (( fullscreen_seen == 1 || display_precursor_seen == 1 )); then
+	echo "Fullscreen or a display precursor was observed; watching WindowServer for ${post_exit_seconds}s after exit."
+	post_exit_deadline=$(( $(date '+%s') + post_exit_seconds ))
+	while (( $(date '+%s') < post_exit_deadline )); do
 		current_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
 		{
 			date '+post_exit_time=%Y-%m-%d %H:%M:%S'
@@ -221,6 +244,10 @@ if (( stuck == 1 )); then
 	state="client-stuck"
 elif (( client_status != 0 )); then
 	state="client-error"
+elif (( display_precursor_seen == 1 )); then
+	state="display-precursor"
+elif (( fullscreen_seen == 0 )); then
+	state="not-fullscreen"
 fi
 windowserver_pid_end="$(pgrep -x WindowServer | head -1 || true)"
 if [[ "$windowserver_pid_start" == <-> && "$windowserver_pid_end" == <-> \
@@ -233,6 +260,8 @@ print -r -- "$state" > "$run_dir/state"
 	echo "client_exit_status=$client_status"
 	echo "client_stuck=$stuck"
 	echo "fullscreen_seen=$fullscreen_seen"
+	echo "invalid_host_time_count=$invalid_host_time_count"
+	echo "display_precursor_seen=$display_precursor_seen"
 	echo "windowserver_pid_end=$windowserver_pid_end"
 	echo "end_local=$(date '+%Y-%m-%d %H:%M:%S')"
 } >> "$run_dir/metadata.txt"

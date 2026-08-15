@@ -48,9 +48,30 @@ for expected in '--rendering-driver opengl3' '--windowed' \
 		exit 1
 	fi
 done
+fullscreen_output="$($runner run stage0-control --dry-run --startup-fullscreen --seconds 12)"
+for expected in '--fullscreen' 'fullscreen_entry=startup'; do
+	if [[ "$fullscreen_output" != *"$expected"* ]]; then
+		echo "RENDER_BISECT_TEST FAIL startup fullscreen missing: $expected" >&2
+		exit 1
+	fi
+done
+if [[ "$fullscreen_output" == *'--windowed'* ]]; then
+	echo "RENDER_BISECT_TEST FAIL startup fullscreen remained windowed" >&2
+	exit 1
+fi
 if "$runner" run stage0-control --seconds 12 >/dev/null 2>&1; then
 	echo "RENDER_BISECT_TEST FAIL risk acknowledgement was optional" >&2
 	exit 1
 fi
+if rg -q 'EPOCHSECONDS' "$runner"; then
+	echo "RENDER_BISECT_TEST FAIL launcher uses unavailable zsh clock" >&2
+	exit 1
+fi
+for required_state in display-precursor not-fullscreen; do
+	if ! rg -q "state=\"$required_state\"" "$runner"; then
+		echo "RENDER_BISECT_TEST FAIL missing state: $required_state" >&2
+		exit 1
+	fi
+done
 
 echo "RENDER_BISECT_TEST PASS clean_project=1 rendered=0"

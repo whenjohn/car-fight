@@ -37,9 +37,17 @@ and enter fullscreen manually from its window:
 ./scripts/render_bisect.sh run stage0-control --accept-crash-risk --seconds 30
 ```
 
-The launcher itself never requests fullscreen. Evidence is kept under
-`.render-bisect-runs/`. Test one stage per boot because an Intel display-driver
-failure can outlive the Godot process.
+If a manual transition is impractical, the same clean project can explicitly
+request startup fullscreen through Godot's command line:
+
+```sh
+./scripts/render_bisect.sh run stage0-control --accept-crash-risk \
+  --startup-fullscreen --seconds 30
+```
+
+The project itself has no display override in either case. Evidence is kept
+under `.render-bisect-runs/`. Test one stage per boot because an Intel
+display-driver failure can outlive the Godot process.
 
 ## Planned additions
 
@@ -59,7 +67,10 @@ must come from this car-fight repository and be introduced explicitly.
 
 ## Pass and fail criteria
 
-An `Invalid actual_host_time` warning is recorded but is not by itself a failure;
+An `Invalid actual_host_time` warning is counted but is not by itself a failure;
 the comparison project has emitted that warning without a visible problem. A
-stage passes only when the window remains visibly responsive, exits normally,
-WindowServer keeps the same PID, and no watchdog or kernel crash report appears.
+framebuffer-not-ready event, VBlank timeout, GPU reset, dead WindowServer event
+port, abnormal client exit, or WindowServer replacement fails the stage. A stage
+otherwise passes only when fullscreen is confirmed, the window remains visibly
+responsive, the client exits normally, the WindowServer PID remains unchanged,
+and no watchdog or kernel crash report appears.
