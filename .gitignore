@@ -4,3 +4,4 @@
 build/
 .crash-runs/
 .fullscreen-spike-runs/
+.render-bisect-runs/

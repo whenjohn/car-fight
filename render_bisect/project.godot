@@ -1,0 +1,16 @@
+; Clean-room rendering control. Keep this file intentionally small.
+; It has no display overrides, input map, autoloads, or project assets.
+
+config_version=5
+
+[application]
+
+config/name="Car Fight Render Control"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+textures/vram_compression/import_etc2_astc=true

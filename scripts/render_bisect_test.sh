@@ -1,0 +1,56 @@
+#!/bin/zsh
+set -euo pipefail
+
+project_root="$(cd "$(dirname "$0")/.." && pwd)"
+control_root="$project_root/render_bisect"
+runner="$project_root/scripts/render_bisect.sh"
+godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+test_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-render-control.XXXXXX")"
+trap 'rm -rf "$test_dir"' EXIT
+
+if rg -n -i 'g2|netfox|res://assets|res://player' "$control_root"; then
+	echo "RENDER_BISECT_TEST FAIL forbidden dependency in clean project" >&2
+	exit 1
+fi
+for section in '[autoload]' '[input]' '[display]'; do
+	if rg -n -F "$section" "$control_root/project.godot"; then
+		echo "RENDER_BISECT_TEST FAIL forbidden project section: $section" >&2
+		exit 1
+	fi
+done
+if rg -n 'ext_resource.*path="res://(?!Main\.gd)' "$control_root/Main.tscn" -P; then
+	echo "RENDER_BISECT_TEST FAIL non-control resource referenced" >&2
+	exit 1
+fi
+
+CAR_FIGHT_BISECT_TELEMETRY="$test_dir/telemetry.jsonl" \
+	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS=2 \
+	"$godot_bin" --headless --path "$control_root" \
+		> "$test_dir/godot.log" 2>&1
+if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script' \
+		"$test_dir/godot.log"; then
+	cat "$test_dir/godot.log" >&2
+	exit 1
+fi
+for event in stage0_start stage0_sample stage0_stop; do
+	if ! rg -q "\"event\":\"$event\"" "$test_dir/telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL missing telemetry event: $event" >&2
+		exit 1
+	fi
+done
+
+dry_output="$($runner run stage0-control --dry-run --seconds 12)"
+for expected in '--rendering-driver opengl3' '--windowed' \
+		"--path $control_root" 'fullscreen_entry=manual' \
+		'post_fullscreen_watch_seconds=120'; do
+	if [[ "$dry_output" != *"$expected"* ]]; then
+		echo "RENDER_BISECT_TEST FAIL dry run missing: $expected" >&2
+		exit 1
+	fi
+done
+if "$runner" run stage0-control --seconds 12 >/dev/null 2>&1; then
+	echo "RENDER_BISECT_TEST FAIL risk acknowledgement was optional" >&2
+	exit 1
+fi
+
+echo "RENDER_BISECT_TEST PASS clean_project=1 rendered=0"
