@@ -14,14 +14,20 @@ presentation setup or frame pacing can avoid the built-in Intel display's
 - A same-spec `macai2` closed-lid windowed smoke test completed cleanly, but its
   powered-off panel reported 0 Hz. It validates the remote capture path only
   and must not be treated as an active-panel baseline or fullscreen result.
+- `vulkan-runtime-vsync` reached true fullscreen on the local Intel panel, then
+  wedged Godot and WindowServer in the Intel graphics stack. Two WindowServer
+  watchdog reports were followed by a full kernel panic in `IGGuC.cpp:3127`:
+  `Submission on work queue 40 failed due to insufficient space`. The panicked
+  task was the exact Godot client. Vulkan/MoltenVK is not a workaround.
 
 The visible game surviving is therefore not a clean result. A pass requires
-zero `Invalid actual_host_time` messages and no later VBlank/display/watchdog
-failure during the two-minute post-exit watch.
+zero `Invalid actual_host_time` messages and no later VBlank, display,
+watchdog, or kernel failure during the run and two-minute post-exit watch.
 
 ## Safety contract
 
-Every rendered run can crash WindowServer after Godot has already stopped.
+Every rendered run can crash WindowServer or panic the whole Mac after Godot
+has already stopped or entered an unkillable exit state.
 
 1. Reboot the whole Mac before the first approach. A WindowServer restart did
    not prove sufficient to reset the Intel framebuffer state.
@@ -54,11 +60,13 @@ cat "$run_dir/report-summary.txt"
 
 ## Approach order
 
-The highest-value order is:
+The experiment order and current disposition are:
 
-1. `vulkan-runtime-vsync` — changes renderer family to Vulkan/MoltenVK while
-   preserving true fullscreen, VSync, and a five-second windowed lead-in.
-2. `opengl-runtime-cap60` — tests explicit pacing at the panel's nominal rate.
+1. `vulkan-runtime-vsync` — **FAIL — kernel panic. Do not repeat.** It changed
+   renderer family while preserving true fullscreen, VSync, and a windowed
+   lead-in, but wedged the Intel GPU submission path and panicked the Mac.
+2. `opengl-runtime-cap60` — next candidate; tests explicit pacing at the
+   panel's nominal rate.
 3. `opengl-runtime-cap30` — tests whether lowering presentation pressure helps.
 4. `opengl-runtime-novsync60` — tests whether decoupling Godot from VSync while
    retaining a bounded 60 FPS render loop changes the display timing failure.
@@ -73,7 +81,8 @@ a distinct experiment. ANGLE is omitted because it already failed.
 
 - **FAIL — precursor:** any `Invalid actual_host_time` for the built-in display.
 - **FAIL — system:** VBlank timeout, display-not-ready, WindowServer event-port
-  death, changed WindowServer PID, or a new WindowServer watchdog report.
+  death, changed WindowServer PID, a new WindowServer watchdog report, or a
+  graphics kernel panic.
 - **INCONCLUSIVE:** renderer/script failure before telemetry confirms true
   fullscreen, or the requested mode is not `fullscreen` at 2880 x 1800.
 - **PROVISIONAL PASS:** zero precursor/system events through the run and

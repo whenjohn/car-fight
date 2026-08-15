@@ -87,6 +87,9 @@ After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin
 ./scripts/collect_crash_run.sh
 ```
 
-Validate the monitor without opening a rendered window with `./scripts/play_monitored.sh --headless --ticks 180`. All three known crashes occurred fullscreen, so normal monitored play explicitly starts windowed. Only use `--fullscreen` for an approved fullscreen comparison. A later one-variable driver comparison can use `--driver opengl3_angle`, but do not combine window-mode, driver, gameplay, or shader changes.
+The collector also preserves matching nested macOS kernel-panic reports and
+classifies them as `kernel-panic` ahead of a WindowServer restart.
+
+Validate the monitor without opening a rendered window with `./scripts/play_monitored.sh --headless --ticks 180`. The known native-OpenGL WindowServer failures and the Vulkan Intel-graphics kernel panic all followed true fullscreen, so normal monitored play explicitly starts windowed. Only use `--fullscreen` for an approved fullscreen comparison. Native OpenGL, ANGLE, and Vulkan/MoltenVK have all failed on this Intel display path; do not repeat them merely to reconfirm the result.
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.

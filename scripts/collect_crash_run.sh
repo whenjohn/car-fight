@@ -19,16 +19,50 @@ fi
 reports_dir="$run_dir/reports"
 mkdir -p "$reports_dir"
 start_epoch="$(sed -n 's/^start_epoch=//p' "$run_dir/metadata.txt" | head -1)"
-find /Library/Logs/DiagnosticReports /Users/johnnguyen/Library/Logs/DiagnosticReports \
-	-maxdepth 1 -type f -newer "$run_dir/started.marker" \
+typeset -a diagnostic_roots
+if [[ -n "${CAR_FIGHT_DIAGNOSTIC_ROOTS:-}" ]]; then
+	diagnostic_roots=("${(@s/:/)CAR_FIGHT_DIAGNOSTIC_ROOTS}")
+else
+	diagnostic_roots=(
+		/Library/Logs/DiagnosticReports
+		"$HOME/Library/Logs/DiagnosticReports"
+	)
+fi
+
+report_epoch_from_text() {
+	local report_time_text="$1"
+	local report_time_without_fraction
+	report_time_without_fraction="$(print -r -- "$report_time_text" \
+		| sed 's/\.[0-9][0-9]* \([+-][0-9][0-9][0-9][0-9]\)$/ \1/')"
+	if [[ "$report_time_without_fraction" == *" +"* \
+			|| "$report_time_without_fraction" == *" -"* ]]; then
+		date -j -f '%Y-%m-%d %H:%M:%S %z' \
+			"$report_time_without_fraction" '+%s' 2>/dev/null || true
+	else
+		date -j -f '%Y-%m-%d %H:%M:%S' \
+			"$(print -r -- "$report_time_without_fraction" | cut -c1-19)" \
+			'+%s' 2>/dev/null || true
+	fi
+}
+
+find "${diagnostic_roots[@]}" -maxdepth 2 -type f \
+	-newer "$run_dir/started.marker" \
 	\( -name 'WindowServer*.ips' -o -name 'WindowServer*.spin' \
-		-o -name 'Godot*.ips' -o -name 'Godot*.spin' \) -print0 2>/dev/null \
+		-o -name 'Godot*.ips' -o -name 'Godot*.spin' \
+		-o -iname 'panic-full*.ips' -o -iname 'Kernel*.panic' \) \
+	-print0 2>/dev/null \
 	| while IFS= read -r -d '' report; do
 		report_time_text=""
 		case "$report" in
 			*.ips)
 				report_time_text="$(sed -n \
-					's/.*"captureTime" : "\([^"]*\)".*/\1/p' "$report" | head -1)"
+					's/.*"captureTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+					"$report" | head -1)"
+				if [[ -z "$report_time_text" ]]; then
+					report_time_text="$(sed -n \
+						's/.*"timestamp"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+						"$report" | head -1)"
+				fi
 				;;
 			*.spin)
 				report_time_text="$(sed -n \
@@ -36,9 +70,7 @@ find /Library/Logs/DiagnosticReports /Users/johnnguyen/Library/Logs/DiagnosticRe
 				;;
 		esac
 		if [[ "$start_epoch" == <-> && -n "$report_time_text" ]]; then
-			report_time_short="$(print -r -- "$report_time_text" | cut -c1-19)"
-			report_epoch="$(date -j -f '%Y-%m-%d %H:%M:%S' \
-				"$report_time_short" '+%s' 2>/dev/null || true)"
+			report_epoch="$(report_epoch_from_text "$report_time_text")"
 			if [[ "$report_epoch" == <-> ]] && (( report_epoch < start_epoch )); then
 				continue
 			fi
@@ -72,7 +104,7 @@ ioreg -l -w 0 -r -c IOAccelerator \
 	> "$run_dir/ioaccelerator-recovered.txt" 2>&1 || true
 start_windowserver_pid="$(sed -n 's/^windowserver_pid_start=//p' \
 	"$run_dir/metadata.txt" | head -1)"
-recovered_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
+recovered_windowserver_pid="$(pgrep -x WindowServer 2>/dev/null | head -1 || true)"
 server_pid="$(sed -n 's/^server_pid=//p' "$run_dir/metadata.txt" | head -1)"
 client_pid="$(sed -n 's/^client_pid=//p' "$run_dir/metadata.txt" | head -1)"
 server_alive=0
@@ -84,7 +116,13 @@ if [[ "$client_pid" == <-> ]] && kill -0 "$client_pid" >/dev/null 2>&1; then
 	client_alive=1
 fi
 collector_state="collected"
-if [[ "$start_windowserver_pid" == <-> && "$recovered_windowserver_pid" == <-> \
+panic_report_count="$(find "$reports_dir" -type f \
+	\( -iname 'panic-full*.ips' -o -iname 'Kernel*.panic' \) \
+	| wc -l | tr -d ' ')"
+if (( panic_report_count > 0 )); then
+	collector_state="kernel-panic"
+	print -r -- "$collector_state" > "$run_dir/state"
+elif [[ "$start_windowserver_pid" == <-> && "$recovered_windowserver_pid" == <-> \
 		&& "$start_windowserver_pid" != "$recovered_windowserver_pid" ]]; then
 	collector_state="windowserver-restarted"
 	print -r -- "$collector_state" > "$run_dir/state"
@@ -95,12 +133,25 @@ fi
 	echo "server_alive_at_collection=$server_alive"
 	echo "client_alive_at_collection=$client_alive"
 	echo "report_count=$(find "$reports_dir" -type f | wc -l | tr -d ' ')"
+	echo "panic_report_count=$panic_report_count"
 	echo "collector_state=$collector_state"
 } >> "$run_dir/metadata.txt"
 if command -v rg >/dev/null 2>&1; then
 	{
+		echo "collector_state=$collector_state"
+		echo "panic_report_count=$panic_report_count"
 		rg -n -m 30 '"incident"|"captureTime"|"thermalPressureLevel"|"displayState"|VBlank|DisplayID|FB RegID' \
-			"$reports_dir" 2>/dev/null || true
+			"$reports_dir" -g '!panic-full*.ips' 2>/dev/null || true
+		find "$reports_dir" -type f \
+			\( -iname 'panic-full*.ips' -o -iname 'Kernel*.panic' \) \
+			-print0 2>/dev/null \
+			| while IFS= read -r -d '' report; do
+				echo "kernel_panic_report=$report"
+				rg -o '"incident_id":"[^"]+"|"timestamp":"[^"]+"|"bug_type":"[^"]+"' \
+					"$report" 2>/dev/null | sed -n '1,6p' || true
+				rg -o 'Submission on work queue [0-9]+ failed due to insufficient space|@IGGuC\.cpp:[0-9]+|pid [0-9]+: Godot' \
+					"$report" 2>/dev/null | sed -n '1,6p' || true
+			done
 		find "$reports_dir" -type f -name '*.spin' -print0 2>/dev/null \
 			| while IFS= read -r -d '' report; do
 				awk '

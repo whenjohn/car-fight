@@ -160,7 +160,33 @@ This is a clean harness smoke test only: the powered-off panel makes it neither
 an active-display windowed baseline nor evidence about fullscreen behavior.
 Evidence: `/Users/macai2/Projects/car-fight-mac-intel-fullscreen/.crash-runs/20260814-175603`.
 
-Relevant project settings across the five incidents:
+On 2026-08-14 at commit `80a3b96`, the explicitly approved
+`vulkan-runtime-vsync` spike tested Godot 4.7.1 Forward Mobile through Vulkan
+1.2.334/MoltenVK on the Intel Iris Plus. The user directed the test to proceed
+without the recommended whole-Mac reboot. MoltenVK emitted repeated
+`VK_ERROR_INITIALIZATION_FAILED` compute-pipeline failures (`AIR builtin
+function was called but no definition was found`) during startup. Client
+telemetry began windowed at 21:27:48 and confirmed true 2880 x 1800 fullscreen
+at 21:28:02. Telemetry then stopped. The client became uninterruptible and
+remained stuck while exiting after both TERM and KILL.
+
+WindowServer watchdog incidents `A39EB366-2B40-4BF7-9879-EEB012DC29AF` at
+21:28:48 and `5890FC83-F463-4215-8540-BA8AEFE51444` at 21:29:28 both recorded
+moderate thermal pressure and `displayState: OFF`. Their spins captured server
+Godot PID 60672 and client PID 60674; the second labeled the client suspended
+and zombie. At 21:30:22 the Mac then suffered a full kernel panic:
+`Submission on work queue 40 failed due to insufficient space` at
+`IGGuC.cpp:3127`. The panicked task was Godot PID 60674, and the backtrace named
+`AppleIntelICLGraphics` and `IOAcceleratorFamily2`. Compressor use was 6%, swap
+was healthy, and the report explicitly names the Intel GPU submission work
+queue, so "insufficient space" is not evidence of system RAM exhaustion. The
+live pre-crash log contained zero `Invalid actual_host_time` messages; 69 such
+messages appeared only under the replacement WindowServer after reboot.
+Vulkan/MoltenVK is therefore a distinct and more severe Intel graphics failure,
+not a viable fullscreen workaround. Evidence:
+`/Users/johnnguyen/Projects/car-fight-mac-intel-fullscreen/.fullscreen-spike-runs/20260814-212728`.
+
+Relevant project settings across the five earlier native-OpenGL watchdog incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
 - 1280 x 720 viewport/window override
@@ -181,7 +207,7 @@ Godot 4.7 reports these available macOS rendering drivers on this machine: `vulk
 7. `--deep-capture` preserves recent sleep/wake history plus synchronized display, framebuffer, accelerator, memory, process-thread, and Godot stack snapshots at start, at the first invalid display timestamp, at client exit, and after observation. A fullscreen deep run defaults to watching WindowServer for 90 seconds after Godot exits; this can be overridden with `--post-exit-seconds`.
 8. Only after this capture path works headlessly should another rendered run be requested, and it still requires the user's explicit approval.
 
-`./scripts/collect_crash_run.sh` attaches WindowServer/Godot `.ips` and `.spin` files whose embedded capture time follows the run start, recovers the matching historical unified log, snapshots the recovered display state, writes short pre-failure tails, records whether either exact Godot PID survived, and classifies a changed WindowServer PID as `windowserver-restarted`. Embedded-time filtering matters because macOS can later add submission metadata to an old report and change its file modification time without creating a new incident. The launcher also honors the recovered WindowServer PID when its own final process lookup is unavailable after session recovery. The normal and deep paths pass the safe headless simulated-stall test; the complete project suite passes.
+`./scripts/collect_crash_run.sh` attaches WindowServer/Godot `.ips` and `.spin` files plus nested macOS/BridgeOS kernel-panic reports whose embedded capture time follows the run start, recovers the matching historical unified log, snapshots the recovered display state, writes short pre-failure tails, records whether either exact Godot PID survived, and classifies a kernel panic ahead of a changed WindowServer PID. Embedded-time filtering matters because macOS can later add submission metadata to an old report and change its file modification time without creating a new incident. The launcher also honors the recovered WindowServer PID when its own final process lookup is unavailable after session recovery. The collector has a synthetic nested-panic regression; the normal and deep monitor paths pass the safe headless simulated-stall test.
 
 `./scripts/crash_monitor_test.sh` is the safe fault-injection test. It uses `--fake-stall`, which is rejected unless the client is headless, pauses only Godot's main thread for seven seconds, then verifies that telemetry resumes and that the external watcher captured a real process stack. Do not test the monitor by exhausting GPU buffers, repeatedly changing display modes, killing WindowServer, or manufacturing thermal pressure; those approaches risk reproducing the system disruption and make the evidence harder to interpret.
 
@@ -191,7 +217,7 @@ The native-OpenGL windowed/fullscreen comparison is complete: windowed ran clean
 
 Do not intentionally reproduce the crash solely to gather these items. After reboot/login:
 
-1. Preserve the newest WindowServer `.ips` and matching `.spin` paths from `/Library/Logs/DiagnosticReports/`.
+1. Preserve the newest WindowServer `.ips` and matching `.spin` paths, plus any matching nested `ProxiedDevice-Bridge/panic-full*.ips`, from `/Library/Logs/DiagnosticReports/`.
 2. Record the exact wall-clock crash time, what was visible, whether the game had focus, whether the display dimmed/turned off, and approximately how long the client had been open.
 3. Record the current commit with `git rev-parse HEAD` and whether the client was launched by `./scripts/play.sh`, the editor, or another command.
 4. In the `.spin`, find all Godot process blocks and record PID, time since fork, footprint, CPU time, and main-thread stack.
@@ -214,6 +240,6 @@ If the user later chooses to investigate experimentally, use one variable at a t
 1. Keep ordinary development tests windowed through `play_monitored.sh`; do not enter fullscreen. This mode completed the controlled baseline without the display-error signature.
 2. Do not repeat native-OpenGL fullscreen merely to reconfirm it. The controlled run already reproduced the failure and captured sufficient evidence.
 3. Do not repeat the ANGLE fullscreen comparison. It produced the same invalid-display-timestamp precursor within the first telemetry second.
-4. Consider Vulkan/MoltenVK only as a separately approved future diagnostic. Change shadows, frame limits, and individual effects in later separate tests rather than bundling them with the renderer change.
+4. Do not repeat Vulkan/MoltenVK. Its first fullscreen probe wedged the Intel graphics stack and caused a full kernel panic. The next separately approved diagnostic, if any, is the 60 FPS native-OpenGL pacing approach; change only one pacing variable per boot.
 
-Every rendered test requires explicit user approval because fullscreen native OpenGL has now coincided with five system-level WindowServer restarts/crashes, including controlled minimal reproductions, even though several intervening approved runs ended normally. A probe must not be treated as safe merely because Godot was stopped after the precursor; the fifth watchdog occurred afterward.
+Every rendered test requires explicit user approval because true fullscreen has now produced repeated native-OpenGL WindowServer failures and a Vulkan Intel-graphics kernel panic. A probe must not be treated as safe merely because Godot was stopped or killed; one OpenGL watchdog occurred after both Godot processes exited, and the Vulkan panic occurred after its client was already stuck exiting.
