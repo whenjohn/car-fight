@@ -22,6 +22,24 @@ if rg -n 'ext_resource.*path="res://(?!Main\.gd)' "$control_root/Main.tscn" -P; 
 	echo "RENDER_BISECT_TEST FAIL non-control resource referenced" >&2
 	exit 1
 fi
+if [[ -L "$control_root/CarFightJeep.fbx" \
+		|| ! -f "$control_root/CarFightJeep.fbx" ]]; then
+	echo "RENDER_BISECT_TEST FAIL Stage 1 Jeep must be a regular file" >&2
+	exit 1
+fi
+if ! cmp -s "$control_root/CarFightJeep.fbx" \
+		"$project_root/assets/ground_vehicle/Jeep.fbx"; then
+	echo "RENDER_BISECT_TEST FAIL Stage 1 Jeep must match the car-fight source bytes" >&2
+	exit 1
+fi
+
+"$godot_bin" --headless --path "$control_root" --editor --quit \
+	> "$test_dir/import-preflight.log" 2>&1
+if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Import failed' \
+		"$test_dir/import-preflight.log"; then
+	cat "$test_dir/import-preflight.log" >&2
+	exit 1
+fi
 
 CAR_FIGHT_BISECT_TELEMETRY="$test_dir/telemetry.jsonl" \
 	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS=2 \
@@ -39,6 +57,30 @@ for event in stage0_start stage0_sample stage0_stop; do
 	fi
 done
 
+CAR_FIGHT_BISECT_STAGE=stage1-jeep \
+	CAR_FIGHT_BISECT_TELEMETRY="$test_dir/stage1-telemetry.jsonl" \
+	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS=2 \
+	"$godot_bin" --headless --path "$control_root" \
+		> "$test_dir/stage1-godot.log" 2>&1
+if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Stage 1 could not' \
+		"$test_dir/stage1-godot.log"; then
+	cat "$test_dir/stage1-godot.log" >&2
+	exit 1
+fi
+for event in stage1_start stage1_sample stage1_stop; do
+	if ! rg -q "\"event\":\"$event\"" "$test_dir/stage1-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL missing Stage 1 telemetry event: $event" >&2
+		exit 1
+	fi
+done
+for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
+		'"jeep_surfaces":8' '"stage":"stage1-jeep"'; do
+	if ! rg -q -F "$expected" "$test_dir/stage1-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL Stage 1 telemetry missing: $expected" >&2
+		exit 1
+	fi
+done
+
 dry_output="$($runner run stage0-control --dry-run --seconds 12)"
 for expected in '--rendering-driver opengl3' '--windowed' \
 		"--path $control_root" 'fullscreen_entry=manual' \
@@ -48,6 +90,13 @@ for expected in '--rendering-driver opengl3' '--windowed' \
 		exit 1
 	fi
 done
+stage1_output="$($runner run stage1-jeep --dry-run --seconds 12)"
+if [[ "$stage1_output" != *'stage=stage1-jeep'* \
+		|| "$stage1_output" != *'--windowed'* \
+		|| "$stage1_output" != *'asset_import_preflight=headless'* ]]; then
+	echo "RENDER_BISECT_TEST FAIL incomplete Stage 1 dry run" >&2
+	exit 1
+fi
 fullscreen_output="$($runner run stage0-control --dry-run --startup-fullscreen --seconds 12)"
 for expected in '--fullscreen' 'fullscreen_entry=startup'; do
 	if [[ "$fullscreen_output" != *"$expected"* ]]; then

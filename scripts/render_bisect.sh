@@ -14,10 +14,12 @@ print_stages() {
 Render-isolation stages:
 
   stage0-control   Clean project, OpenGL Compatibility, engine primitives only
+  stage1-jeep      Stage 0 plus raw car-fight Jeep mesh and embedded materials
 
 Stage 0 starts windowed. Enter fullscreen manually from the Godot window so the
 entry path matches the known-good comparison. No car-fight assets or gameplay
-are loaded by this stage.
+are loaded by Stage 0. Stage 1 loads only the raw Jeep presentation asset;
+shadows, physics, controls, animation, effects, and gameplay remain absent.
 EOF
 }
 
@@ -25,8 +27,8 @@ usage() {
 	cat <<'EOF'
 Usage:
   ./scripts/render_bisect.sh list
-  ./scripts/render_bisect.sh run stage0-control --dry-run [--seconds N]
-  ./scripts/render_bisect.sh run stage0-control --accept-crash-risk \
+  ./scripts/render_bisect.sh run STAGE --dry-run [--seconds N]
+  ./scripts/render_bisect.sh run STAGE --accept-crash-risk \
     [--startup-fullscreen] [--seconds N]
 
 A real rendered run can trigger the Intel display-driver failure. Save work and
@@ -74,7 +76,7 @@ while (( $# > 0 )); do
 	esac
 done
 
-if [[ "$stage" != "stage0-control" ]]; then
+if [[ "$stage" != "stage0-control" && "$stage" != "stage1-jeep" ]]; then
 	echo "unknown render-isolation stage: $stage" >&2
 	print_stages >&2
 	exit 2
@@ -109,6 +111,9 @@ echo "duration_seconds=$run_seconds"
 echo "post_fullscreen_watch_seconds=$post_exit_seconds"
 echo "fullscreen_entry=$fullscreen_entry"
 echo "control_project=$control_root"
+if [[ "$stage" == "stage1-jeep" ]]; then
+	echo "asset_import_preflight=headless"
+fi
 echo "command=${(q-)command}"
 if (( dry_run == 1 )); then
 	exit 0
@@ -153,6 +158,17 @@ windowserver_pid_start="$(pgrep -x WindowServer | head -1 || true)"
 } > "$run_dir/metadata.txt"
 print -r -- "running" > "$run_dir/state"
 
+if [[ "$stage" == "stage1-jeep" ]]; then
+	"$godot_bin" --headless --path "$control_root" --editor --quit \
+		> "$run_dir/import-preflight.log" 2>&1
+	if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Import failed' \
+			"$run_dir/import-preflight.log"; then
+		print -r -- "import-error" > "$run_dir/state"
+		cat "$run_dir/import-preflight.log" >&2
+		exit 1
+	fi
+fi
+
 "$project_root/scripts/capture_display_snapshot.sh" \
 	"$run_dir" before "$windowserver_pid_start" >/dev/null 2>&1 || true
 
@@ -163,6 +179,7 @@ log_pid=$!
 
 CAR_FIGHT_BISECT_TELEMETRY="$run_dir/client.telemetry.jsonl" \
 	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS="$run_seconds" \
+	CAR_FIGHT_BISECT_STAGE="$stage" \
 	"${command[@]}" > "$run_dir/client.log" 2>&1 &
 client_pid=$!
 echo "client_pid=$client_pid" >> "$run_dir/metadata.txt"

@@ -1,9 +1,15 @@
 extends Node3D
-## Clean-room rendering control made only from Godot engine primitives.
+## Clean-room rendering ladder. Stage 0 uses only engine primitives; later
+## stages add one explicitly selected car-fight presentation variable at a time.
 
 const SAMPLE_INTERVAL_SECONDS := 1.0
+const STAGE0 := "stage0-control"
+const STAGE1 := "stage1-jeep"
 
 var _telemetry: FileAccess
+var _stage := STAGE0
+var _event_prefix := "stage0"
+var _stage_details := {}
 var _started_msec := 0
 var _sample_elapsed := 0.0
 var _last_window_mode := -1
@@ -12,12 +18,20 @@ var _quit_requested := false
 
 
 func _ready() -> void:
-	_build_control_scene()
+	if not _configure_stage():
+		get_tree().quit(2)
+		return
+	_open_telemetry()
+	if not _build_control_scene():
+		_write_record("%s_asset_load_failed" % _event_prefix, {})
+		get_tree().quit(2)
+		return
 	_started_msec = Time.get_ticks_msec()
 	_last_window_mode = int(DisplayServer.window_get_mode())
 	_configure_auto_quit()
-	_open_telemetry()
-	_write_record("stage0_start", _display_state())
+	var start := _display_state()
+	start.merge(_stage_details)
+	_write_record("%s_start" % _event_prefix, start)
 
 
 func _process(delta: float) -> void:
@@ -40,7 +54,7 @@ func _process(delta: float) -> void:
 			Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
 		sample["draw_calls"] = Performance.get_monitor(
 			Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
-		_write_record("stage0_sample", sample)
+		_write_record("%s_sample" % _event_prefix, sample)
 	_service_auto_quit()
 
 
@@ -54,13 +68,13 @@ func _notification(what: int) -> void:
 
 
 func _exit_tree() -> void:
-	_write_record("stage0_stop", {})
+	_write_record("%s_stop" % _event_prefix, {})
 	if _telemetry != null:
 		_telemetry.close()
 		_telemetry = null
 
 
-func _build_control_scene() -> void:
+func _build_control_scene() -> bool:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color("182235")
@@ -90,6 +104,13 @@ func _build_control_scene() -> void:
 	ground.mesh = plane
 	add_child(ground)
 
+	if _stage == STAGE1:
+		return _add_jeep()
+	_add_control_box()
+	return true
+
+
+func _add_control_box() -> void:
 	var marker := MeshInstance3D.new()
 	var box := BoxMesh.new()
 	box.size = Vector3(2.0, 1.0, 3.0)
@@ -99,11 +120,58 @@ func _build_control_scene() -> void:
 	add_child(marker)
 
 
+func _add_jeep() -> bool:
+	var resource := load("res://CarFightJeep.fbx") as PackedScene
+	if resource == null:
+		push_error("Stage 1 could not load the car-fight Jeep source")
+		return false
+	var jeep := resource.instantiate() as Node3D
+	if jeep == null:
+		push_error("Stage 1 could not instantiate the car-fight Jeep source")
+		return false
+	jeep.name = "CarFightJeepPresentation"
+	jeep.scale = Vector3.ONE * 0.45
+	jeep.rotation.y = PI
+	jeep.position = Vector3(0.0, 0.065, -0.05)
+	add_child(jeep)
+	var meshes := jeep.find_children("*", "MeshInstance3D", true, false)
+	if meshes.is_empty():
+		push_error("Stage 1 Jeep source contains no mesh instances")
+		jeep.queue_free()
+		return false
+	var surface_count := 0
+	for child in meshes:
+		var mesh_instance := child as MeshInstance3D
+		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if mesh_instance.mesh != null:
+			surface_count += mesh_instance.mesh.get_surface_count()
+	_stage_details = {
+		"jeep_mesh_instances": meshes.size(),
+		"jeep_surfaces": surface_count,
+		"jeep_shadows": false,
+	}
+	return true
+
+
 func _material(color: Color) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = 0.8
 	return material
+
+
+func _configure_stage() -> bool:
+	var requested := OS.get_environment("CAR_FIGHT_BISECT_STAGE")
+	if requested.is_empty() or requested == STAGE0:
+		_stage = STAGE0
+		_event_prefix = "stage0"
+		return true
+	if requested == STAGE1:
+		_stage = STAGE1
+		_event_prefix = "stage1"
+		return true
+	push_error("Unknown render-isolation stage: %s" % requested)
+	return false
 
 
 func _configure_auto_quit() -> void:
@@ -139,6 +207,7 @@ func _write_record(event: String, data: Dictionary) -> void:
 		return
 	var record := data.duplicate()
 	record["event"] = event
+	record["stage"] = _stage
 	record["pid"] = OS.get_process_id()
 	record["monotonic_msec"] = Time.get_ticks_msec()
 	record["unix_time"] = Time.get_unix_time_from_system()

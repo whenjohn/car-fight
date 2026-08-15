@@ -49,12 +49,31 @@ The project itself has no display override in either case. Evidence is kept
 under `.render-bisect-runs/`. Test one stage per boot because an Intel
 display-driver failure can outlive the Godot process.
 
-## Planned additions
+## Stage 1: car-fight Jeep presentation
+
+`stage1-jeep` replaces the Stage 0 box with a byte-identical copy of the raw
+car-fight `assets/ground_vehicle/Jeep.fbx` source. The FBX contributes one mesh
+instance and its eight embedded color-material surfaces. Stage 1 does not load
+the vehicle hull or mesh-splitting scripts and adds no collision, physics,
+controls, wheel animation, weapons, effects, networking, or gameplay. Both the
+directional light and the Jeep mesh have shadow casting disabled.
+
+The launcher performs a headless asset-import preflight before any future
+rendered Stage 1 run. Inspect its command without opening a window:
+
+```sh
+./scripts/render_bisect.sh run stage1-jeep --dry-run \
+  --startup-fullscreen --seconds 30
+```
+
+The Stage 1 rendered probe has not been run and still requires explicit
+crash-risk approval in a fresh boot/session.
+
+## Remaining additions
 
 Each later stage changes one car-fight-owned variable and keeps everything else
 fixed:
 
-1. Add only the car-fight Jeep presentation mesh.
 2. Add the car-fight 1280×720 window/viewport override.
 3. Add the car-fight canvas-items stretch setting.
 4. Add car-fight lighting and shadow settings.
