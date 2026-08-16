@@ -282,6 +282,25 @@ the pack's FBX/export pipeline and the general imported-vehicle rendering path.
 Evidence:
 `/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260816-001123-stage1-pickup-one-surface`.
 
+Later on 2026-08-16 at commit `d88aaf3`, the explicitly approved
+`stage1-kenney-garbage-truck-one-surface` control used an unrelated static GLB
+from Kenney's CC0 Car Kit 3.1. The stage baked its body and six wheel nodes into
+one flat-material surface with 4,912 vertices, 9,372 indices (3,124 triangles),
+and zero invalid attributes or indices. The client entered true 2880 x 1800
+native-OpenGL fullscreen, gained focus, rendered with two total draw calls and
+3,126 total primitives, and exited normally after 30 seconds. WindowServer
+emitted 631 `Invalid actual_host_time` errors for DisplayID `0x4280f40` from
+10:20:27.614 through 10:20:38.116; the window lost focus about 0.56 seconds
+later. No framebuffer-not-ready event, real VBlank timeout, GPU reset,
+event-port death, watchdog, panic, or crash report appeared. WindowServer
+remained PID 52286 through the full 360-second post-exit watch. This was another
+precursor-only observation, not an incident, but it rules the Jeep, Daniel
+Quevedo pack, FBX format/export pipeline, embedded materials, surface
+subdivision, and high draw count out as required activators. The remaining
+useful split is imported vehicle attributes versus a comparable non-imported
+procedural mesh workload. Evidence:
+`/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260816-102017-stage1-kenney-garbage-truck-one-surface`.
+
 Relevant project settings across the five earlier native-OpenGL watchdog incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

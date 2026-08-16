@@ -221,6 +221,23 @@ required. If it remains clean, the same Kenney geometry is available as FBX for
 a controlled format split. The user's approval covers one bounded rendered
 Garbage Truck probe with the 360-second post-exit watch.
 
+The approved probe ran at commit `d88aaf3`. The client entered true 2880 x 1800
+native-OpenGL fullscreen, gained focus, rendered the single merged truck surface
+with two total draw calls and 3,126 total primitives, and exited normally after
+30 seconds. WindowServer emitted 631 `Invalid actual_host_time` warnings for
+DisplayID `0x4280f40` from 10:20:27.614 through 10:20:38.116. The client lost
+focus about 0.56 seconds later. No framebuffer-not-ready event, real VBlank
+timeout, GPU reset, event-port death, watchdog, panic, or crash report appeared,
+and WindowServer remained PID 52286 through the full 360-second post-exit watch.
+Evidence:
+`.render-bisect-runs/20260816-102017-stage1-kenney-garbage-truck-one-surface`.
+
+This reproduces the precursor with an unrelated creator, pack, GLB format, and
+UnityGLTF export. The Jeep, Daniel Quevedo asset pack, FBX pipeline, embedded
+materials, surface subdivision, and high draw count are therefore not required.
+The next useful control is a non-imported procedural mesh at roughly the same
+3,124-triangle workload, still collapsed to one surface and one plain material.
+
 ## Remaining additions
 
 Each later stage changes one car-fight-owned variable and keeps everything else
