@@ -16,6 +16,8 @@ Render-isolation stages:
   stage0-control   Clean project, OpenGL Compatibility, engine primitives only
   stage1-jeep      Stage 0 plus raw car-fight Jeep mesh and embedded materials
   stage1-jeep-flat Same Jeep geometry/eight surfaces with one plain material
+  stage1-jeep-one-surface
+                    Same Jeep vertices/indices merged to one plain surface
 
 Stage 0 starts windowed. Enter fullscreen manually from the Godot window so the
 entry path matches the known-good comparison. No car-fight assets or gameplay
@@ -78,7 +80,8 @@ while (( $# > 0 )); do
 done
 
 if [[ "$stage" != "stage0-control" && "$stage" != "stage1-jeep" \
-		&& "$stage" != "stage1-jeep-flat" ]]; then
+		&& "$stage" != "stage1-jeep-flat" \
+		&& "$stage" != "stage1-jeep-one-surface" ]]; then
 	echo "unknown render-isolation stage: $stage" >&2
 	print_stages >&2
 	exit 2

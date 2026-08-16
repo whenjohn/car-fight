@@ -106,6 +106,26 @@ calls, so the next Jeep-only split is to rebuild the same geometry as one
 surface with one material. That will isolate surface/draw submission count from
 the Jeep's vertex/index geometry.
 
+### Jeep one-surface isolation
+
+`stage1-jeep-one-surface` loads the same byte-identical FBX and uses Godot's
+engine mesh builder to append all eight triangle surfaces into one `ArrayMesh`
+surface. Headless telemetry verifies that the source and rendered mesh both
+contain exactly 1,323 vertices and 2,118 indices while the surface count changes
+from eight to one. It uses the same plain material, transform, camera, light,
+ground, and disabled shadows as `stage1-jeep-flat`.
+
+Inspect the prepared command without rendering:
+
+```sh
+./scripts/render_bisect.sh run stage1-jeep-one-surface --dry-run \
+  --startup-fullscreen --seconds 30
+```
+
+This variant has passed headless import and telemetry tests. Its rendered probe
+is the direct test of whether the Jeep's surface/draw subdivision is required
+to activate the display-timestamp warning.
+
 ## Remaining additions
 
 Each later stage changes one car-fight-owned variable and keeps everything else

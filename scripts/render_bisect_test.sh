@@ -75,7 +75,8 @@ for event in stage1_start stage1_sample stage1_stop; do
 done
 for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
 		'"jeep_material_mode":"embedded"' '"jeep_material_override":false' \
-		'"jeep_surfaces":8' '"stage":"stage1-jeep"'; do
+		'"jeep_geometry_mode":"source_surfaces"' '"jeep_surfaces":8' \
+		'"stage":"stage1-jeep"'; do
 	if ! rg -q -F "$expected" "$test_dir/stage1-telemetry.jsonl"; then
 		echo "RENDER_BISECT_TEST FAIL Stage 1 telemetry missing: $expected" >&2
 		exit 1
@@ -100,9 +101,39 @@ for event in stage1flat_start stage1flat_sample stage1flat_stop; do
 done
 for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
 		'"jeep_material_mode":"flat_override"' '"jeep_material_override":true' \
-		'"jeep_surfaces":8' '"stage":"stage1-jeep-flat"'; do
+		'"jeep_geometry_mode":"source_surfaces"' '"jeep_surfaces":8' \
+		'"stage":"stage1-jeep-flat"'; do
 	if ! rg -q -F "$expected" "$test_dir/stage1-flat-telemetry.jsonl"; then
 		echo "RENDER_BISECT_TEST FAIL flat Jeep telemetry missing: $expected" >&2
+		exit 1
+	fi
+done
+
+CAR_FIGHT_BISECT_STAGE=stage1-jeep-one-surface \
+	CAR_FIGHT_BISECT_TELEMETRY="$test_dir/stage1-one-telemetry.jsonl" \
+	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS=2 \
+	"$godot_bin" --headless --path "$control_root" \
+		> "$test_dir/stage1-one-godot.log" 2>&1
+if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Stage 1 could not|One-surface Jeep' \
+		"$test_dir/stage1-one-godot.log"; then
+	cat "$test_dir/stage1-one-godot.log" >&2
+	exit 1
+fi
+for event in stage1one_start stage1one_sample stage1one_stop; do
+	if ! rg -q "\"event\":\"$event\"" "$test_dir/stage1-one-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL missing one-surface Jeep event: $event" >&2
+		exit 1
+	fi
+done
+for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
+		'"jeep_material_mode":"flat_override"' '"jeep_material_override":true' \
+		'"jeep_geometry_mode":"one_surface"' '"jeep_geometry_counts_preserved":true' \
+		'"jeep_source_surfaces":8' '"jeep_surfaces":1' \
+		'"jeep_source_vertices":1323' '"jeep_vertices":1323' \
+		'"jeep_source_indices":2118' '"jeep_indices":2118' \
+		'"stage":"stage1-jeep-one-surface"'; do
+	if ! rg -q -F "$expected" "$test_dir/stage1-one-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL one-surface Jeep telemetry missing: $expected" >&2
 		exit 1
 	fi
 done
@@ -128,6 +159,13 @@ if [[ "$stage1_flat_output" != *'stage=stage1-jeep-flat'* \
 		|| "$stage1_flat_output" != *'--windowed'* \
 		|| "$stage1_flat_output" != *'asset_import_preflight=headless'* ]]; then
 	echo "RENDER_BISECT_TEST FAIL incomplete flat Jeep dry run" >&2
+	exit 1
+fi
+stage1_one_output="$($runner run stage1-jeep-one-surface --dry-run --seconds 12)"
+if [[ "$stage1_one_output" != *'stage=stage1-jeep-one-surface'* \
+		|| "$stage1_one_output" != *'--windowed'* \
+		|| "$stage1_one_output" != *'asset_import_preflight=headless'* ]]; then
+	echo "RENDER_BISECT_TEST FAIL incomplete one-surface Jeep dry run" >&2
 	exit 1
 fi
 fullscreen_output="$($runner run stage0-control --dry-run --startup-fullscreen --seconds 12)"

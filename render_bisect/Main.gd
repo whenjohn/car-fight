@@ -6,6 +6,7 @@ const SAMPLE_INTERVAL_SECONDS := 1.0
 const STAGE0 := "stage0-control"
 const STAGE1 := "stage1-jeep"
 const STAGE1_FLAT := "stage1-jeep-flat"
+const STAGE1_ONE_SURFACE := "stage1-jeep-one-surface"
 
 var _telemetry: FileAccess
 var _stage := STAGE0
@@ -105,8 +106,8 @@ func _build_control_scene() -> bool:
 	ground.mesh = plane
 	add_child(ground)
 
-	if _stage == STAGE1 or _stage == STAGE1_FLAT:
-		return _add_jeep(_stage == STAGE1_FLAT)
+	if _stage == STAGE1 or _stage == STAGE1_FLAT or _stage == STAGE1_ONE_SURFACE:
+		return _add_jeep(_stage != STAGE1, _stage == STAGE1_ONE_SURFACE)
 	_add_control_box()
 	return true
 
@@ -121,7 +122,7 @@ func _add_control_box() -> void:
 	add_child(marker)
 
 
-func _add_jeep(use_flat_material: bool) -> bool:
+func _add_jeep(use_flat_material: bool, merge_surfaces: bool) -> bool:
 	var resource := load("res://CarFightJeep.fbx") as PackedScene
 	if resource == null:
 		push_error("Stage 1 could not load the car-fight Jeep source")
@@ -140,23 +141,68 @@ func _add_jeep(use_flat_material: bool) -> bool:
 		push_error("Stage 1 Jeep source contains no mesh instances")
 		jeep.queue_free()
 		return false
-	var surface_count := 0
+	var source_surface_count := 0
+	var source_vertex_count := 0
+	var source_index_count := 0
+	var rendered_surface_count := 0
+	var rendered_vertex_count := 0
+	var rendered_index_count := 0
 	var flat_material := _material(Color("4b9b55")) if use_flat_material else null
 	for child in meshes:
 		var mesh_instance := child as MeshInstance3D
 		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var source_mesh := mesh_instance.mesh
+		if source_mesh == null:
+			continue
+		source_surface_count += source_mesh.get_surface_count()
+		for surface in range(source_mesh.get_surface_count()):
+			source_vertex_count += source_mesh.surface_get_array_len(surface)
+			source_index_count += source_mesh.surface_get_array_index_len(surface)
+		if merge_surfaces:
+			var merged_mesh := _merge_mesh_surfaces(source_mesh)
+			if merged_mesh == null:
+				jeep.queue_free()
+				return false
+			mesh_instance.mesh = merged_mesh
 		if flat_material != null:
 			mesh_instance.material_override = flat_material
-		if mesh_instance.mesh != null:
-			surface_count += mesh_instance.mesh.get_surface_count()
+		var rendered_mesh := mesh_instance.mesh
+		rendered_surface_count += rendered_mesh.get_surface_count()
+		for surface in range(rendered_mesh.get_surface_count()):
+			rendered_vertex_count += rendered_mesh.surface_get_array_len(surface)
+			rendered_index_count += rendered_mesh.surface_get_array_index_len(surface)
 	_stage_details = {
+		"jeep_geometry_mode": "one_surface" if merge_surfaces else "source_surfaces",
+		"jeep_geometry_counts_preserved": (
+			source_vertex_count == rendered_vertex_count
+			and source_index_count == rendered_index_count),
+		"jeep_indices": rendered_index_count,
 		"jeep_mesh_instances": meshes.size(),
 		"jeep_material_mode": "flat_override" if use_flat_material else "embedded",
 		"jeep_material_override": use_flat_material,
-		"jeep_surfaces": surface_count,
+		"jeep_source_indices": source_index_count,
+		"jeep_source_surfaces": source_surface_count,
+		"jeep_source_vertices": source_vertex_count,
+		"jeep_surfaces": rendered_surface_count,
 		"jeep_shadows": false,
+		"jeep_vertices": rendered_vertex_count,
 	}
 	return true
+
+
+func _merge_mesh_surfaces(source: Mesh) -> ArrayMesh:
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for surface in range(source.get_surface_count()):
+		if source.surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES:
+			push_error("One-surface Jeep requires triangle source surfaces")
+			return null
+		tool.append_from(source, surface, Transform3D.IDENTITY)
+	var merged := tool.commit()
+	if merged == null or merged.get_surface_count() != 1:
+		push_error("One-surface Jeep merge did not create exactly one surface")
+		return null
+	return merged
 
 
 func _material(color: Color) -> StandardMaterial3D:
@@ -179,6 +225,10 @@ func _configure_stage() -> bool:
 	if requested == STAGE1_FLAT:
 		_stage = STAGE1_FLAT
 		_event_prefix = "stage1flat"
+		return true
+	if requested == STAGE1_ONE_SURFACE:
+		_stage = STAGE1_ONE_SURFACE
+		_event_prefix = "stage1one"
 		return true
 	push_error("Unknown render-isolation stage: %s" % requested)
 	return false
