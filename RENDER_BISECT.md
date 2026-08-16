@@ -172,9 +172,23 @@ Inspect the prepared command without rendering:
   --startup-fullscreen --seconds 30
 ```
 
-This is a same-author, same-pack, same-date, same-FBX-pipeline control for the
-Jeep-specific geometry hypothesis. A rendered probe still requires explicit
-crash-risk approval and uses the 360-second post-exit watch.
+The explicitly approved fullscreen probe ran for 30 seconds at commit
+`dceb711`. Telemetry confirmed true focused 2880 x 1800 native OpenGL, one
+rendered Pickup surface, two total draw calls, 562 primitives, 115-120 FPS, and
+a normal client exit. It produced 698 `Invalid actual_host_time` warnings for
+DisplayID `0x4280f40` from 00:11:32.291 through 00:11:44.043, followed by one
+framebuffer-not-ready event at 00:11:46.080. WindowServer remained PID 52286
+through the full 360-second post-exit watch, with no VBlank timeout, GPU reset,
+event-port death, watchdog, panic, or crash report. Evidence:
+`.render-bisect-runs/20260816-001123-stage1-pickup-one-surface`.
+
+This same-author, same-pack, same-date, same-FBX-pipeline control rules the
+Jeep's exact geometry out as a requirement for the precursor. It does not yet
+separate the shared FBX/export pipeline from the broader fact that both probes
+render imported vehicle meshes. The next control should use a static vehicle
+from a different creator and pack in a different format; Kenney's CC0 Car Kit
+`sedan.glb` is the selected candidate. A rendered probe still requires explicit
+crash-risk approval and the 360-second post-exit watch.
 
 ## Remaining additions
 

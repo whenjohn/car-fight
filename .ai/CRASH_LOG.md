@@ -265,6 +265,23 @@ not required activators. Its actual geometry or 706-triangle workload remains
 the controlled render difference. Evidence:
 `/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-233727-stage1-jeep-one-surface`.
 
+On 2026-08-16 at commit `dceb711`, the explicitly approved
+`stage1-pickup-one-surface` control replaced the Jeep with the Pickup from the
+same official Daniel Quevedo CC0 vehicle pack and FBX export while retaining
+one plain rendered surface, the same camera, light, ground, transform, and
+disabled shadows. True focused 2880 x 1800 native OpenGL ran for 30 seconds at
+115-120 FPS with two total draw calls and 562 primitives. WindowServer emitted
+698 `Invalid actual_host_time` errors for DisplayID `0x4280f40` from
+00:11:32.291 through 00:11:44.043 and the Intel framebuffer logged not ready at
+00:11:46.080. The client exited normally, WindowServer remained PID 52286
+through the full 360-second post-exit watch, and no VBlank timeout, GPU reset,
+event-port death, watchdog, panic, or crash report appeared. This was a
+precursor-only observation, not another incident, but it establishes that the
+Jeep's exact geometry is not required. The remaining shared variables include
+the pack's FBX/export pipeline and the general imported-vehicle rendering path.
+Evidence:
+`/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260816-001123-stage1-pickup-one-surface`.
+
 Relevant project settings across the five earlier native-OpenGL watchdog incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
