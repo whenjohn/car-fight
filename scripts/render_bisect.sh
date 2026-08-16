@@ -6,7 +6,7 @@ project_root="$(cd "$(dirname "$0")/.." && pwd)"
 control_root="$project_root/render_bisect"
 run_root="${CAR_FIGHT_RENDER_BISECT_ROOT:-$project_root/.render-bisect-runs}"
 godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
-post_exit_seconds="${CAR_FIGHT_RENDER_BISECT_POST_EXIT_SECONDS:-120}"
+post_exit_seconds="${CAR_FIGHT_RENDER_BISECT_POST_EXIT_SECONDS:-360}"
 action="${1:-list}"
 
 print_stages() {
@@ -90,8 +90,8 @@ if [[ "$run_seconds" != <-> ]] || (( run_seconds < 10 || run_seconds > 120 )); t
 	echo "--seconds must be an integer from 10 through 120" >&2
 	exit 2
 fi
-if [[ "$post_exit_seconds" != <-> ]] || (( post_exit_seconds > 300 )); then
-	echo "CAR_FIGHT_RENDER_BISECT_POST_EXIT_SECONDS must be 0 through 300" >&2
+if [[ "$post_exit_seconds" != <-> ]] || (( post_exit_seconds > 600 )); then
+	echo "CAR_FIGHT_RENDER_BISECT_POST_EXIT_SECONDS must be 0 through 600" >&2
 	exit 2
 fi
 if (( dry_run == 0 && accept_risk == 0 )); then

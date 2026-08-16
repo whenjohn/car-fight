@@ -126,9 +126,16 @@ The approved one-surface fullscreen probe ran for 30 seconds at commit
 `ce9aa1d`. Telemetry confirmed true focused 2880 x 1800 fullscreen, one rendered
 Jeep surface, two total draw calls, 708 primitives, and 120 FPS. It still
 produced 654 `Invalid actual_host_time` warnings for the same DisplayID plus one
-framebuffer-not-ready event. The client exited normally, WindowServer remained
-PID 213 through the 120-second watch, and no watchdog or crash report appeared.
-Evidence: `.render-bisect-runs/20260815-233727-stage1-jeep-one-surface`.
+framebuffer-not-ready event. The client exited normally at 23:38:05 and the
+original 120-second watch ended at 23:40:09, but the failure continued to build:
+additional framebuffer-not-ready events appeared at 23:40:45 and 23:41:59,
+followed by an Intel framebuffer VBlank timeout and WindowServer watchdog at
+23:42:44. WindowServer PID 213 was replaced by PID 52286. Incident
+`E166F533-99C6-4883-AF8D-A53879455C28` records the same DisplayID not ready,
+active/waiting on-glass transactions, `displayState: OFF`, and nominal thermal
+pressure. Godot had been gone for about 278 seconds and does not appear in the
+stackshot; no kernel panic occurred. Evidence:
+`.render-bisect-runs/20260815-233727-stage1-jeep-one-surface`.
 
 Surface/material subdivision and draw-call count are therefore not required to
 activate the warning: the Stage 0 control and this stage both use two total draw
@@ -137,6 +144,11 @@ difference is mesh geometry/workload: 708 total primitives here versus 14 in
 Stage 0. The next split should replace the Jeep with a newly generated,
 non-imported engine mesh matching its 1,323 vertices, 2,118 indices, 706
 triangles, one surface, and one plain material.
+
+Because this watchdog landed after the original post-exit monitor finished, the
+render-isolation launcher now watches WindowServer for 360 seconds after a
+fullscreen/precursor run. A clean client exit is not a safe boundary once the
+invalid-timestamp signature has appeared.
 
 ## Remaining additions
 

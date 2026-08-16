@@ -71,25 +71,37 @@ No renderer, lighting, shader, gameplay, or launch-script change has been made i
 - The report recorded `displayState: OFF` and nominal thermal pressure. This incident rules out heat as a required condition and shows that WindowServer can cross the watchdog boundary after the triggering fullscreen client has already exited.
 - A Stage 11 probe about one minute after the confirmed wake had shown the same precursor without player input. Stage 10 then proved that ENet/time synchronization is not required once the display session is affected. A later clean-order Stage 10-first probe, documented below, removed the remaining Stage 11 ordering concern and reproduced without ENet peers or traffic.
 
+### 2026-08-15 23:42:44 -0500 — one-surface Jeep delayed watchdog
+
+- Incident ID: `E166F533-99C6-4883-AF8D-A53879455C28`
+- Captured run: `.render-bisect-runs/20260815-233727-stage1-jeep-one-surface`
+- WindowServer report: `.render-bisect-runs/20260815-233727-stage1-jeep-one-surface/reports/WindowServer-2026-08-15-234244.ips`
+- Stackshot: `.render-bisect-runs/20260815-233727-stage1-jeep-one-surface/reports/WindowServer_2026-08-15-234250_JBook2.userspace_watchdog_timeout.spin`
+- Isolation revision: `ce9aa1d`. The clean project rendered the Jeep as one plain-material surface, preserving 1,323 vertices, 2,118 indices, and 706 Jeep triangles. The complete scene used two draw calls, matching Stage 0's draw count, with no physics, controls, animation, effects, networking, or gameplay.
+- True focused 2880 x 1800 fullscreen ran for 30 seconds. WindowServer emitted 654 invalid display timestamps from 23:37:36.365 through 23:37:47.284 and the Intel framebuffer first reported not ready at 23:37:49.320. Godot exited normally at 23:38:05.
+- After the original 120-second watcher ended at 23:40:09, framebuffer-not-ready events returned at 23:40:45.420 and 23:41:59.476. At 23:42:44.451—about 278 seconds after Godot exited—the Intel framebuffer logged a 51 ms VBlank timeout. WindowServer PID 213 was watchdog-killed and replaced by PID 52286.
+- The watchdog report names DisplayID `0x4280f40` / 69734208 not ready, framebuffer registry ID 4294968515, and active/waiting on-glass surface transactions. It records `displayState: OFF` and nominal thermal pressure. Godot was already gone and does not appear in the stackshot. No kernel panic report exists.
+- This is the strongest minimal reproduction so far. It rules embedded Jeep materials, multi-surface subdivision, high draw count, gameplay, and a live Godot process at the watchdog boundary out as requirements. The Jeep's actual geometry/primitive workload remains the controlled render difference from Stage 0.
+
 ## Shared system signature
 
 - Hardware: MacBookPro16,2, Intel Iris Plus Graphics, device `0x8a53`, up to 1536 MB.
 - OS: macOS 26.6.1, build 25G76.
 - Report type: WindowServer bug type 409, watchdog termination.
 - Watchdog reason: `monitoring timed out for service` and WindowServer was not alive.
-- Same affected display in all five reports: DisplayID `0x4280f40` / decimal 69734208.
-- Same framebuffer registry ID in all five reports: 4294968498.
+- Same affected display in all six reports: DisplayID `0x4280f40` / decimal 69734208.
+- The first five reports used framebuffer registry ID 4294968498; the sixth used 4294968515 in a later boot session. The stable identity is the built-in DisplayID, not a registry ID across boots.
 - IOKit associates framebuffer 4294968498 with `AppleBacklightDisplay`; it is the MacBook's built-in panel, not an external display.
 - WindowServer reported the display as not ready, with on-glass surfaces active/waiting.
-- All five reports recorded `displayState: OFF`.
-- All five failures followed a fullscreen game session. The controlled comparison at `ba96b6d` kept build, renderer, scene, and launch arrangement constant: windowed remained clean for 423 seconds, while fullscreen immediately produced thousands of invalid display timestamps and reproduced the watchdog after 192 seconds. In the fifth incident both Godot processes had exited before the delayed WindowServer watchdog. No known windowed play session has produced this failure.
+- All six reports recorded `displayState: OFF`.
+- All six failures followed a fullscreen game session. The controlled comparison at `ba96b6d` kept build, renderer, scene, and launch arrangement constant: windowed remained clean for 423 seconds, while fullscreen immediately produced thousands of invalid display timestamps and reproduced the watchdog after 192 seconds. In both the fifth and sixth incidents Godot had exited before the delayed WindowServer watchdog. No known windowed play session has produced this failure.
 - Thermal pressure varied across the incidents: moderate on August 11, nominal at 03:24 on August 13, and heavy for both later August 13 reports. Heat may have contributed to the later events, but it is not required by the shared failure signature.
-- Unified logs around the failures show `AppleIntelICLLPGraphicsFramebuffer` repeatedly reading and setting the built-in display mode. The third, fourth, and fifth incidents additionally captured an explicit framebuffer VBlank timeout at the failure boundary.
+- Unified logs around the failures show `AppleIntelICLLPGraphicsFramebuffer` repeatedly reading and setting the built-in display mode. The third through sixth incidents additionally captured an explicit framebuffer VBlank timeout at the failure boundary.
 - Neither Godot process showed runaway CPU use or an extreme memory footprint.
 
 ## Current assessment
 
-The game cannot directly terminate WindowServer, and the reports do not identify a specific GDScript or draw call. However, five nearly identical watchdog failures with the same fullscreen presentation path, framebuffer, and built-in display state make coincidence unlikely. Time to failure varies, so a fixed countdown is not part of the shared signature.
+The game cannot directly terminate WindowServer, and the reports do not identify a specific GDScript or draw call. However, six nearly identical watchdog failures with the same fullscreen presentation path, built-in DisplayID, and display state make coincidence unlikely. Time to failure varies, so a fixed countdown is not part of the shared signature.
 
 Treat fullscreen native-OpenGL presentation on this Intel Mac as the reproducible trigger condition for an operating-system/graphics-driver deadlock. The evidence does not yet distinguish a Godot fullscreen integration defect from a macOS 26.6.1 or Intel driver defect, and Godot 4.7.1 reproduces the exact early display-timestamp signature. Recent driving logic and visual effects are not plausible common causes because the first incident occurred before they existed, and the game loop remained alive through the controlled failure.
 
@@ -240,12 +252,17 @@ indices. True focused 2880 x 1800 native-OpenGL fullscreen ran for 30 seconds
 at 120 FPS with two total draw calls and 708 primitives. WindowServer emitted
 654 `Invalid actual_host_time` errors for DisplayID `0x4280f40` from
 23:37:36.365 through 23:37:47.284, followed by a framebuffer-not-ready event at
-23:37:49.320. The client exited normally, WindowServer remained PID 213 through
-the 120-second post-exit watch, and no watchdog or crash report appeared. Stage
-0 also used two total draw calls but produced zero invalid timestamps, so the
-Jeep's embedded materials, eight-surface subdivision, and draw count are not
-required activators. Its actual geometry or 706-triangle workload remains the
-controlled render difference. Evidence:
+23:37:49.320. The client exited normally at 23:38:05 and the original watcher
+ended at 23:40:09. The Intel framebuffer then reported not ready at 23:40:45
+and 23:41:59 before logging a VBlank timeout at 23:42:44.451. WindowServer
+watchdog incident `E166F533-99C6-4883-AF8D-A53879455C28` replaced PID 213 with
+PID 52286 about 278 seconds after Godot exited. The report records the same
+display not ready, active/waiting transactions, `displayState: OFF`, and nominal
+thermal pressure; Godot is absent from the stackshot and no kernel panic exists.
+Stage 0 also used two total draw calls but produced zero invalid timestamps, so
+the Jeep's embedded materials, eight-surface subdivision, and draw count are
+not required activators. Its actual geometry or 706-triangle workload remains
+the controlled render difference. Evidence:
 `/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-233727-stage1-jeep-one-surface`.
 
 Relevant project settings across the five earlier native-OpenGL watchdog incidents:

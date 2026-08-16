@@ -141,7 +141,7 @@ done
 dry_output="$($runner run stage0-control --dry-run --seconds 12)"
 for expected in '--rendering-driver opengl3' '--windowed' \
 		"--path $control_root" 'fullscreen_entry=manual' \
-		'post_fullscreen_watch_seconds=120'; do
+		'post_fullscreen_watch_seconds=360'; do
 	if [[ "$dry_output" != *"$expected"* ]]; then
 		echo "RENDER_BISECT_TEST FAIL dry run missing: $expected" >&2
 		exit 1
