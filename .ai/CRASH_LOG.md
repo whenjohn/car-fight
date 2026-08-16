@@ -201,6 +201,23 @@ signature seen immediately in full car-fight and in the comparison project did
 not appear in this basic render control. Evidence:
 `/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-110856-stage0-control`.
 
+Later on 2026-08-15, the user explicitly approved the Jeep-only Stage 1 probe
+without restarting the WindowServer session used by Stage 0. At commit
+`d180911`, true 2880 x 1800 native-OpenGL fullscreen ran for 30 seconds with one
+raw car-fight Jeep mesh, eight embedded material surfaces, shadows disabled,
+and no vehicle scripts, physics, controls, effects, networking, or gameplay.
+Telemetry stayed smooth at 117-118 FPS with nine draw calls and 708 primitives,
+then auto-quit normally. WindowServer emitted 680 `Invalid actual_host_time`
+errors for DisplayID `0x4280f40` from 23:03:08.953 through 23:03:20.404 and the
+Intel framebuffer logged `Not Ready for Transaction Processing` at 23:03:22.
+There was no VBlank timeout, GPU reset, event-port death, watchdog, or crash
+report, and WindowServer remained PID 213 through the 120-second post-exit
+watch. This is a strong Stage 0/Stage 1 differential in one display session,
+but not proof that the Jeep causes the warning: the session/order was already
+state-contaminated and invalid timestamps can occur without visible failure.
+Repeat Stage 1 alone after a fresh boot/session before adding Stage 2. Evidence:
+`/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-230251-stage1-jeep`.
+
 Relevant project settings across the five earlier native-OpenGL watchdog incidents:
 
 - `renderer/rendering_method="gl_compatibility"`

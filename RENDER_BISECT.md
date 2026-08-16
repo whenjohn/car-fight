@@ -66,8 +66,13 @@ rendered Stage 1 run. Inspect its command without opening a window:
   --startup-fullscreen --seconds 30
 ```
 
-The Stage 1 rendered probe has not been run and still requires explicit
-crash-risk approval in a fresh boot/session.
+The approved Stage 1 fullscreen probe ran for 30 seconds in the same
+WindowServer session as Stage 0. It remained smooth and exited normally, but
+produced 680 `Invalid actual_host_time` warnings and one framebuffer-not-ready
+event; Stage 0 had produced zero invalid timestamps. WindowServer retained its
+PID through the 120-second watch and no watchdog or crash report appeared.
+Because the session/order was not fresh, Stage 1 must be repeated alone after a
+fresh boot/session before adding Stage 2.
 
 ## Remaining additions
 
