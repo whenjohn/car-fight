@@ -239,6 +239,41 @@ for expected in '"vehicle_model":"Kenney Garbage Truck"' \
 	fi
 done
 
+CAR_FIGHT_BISECT_STAGE=stage1-procedural-minimal \
+	CAR_FIGHT_BISECT_TELEMETRY="$test_dir/stage1-procedural-telemetry.jsonl" \
+	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS=2 \
+	"$godot_bin" --headless --path "$control_root" \
+		> "$test_dir/stage1-procedural-godot.log" 2>&1
+if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Procedural minimal' \
+		"$test_dir/stage1-procedural-godot.log"; then
+	cat "$test_dir/stage1-procedural-godot.log" >&2
+	exit 1
+fi
+for event in stage1procedural_start stage1procedural_sample \
+		stage1procedural_stop; do
+	if ! rg -q "\"event\":\"$event\"" \
+			"$test_dir/stage1-procedural-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL missing procedural event: $event" >&2
+		exit 1
+	fi
+done
+for expected in '"procedural_attribute_mode":"position_index_only"' \
+		'"procedural_geometry_mode":"generated_arrays"' \
+		'"procedural_material_mode":"unshaded_flat"' \
+		'"procedural_mesh_data_valid":true' \
+		'"procedural_invalid_attribute_values":0' \
+		'"procedural_invalid_indices":0' \
+		'"procedural_mesh_instances":1' '"procedural_surfaces":1' \
+		'"procedural_shadows":false' '"procedural_triangles":3124' \
+		'"procedural_vertices":4912' '"procedural_indices":9372' \
+		'"procedural_unused_vertices":3256' \
+		'"stage":"stage1-procedural-minimal"'; do
+	if ! rg -q -F "$expected" "$test_dir/stage1-procedural-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL procedural telemetry missing: $expected" >&2
+		exit 1
+	fi
+done
+
 dry_output="$($runner run stage0-control --dry-run --seconds 12)"
 for expected in '--rendering-driver opengl3' '--windowed' \
 		"--path $control_root" 'fullscreen_entry=manual' \
@@ -283,6 +318,14 @@ if [[ "$stage1_garbage_truck_output" != \
 		|| "$stage1_garbage_truck_output" != *'--windowed'* \
 		|| "$stage1_garbage_truck_output" != *'asset_import_preflight=headless'* ]]; then
 	echo "RENDER_BISECT_TEST FAIL incomplete Garbage Truck dry run" >&2
+	exit 1
+fi
+stage1_procedural_output="$($runner run stage1-procedural-minimal \
+	--dry-run --seconds 12)"
+if [[ "$stage1_procedural_output" != *'stage=stage1-procedural-minimal'* \
+		|| "$stage1_procedural_output" != *'--windowed'* \
+		|| "$stage1_procedural_output" != *'asset_import_preflight=headless'* ]]; then
+	echo "RENDER_BISECT_TEST FAIL incomplete procedural dry run" >&2
 	exit 1
 fi
 fullscreen_output="$($runner run stage0-control --dry-run --startup-fullscreen --seconds 12)"

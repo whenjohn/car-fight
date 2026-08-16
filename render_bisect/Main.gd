@@ -10,6 +10,12 @@ const STAGE1_ONE_SURFACE := "stage1-jeep-one-surface"
 const STAGE1_PICKUP_ONE_SURFACE := "stage1-pickup-one-surface"
 const STAGE1_KENNEY_GARBAGE_TRUCK_ONE_SURFACE := \
 	"stage1-kenney-garbage-truck-one-surface"
+const STAGE1_PROCEDURAL_MINIMAL := "stage1-procedural-minimal"
+const PROCEDURAL_VERTEX_COUNT := 4912
+const PROCEDURAL_INDEX_COUNT := 9372
+const PROCEDURAL_TRIANGLE_COUNT := 3124
+const PROCEDURAL_GRID_X_CELLS := 71
+const PROCEDURAL_GRID_Z_CELLS := 22
 
 var _telemetry: FileAccess
 var _stage := STAGE0
@@ -120,6 +126,8 @@ func _build_control_scene() -> bool:
 		return _add_vehicle(
 			"res://garbage-truck.glb", "Kenney Garbage Truck", "garbage_truck",
 			true, true, true, 1.2)
+	if _stage == STAGE1_PROCEDURAL_MINIMAL:
+		return _add_procedural_minimal_mesh()
 	_add_control_box()
 	return true
 
@@ -132,6 +140,82 @@ func _add_control_box() -> void:
 	marker.mesh = box
 	marker.position = Vector3(0.0, 0.5, 0.0)
 	add_child(marker)
+
+
+func _add_procedural_minimal_mesh() -> bool:
+	var vertices := PackedVector3Array()
+	vertices.resize(PROCEDURAL_VERTEX_COUNT)
+	var row_vertices := PROCEDURAL_GRID_X_CELLS + 1
+	var used_vertex_count := row_vertices * (PROCEDURAL_GRID_Z_CELLS + 1)
+	for z in range(PROCEDURAL_GRID_Z_CELLS + 1):
+		var z_ratio := float(z) / float(PROCEDURAL_GRID_Z_CELLS)
+		for x in range(PROCEDURAL_GRID_X_CELLS + 1):
+			var x_ratio := float(x) / float(PROCEDURAL_GRID_X_CELLS)
+			var vertex_index := z * row_vertices + x
+			vertices[vertex_index] = Vector3(
+				lerpf(-1.8, 1.8, x_ratio),
+				0.62 + 0.18 * sin(x_ratio * TAU * 3.0) * cos(z_ratio * TAU * 2.0),
+				lerpf(-2.6, 2.6, z_ratio))
+	for vertex_index in range(used_vertex_count, PROCEDURAL_VERTEX_COUNT):
+		vertices[vertex_index] = vertices[0]
+
+	var indices := PackedInt32Array()
+	indices.resize(PROCEDURAL_INDEX_COUNT)
+	var index_cursor := 0
+	for z in range(PROCEDURAL_GRID_Z_CELLS):
+		for x in range(PROCEDURAL_GRID_X_CELLS):
+			var top_left := z * row_vertices + x
+			var top_right := top_left + 1
+			var bottom_left := top_left + row_vertices
+			var bottom_right := bottom_left + 1
+			for index in [
+				top_left, bottom_left, top_right,
+				top_right, bottom_left, bottom_right,
+			]:
+				indices[index_cursor] = index
+				index_cursor += 1
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var validation := _validate_surface_arrays(arrays)
+	if index_cursor != PROCEDURAL_INDEX_COUNT \
+			or validation["invalid_attribute_values"] != 0 \
+			or validation["invalid_indices"] != 0:
+		push_error("Procedural minimal mesh validation failed")
+		return false
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	if mesh.get_surface_count() != 1 \
+			or mesh.surface_get_array_len(0) != PROCEDURAL_VERTEX_COUNT \
+			or mesh.surface_get_array_index_len(0) != PROCEDURAL_INDEX_COUNT:
+		push_error("Procedural minimal mesh counts changed")
+		return false
+	var material := _material(Color("d98545"))
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var marker := MeshInstance3D.new()
+	marker.name = "ProceduralMinimalMesh"
+	marker.mesh = mesh
+	marker.material_override = material
+	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(marker)
+	_stage_details = {
+		"procedural_attribute_mode": "position_index_only",
+		"procedural_geometry_mode": "generated_arrays",
+		"procedural_indices": mesh.surface_get_array_index_len(0),
+		"procedural_invalid_attribute_values": validation["invalid_attribute_values"],
+		"procedural_invalid_indices": validation["invalid_indices"],
+		"procedural_material_mode": "unshaded_flat",
+		"procedural_mesh_data_valid": true,
+		"procedural_mesh_instances": 1,
+		"procedural_shadows": false,
+		"procedural_surfaces": mesh.get_surface_count(),
+		"procedural_triangles": PROCEDURAL_TRIANGLE_COUNT,
+		"procedural_unused_vertices": PROCEDURAL_VERTEX_COUNT - used_vertex_count,
+		"procedural_vertices": mesh.surface_get_array_len(0),
+	}
+	return true
 
 
 func _add_vehicle(source_path: String, model_name: String, telemetry_prefix: String,
@@ -353,6 +437,10 @@ func _configure_stage() -> bool:
 	if requested == STAGE1_KENNEY_GARBAGE_TRUCK_ONE_SURFACE:
 		_stage = STAGE1_KENNEY_GARBAGE_TRUCK_ONE_SURFACE
 		_event_prefix = "stage1garbagetruck"
+		return true
+	if requested == STAGE1_PROCEDURAL_MINIMAL:
+		_stage = STAGE1_PROCEDURAL_MINIMAL
+		_event_prefix = "stage1procedural"
 		return true
 	push_error("Unknown render-isolation stage: %s" % requested)
 	return false

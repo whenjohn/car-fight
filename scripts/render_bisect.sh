@@ -22,6 +22,8 @@ Render-isolation stages:
                     Same-pack Pickup merged to one plain surface
   stage1-kenney-garbage-truck-one-surface
                     Kenney CC0 GLB garbage truck merged to one plain surface
+  stage1-procedural-minimal
+                    Generated 3,124-triangle position/index-only mesh
 
 Stage 0 starts windowed. Enter fullscreen manually from the Godot window so the
 entry path matches the known-good comparison. No car-fight assets or gameplay
@@ -88,7 +90,8 @@ if [[ "$stage" != "stage0-control" && "$stage" != "stage1-jeep" \
 		&& "$stage" != "stage1-jeep-flat" \
 		&& "$stage" != "stage1-jeep-one-surface" \
 		&& "$stage" != "stage1-pickup-one-surface" \
-		&& "$stage" != "stage1-kenney-garbage-truck-one-surface" ]]; then
+		&& "$stage" != "stage1-kenney-garbage-truck-one-surface" \
+		&& "$stage" != "stage1-procedural-minimal" ]]; then
 	echo "unknown render-isolation stage: $stage" >&2
 	print_stages >&2
 	exit 2

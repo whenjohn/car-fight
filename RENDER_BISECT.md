@@ -238,6 +238,34 @@ materials, surface subdivision, and high draw count are therefore not required.
 The next useful control is a non-imported procedural mesh at roughly the same
 3,124-triangle workload, still collapsed to one surface and one plain material.
 
+### Procedural matched-buffer isolation
+
+`stage1-procedural-minimal` never loads an imported mesh. It constructs one
+`ArrayMesh` directly from finite position and index arrays, with exactly the
+Garbage Truck's 4,912 vertex slots, 9,372 indices, and 3,124 triangles. A
+71-by-22-cell generated surface uses 1,656 of those vertices; the remaining
+3,256 valid but unreferenced positions preserve the vertex-buffer size without
+adding another attribute. The mesh has no normals, tangents, UVs, colors,
+bones, blend shapes, imported materials, LOD, shadow mesh, texture, hidden
+source nodes, or source-resource residency. It uses one unshaded flat material,
+one mesh instance, one surface, and disabled shadows.
+
+Headless validation confirms the exact counts, position/index-only attribute
+mode, and zero invalid attributes or indices. This control differs from the
+warning-producing Garbage Truck in vertex contents and imported resources, but
+matches its vertex/index buffer sizes, triangle count, surface count, draw
+count, project, camera, ground, and fullscreen launch path.
+
+```sh
+./scripts/render_bisect.sh run stage1-procedural-minimal --dry-run \
+  --startup-fullscreen --seconds 30
+```
+
+The user explicitly approved this first procedural rendered probe. If it
+reproduces, binary-search generated triangle count and screen coverage next. If
+it remains clean, rebuild the exact Garbage Truck positions and indices without
+any other imported attributes or retained source resources.
+
 ## Remaining additions
 
 Each later stage changes one car-fight-owned variable and keeps everything else
