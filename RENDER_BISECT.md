@@ -150,6 +150,32 @@ render-isolation launcher now watches WindowServer for 360 seconds after a
 fullscreen/precursor run. A clean client exit is not a safe boundary once the
 invalid-timestamp signature has appeared.
 
+### Same-pack Pickup isolation
+
+`stage1-pickup-one-surface` replaces the Jeep with `Pickup.fbx` from the exact
+same Daniel Quevedo CC0 Low Poly Vehicles Pack and official FBX archive. The
+repository copy has SHA-256
+`21eba6952659dc20916e28aacf8cac98150a7f617a58f4e1acc5b7be56fc4550`.
+No G2 asset or code is involved.
+
+The stage keeps the one plain material, identical transform, camera, light,
+ground, and disabled shadows. Godot's engine mesh builder merges the Pickup's
+seven source surfaces into one rendered surface while preserving its 1,038
+vertices and 1,680 indices (560 triangles). Headless validation finds zero
+NaN/infinite vertex, normal, or tangent values and zero out-of-range indices in
+both the Pickup and Jeep sources.
+
+Inspect the prepared command without rendering:
+
+```sh
+./scripts/render_bisect.sh run stage1-pickup-one-surface --dry-run \
+  --startup-fullscreen --seconds 30
+```
+
+This is a same-author, same-pack, same-date, same-FBX-pipeline control for the
+Jeep-specific geometry hypothesis. A rendered probe still requires explicit
+crash-risk approval and uses the 360-second post-exit watch.
+
 ## Remaining additions
 
 Each later stage changes one car-fight-owned variable and keeps everything else

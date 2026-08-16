@@ -18,6 +18,8 @@ Render-isolation stages:
   stage1-jeep-flat Same Jeep geometry/eight surfaces with one plain material
   stage1-jeep-one-surface
                     Same Jeep vertices/indices merged to one plain surface
+  stage1-pickup-one-surface
+                    Same-pack Pickup merged to one plain surface
 
 Stage 0 starts windowed. Enter fullscreen manually from the Godot window so the
 entry path matches the known-good comparison. No car-fight assets or gameplay
@@ -81,7 +83,8 @@ done
 
 if [[ "$stage" != "stage0-control" && "$stage" != "stage1-jeep" \
 		&& "$stage" != "stage1-jeep-flat" \
-		&& "$stage" != "stage1-jeep-one-surface" ]]; then
+		&& "$stage" != "stage1-jeep-one-surface" \
+		&& "$stage" != "stage1-pickup-one-surface" ]]; then
 	echo "unknown render-isolation stage: $stage" >&2
 	print_stages >&2
 	exit 2
@@ -116,7 +119,7 @@ echo "duration_seconds=$run_seconds"
 echo "post_fullscreen_watch_seconds=$post_exit_seconds"
 echo "fullscreen_entry=$fullscreen_entry"
 echo "control_project=$control_root"
-if [[ "$stage" == stage1-jeep* ]]; then
+if [[ "$stage" == stage1-* ]]; then
 	echo "asset_import_preflight=headless"
 fi
 echo "command=${(q-)command}"
@@ -163,7 +166,7 @@ windowserver_pid_start="$(pgrep -x WindowServer | head -1 || true)"
 } > "$run_dir/metadata.txt"
 print -r -- "running" > "$run_dir/state"
 
-if [[ "$stage" == stage1-jeep* ]]; then
+if [[ "$stage" == stage1-* ]]; then
 	"$godot_bin" --headless --path "$control_root" --editor --quit \
 		> "$run_dir/import-preflight.log" 2>&1
 	if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Import failed' \

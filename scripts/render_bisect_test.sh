@@ -32,6 +32,15 @@ if ! cmp -s "$control_root/CarFightJeep.fbx" \
 	echo "RENDER_BISECT_TEST FAIL Stage 1 Jeep must match the car-fight source bytes" >&2
 	exit 1
 fi
+if [[ -L "$control_root/Pickup.fbx" || ! -f "$control_root/Pickup.fbx" ]]; then
+	echo "RENDER_BISECT_TEST FAIL Pickup must be a regular file" >&2
+	exit 1
+fi
+pickup_hash="$(shasum -a 256 "$control_root/Pickup.fbx" | awk '{print $1}')"
+if [[ "$pickup_hash" != "21eba6952659dc20916e28aacf8cac98150a7f617a58f4e1acc5b7be56fc4550" ]]; then
+	echo "RENDER_BISECT_TEST FAIL Pickup must match the official CC0 source" >&2
+	exit 1
+fi
 
 "$godot_bin" --headless --path "$control_root" --editor --quit \
 	> "$test_dir/import-preflight.log" 2>&1
@@ -75,6 +84,8 @@ for event in stage1_start stage1_sample stage1_stop; do
 done
 for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
 		'"jeep_material_mode":"embedded"' '"jeep_material_override":false' \
+		'"jeep_mesh_data_valid":true' '"jeep_invalid_attribute_values":0' \
+		'"jeep_invalid_indices":0' \
 		'"jeep_geometry_mode":"source_surfaces"' '"jeep_surfaces":8' \
 		'"stage":"stage1-jeep"'; do
 	if ! rg -q -F "$expected" "$test_dir/stage1-telemetry.jsonl"; then
@@ -101,6 +112,8 @@ for event in stage1flat_start stage1flat_sample stage1flat_stop; do
 done
 for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
 		'"jeep_material_mode":"flat_override"' '"jeep_material_override":true' \
+		'"jeep_mesh_data_valid":true' '"jeep_invalid_attribute_values":0' \
+		'"jeep_invalid_indices":0' \
 		'"jeep_geometry_mode":"source_surfaces"' '"jeep_surfaces":8' \
 		'"stage":"stage1-jeep-flat"'; do
 	if ! rg -q -F "$expected" "$test_dir/stage1-flat-telemetry.jsonl"; then
@@ -127,6 +140,8 @@ for event in stage1one_start stage1one_sample stage1one_stop; do
 done
 for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
 		'"jeep_material_mode":"flat_override"' '"jeep_material_override":true' \
+		'"jeep_mesh_data_valid":true' '"jeep_invalid_attribute_values":0' \
+		'"jeep_invalid_indices":0' \
 		'"jeep_geometry_mode":"one_surface"' '"jeep_geometry_counts_preserved":true' \
 		'"jeep_source_surfaces":8' '"jeep_surfaces":1' \
 		'"jeep_source_vertices":1323' '"jeep_vertices":1323' \
@@ -134,6 +149,37 @@ for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
 		'"stage":"stage1-jeep-one-surface"'; do
 	if ! rg -q -F "$expected" "$test_dir/stage1-one-telemetry.jsonl"; then
 		echo "RENDER_BISECT_TEST FAIL one-surface Jeep telemetry missing: $expected" >&2
+		exit 1
+	fi
+done
+
+CAR_FIGHT_BISECT_STAGE=stage1-pickup-one-surface \
+	CAR_FIGHT_BISECT_TELEMETRY="$test_dir/stage1-pickup-telemetry.jsonl" \
+	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS=2 \
+	"$godot_bin" --headless --path "$control_root" \
+		> "$test_dir/stage1-pickup-godot.log" 2>&1
+if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Stage 1 could not|One-surface' \
+		"$test_dir/stage1-pickup-godot.log"; then
+	cat "$test_dir/stage1-pickup-godot.log" >&2
+	exit 1
+fi
+for event in stage1pickup_start stage1pickup_sample stage1pickup_stop; do
+	if ! rg -q "\"event\":\"$event\"" "$test_dir/stage1-pickup-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL missing Pickup event: $event" >&2
+		exit 1
+	fi
+done
+for expected in '"vehicle_model":"Pickup"' '"pickup_mesh_instances":1' \
+		'"pickup_shadows":false' '"pickup_material_mode":"flat_override"' \
+		'"pickup_material_override":true' '"pickup_geometry_mode":"one_surface"' \
+		'"pickup_geometry_counts_preserved":true' '"pickup_mesh_data_valid":true' \
+		'"pickup_invalid_attribute_values":0' '"pickup_invalid_indices":0' \
+		'"pickup_source_surfaces":7' '"pickup_surfaces":1' \
+		'"pickup_source_vertices":1038' '"pickup_vertices":1038' \
+		'"pickup_source_indices":1680' '"pickup_indices":1680' \
+		'"stage":"stage1-pickup-one-surface"'; do
+	if ! rg -q -F "$expected" "$test_dir/stage1-pickup-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL Pickup telemetry missing: $expected" >&2
 		exit 1
 	fi
 done
@@ -166,6 +212,13 @@ if [[ "$stage1_one_output" != *'stage=stage1-jeep-one-surface'* \
 		|| "$stage1_one_output" != *'--windowed'* \
 		|| "$stage1_one_output" != *'asset_import_preflight=headless'* ]]; then
 	echo "RENDER_BISECT_TEST FAIL incomplete one-surface Jeep dry run" >&2
+	exit 1
+fi
+stage1_pickup_output="$($runner run stage1-pickup-one-surface --dry-run --seconds 12)"
+if [[ "$stage1_pickup_output" != *'stage=stage1-pickup-one-surface'* \
+		|| "$stage1_pickup_output" != *'--windowed'* \
+		|| "$stage1_pickup_output" != *'asset_import_preflight=headless'* ]]; then
+	echo "RENDER_BISECT_TEST FAIL incomplete Pickup dry run" >&2
 	exit 1
 fi
 fullscreen_output="$($runner run stage0-control --dry-run --startup-fullscreen --seconds 12)"

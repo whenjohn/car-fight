@@ -7,6 +7,7 @@ const STAGE0 := "stage0-control"
 const STAGE1 := "stage1-jeep"
 const STAGE1_FLAT := "stage1-jeep-flat"
 const STAGE1_ONE_SURFACE := "stage1-jeep-one-surface"
+const STAGE1_PICKUP_ONE_SURFACE := "stage1-pickup-one-surface"
 
 var _telemetry: FileAccess
 var _stage := STAGE0
@@ -107,7 +108,12 @@ func _build_control_scene() -> bool:
 	add_child(ground)
 
 	if _stage == STAGE1 or _stage == STAGE1_FLAT or _stage == STAGE1_ONE_SURFACE:
-		return _add_jeep(_stage != STAGE1, _stage == STAGE1_ONE_SURFACE)
+		return _add_vehicle(
+			"res://CarFightJeep.fbx", "Jeep", "jeep",
+			_stage != STAGE1, _stage == STAGE1_ONE_SURFACE)
+	if _stage == STAGE1_PICKUP_ONE_SURFACE:
+		return _add_vehicle(
+			"res://Pickup.fbx", "Pickup", "pickup", true, true)
 	_add_control_box()
 	return true
 
@@ -122,24 +128,25 @@ func _add_control_box() -> void:
 	add_child(marker)
 
 
-func _add_jeep(use_flat_material: bool, merge_surfaces: bool) -> bool:
-	var resource := load("res://CarFightJeep.fbx") as PackedScene
+func _add_vehicle(source_path: String, model_name: String, telemetry_prefix: String,
+		use_flat_material: bool, merge_surfaces: bool) -> bool:
+	var resource := load(source_path) as PackedScene
 	if resource == null:
-		push_error("Stage 1 could not load the car-fight Jeep source")
+		push_error("Stage 1 could not load the %s source" % model_name)
 		return false
-	var jeep := resource.instantiate() as Node3D
-	if jeep == null:
-		push_error("Stage 1 could not instantiate the car-fight Jeep source")
+	var vehicle := resource.instantiate() as Node3D
+	if vehicle == null:
+		push_error("Stage 1 could not instantiate the %s source" % model_name)
 		return false
-	jeep.name = "CarFightJeepPresentation"
-	jeep.scale = Vector3.ONE * 0.45
-	jeep.rotation.y = PI
-	jeep.position = Vector3(0.0, 0.065, -0.05)
-	add_child(jeep)
-	var meshes := jeep.find_children("*", "MeshInstance3D", true, false)
+	vehicle.name = "%sPresentation" % model_name
+	vehicle.scale = Vector3.ONE * 0.45
+	vehicle.rotation.y = PI
+	vehicle.position = Vector3(0.0, 0.065, -0.05)
+	add_child(vehicle)
+	var meshes := vehicle.find_children("*", "MeshInstance3D", true, false)
 	if meshes.is_empty():
-		push_error("Stage 1 Jeep source contains no mesh instances")
-		jeep.queue_free()
+		push_error("Stage 1 %s source contains no mesh instances" % model_name)
+		vehicle.queue_free()
 		return false
 	var source_surface_count := 0
 	var source_vertex_count := 0
@@ -147,6 +154,8 @@ func _add_jeep(use_flat_material: bool, merge_surfaces: bool) -> bool:
 	var rendered_surface_count := 0
 	var rendered_vertex_count := 0
 	var rendered_index_count := 0
+	var invalid_attribute_value_count := 0
+	var invalid_index_count := 0
 	var flat_material := _material(Color("4b9b55")) if use_flat_material else null
 	for child in meshes:
 		var mesh_instance := child as MeshInstance3D
@@ -158,10 +167,14 @@ func _add_jeep(use_flat_material: bool, merge_surfaces: bool) -> bool:
 		for surface in range(source_mesh.get_surface_count()):
 			source_vertex_count += source_mesh.surface_get_array_len(surface)
 			source_index_count += source_mesh.surface_get_array_index_len(surface)
+			var validation := _validate_surface_arrays(
+				source_mesh.surface_get_arrays(surface))
+			invalid_attribute_value_count += validation["invalid_attribute_values"]
+			invalid_index_count += validation["invalid_indices"]
 		if merge_surfaces:
 			var merged_mesh := _merge_mesh_surfaces(source_mesh)
 			if merged_mesh == null:
-				jeep.queue_free()
+				vehicle.queue_free()
 				return false
 			mesh_instance.mesh = merged_mesh
 		if flat_material != null:
@@ -171,23 +184,73 @@ func _add_jeep(use_flat_material: bool, merge_surfaces: bool) -> bool:
 		for surface in range(rendered_mesh.get_surface_count()):
 			rendered_vertex_count += rendered_mesh.surface_get_array_len(surface)
 			rendered_index_count += rendered_mesh.surface_get_array_index_len(surface)
-	_stage_details = {
-		"jeep_geometry_mode": "one_surface" if merge_surfaces else "source_surfaces",
-		"jeep_geometry_counts_preserved": (
-			source_vertex_count == rendered_vertex_count
-			and source_index_count == rendered_index_count),
-		"jeep_indices": rendered_index_count,
-		"jeep_mesh_instances": meshes.size(),
-		"jeep_material_mode": "flat_override" if use_flat_material else "embedded",
-		"jeep_material_override": use_flat_material,
-		"jeep_source_indices": source_index_count,
-		"jeep_source_surfaces": source_surface_count,
-		"jeep_source_vertices": source_vertex_count,
-		"jeep_surfaces": rendered_surface_count,
-		"jeep_shadows": false,
-		"jeep_vertices": rendered_vertex_count,
+	var details := {
+		"vehicle_model": model_name,
 	}
+	details["%s_geometry_mode" % telemetry_prefix] = (
+		"one_surface" if merge_surfaces else "source_surfaces")
+	details["%s_geometry_counts_preserved" % telemetry_prefix] = (
+			source_vertex_count == rendered_vertex_count
+			and source_index_count == rendered_index_count)
+	details["%s_indices" % telemetry_prefix] = rendered_index_count
+	details["%s_invalid_attribute_values" % telemetry_prefix] = invalid_attribute_value_count
+	details["%s_invalid_indices" % telemetry_prefix] = invalid_index_count
+	details["%s_material_mode" % telemetry_prefix] = (
+		"flat_override" if use_flat_material else "embedded")
+	details["%s_material_override" % telemetry_prefix] = use_flat_material
+	details["%s_mesh_data_valid" % telemetry_prefix] = (
+		invalid_attribute_value_count == 0 and invalid_index_count == 0)
+	details["%s_mesh_instances" % telemetry_prefix] = meshes.size()
+	details["%s_shadows" % telemetry_prefix] = false
+	details["%s_source_indices" % telemetry_prefix] = source_index_count
+	details["%s_source_surfaces" % telemetry_prefix] = source_surface_count
+	details["%s_source_vertices" % telemetry_prefix] = source_vertex_count
+	details["%s_surfaces" % telemetry_prefix] = rendered_surface_count
+	details["%s_vertices" % telemetry_prefix] = rendered_vertex_count
+	_stage_details = details
+	if invalid_attribute_value_count > 0 or invalid_index_count > 0:
+		push_error("Stage 1 %s source contains invalid mesh data" % model_name)
+		vehicle.queue_free()
+		return false
 	return true
+
+
+func _validate_surface_arrays(arrays: Array) -> Dictionary:
+	var invalid_attribute_values := 0
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = (
+		PackedVector3Array() if arrays[Mesh.ARRAY_NORMAL] == null
+		else arrays[Mesh.ARRAY_NORMAL])
+	var tangents: PackedFloat32Array = (
+		PackedFloat32Array() if arrays[Mesh.ARRAY_TANGENT] == null
+		else arrays[Mesh.ARRAY_TANGENT])
+	var indices: PackedInt32Array = (
+		PackedInt32Array() if arrays[Mesh.ARRAY_INDEX] == null
+		else arrays[Mesh.ARRAY_INDEX])
+	for value in vertices:
+		if not _vector3_is_finite(value):
+			invalid_attribute_values += 1
+	for value in normals:
+		if not _vector3_is_finite(value):
+			invalid_attribute_values += 1
+	for value in tangents:
+		if is_nan(value) or is_inf(value):
+			invalid_attribute_values += 1
+	var invalid_indices := 0
+	for index in indices:
+		if index < 0 or index >= vertices.size():
+			invalid_indices += 1
+	return {
+		"invalid_attribute_values": invalid_attribute_values,
+		"invalid_indices": invalid_indices,
+	}
+
+
+func _vector3_is_finite(value: Vector3) -> bool:
+	return not (
+		is_nan(value.x) or is_inf(value.x)
+		or is_nan(value.y) or is_inf(value.y)
+		or is_nan(value.z) or is_inf(value.z))
 
 
 func _merge_mesh_surfaces(source: Mesh) -> ArrayMesh:
@@ -229,6 +292,10 @@ func _configure_stage() -> bool:
 	if requested == STAGE1_ONE_SURFACE:
 		_stage = STAGE1_ONE_SURFACE
 		_event_prefix = "stage1one"
+		return true
+	if requested == STAGE1_PICKUP_ONE_SURFACE:
+		_stage = STAGE1_PICKUP_ONE_SURFACE
+		_event_prefix = "stage1pickup"
 		return true
 	push_error("Unknown render-isolation stage: %s" % requested)
 	return false
