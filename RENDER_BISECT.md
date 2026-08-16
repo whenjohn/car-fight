@@ -283,6 +283,23 @@ does not yet separate generic geometry workload/screen coverage from persistent
 fullscreen display state. The next controlled split is to rerun the existing
 14-primitive Stage 0 box in this same PID before changing mesh count again.
 
+## Borderless windowed presentation control
+
+The exact warning- and watchdog-producing `stage1-jeep-one-surface` stage can
+also be presented as a borderless screen-sized mode-0 window. This deliberately
+does not call Godot fullscreen modes 3 or 4 and does not enter the native macOS
+fullscreen path. Telemetry requires window mode 0, the borderless flag, display
+origin, and a window size equal to the full display size before the run counts.
+
+```sh
+./scripts/render_bisect.sh run stage1-jeep-one-surface --dry-run \
+  --borderless-windowed --seconds 30
+```
+
+The rendered probe still requires `--accept-crash-risk` and retains the full
+360-second post-exit WindowServer watch. A clean result requires zero invalid
+host-time warnings as well as no display precursor, watchdog, or panic.
+
 ## Remaining additions
 
 Each later stage changes one car-fight-owned variable and keeps everything else

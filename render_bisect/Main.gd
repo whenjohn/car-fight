@@ -16,6 +16,9 @@ const PROCEDURAL_INDEX_COUNT := 9372
 const PROCEDURAL_TRIANGLE_COUNT := 3124
 const PROCEDURAL_GRID_X_CELLS := 71
 const PROCEDURAL_GRID_Z_CELLS := 22
+const PRESENTATION_DEFAULT := "default"
+const PRESENTATION_NATIVE_FULLSCREEN := "native-fullscreen"
+const PRESENTATION_BORDERLESS_WINDOWED := "borderless-windowed"
 
 var _telemetry: FileAccess
 var _stage := STAGE0
@@ -26,10 +29,14 @@ var _sample_elapsed := 0.0
 var _last_window_mode := -1
 var _auto_quit_after_seconds := -1.0
 var _quit_requested := false
+var _presentation_mode := PRESENTATION_DEFAULT
 
 
 func _ready() -> void:
 	if not _configure_stage():
+		get_tree().quit(2)
+		return
+	if not _configure_presentation():
 		get_tree().quit(2)
 		return
 	_open_telemetry()
@@ -446,6 +453,26 @@ func _configure_stage() -> bool:
 	return false
 
 
+func _configure_presentation() -> bool:
+	var requested := OS.get_environment("CAR_FIGHT_BISECT_PRESENTATION")
+	if requested.is_empty() or requested == PRESENTATION_DEFAULT:
+		_presentation_mode = PRESENTATION_DEFAULT
+		return true
+	if requested == PRESENTATION_NATIVE_FULLSCREEN:
+		_presentation_mode = PRESENTATION_NATIVE_FULLSCREEN
+		return true
+	if requested != PRESENTATION_BORDERLESS_WINDOWED:
+		push_error("Unknown render-isolation presentation: %s" % requested)
+		return false
+	_presentation_mode = PRESENTATION_BORDERLESS_WINDOWED
+	var screen := DisplayServer.window_get_current_screen()
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
+	DisplayServer.window_set_position(DisplayServer.screen_get_position(screen))
+	DisplayServer.window_set_size(DisplayServer.screen_get_size(screen))
+	return true
+
+
 func _configure_auto_quit() -> void:
 	var value := OS.get_environment("CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS")
 	if value.is_empty():
@@ -489,6 +516,13 @@ func _write_record(event: String, data: Dictionary) -> void:
 
 func _display_state() -> Dictionary:
 	var screen := DisplayServer.window_get_current_screen()
+	var screen_position := DisplayServer.screen_get_position(screen)
+	var screen_size := DisplayServer.screen_get_size(screen)
+	var window_position := DisplayServer.window_get_position()
+	var window_size := DisplayServer.window_get_size()
+	var window_mode := int(DisplayServer.window_get_mode())
+	var window_borderless := DisplayServer.window_get_flag(
+		DisplayServer.WINDOW_FLAG_BORDERLESS)
 	return {
 		"display_driver": DisplayServer.get_name(),
 		"rendering_method": str(ProjectSettings.get_setting(
@@ -496,12 +530,20 @@ func _display_state() -> Dictionary:
 		"rendering_driver": _rendering_string("get_current_rendering_driver_name"),
 		"video_adapter": _rendering_string("get_video_adapter_name"),
 		"video_vendor": _rendering_string("get_video_adapter_vendor"),
-		"window_mode": int(DisplayServer.window_get_mode()),
-		"window_size": _vector2i_array(DisplayServer.window_get_size()),
-		"window_position": _vector2i_array(DisplayServer.window_get_position()),
+		"presentation_mode": _presentation_mode,
+		"window_mode": window_mode,
+		"window_borderless": window_borderless,
+		"window_covers_screen": (
+			window_mode == DisplayServer.WINDOW_MODE_WINDOWED
+			and window_borderless
+			and window_position == screen_position
+			and window_size == screen_size),
+		"window_size": _vector2i_array(window_size),
+		"window_position": _vector2i_array(window_position),
 		"window_focused": DisplayServer.window_is_focused(),
 		"screen": screen,
-		"screen_size": _vector2i_array(DisplayServer.screen_get_size(screen)),
+		"screen_position": _vector2i_array(screen_position),
+		"screen_size": _vector2i_array(screen_size),
 		"screen_refresh_hz": DisplayServer.screen_get_refresh_rate(screen),
 	}
 

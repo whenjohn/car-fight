@@ -39,7 +39,7 @@ Usage:
   ./scripts/render_bisect.sh list
   ./scripts/render_bisect.sh run STAGE --dry-run [--seconds N]
   ./scripts/render_bisect.sh run STAGE --accept-crash-risk \
-    [--startup-fullscreen] [--seconds N]
+    [--startup-fullscreen|--borderless-windowed] [--seconds N]
 
 A real rendered run can trigger the Intel display-driver failure. Save work and
 run only one stage per boot. The launcher never enters fullscreen itself.
@@ -61,6 +61,7 @@ accept_risk=0
 dry_run=0
 run_seconds=30
 fullscreen_entry="manual"
+presentation_mode="default"
 while (( $# > 0 )); do
 	case "$1" in
 		--accept-crash-risk)
@@ -73,6 +74,12 @@ while (( $# > 0 )); do
 			;;
 		--startup-fullscreen)
 			fullscreen_entry="startup"
+			presentation_mode="native-fullscreen"
+			shift
+			;;
+		--borderless-windowed)
+			fullscreen_entry="borderless-windowed"
+			presentation_mode="borderless-windowed"
 			shift
 			;;
 		--seconds)
@@ -125,6 +132,7 @@ echo "stage=$stage"
 echo "duration_seconds=$run_seconds"
 echo "post_fullscreen_watch_seconds=$post_exit_seconds"
 echo "fullscreen_entry=$fullscreen_entry"
+echo "presentation_mode=$presentation_mode"
 echo "control_project=$control_root"
 if [[ "$stage" == stage1-* ]]; then
 	echo "asset_import_preflight=headless"
@@ -169,6 +177,7 @@ windowserver_pid_start="$(pgrep -x WindowServer | head -1 || true)"
 	echo "windowserver_pid_start=$windowserver_pid_start"
 	echo "server_pid=none"
 	echo "fullscreen_entry=$fullscreen_entry"
+	echo "presentation_mode=$presentation_mode"
 	echo "commit=$(git -C "$project_root" rev-parse HEAD)"
 } > "$run_dir/metadata.txt"
 print -r -- "running" > "$run_dir/state"
@@ -195,6 +204,7 @@ log_pid=$!
 CAR_FIGHT_BISECT_TELEMETRY="$run_dir/client.telemetry.jsonl" \
 	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS="$run_seconds" \
 	CAR_FIGHT_BISECT_STAGE="$stage" \
+	CAR_FIGHT_BISECT_PRESENTATION="$presentation_mode" \
 	"${command[@]}" > "$run_dir/client.log" 2>&1 &
 client_pid=$!
 echo "client_pid=$client_pid" >> "$run_dir/metadata.txt"
@@ -202,6 +212,8 @@ echo "client_pid=$client_pid" >> "$run_dir/metadata.txt"
 echo "Render control started (PID $client_pid)."
 if [[ "$fullscreen_entry" == "manual" ]]; then
 	echo "Enter fullscreen manually if you are ready; the probe exits after ${run_seconds}s."
+elif [[ "$fullscreen_entry" == "borderless-windowed" ]]; then
+	echo "Borderless screen-sized window requested; the probe exits after ${run_seconds}s."
 else
 	echo "Startup fullscreen requested; the probe exits after ${run_seconds}s."
 fi
@@ -245,6 +257,17 @@ if rg -q '"window_mode":(3|4)|"event":"window_mode_change".*"window_mode":(3|4)'
 		"$run_dir/client.telemetry.jsonl" 2>/dev/null; then
 	fullscreen_seen=1
 fi
+borderless_windowed_seen=0
+if rg -q '"presentation_mode":"borderless-windowed".*"window_borderless":true.*"window_covers_screen":true.*"window_mode":0' \
+		"$run_dir/client.telemetry.jsonl" 2>/dev/null \
+		|| rg -q '"presentation_mode":"borderless-windowed".*"window_mode":0.*"window_borderless":true.*"window_covers_screen":true' \
+		"$run_dir/client.telemetry.jsonl" 2>/dev/null; then
+	borderless_windowed_seen=1
+fi
+target_presentation_seen=$fullscreen_seen
+if [[ "$presentation_mode" == "borderless-windowed" ]]; then
+	target_presentation_seen=$borderless_windowed_seen
+fi
 display_precursor_seen=0
 invalid_host_time_count="$(rg -c 'Invalid actual_host_time' \
 	"$run_dir/unified-live.log" 2>/dev/null || true)"
@@ -254,8 +277,8 @@ if rg -q -i 'Not Ready for Transaction Processing|VBlank timeout|GPU Reset|event
 	display_precursor_seen=1
 fi
 
-if (( fullscreen_seen == 1 || display_precursor_seen == 1 )); then
-	echo "Fullscreen or a display precursor was observed; watching WindowServer for ${post_exit_seconds}s after exit."
+if (( target_presentation_seen == 1 || display_precursor_seen == 1 )); then
+	echo "Target presentation or a display precursor was observed; watching WindowServer for ${post_exit_seconds}s after exit."
 	post_exit_deadline=$(( $(date '+%s') + post_exit_seconds ))
 	while (( $(date '+%s') < post_exit_deadline )); do
 		current_windowserver_pid="$(pgrep -x WindowServer | head -1 || true)"
@@ -278,7 +301,13 @@ elif (( client_status != 0 )); then
 	state="client-error"
 elif (( display_precursor_seen == 1 )); then
 	state="display-precursor"
-elif (( fullscreen_seen == 0 )); then
+elif (( invalid_host_time_count > 0 )); then
+	state="timestamp-warning"
+elif [[ "$presentation_mode" == "borderless-windowed" ]] \
+		&& (( borderless_windowed_seen == 0 )); then
+	state="not-borderless-windowed"
+elif [[ "$presentation_mode" != "borderless-windowed" ]] \
+		&& (( fullscreen_seen == 0 )); then
 	state="not-fullscreen"
 fi
 windowserver_pid_end="$(pgrep -x WindowServer | head -1 || true)"
@@ -292,6 +321,8 @@ print -r -- "$state" > "$run_dir/state"
 	echo "client_exit_status=$client_status"
 	echo "client_stuck=$stuck"
 	echo "fullscreen_seen=$fullscreen_seen"
+	echo "borderless_windowed_seen=$borderless_windowed_seen"
+	echo "target_presentation_seen=$target_presentation_seen"
 	echo "invalid_host_time_count=$invalid_host_time_count"
 	echo "display_precursor_seen=$display_precursor_seen"
 	echo "windowserver_pid_end=$windowserver_pid_end"

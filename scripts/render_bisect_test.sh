@@ -339,6 +339,19 @@ if [[ "$fullscreen_output" == *'--windowed'* ]]; then
 	echo "RENDER_BISECT_TEST FAIL startup fullscreen remained windowed" >&2
 	exit 1
 fi
+borderless_output="$($runner run stage1-jeep-one-surface --dry-run \
+	--borderless-windowed --seconds 12)"
+for expected in '--windowed' 'fullscreen_entry=borderless-windowed' \
+		'presentation_mode=borderless-windowed'; do
+	if [[ "$borderless_output" != *"$expected"* ]]; then
+		echo "RENDER_BISECT_TEST FAIL borderless run missing: $expected" >&2
+		exit 1
+	fi
+done
+if [[ "$borderless_output" == *'--fullscreen'* ]]; then
+	echo "RENDER_BISECT_TEST FAIL borderless run requested native fullscreen" >&2
+	exit 1
+fi
 if "$runner" run stage0-control --seconds 12 >/dev/null 2>&1; then
 	echo "RENDER_BISECT_TEST FAIL risk acknowledgement was optional" >&2
 	exit 1
@@ -347,7 +360,8 @@ if rg -q 'EPOCHSECONDS' "$runner"; then
 	echo "RENDER_BISECT_TEST FAIL launcher uses unavailable zsh clock" >&2
 	exit 1
 fi
-for required_state in display-precursor not-fullscreen; do
+for required_state in display-precursor timestamp-warning not-fullscreen \
+		not-borderless-windowed; do
 	if ! rg -q "state=\"$required_state\"" "$runner"; then
 		echo "RENDER_BISECT_TEST FAIL missing state: $required_state" >&2
 		exit 1
