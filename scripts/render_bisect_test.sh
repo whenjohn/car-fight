@@ -74,9 +74,35 @@ for event in stage1_start stage1_sample stage1_stop; do
 	fi
 done
 for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
+		'"jeep_material_mode":"embedded"' '"jeep_material_override":false' \
 		'"jeep_surfaces":8' '"stage":"stage1-jeep"'; do
 	if ! rg -q -F "$expected" "$test_dir/stage1-telemetry.jsonl"; then
 		echo "RENDER_BISECT_TEST FAIL Stage 1 telemetry missing: $expected" >&2
+		exit 1
+	fi
+done
+
+CAR_FIGHT_BISECT_STAGE=stage1-jeep-flat \
+	CAR_FIGHT_BISECT_TELEMETRY="$test_dir/stage1-flat-telemetry.jsonl" \
+	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS=2 \
+	"$godot_bin" --headless --path "$control_root" \
+		> "$test_dir/stage1-flat-godot.log" 2>&1
+if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Stage 1 could not' \
+		"$test_dir/stage1-flat-godot.log"; then
+	cat "$test_dir/stage1-flat-godot.log" >&2
+	exit 1
+fi
+for event in stage1flat_start stage1flat_sample stage1flat_stop; do
+	if ! rg -q "\"event\":\"$event\"" "$test_dir/stage1-flat-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL missing flat Jeep telemetry event: $event" >&2
+		exit 1
+	fi
+done
+for expected in '"jeep_mesh_instances":1' '"jeep_shadows":false' \
+		'"jeep_material_mode":"flat_override"' '"jeep_material_override":true' \
+		'"jeep_surfaces":8' '"stage":"stage1-jeep-flat"'; do
+	if ! rg -q -F "$expected" "$test_dir/stage1-flat-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL flat Jeep telemetry missing: $expected" >&2
 		exit 1
 	fi
 done
@@ -95,6 +121,13 @@ if [[ "$stage1_output" != *'stage=stage1-jeep'* \
 		|| "$stage1_output" != *'--windowed'* \
 		|| "$stage1_output" != *'asset_import_preflight=headless'* ]]; then
 	echo "RENDER_BISECT_TEST FAIL incomplete Stage 1 dry run" >&2
+	exit 1
+fi
+stage1_flat_output="$($runner run stage1-jeep-flat --dry-run --seconds 12)"
+if [[ "$stage1_flat_output" != *'stage=stage1-jeep-flat'* \
+		|| "$stage1_flat_output" != *'--windowed'* \
+		|| "$stage1_flat_output" != *'asset_import_preflight=headless'* ]]; then
+	echo "RENDER_BISECT_TEST FAIL incomplete flat Jeep dry run" >&2
 	exit 1
 fi
 fullscreen_output="$($runner run stage0-control --dry-run --startup-fullscreen --seconds 12)"

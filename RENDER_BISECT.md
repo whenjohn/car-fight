@@ -71,8 +71,31 @@ WindowServer session as Stage 0. It remained smooth and exited normally, but
 produced 680 `Invalid actual_host_time` warnings and one framebuffer-not-ready
 event; Stage 0 had produced zero invalid timestamps. WindowServer retained its
 PID through the 120-second watch and no watchdog or crash report appeared.
-Because the session/order was not fresh, Stage 1 must be repeated alone after a
-fresh boot/session before adding Stage 2.
+The user's prior crashes include failures after a reboot, so reboot/session
+state does not explain the repeated association between the Jeep test and the
+known warning. Treat this as a Jeep rendering-path regression and isolate the
+Jeep before adding Stage 2.
+
+### Jeep material isolation
+
+`stage1-jeep-flat` keeps the exact same Jeep FBX geometry, transform, one mesh
+instance, eight surfaces, camera, light, ground, and disabled shadows as
+`stage1-jeep`. It changes only material selection: one plain engine material is
+assigned as the mesh-wide override, bypassing all eight embedded FBX materials.
+No comparison-project content or gameplay code is involved.
+
+Inspect the prepared command without rendering:
+
+```sh
+./scripts/render_bisect.sh run stage1-jeep-flat --dry-run \
+  --startup-fullscreen --seconds 30
+```
+
+This variant has passed headless import and telemetry tests but has not yet been
+run rendered. If its fullscreen run still produces invalid timestamps, the
+embedded materials are not the activator and the next Jeep-only split should
+merge the same geometry into one surface/draw. If the warnings disappear, the
+next split should inspect the embedded materials individually.
 
 ## Remaining additions
 
@@ -91,10 +114,12 @@ must come from this car-fight repository and be introduced explicitly.
 
 ## Pass and fail criteria
 
-An `Invalid actual_host_time` warning is counted but is not by itself a failure;
-the comparison project has emitted that warning without a visible problem. A
-framebuffer-not-ready event, VBlank timeout, GPU reset, dead WindowServer event
-port, abnormal client exit, or WindowServer replacement fails the stage. A stage
-otherwise passes only when fullscreen is confirmed, the window remains visibly
-responsive, the client exits normally, the WindowServer PID remains unchanged,
-and no watchdog or kernel crash report appears.
+An `Invalid actual_host_time` warning is not by itself a visible crash, but it is
+a meaningful diagnostic regression when a controlled stage changes from zero
+to hundreds: it is the same precursor repeatedly observed before the Intel
+display-path failures. A framebuffer-not-ready event, VBlank timeout, GPU reset,
+dead WindowServer event port, abnormal client exit, or WindowServer replacement
+fails the stage outright. A stage otherwise passes only when fullscreen is
+confirmed, the window remains visibly responsive, the client exits normally,
+the WindowServer PID remains unchanged, and no watchdog or kernel crash report
+appears.

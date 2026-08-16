@@ -5,6 +5,7 @@ extends Node3D
 const SAMPLE_INTERVAL_SECONDS := 1.0
 const STAGE0 := "stage0-control"
 const STAGE1 := "stage1-jeep"
+const STAGE1_FLAT := "stage1-jeep-flat"
 
 var _telemetry: FileAccess
 var _stage := STAGE0
@@ -104,8 +105,8 @@ func _build_control_scene() -> bool:
 	ground.mesh = plane
 	add_child(ground)
 
-	if _stage == STAGE1:
-		return _add_jeep()
+	if _stage == STAGE1 or _stage == STAGE1_FLAT:
+		return _add_jeep(_stage == STAGE1_FLAT)
 	_add_control_box()
 	return true
 
@@ -120,7 +121,7 @@ func _add_control_box() -> void:
 	add_child(marker)
 
 
-func _add_jeep() -> bool:
+func _add_jeep(use_flat_material: bool) -> bool:
 	var resource := load("res://CarFightJeep.fbx") as PackedScene
 	if resource == null:
 		push_error("Stage 1 could not load the car-fight Jeep source")
@@ -140,13 +141,18 @@ func _add_jeep() -> bool:
 		jeep.queue_free()
 		return false
 	var surface_count := 0
+	var flat_material := _material(Color("4b9b55")) if use_flat_material else null
 	for child in meshes:
 		var mesh_instance := child as MeshInstance3D
 		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if flat_material != null:
+			mesh_instance.material_override = flat_material
 		if mesh_instance.mesh != null:
 			surface_count += mesh_instance.mesh.get_surface_count()
 	_stage_details = {
 		"jeep_mesh_instances": meshes.size(),
+		"jeep_material_mode": "flat_override" if use_flat_material else "embedded",
+		"jeep_material_override": use_flat_material,
 		"jeep_surfaces": surface_count,
 		"jeep_shadows": false,
 	}
@@ -169,6 +175,10 @@ func _configure_stage() -> bool:
 	if requested == STAGE1:
 		_stage = STAGE1
 		_event_prefix = "stage1"
+		return true
+	if requested == STAGE1_FLAT:
+		_stage = STAGE1_FLAT
+		_event_prefix = "stage1flat"
 		return true
 	push_error("Unknown render-isolation stage: %s" % requested)
 	return false
