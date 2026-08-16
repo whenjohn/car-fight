@@ -91,11 +91,20 @@ Inspect the prepared command without rendering:
   --startup-fullscreen --seconds 30
 ```
 
-This variant has passed headless import and telemetry tests but has not yet been
-run rendered. If its fullscreen run still produces invalid timestamps, the
-embedded materials are not the activator and the next Jeep-only split should
-merge the same geometry into one surface/draw. If the warnings disappear, the
-next split should inspect the embedded materials individually.
+The approved flat-material fullscreen probe ran for 30 seconds at commit
+`491af25`. Telemetry confirmed the intended `flat_override`, true focused
+2880 x 1800 fullscreen, nine draw calls, 708 primitives, and 120 FPS after
+startup. WindowServer emitted 629 `Invalid actual_host_time` warnings for the
+same DisplayID plus one framebuffer-not-ready event. The client exited normally,
+WindowServer remained PID 213 through the 120-second watch, and no watchdog or
+crash report appeared. Evidence:
+`.render-bisect-runs/20260815-232133-stage1-jeep-flat`.
+
+The embedded materials are therefore not required to activate the warning. The
+flat override retained all eight source surfaces and the same nine total draw
+calls, so the next Jeep-only split is to rebuild the same geometry as one
+surface with one material. That will isolate surface/draw submission count from
+the Jeep's vertex/index geometry.
 
 ## Remaining additions
 

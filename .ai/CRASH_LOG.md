@@ -215,8 +215,23 @@ report, and WindowServer remained PID 213 through the 120-second post-exit
 watch. This is a strong Stage 0/Stage 1 differential in one display session,
 but not proof that the Jeep causes the warning: the session/order was already
 state-contaminated and invalid timestamps can occur without visible failure.
-Repeat Stage 1 alone after a fresh boot/session before adding Stage 2. Evidence:
+Evidence:
 `/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-230251-stage1-jeep`.
+
+Later that night at commit `491af25`, the explicitly approved
+`stage1-jeep-flat` probe retained the byte-identical Jeep geometry, one mesh,
+eight surfaces, transform, camera, light, ground, and disabled shadows, but
+replaced all embedded FBX materials with one plain mesh-wide override. True
+focused 2880 x 1800 native-OpenGL fullscreen ran for 30 seconds at 120 FPS
+after startup with the same nine draw calls and 708 primitives. WindowServer
+emitted 629 `Invalid actual_host_time` errors for DisplayID `0x4280f40` from
+23:21:42.250 through 23:21:52.836, followed by a framebuffer-not-ready event at
+23:21:54.873. The client exited normally, WindowServer remained PID 213 through
+the 120-second post-exit watch, and no watchdog or crash report appeared. The
+near-match to the embedded-material result rules those materials out as a
+required activator; the Jeep's eight-surface/nine-draw subdivision and geometry
+remain unseparated. Evidence:
+`/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-232133-stage1-jeep-flat`.
 
 Relevant project settings across the five earlier native-OpenGL watchdog incidents:
 
