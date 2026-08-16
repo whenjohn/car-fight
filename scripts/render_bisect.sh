@@ -272,7 +272,7 @@ display_precursor_seen=0
 invalid_host_time_count="$(rg -c 'Invalid actual_host_time' \
 	"$run_dir/unified-live.log" 2>/dev/null || true)"
 invalid_host_time_count="${invalid_host_time_count:-0}"
-if rg -q -i 'Not Ready for Transaction Processing|VBlank timeout|GPU Reset|event port.*(dead|died)' \
+if rg -q -i '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*(Not Ready for Transaction Processing|VBlank timeout|GPU Reset|event port.*(dead|died))' \
 		"$run_dir/unified-live.log" 2>/dev/null; then
 	display_precursor_seen=1
 fi

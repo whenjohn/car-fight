@@ -468,8 +468,11 @@ func _configure_presentation() -> bool:
 	var screen := DisplayServer.window_get_current_screen()
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
-	DisplayServer.window_set_position(DisplayServer.screen_get_position(screen))
+	# Size first: Godot's macOS backend promotes a full-display borderless
+	# window above the menu bar during the resize. Positioning a smaller window
+	# first lets AppKit constrain it to the usable desktop (62 px on this panel).
 	DisplayServer.window_set_size(DisplayServer.screen_get_size(screen))
+	DisplayServer.window_set_position(DisplayServer.screen_get_position(screen))
 	return true
 
 
@@ -518,6 +521,7 @@ func _display_state() -> Dictionary:
 	var screen := DisplayServer.window_get_current_screen()
 	var screen_position := DisplayServer.screen_get_position(screen)
 	var screen_size := DisplayServer.screen_get_size(screen)
+	var screen_usable_rect := DisplayServer.screen_get_usable_rect(screen)
 	var window_position := DisplayServer.window_get_position()
 	var window_size := DisplayServer.window_get_size()
 	var window_mode := int(DisplayServer.window_get_mode())
@@ -544,6 +548,8 @@ func _display_state() -> Dictionary:
 		"screen": screen,
 		"screen_position": _vector2i_array(screen_position),
 		"screen_size": _vector2i_array(screen_size),
+		"screen_usable_position": _vector2i_array(screen_usable_rect.position),
+		"screen_usable_size": _vector2i_array(screen_usable_rect.size),
 		"screen_refresh_hz": DisplayServer.screen_get_refresh_rate(screen),
 	}
 

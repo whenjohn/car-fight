@@ -300,6 +300,29 @@ The rendered probe still requires `--accept-crash-risk` and retains the full
 360-second post-exit WindowServer watch. A clean result requires zero invalid
 host-time warnings as well as no display precursor, watchdog, or panic.
 
+The first approved mode-0 probe ran at commit `47c1b82` with the exact
+one-surface Jeep that previously produced 654 invalid timestamps and a delayed
+WindowServer watchdog in native fullscreen. The client rendered 708 primitives
+for 30 seconds and exited normally. All 30 display records confirmed mode 0,
+the borderless flag, a 2880 x 1800 render window, and no modes 3 or 4. It emitted
+zero `Invalid actual_host_time` warnings. WindowServer remained PID 52286
+through the 360-second post-exit watch with no VBlank timeout, GPU reset,
+watchdog, panic, or crash report. One framebuffer-not-ready event occurred at
+startup, so the render path was not completely clean.
+
+This was not yet a valid visual fullscreen-windowed result: macOS constrained
+the window to `[0,62]`, reserving the menu-bar area, and the user visibly saw
+the uncovered border. Evidence:
+`.render-bisect-runs/20260816-142214-stage1-jeep-one-surface`.
+
+Godot's macOS backend promotes a borderless window above the menu-bar level
+when a resize makes it cover the display. The first probe positioned the small
+startup window before resizing it, allowing AppKit to constrain that position.
+The prepared correction reverses only those calls: resize to the full display
+first, then position at the display origin. A second rendered probe requires
+fresh explicit approval and must confirm `[0,0]` plus visible edge-to-edge
+coverage before it counts.
+
 ## Remaining additions
 
 Each later stage changes one car-fight-owned variable and keeps everything else
