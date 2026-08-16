@@ -318,10 +318,147 @@ the uncovered border. Evidence:
 Godot's macOS backend promotes a borderless window above the menu-bar level
 when a resize makes it cover the display. The first probe positioned the small
 startup window before resizing it, allowing AppKit to constrain that position.
-The prepared correction reverses only those calls: resize to the full display
-first, then position at the display origin. A second rendered probe requires
-fresh explicit approval and must confirm `[0,0]` plus visible edge-to-edge
-coverage before it counts.
+The correction reversed only those calls: resize to the full display first,
+then position at the display origin.
+
+The second explicitly approved probe ran at commit `75d398d`. It was a valid
+visual fullscreen-windowed test: all 30 display records confirmed mode 0,
+borderless, `[0,0]`, 2880 x 1800, and no modes 3 or 4. The same one-surface
+Jeep rendered 708 primitives in two draw calls and the client exited normally
+after 30 seconds.
+
+This edge-to-edge mode emitted 1,077 `Invalid actual_host_time` warnings for
+DisplayID `0x4280f40`, from 14:32:46.372 through 14:33:10.296, followed by one
+Intel framebuffer-not-ready event at 14:33:12.335. WindowServer remained PID
+52286 through the full 360-second post-exit watch; there was no VBlank timeout,
+GPU reset, event-port death, watchdog, panic, or crash report. The run still
+fails because the warning storm is the established precursor to the prior
+delayed WindowServer watchdog and kernel panic. Evidence:
+`.render-bisect-runs/20260816-143233-stage1-jeep-one-surface`.
+
+### Matched presentation comparison
+
+| Presentation | Window telemetry | Invalid timestamps | Other display result |
+| --- | --- | ---: | --- |
+| Native Godot fullscreen | mode 3, `[0,0]`, 2880 x 1800 | 654 | framebuffer-not-ready events, then delayed WindowServer watchdog/restart |
+| Constrained borderless window | mode 0, `[0,62]`, 2880 x 1800 | 0 | one framebuffer-not-ready event; no watchdog in 360 seconds |
+| Edge-to-edge borderless window | mode 0, `[0,0]`, 2880 x 1800 | 1,077 | one framebuffer-not-ready event; no watchdog in 360 seconds |
+
+All three rows use the same one-surface Jeep, flat material, camera, ground,
+lighting, disabled shadows, OpenGL renderer, 30-second duration, and 360-second
+watch. The two mode-0 rows differ only in the ordering that determined whether
+macOS left a 62-pixel menu-bar margin or allowed exact full-display coverage.
+
+### Current conclusion
+
+- Native macOS fullscreen and a separate fullscreen Space are **not required**
+  to reproduce the warning. A mode-0 borderless window reproduces it when the
+  window actually covers the complete built-in display.
+- The exact Jeep is **not the root cause**. The same precursor also reproduced
+  with the same-pack Pickup, an unrelated Kenney GLB Garbage Truck, and a newly
+  generated position/index-only mesh. Imports, FBX/GLB format, embedded
+  materials, normals, tangents, UVs, textures, multiple surfaces, shadows, and
+  high draw count are not required.
+- The strongest matched evidence identifies exact full-display coverage as a
+  key activation boundary in Godot's Intel/macOS presentation path. It does not
+  yet prove coverage alone is sufficient for every scene: the 14-primitive
+  Stage 0 control has not been rerun edge-to-edge in the current WindowServer
+  session.
+- A visually acceptable fullscreen-windowed mode is therefore **not a safe
+  workaround in Godot on this Intel Mac**. A constrained/maximized window may
+  avoid the warning, but the one 30-second zero-warning result is not enough to
+  certify it for shipping and its visible margin does not meet the requested
+  fullscreen presentation.
+- This is best treated as a Godot/OpenGL plus macOS Intel display-driver
+  interaction. The logs originate in WindowServer and
+  `AppleIntelICLLPGraphicsFramebuffer`, so another engine is not guaranteed to
+  avoid it; another engine must be tested on this exact machine.
+
+## Next-session handoff (2026-08-16)
+
+### Recommended path: minimal Unity feasibility spike
+
+Do not port Car Fight yet. First build the smallest possible Unity 6 macOS
+experiment using Unity's Metal renderer and **Fullscreen Window** presentation.
+Unity documents Fullscreen Window as a borderless native-resolution window on
+macOS, while exclusive fullscreen is not the normal macOS path:
+
+- [Unity macOS Player settings](https://docs.unity3d.com/Manual/PlayerSettings-macOS.html)
+- [Unity 6 system requirements](https://docs.unity3d.com/6000.0/Documentation/Manual/system-requirements.html)
+
+Use the same evidence contract as this Godot branch:
+
+1. `unity-stage0`: one camera, one light, one plane, and one box. No gameplay,
+   physics, input, networking, effects, imported assets, or shadows. Run for 30
+   seconds in Fullscreen Window, then watch WindowServer for 360 seconds.
+2. Only if Stage 0 is clean, run `unity-stage1-jeep`: replace the box with the
+   same repository Jeep presentation and keep everything else fixed. Prefer
+   one flat material and one merged surface for the closest comparison.
+3. A pass requires zero `Invalid actual_host_time` warnings, no
+   framebuffer-not-ready event, VBlank timeout, GPU reset, WindowServer
+   replacement, watchdog, panic, or crash report.
+4. Inspect each launch before rendering and get fresh explicit approval for
+   each rendered probe. Save and push work before every risky run.
+5. If both Unity stages pass, make a separate decision about a narrow Car Fight
+   movement/camera migration prototype. Do not carry G2 assets, gameplay,
+   controls, logic, or networking into it.
+6. If Unity reproduces the warning, treat this as an OS/Intel-hardware boundary:
+   ship Intel macOS windowed/maximized with a margin, omit Intel fullscreen, or
+   drop Intel support rather than continuing unsafe fullscreen experiments.
+
+Unity is a promising test because its macOS renderer and window/presentation
+implementation differ from Godot's OpenGL path. It is not yet evidence of a
+fix. The warning is below the engine in WindowServer/the Intel framebuffer, so
+only a monitored run can answer the question.
+
+### Architecture and packaging
+
+Do not create separate gameplay projects for Intel and Apple Silicon. Keep one
+Mac product and one asset/code base. Prefer a universal macOS application when
+the chosen engine/export pipeline supports it; otherwise architecture-specific
+binaries can still come from the same project. Runtime presentation policy may
+differ by architecture:
+
+- Intel (`x86_64`): no edge-to-edge Godot presentation unless a future tested
+  configuration produces zero warnings.
+- Apple Silicon (`arm64`): fullscreen is unproven, not known-bad. Test the same
+  minimal stage independently before enabling it.
+
+Using the same borderless policy on both architectures would be simplest, but
+only after both pass. Do not infer Apple Silicon behavior from this Intel Iris
+Plus failure.
+
+### Optional Godot diagnostics
+
+These are useful only if more root-cause evidence is worth the crash risk; they
+are not prerequisites for the recommended Unity spike:
+
+1. Run the existing Stage 0 primitive scene with the corrected edge-to-edge
+   mode-0 presentation. This tests whether coverage alone is sufficient in the
+   current WindowServer session.
+2. If a precise boundary matters, test one inset dimension/position at a time
+   between `[0,62]` and `[0,0]`. A tiny inset may identify Godot/macOS's
+   full-coverage promotion threshold, but a visible inset is not the requested
+   product experience.
+3. Repeat a constrained/maximized window for substantially longer before ever
+   calling it safe. One clean 30-second run is only preliminary evidence.
+4. Package the evidence and incident IDs for Godot and Apple bug reports.
+
+Do **not** repeat the Vulkan/MoltenVK experiment on this Intel Mac. It wedged
+Godot and WindowServer and produced the `IGGuC.cpp:3127` kernel panic. Do not
+repeat native fullscreen or edge-to-edge Jeep probes merely to reconfirm the
+already established warning.
+
+### Resume checklist
+
+1. Pull `diagnostics/g2-render-bisect` and read this handoff before changing or
+   launching anything.
+2. If the Mac crashed or WindowServer restarted after the last recorded run,
+   collect the crash report before opening another rendered client.
+3. Choose one next experiment: the recommended Unity Stage 0, or the optional
+   Godot Stage 0 edge-to-edge control. Do not mix both in one run.
+4. Keep every rendered run bounded to 30 seconds plus the 360-second post-exit
+   watch until a new safety decision is documented.
 
 ## Remaining additions
 
