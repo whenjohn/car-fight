@@ -8,6 +8,8 @@ const STAGE1 := "stage1-jeep"
 const STAGE1_FLAT := "stage1-jeep-flat"
 const STAGE1_ONE_SURFACE := "stage1-jeep-one-surface"
 const STAGE1_PICKUP_ONE_SURFACE := "stage1-pickup-one-surface"
+const STAGE1_KENNEY_GARBAGE_TRUCK_ONE_SURFACE := \
+	"stage1-kenney-garbage-truck-one-surface"
 
 var _telemetry: FileAccess
 var _stage := STAGE0
@@ -114,6 +116,10 @@ func _build_control_scene() -> bool:
 	if _stage == STAGE1_PICKUP_ONE_SURFACE:
 		return _add_vehicle(
 			"res://Pickup.fbx", "Pickup", "pickup", true, true)
+	if _stage == STAGE1_KENNEY_GARBAGE_TRUCK_ONE_SURFACE:
+		return _add_vehicle(
+			"res://garbage-truck.glb", "Kenney Garbage Truck", "garbage_truck",
+			true, true, true, 1.2)
 	_add_control_box()
 	return true
 
@@ -129,7 +135,8 @@ func _add_control_box() -> void:
 
 
 func _add_vehicle(source_path: String, model_name: String, telemetry_prefix: String,
-		use_flat_material: bool, merge_surfaces: bool) -> bool:
+		use_flat_material: bool, merge_surfaces: bool,
+		merge_mesh_instances: bool = false, presentation_scale: float = 0.45) -> bool:
 	var resource := load(source_path) as PackedScene
 	if resource == null:
 		push_error("Stage 1 could not load the %s source" % model_name)
@@ -139,7 +146,7 @@ func _add_vehicle(source_path: String, model_name: String, telemetry_prefix: Str
 		push_error("Stage 1 could not instantiate the %s source" % model_name)
 		return false
 	vehicle.name = "%sPresentation" % model_name
-	vehicle.scale = Vector3.ONE * 0.45
+	vehicle.scale = Vector3.ONE * presentation_scale
 	vehicle.rotation.y = PI
 	vehicle.position = Vector3(0.0, 0.065, -0.05)
 	add_child(vehicle)
@@ -157,6 +164,7 @@ func _add_vehicle(source_path: String, model_name: String, telemetry_prefix: Str
 	var invalid_attribute_value_count := 0
 	var invalid_index_count := 0
 	var flat_material := _material(Color("4b9b55")) if use_flat_material else null
+	var rendered_meshes: Array[MeshInstance3D] = []
 	for child in meshes:
 		var mesh_instance := child as MeshInstance3D
 		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -171,15 +179,37 @@ func _add_vehicle(source_path: String, model_name: String, telemetry_prefix: Str
 				source_mesh.surface_get_arrays(surface))
 			invalid_attribute_value_count += validation["invalid_attribute_values"]
 			invalid_index_count += validation["invalid_indices"]
-		if merge_surfaces:
-			var merged_mesh := _merge_mesh_surfaces(source_mesh)
-			if merged_mesh == null:
-				vehicle.queue_free()
-				return false
-			mesh_instance.mesh = merged_mesh
+	if merge_mesh_instances:
+		var merged_vehicle_mesh := _merge_mesh_instances(meshes, vehicle)
+		if merged_vehicle_mesh == null:
+			vehicle.queue_free()
+			return false
+		for child in meshes:
+			(child as MeshInstance3D).visible = false
+		var merged_instance := MeshInstance3D.new()
+		merged_instance.name = "MergedVehicleMesh"
+		merged_instance.mesh = merged_vehicle_mesh
+		merged_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if flat_material != null:
-			mesh_instance.material_override = flat_material
+			merged_instance.material_override = flat_material
+		vehicle.add_child(merged_instance)
+		rendered_meshes.append(merged_instance)
+	else:
+		for child in meshes:
+			var mesh_instance := child as MeshInstance3D
+			if merge_surfaces:
+				var merged_mesh := _merge_mesh_surfaces(mesh_instance.mesh)
+				if merged_mesh == null:
+					vehicle.queue_free()
+					return false
+				mesh_instance.mesh = merged_mesh
+			if flat_material != null:
+				mesh_instance.material_override = flat_material
+			rendered_meshes.append(mesh_instance)
+	for mesh_instance in rendered_meshes:
 		var rendered_mesh := mesh_instance.mesh
+		if rendered_mesh == null:
+			continue
 		rendered_surface_count += rendered_mesh.get_surface_count()
 		for surface in range(rendered_mesh.get_surface_count()):
 			rendered_vertex_count += rendered_mesh.surface_get_array_len(surface)
@@ -200,9 +230,10 @@ func _add_vehicle(source_path: String, model_name: String, telemetry_prefix: Str
 	details["%s_material_override" % telemetry_prefix] = use_flat_material
 	details["%s_mesh_data_valid" % telemetry_prefix] = (
 		invalid_attribute_value_count == 0 and invalid_index_count == 0)
-	details["%s_mesh_instances" % telemetry_prefix] = meshes.size()
+	details["%s_mesh_instances" % telemetry_prefix] = rendered_meshes.size()
 	details["%s_shadows" % telemetry_prefix] = false
 	details["%s_source_indices" % telemetry_prefix] = source_index_count
+	details["%s_source_mesh_instances" % telemetry_prefix] = meshes.size()
 	details["%s_source_surfaces" % telemetry_prefix] = source_surface_count
 	details["%s_source_vertices" % telemetry_prefix] = source_vertex_count
 	details["%s_surfaces" % telemetry_prefix] = rendered_surface_count
@@ -268,6 +299,28 @@ func _merge_mesh_surfaces(source: Mesh) -> ArrayMesh:
 	return merged
 
 
+func _merge_mesh_instances(meshes: Array[Node], vehicle: Node3D) -> ArrayMesh:
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var vehicle_inverse := vehicle.global_transform.affine_inverse()
+	for child in meshes:
+		var mesh_instance := child as MeshInstance3D
+		var source_mesh := mesh_instance.mesh
+		if source_mesh == null:
+			continue
+		var local_transform := vehicle_inverse * mesh_instance.global_transform
+		for surface in range(source_mesh.get_surface_count()):
+			if source_mesh.surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES:
+				push_error("One-surface vehicle requires triangle source surfaces")
+				return null
+			tool.append_from(source_mesh, surface, local_transform)
+	var merged := tool.commit()
+	if merged == null or merged.get_surface_count() != 1:
+		push_error("One-surface vehicle merge did not create exactly one surface")
+		return null
+	return merged
+
+
 func _material(color: Color) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
@@ -296,6 +349,10 @@ func _configure_stage() -> bool:
 	if requested == STAGE1_PICKUP_ONE_SURFACE:
 		_stage = STAGE1_PICKUP_ONE_SURFACE
 		_event_prefix = "stage1pickup"
+		return true
+	if requested == STAGE1_KENNEY_GARBAGE_TRUCK_ONE_SURFACE:
+		_stage = STAGE1_KENNEY_GARBAGE_TRUCK_ONE_SURFACE
+		_event_prefix = "stage1garbagetruck"
 		return true
 	push_error("Unknown render-isolation stage: %s" % requested)
 	return false

@@ -41,6 +41,21 @@ if [[ "$pickup_hash" != "21eba6952659dc20916e28aacf8cac98150a7f617a58f4e1acc5b7b
 	echo "RENDER_BISECT_TEST FAIL Pickup must match the official CC0 source" >&2
 	exit 1
 fi
+if [[ -L "$control_root/garbage-truck.glb" \
+		|| ! -f "$control_root/garbage-truck.glb" ]]; then
+	echo "RENDER_BISECT_TEST FAIL Kenney Garbage Truck must be a regular file" >&2
+	exit 1
+fi
+garbage_truck_hash="$(shasum -a 256 "$control_root/garbage-truck.glb" | awk '{print $1}')"
+if [[ "$garbage_truck_hash" != "6f2943e0ba4c6d86eb69a9243224259d6e0f169f474228439cda0579d49d3509" ]]; then
+	echo "RENDER_BISECT_TEST FAIL Garbage Truck must match the Kenney CC0 source" >&2
+	exit 1
+fi
+garbage_texture_hash="$(shasum -a 256 "$control_root/Textures/colormap.png" | awk '{print $1}')"
+if [[ "$garbage_texture_hash" != "f3622a03a20c6696065cae9cbe391351be873508af190c2ebd1d420c055787a5" ]]; then
+	echo "RENDER_BISECT_TEST FAIL Kenney texture must match the CC0 source" >&2
+	exit 1
+fi
 
 "$godot_bin" --headless --path "$control_root" --editor --quit \
 	> "$test_dir/import-preflight.log" 2>&1
@@ -184,6 +199,46 @@ for expected in '"vehicle_model":"Pickup"' '"pickup_mesh_instances":1' \
 	fi
 done
 
+CAR_FIGHT_BISECT_STAGE=stage1-kenney-garbage-truck-one-surface \
+	CAR_FIGHT_BISECT_TELEMETRY="$test_dir/stage1-garbage-truck-telemetry.jsonl" \
+	CAR_FIGHT_BISECT_AUTO_QUIT_SECONDS=2 \
+	"$godot_bin" --headless --path "$control_root" \
+		> "$test_dir/stage1-garbage-truck-godot.log" 2>&1
+if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script|Stage 1 could not|One-surface' \
+		"$test_dir/stage1-garbage-truck-godot.log"; then
+	cat "$test_dir/stage1-garbage-truck-godot.log" >&2
+	exit 1
+fi
+for event in stage1garbagetruck_start stage1garbagetruck_sample \
+		stage1garbagetruck_stop; do
+	if ! rg -q "\"event\":\"$event\"" \
+			"$test_dir/stage1-garbage-truck-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL missing Garbage Truck event: $event" >&2
+		exit 1
+	fi
+done
+for expected in '"vehicle_model":"Kenney Garbage Truck"' \
+		'"garbage_truck_mesh_instances":1' \
+		'"garbage_truck_source_mesh_instances":7' \
+		'"garbage_truck_shadows":false' \
+		'"garbage_truck_material_mode":"flat_override"' \
+		'"garbage_truck_material_override":true' \
+		'"garbage_truck_geometry_mode":"one_surface"' \
+		'"garbage_truck_geometry_counts_preserved":true' \
+		'"garbage_truck_mesh_data_valid":true' \
+		'"garbage_truck_invalid_attribute_values":0' \
+		'"garbage_truck_invalid_indices":0' \
+		'"garbage_truck_source_surfaces":7' '"garbage_truck_surfaces":1' \
+		'"garbage_truck_source_vertices":4912' '"garbage_truck_vertices":4912' \
+		'"garbage_truck_source_indices":9372' '"garbage_truck_indices":9372' \
+		'"stage":"stage1-kenney-garbage-truck-one-surface"'; do
+	if ! rg -q -F "$expected" \
+			"$test_dir/stage1-garbage-truck-telemetry.jsonl"; then
+		echo "RENDER_BISECT_TEST FAIL Garbage Truck telemetry missing: $expected" >&2
+		exit 1
+	fi
+done
+
 dry_output="$($runner run stage0-control --dry-run --seconds 12)"
 for expected in '--rendering-driver opengl3' '--windowed' \
 		"--path $control_root" 'fullscreen_entry=manual' \
@@ -219,6 +274,15 @@ if [[ "$stage1_pickup_output" != *'stage=stage1-pickup-one-surface'* \
 		|| "$stage1_pickup_output" != *'--windowed'* \
 		|| "$stage1_pickup_output" != *'asset_import_preflight=headless'* ]]; then
 	echo "RENDER_BISECT_TEST FAIL incomplete Pickup dry run" >&2
+	exit 1
+fi
+stage1_garbage_truck_output="$($runner run \
+	stage1-kenney-garbage-truck-one-surface --dry-run --seconds 12)"
+if [[ "$stage1_garbage_truck_output" != \
+		*'stage=stage1-kenney-garbage-truck-one-surface'* \
+		|| "$stage1_garbage_truck_output" != *'--windowed'* \
+		|| "$stage1_garbage_truck_output" != *'asset_import_preflight=headless'* ]]; then
+	echo "RENDER_BISECT_TEST FAIL incomplete Garbage Truck dry run" >&2
 	exit 1
 fi
 fullscreen_output="$($runner run stage0-control --dry-run --startup-fullscreen --seconds 12)"

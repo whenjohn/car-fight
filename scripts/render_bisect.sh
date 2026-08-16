@@ -20,11 +20,14 @@ Render-isolation stages:
                     Same Jeep vertices/indices merged to one plain surface
   stage1-pickup-one-surface
                     Same-pack Pickup merged to one plain surface
+  stage1-kenney-garbage-truck-one-surface
+                    Kenney CC0 GLB garbage truck merged to one plain surface
 
 Stage 0 starts windowed. Enter fullscreen manually from the Godot window so the
 entry path matches the known-good comparison. No car-fight assets or gameplay
 are loaded by Stage 0. Both Stage 1 variants load only the raw Jeep presentation
-asset; shadows, physics, controls, animation, effects, and gameplay remain absent.
+asset; external control stages load only their named CC0 mesh. Shadows, physics,
+controls, animation, effects, and gameplay remain absent.
 EOF
 }
 
@@ -84,7 +87,8 @@ done
 if [[ "$stage" != "stage0-control" && "$stage" != "stage1-jeep" \
 		&& "$stage" != "stage1-jeep-flat" \
 		&& "$stage" != "stage1-jeep-one-surface" \
-		&& "$stage" != "stage1-pickup-one-surface" ]]; then
+		&& "$stage" != "stage1-pickup-one-surface" \
+		&& "$stage" != "stage1-kenney-garbage-truck-one-surface" ]]; then
 	echo "unknown render-isolation stage: $stage" >&2
 	print_stages >&2
 	exit 2
