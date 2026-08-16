@@ -122,9 +122,21 @@ Inspect the prepared command without rendering:
   --startup-fullscreen --seconds 30
 ```
 
-This variant has passed headless import and telemetry tests. Its rendered probe
-is the direct test of whether the Jeep's surface/draw subdivision is required
-to activate the display-timestamp warning.
+The approved one-surface fullscreen probe ran for 30 seconds at commit
+`ce9aa1d`. Telemetry confirmed true focused 2880 x 1800 fullscreen, one rendered
+Jeep surface, two total draw calls, 708 primitives, and 120 FPS. It still
+produced 654 `Invalid actual_host_time` warnings for the same DisplayID plus one
+framebuffer-not-ready event. The client exited normally, WindowServer remained
+PID 213 through the 120-second watch, and no watchdog or crash report appeared.
+Evidence: `.render-bisect-runs/20260815-233727-stage1-jeep-one-surface`.
+
+Surface/material subdivision and draw-call count are therefore not required to
+activate the warning: the Stage 0 control and this stage both use two total draw
+calls, but only the Jeep stage reproduced it. The controlled remaining render
+difference is mesh geometry/workload: 708 total primitives here versus 14 in
+Stage 0. The next split should replace the Jeep with a newly generated,
+non-imported engine mesh matching its 1,323 vertices, 2,118 indices, 706
+triangles, one surface, and one plain material.
 
 ## Remaining additions
 

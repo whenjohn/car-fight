@@ -233,6 +233,21 @@ required activator; the Jeep's eight-surface/nine-draw subdivision and geometry
 remain unseparated. Evidence:
 `/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-232133-stage1-jeep-flat`.
 
+At commit `ce9aa1d`, the explicitly approved `stage1-jeep-one-surface` probe
+used Godot's engine mesh builder to merge the same Jeep's eight surfaces into
+one plain-material surface while preserving all 1,323 vertices and 2,118
+indices. True focused 2880 x 1800 native-OpenGL fullscreen ran for 30 seconds
+at 120 FPS with two total draw calls and 708 primitives. WindowServer emitted
+654 `Invalid actual_host_time` errors for DisplayID `0x4280f40` from
+23:37:36.365 through 23:37:47.284, followed by a framebuffer-not-ready event at
+23:37:49.320. The client exited normally, WindowServer remained PID 213 through
+the 120-second post-exit watch, and no watchdog or crash report appeared. Stage
+0 also used two total draw calls but produced zero invalid timestamps, so the
+Jeep's embedded materials, eight-surface subdivision, and draw count are not
+required activators. Its actual geometry or 706-triangle workload remains the
+controlled render difference. Evidence:
+`/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260815-233727-stage1-jeep-one-surface`.
+
 Relevant project settings across the five earlier native-OpenGL watchdog incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
