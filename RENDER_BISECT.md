@@ -266,6 +266,23 @@ reproduces, binary-search generated triangle count and screen coverage next. If
 it remains clean, rebuild the exact Garbage Truck positions and indices without
 any other imported attributes or retained source resources.
 
+The approved probe ran at commit `e0b2969`. True 2880 x 1800 native OpenGL
+rendered the generated mesh with two total draw calls and 3,126 total primitives
+and exited normally after 30 seconds. WindowServer emitted 207
+`Invalid actual_host_time` warnings for DisplayID `0x4280f40` from
+12:31:01.102 through 12:31:04.589. No framebuffer-not-ready event, real VBlank
+timeout, GPU reset, event-port death, watchdog, panic, or crash report appeared,
+and WindowServer remained PID 52286 through the full 360-second post-exit watch.
+Evidence: `.render-bisect-runs/20260816-123051-stage1-procedural-minimal`.
+
+Imported mesh files, FBX/GLB importers, imported positions, normals, tangents,
+UVs, textures, materials, LODs, shadow meshes, hidden source nodes, and retained
+source resources are therefore not required for the precursor. This run used a
+WindowServer PID that had already experienced earlier precursor tests, so it
+does not yet separate generic geometry workload/screen coverage from persistent
+fullscreen display state. The next controlled split is to rerun the existing
+14-primitive Stage 0 box in this same PID before changing mesh count again.
+
 ## Remaining additions
 
 Each later stage changes one car-fight-owned variable and keeps everything else

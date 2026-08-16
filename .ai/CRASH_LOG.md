@@ -301,6 +301,24 @@ useful split is imported vehicle attributes versus a comparable non-imported
 procedural mesh workload. Evidence:
 `/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260816-102017-stage1-kenney-garbage-truck-one-surface`.
 
+Later on 2026-08-16 at commit `e0b2969`, the explicitly approved
+`stage1-procedural-minimal` control rendered no imported resource at all. It
+constructed one unshaded position/index-only `ArrayMesh` with the Garbage
+Truck's exact 4,912 vertex slots, 9,372 indices, and 3,124 triangles. True
+2880 x 1800 native OpenGL rendered two total draw calls and 3,126 total
+primitives, then the client exited normally after 30 seconds. WindowServer
+emitted 207 `Invalid actual_host_time` errors for DisplayID `0x4280f40` from
+12:31:01.102 through 12:31:04.589. No framebuffer-not-ready event, real VBlank
+timeout, GPU reset, event-port death, watchdog, panic, or crash report appeared,
+and WindowServer remained PID 52286 through the full 360-second post-exit watch.
+This precursor-only observation rules imported formats/resources and optional
+vertex attributes out as requirements. Because PID 52286 had already
+experienced the Pickup and Garbage Truck precursors, it leaves geometry
+workload/screen coverage confounded with persistent fullscreen display state.
+The next split is the existing 14-primitive Stage 0 control in the same PID.
+Evidence:
+`/Users/johnnguyen/Projects/car-fight-g2-render-bisect/.render-bisect-runs/20260816-123051-stage1-procedural-minimal`.
+
 Relevant project settings across the five earlier native-OpenGL watchdog incidents:
 
 - `renderer/rendering_method="gl_compatibility"`
