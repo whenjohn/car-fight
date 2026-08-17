@@ -1,5 +1,12 @@
 # Car Fight
 
+> **Project status:** This Godot implementation is preserved as the canonical
+> gameplay and behavior reference, but active development is moving to a fresh
+> Unity project. The fullscreen investigation and engine decision are summarized
+> in [`MIGRATION_TO_UNITY.md`](MIGRATION_TO_UNITY.md). Do not merge the diagnostic
+> branches into this gameplay branch or run another Godot fullscreen probe merely
+> to reconfirm the known Intel/macOS failures.
+
 A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
 Networking is native ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
