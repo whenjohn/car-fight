@@ -1187,8 +1187,11 @@ func _on_tick(delta: float, tick: int) -> void:
 		if elapsed % 30 == 0:
 			for child in _players.get_children():
 				var body := child as Node3D
-				if body != null:
-					_receive_authority_probe.rpc_id(int(body.name), tick, int(body.name), body.position)
+				var peer_id := 0 if body == null else int(body.name)
+				# queue_free keeps a departed peer's body visible until the end of the
+				# frame. Never target that stale body after ENet has removed its peer.
+				if body != null and multiplayer.get_peers().has(peer_id):
+					_receive_authority_probe.rpc_id(peer_id, tick, peer_id, body.position)
 		if elapsed % 60 == 0:
 			_log("SERVER_TICK tick=%d players=%d minpair=%.3f contact=%d" % [elapsed, _players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0])
 	else:

@@ -23,6 +23,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/elevated_course_test.gd
 "$project_root/scripts/network_test.sh"
 "$project_root/scripts/join_transient_test.sh"
+"$project_root/scripts/reconnect_test.sh"
 "$project_root/scripts/ball_test.sh"
 "$project_root/scripts/tractor_test.sh"
 "$project_root/scripts/course_test.sh"

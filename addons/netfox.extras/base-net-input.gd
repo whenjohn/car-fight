@@ -5,7 +5,9 @@ class_name BaseNetInput
 
 func _ready():
 	NetworkTime.before_tick_loop.connect(func():
-		if is_multiplayer_authority():
+		# queue_free can detach a leaving peer's input node one tick-loop before
+		# PREDELETE disconnects this callback. Authority queries require a live tree.
+		if is_inside_tree() and is_multiplayer_authority():
 			_gather()
 	)
 

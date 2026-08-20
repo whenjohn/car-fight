@@ -6,9 +6,15 @@ This is a clean Godot 4.7 experiment. Keep it small and auditable.
 - Server authority and ENet lifecycle live in `Main.gd`.
 - Deterministic FOLLOW math lives in `player/follow_controller.gd`; presentation must not affect it.
 - Player input authority belongs to its owning client; body/state authority stays with server peer 1.
-- Vendored netfox carries the four-file G2 D-040 stale-history patch plus
-  `scripts/join_transient_test.sh`. Preserve/reapply it when updating netfox;
-  never accept a client that retries rollback older than `history_start`.
+- Vendored netfox carries the four-file G2 D-040 stale-history patch plus the
+  detached-input lifecycle guard in `BaseNetInput`. Preserve/reapply both when
+  updating netfox; `scripts/join_transient_test.sh` and
+  `scripts/reconnect_test.sh` gate them. Never accept a client that retries
+  rollback older than `history_start` or queries authority from a detached
+  input node.
+- Do not port G2's half-handshake-RTT initial time seed. In Car Fight's 120 ms
+  two-client A/B it caused 3.16-3.46 unit startup corrections in two of three
+  runs; the unseeded control passed three of three at 1.178 units or less.
 - The Jeep and turret are presentation only. The equal-mass sphere is the gameplay collider.
 - Do not add weapons, damage, resources, bots, maps, or g2's custom transport/bundle stack without a new explicit scope decision.
 - Do not make every new gameplay object a rollback-synchronized body by

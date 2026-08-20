@@ -45,7 +45,9 @@ case "${1:-status}" in
 		sudo launchctl kickstart -k "system/$label"
 		;;
 	status)
-		sudo launchctl print "system/$label" 2>/dev/null | rg 'state =|pid =|program =' || { echo "$label is not loaded"; exit 1; }
+		sudo launchctl print "system/$label" 2>/dev/null \
+			| /usr/bin/grep -E 'state =|pid =|program =' \
+			|| { echo "$label is not loaded"; exit 1; }
 		;;
 	*)
 		echo "usage: $0 serve|import|install|restart|status" >&2
