@@ -5,6 +5,10 @@ uniform vec3 vehicle_positions[4];
 uniform vec3 vehicle_trail_positions[4];
 uniform vec3 bolt_positions[3];
 uniform vec3 bolt_trail_positions[3];
+uniform vec3 shockwave_position = vec3(10000.0);
+uniform float shockwave_radius = 4.0;
+uniform float shockwave_age = 2.1;
+uniform float shockwave_active = 0.0;
 uniform vec2 wind_direction = vec2(0.78, 0.42);
 uniform float wind_strength : hint_range(0.0, 1.0) = 0.07;
 uniform float wind_speed : hint_range(0.0, 5.0) = 0.82;
@@ -58,6 +62,23 @@ void vertex() {
 		bend += direction * wake * .76;
 		heat = max(heat, (1.0 - smoothstep(radius * .2, radius * 1.35, distance))
 			* mix(.72, 1.0, hash(phase + 313.7)));
+	}
+	if (shockwave_active > .5) {
+		vec2 offset = anchor - shockwave_position.xz;
+		float distance = length(offset);
+		vec2 direction = distance > .001 ? offset / distance : vec2(cos(phase), sin(phase));
+		float progress = 1.0 - pow(1.0 - clamp(shockwave_age / .68, 0.0, 1.0), 2.4);
+		float front_radius = shockwave_radius * progress;
+		float ring = 1.0 - smoothstep(.08, .62, abs(distance - front_radius));
+		float arrival = .68 * (1.0 - pow(1.0 - clamp(distance / max(shockwave_radius, .001), 0.0, 1.0), .42));
+		float since_arrival = shockwave_age - arrival;
+		float settle = smoothstep(.0, .12, since_arrival)
+			* pow(clamp(1.0 - since_arrival / 1.25, 0.0, 1.0), 1.35);
+		float wobble = sin(since_arrival * mix(7.0, 12.0, hash(phase + 207.5)) + phase)
+			* settle * mix(.28, .58, hash(phase + 218.7));
+		float effect = ring * .76 + wobble;
+		bend += direction * effect * mix(.72, 1.22, hash(phase + 183.9));
+		flatten = max(flatten, max(ring * .20, settle * .11));
 	}
 	VERTEX.xz += bend * tip;
 	VERTEX.y -= flatten * tip;

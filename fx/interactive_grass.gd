@@ -8,10 +8,12 @@ const CHUNKS_PER_SIDE := 3
 const TUFTS_PER_CHUNK := 900
 const FIELD_HALF_EXTENT := CHUNK_SIZE * CHUNKS_PER_SIDE * 0.5
 const OFF_FIELD := Vector3(10000.0, 0.0, 10000.0)
+const SHOCKWAVE_DURATION := 2.1
 
 var _players: Node3D
 var _bolts: Node3D
 var _material: ShaderMaterial
+var _shockwave_age := SHOCKWAVE_DURATION
 
 func setup(players: Node3D, bolts: Node3D) -> void:
 	_players = players
@@ -23,6 +25,7 @@ func _ready() -> void:
 		return
 	_material = ShaderMaterial.new()
 	_material.shader = GRASS_SHADER
+	add_to_group("interactive_grass")
 	var tuft_mesh := _build_tuft_mesh()
 	var random := RandomNumberGenerator.new()
 	random.seed = 0xCA4F17
@@ -84,7 +87,7 @@ func _add_chunk(x: int, z: int, tuft_mesh: ArrayMesh, random: RandomNumberGenera
 	chunk.multimesh = multimesh
 	add_child(chunk)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _material == null:
 		return
 	var positions := PackedVector3Array()
@@ -107,6 +110,24 @@ func _process(_delta: float) -> void:
 	_material.set_shader_parameter("vehicle_positions", positions)
 	_material.set_shader_parameter("vehicle_trail_positions", trails)
 	_update_bolt_wakes()
+	_update_impact_ripple(delta)
+
+## One bounded event slot keeps collision presentation cheap: a new Jeep impact
+## replaces an older ring instead of retaining per-blade or per-impact state.
+func trigger_impact_ripple(world_position: Vector3, radius: float) -> void:
+	_shockwave_age = 0.0
+	_material.set_shader_parameter("shockwave_position", world_position)
+	_material.set_shader_parameter("shockwave_radius", radius)
+	_material.set_shader_parameter("shockwave_age", _shockwave_age)
+	_material.set_shader_parameter("shockwave_active", 1.0)
+
+func _update_impact_ripple(delta: float) -> void:
+	if _shockwave_age >= SHOCKWAVE_DURATION:
+		return
+	_shockwave_age = minf(_shockwave_age + delta, SHOCKWAVE_DURATION)
+	_material.set_shader_parameter("shockwave_age", _shockwave_age)
+	if _shockwave_age >= SHOCKWAVE_DURATION:
+		_material.set_shader_parameter("shockwave_active", 0.0)
 
 func _update_bolt_wakes() -> void:
 	var positions := PackedVector3Array()
