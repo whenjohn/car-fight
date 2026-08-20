@@ -10,6 +10,8 @@ var _reticles: Array[MeshInstance3D] = []
 var _materials: Array[ShaderMaterial] = []
 var _plane: Node3D
 var _phase := 0.0
+var _aircraft_entering := false
+var _aircraft_visible := false
 
 func _ready() -> void:
 	top_level = true
@@ -19,26 +21,42 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if owner_body == null or not is_instance_valid(owner_body) \
-			or not bool(owner_body.get("area_weapon_armed")) \
-			or not bool(owner_body.get("area_gesture_active")):
+			or not bool(owner_body.get("area_weapon_armed")):
 		_set_visible(false)
+		_aircraft_visible = false
 		return
 	_phase += delta
+	var hovering_target := _live_cursor_target()
+	if not _aircraft_visible:
+		_aircraft_visible = true
+		_aircraft_entering = true
+		var arrival_direction := hovering_target - owner_body.global_position
+		arrival_direction.y = 0.0
+		arrival_direction = arrival_direction.normalized() if arrival_direction.length_squared() > 0.0001 else Vector3.FORWARD
+		_plane.global_position = hovering_target - arrival_direction * 40.0 + Vector3.UP * 9.0
+		_plane.visible = true
+	var active_gesture := bool(owner_body.get("area_gesture_active"))
 	var layout := WEAPON.layout(owner_body.global_position,
-		owner_body.get("area_gesture_start"), owner_body.get("area_gesture_end"))
+		owner_body.get("area_gesture_start") if active_gesture else hovering_target,
+		owner_body.get("area_gesture_end") if active_gesture else hovering_target)
 	var impacts: PackedVector3Array = layout["impacts"]
 	var radius := float(layout["radius"])
 	for index in _reticles.size():
 		var reticle := _reticles[index]
-		reticle.visible = index < impacts.size()
+		reticle.visible = active_gesture and index < impacts.size()
 		if reticle.visible:
 			var point := impacts[index]
 			reticle.global_position = Vector3(point.x, 0.052, point.z)
 			reticle.scale = Vector3.ONE * radius
 			_materials[index].set_shader_parameter("progress", 0.12 + sin(_phase * 2.4) * 0.08)
-	_update_plane(layout)
+	_update_plane(layout, hovering_target, delta)
 
-func _update_plane(layout: Dictionary) -> void:
+func _live_cursor_target() -> Vector3:
+	var offset: Vector2 = owner_body.get_node("Input").get("cursor_offset")
+	return Vector3(owner_body.global_position.x + offset.x, 0.0,
+		owner_body.global_position.z + offset.y)
+
+func _update_plane(layout: Dictionary, hovering_target: Vector3, delta: float) -> void:
 	var start: Vector3 = layout["start"]
 	var finish: Vector3 = layout["end"]
 	var direction := finish - start
@@ -49,8 +67,18 @@ func _update_plane(layout: Dictionary) -> void:
 	var right := Vector3.UP.cross(direction).normalized()
 	var orbit := right * cos(_phase * 1.35) * 1.55
 	orbit += direction * sin(_phase * 1.35) * 0.72
-	_plane.global_position = start - direction * 3.2 + orbit + Vector3.UP * 4.8
-	_plane.look_at(_plane.global_position + direction + Vector3.DOWN * 0.08, Vector3.UP)
+	var hover_anchor := (start if bool(owner_body.get("area_gesture_active")) else hovering_target) \
+		- direction * 3.2 + orbit + Vector3.UP * 4.8
+	var previous := _plane.global_position
+	if _aircraft_entering:
+		_plane.global_position = _plane.global_position.move_toward(hover_anchor, 25.0 * delta)
+		if _plane.global_position.distance_to(hover_anchor) <= 0.9:
+			_aircraft_entering = false
+	else:
+		_plane.global_position = _plane.global_position.lerp(hover_anchor, 1.0 - exp(-4.0 * delta))
+	var travel := _plane.global_position - previous
+	var facing := travel.normalized() if travel.length_squared() > 0.0001 else direction
+	_plane.look_at(_plane.global_position + facing + Vector3.DOWN * 0.08, Vector3.UP)
 	_plane.visible = true
 
 func _build_reticles() -> void:
