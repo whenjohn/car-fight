@@ -21,6 +21,7 @@ const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const SHIELD_SHADER := preload("res://fx/vehicle_shield.gdshader")
 const SHIELD_VISUAL_SCRIPT := preload("res://fx/vehicle_shield.gd")
+const DET_BUBBLE_SCRIPT := preload("res://fx/det_bubble.gd")
 const IMPACT_FX_SCRIPT := preload("res://fx/impact_fx.gd")
 const COVERAGE := preload("res://combat/coverage_config.gd")
 const AUTO_TARGETING := preload("res://combat/auto_targeting.gd")
@@ -52,6 +53,7 @@ var _role := "client"
 var _host := "127.0.0.1"
 var _port := DEFAULT_PORT
 var _player_name := "driver"
+var _session_label := ""
 var _scripted := ""
 var _quit_after_ticks := 0
 var _to_port := DEFAULT_PORT
@@ -95,6 +97,7 @@ var _combat_hit_count := 0
 var _combat_ball_hit_count := 0
 var _drone_last_fire_tick := -100000
 var _drone_shot_count := 0
+var _det_nullification_count := 0
 var _maximum_impact_speed := 0.0
 var _crash_telemetry: Node
 var _grass_contacts := {}
@@ -232,7 +235,7 @@ func _process(_delta: float) -> void:
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
 			mode, id, speed, location,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  V: vehicle  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  V: vehicle  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
 	if _fps_label != null:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
@@ -280,6 +283,11 @@ func _parse_args() -> void:
 		elif arg == "--name" and index + 1 < args.size():
 			index += 1
 			_player_name = args[index]
+		elif arg.begins_with("--session-label="):
+			_session_label = arg.get_slice("=", 1)
+		elif arg == "--session-label" and index + 1 < args.size():
+			index += 1
+			_session_label = args[index]
 		elif arg.begins_with("--script="):
 			_scripted = arg.get_slice("=", 1)
 		elif arg == "--script" and index + 1 < args.size():
@@ -305,6 +313,15 @@ func _parse_args() -> void:
 		elif arg.begins_with("--loss="):
 			_loss_pct = float(arg.get_slice("=", 1))
 		index += 1
+
+func _set_client_window_title() -> void:
+	if _role != "client" or DisplayServer.get_name() == "headless":
+		return
+	if _session_label.is_empty():
+		_session_label = OS.get_environment("CAR_FIGHT_SESSION_LABEL")
+	if _session_label.is_empty():
+		_session_label = "unlabelled session"
+	DisplayServer.window_set_title("CAR FIGHT — %s — %s" % [_session_label, _player_name])
 
 func _start_proxy() -> void:
 	var proxy := Node.new()
@@ -625,6 +642,10 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	shield_visual.name = "VehicleShield"
 	shield_visual.set_script(SHIELD_VISUAL_SCRIPT)
 	body.add_child(shield_visual)
+	var det_bubble := Node3D.new()
+	det_bubble.name = "DetBubble"
+	det_bubble.set_script(DET_BUBBLE_SCRIPT)
+	body.add_child(det_bubble)
 	if owner_id == multiplayer.get_unique_id():
 		var drift_guide := Node3D.new()
 		drift_guide.name = "DriftGuide"
@@ -1236,6 +1257,8 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 		"shield":
 			return {"cursor_offset": Vector2.ZERO, "shield_held": true,
 				"editing": false}
+		"det":
+			return {"cursor_offset": Vector2.ZERO, "det": true, "editing": false}
 		"cloak-shield":
 			return {"cursor_offset": Vector2.ZERO, "cloak_held": true,
 				"shield_held": true, "editing": false}
@@ -1302,7 +1325,7 @@ func _on_tick(delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d players=%d world=%s pos=(%.3f,%.3f) speed=%.3f map=%d cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), _players.get_child_count(), _client_world_positions(), local.position.x, local.position.z, local.speed(), int(local.get("map_id")), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d impacthits=%d shieldhits=%d impactmax=%.3f coursemaps=%d courseoff=%d gatetransitions=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed, _server_course_map_count(), _server_course_off_count(), _server_gate_transition_count()])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d dets=%d impacthits=%d shieldhits=%d impactmax=%.3f coursemaps=%d courseoff=%d gatetransitions=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _det_nullification_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed, _server_course_map_count(), _server_course_off_count(), _server_gate_transition_count()])
 		get_tree().quit()
 
 func _service_auto_combat(delta: float, tick: int) -> void:
@@ -1461,6 +1484,30 @@ func _step_server_bolts(delta: float) -> void:
 			wall_fraction = start.distance_to(wall_hit["position"]) / segment.length()
 			wall_position = wall_hit["position"]
 		var kind := int(bolt.get("kind", BOLT_KIND_PLAYER))
+		var detonator: RigidBody3D
+		var det_fraction := 1.01
+		for player_node in _players.get_children():
+			var candidate := player_node as RigidBody3D
+			if candidate == null or int(candidate.name) == int(bolt["shooter"]):
+				continue # A defensive det field never eats its owner's shots.
+			var input := candidate.get_node_or_null("Input")
+			if input != null and bool(input.get("editing")):
+				continue
+			var radius := float(candidate.call("det_radius"))
+			if radius <= 0.0:
+				continue
+			var fraction := IMPACT_CONTROLLER.segment_sphere_entry(start, finish,
+				candidate.global_position, radius)
+			if fraction < det_fraction:
+				det_fraction = fraction
+				detonator = candidate
+		if detonator != null and det_fraction <= wall_fraction:
+			var det_position := start + segment * det_fraction
+			_det_nullification_count += 1
+			_register_det_nullification.rpc(bolt_id, int(detonator.name), det_position)
+			_end_combat_bolt.rpc(bolt_id)
+			_server_bolts.erase(bolt_id)
+			continue
 		if kind == BOLT_KIND_DRONE:
 			var player_hit: RigidBody3D
 			var player_fraction := 1.01
@@ -1570,6 +1617,14 @@ func _end_combat_bolt(bolt_id: int) -> void:
 	if is_instance_valid(visual):
 		(visual as Node).queue_free()
 	_bolt_visuals.erase(bolt_id)
+
+@rpc("authority", "call_local", "reliable")
+func _register_det_nullification(bolt_id: int, owner_id: int, contact: Vector3) -> void:
+	var owner := _players.get_node_or_null(str(owner_id))
+	if owner != null:
+		var bubble := owner.get_node_or_null("DetBubble")
+		if bubble != null:
+			bubble.call("register_nullification", bolt_id, contact)
 
 @rpc("authority", "call_local", "reliable")
 func _register_player_impact(bolt_id: int, target_id: int, impact_position: Vector3,

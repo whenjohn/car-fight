@@ -9,6 +9,9 @@ var reverse := false
 var cloak_held := false
 var shield_held := false
 var tractor := false
+## Det is held, not toggled: Cmd on macOS and Alt on other platforms, matching g2.
+var det := false
+var _det_key: Key = KEY_META if OS.get_name() == "macOS" else KEY_ALT
 # Safe spawn default: authority cannot fire before the owning client's first
 # gathered input declares that it has entered drive mode.
 var editing := true
@@ -20,6 +23,7 @@ func _clear_live_input() -> void:
 	cloak_held = false
 	shield_held = false
 	tractor = false
+	det = false
 	# Losing focus is not a request to enter the coverage editor. Keep the
 	# vehicle in drive mode with neutral controls so it brakes to a stop.
 	editing = false
@@ -39,6 +43,7 @@ func _gather() -> void:
 		cloak_held = bool(scripted.get("cloak_held", false))
 		shield_held = bool(scripted.get("shield_held", false))
 		tractor = bool(scripted.get("tractor", false))
+		det = bool(scripted.get("det", false))
 		editing = bool(scripted.get("editing", false))
 		return
 	# macOS continues updating an unfocused Godot window's mouse position from
@@ -60,3 +65,4 @@ func _gather() -> void:
 	# Match g2: poll the bare modifier directly so unrelated key events cannot
 	# make InputMap lose the held Shift level.
 	tractor = Input.is_key_pressed(KEY_SHIFT) and not editing
+	det = Input.is_key_pressed(_det_key) and not editing
