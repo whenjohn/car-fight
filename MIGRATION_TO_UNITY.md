@@ -32,8 +32,8 @@ This repository's `master` branch remains the canonical reference for completed
 gameplay behavior, tuning, assets, licenses, and regression scenarios. It is not
 the starting point for additional Godot rendering experiments.
 
-The engine decision is based on the complete Godot investigation plus the
-separate `unity-mac-fullscreen-spike` project. Unity did not eliminate the
+The prior engine decision was based on the complete Godot investigation plus
+the separate `unity-mac-fullscreen-spike` project. Unity did not eliminate the
 underlying Intel/macOS display-timestamp problem, but its Metal player repeatedly
 recovered from presentation stalls and did not reproduce Godot's WindowServer
 watchdog failures or Vulkan kernel panic. For the Unity game, use
@@ -41,11 +41,11 @@ watchdog failures or Vulkan kernel panic. For the Unity game, use
 `Windowed` as the safest fallback, and avoid `FullScreenWindow` on affected
 Intel Macs when possible.
 
-Unity's measured evidence and platform policy are recorded at revision
-`c7d0819` in:
-
-- `~/Projects/unity-mac-fullscreen-spike/.ai/PLATFORM_CONCLUSIONS.md`
-- `~/Projects/unity-mac-fullscreen-spike/.ai/CURRENT_PHASE.md`
+Unity's measured evidence and platform policy from spike revision `c7d0819`
+are consolidated in
+`~/Projects/car-fight-unity/docs/UNITY_MAC_FULLSCREEN_CONCLUSIONS.md`. The
+original spike remains available in its GitHub repository, but its local
+checkout has been retired.
 
 The Unity result is greater resilience, not proof that the operating-system or
 Intel display defect is gone.
