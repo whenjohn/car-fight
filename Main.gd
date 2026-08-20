@@ -1274,21 +1274,21 @@ func _service_rc_orbs(delta: float, tick: int) -> void:
 		var position: Vector3 = orb["position"]
 		var velocity: Vector3 = orb["velocity"]
 		var cursor_offset: Vector2 = input.get("cursor_offset") if input != null else Vector2.ZERO
-		var target := pilot.global_position + Vector3(cursor_offset.x, 0.0, cursor_offset.y)
-		var offset := target - position
-		offset.y = 0.0
-		var distance := offset.length()
+		# The cursor is a steering ray from the parked Jeep, not an RC waypoint.
+		# Using the orb-to-cursor distance here made it brake at the line and turn
+		# back toward it. Keep its full motor speed so it can cross the arena and
+		# only end through detonation, a collision, or its fuse.
+		var steer := Vector3(cursor_offset.x, 0.0, cursor_offset.y)
 		var heading := Vector3(velocity.x, 0.0, velocity.z).normalized()
 		if heading.is_zero_approx():
 			heading = pilot.get("aim") as Vector3
 		if heading.is_zero_approx():
 			heading = -pilot.global_basis.z
-		if distance > 0.001:
-			var bearing := heading.signed_angle_to(offset / distance, Vector3.UP)
+		if not steer.is_zero_approx():
+			var bearing := heading.signed_angle_to(steer.normalized(), Vector3.UP)
 			heading = heading.rotated(Vector3.UP,
 				clampf(bearing, -RC_ORB_TURN * delta, RC_ORB_TURN * delta)).normalized()
-		var throttle := clampf((distance - RC_ORB_DEADZONE) / (RC_ORB_MAX_DISTANCE - RC_ORB_DEADZONE), 0.0, 1.0)
-		velocity = velocity.move_toward(heading * RC_ORB_SPEED * throttle, RC_ORB_ACCEL * delta)
+		velocity = velocity.move_toward(heading * RC_ORB_SPEED, RC_ORB_ACCEL * delta)
 		var finish := position + velocity * delta
 		var wall_query := PhysicsRayQueryParameters3D.create(position, finish, 1)
 		wall_query.exclude = _combat_dynamic_rids()
