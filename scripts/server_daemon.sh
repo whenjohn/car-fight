@@ -8,11 +8,14 @@ project_root="$(cd "$(dirname "$0")/.." && pwd)"
 log_file="$HOME/Library/Logs/car-fight-server.log"
 godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 port="${CAR_FIGHT_PORT:-10080}"
+transport="${CAR_FIGHT_TRANSPORT:-mux}"
+signal_port="${CAR_FIGHT_SIGNAL_PORT:-10181}"
 
 case "${1:-status}" in
 	serve)
 		cd "$project_root"
-		exec "$godot_bin" --headless --path "$project_root" -- --server --port "$port"
+		exec "$godot_bin" --headless --path "$project_root" -- --server \
+			--transport "$transport" --port "$port" --signal-port "$signal_port"
 		;;
 	import)
 		# A fresh netfox checkout registers its plugin globals during the first

@@ -141,7 +141,7 @@ The isolated Car Fight server is deployed on macai2. Redeploy it explicitly with
 ./scripts/deploy_macai2.sh
 ```
 
-It uses `ssh macai2-ts`, installs the isolated launchd label `com.whenjohn.car-fight-server`, listens on UDP `10080`, and does not touch g2 or Starter.
+It uses `ssh macai2-ts`, installs the isolated launchd label `com.whenjohn.car-fight-server`, keeps native ENet on UDP `10080`, and listens for WebRTC signaling on TCP `10181`. It does not touch g2 or Starter. This is game-service support only; a public browser client still needs HTTPS/WSS hosting and TURN acceptance.
 
 # Monitored local play
 
