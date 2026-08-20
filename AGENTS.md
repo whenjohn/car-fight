@@ -11,6 +11,12 @@ This is a clean Godot 4.7 experiment. Keep it small and auditable.
   never accept a client that retries rollback older than `history_start`.
 - The Jeep and turret are presentation only. The equal-mass sphere is the gameplay collider.
 - Do not add weapons, damage, resources, bots, maps, or g2's custom transport/bundle stack without a new explicit scope decision.
+- Do not make every new gameplay object a rollback-synchronized body by
+  default. Before adding an object family, classify it as static/seeded,
+  event-driven, lightweight replicated, or full rollback state, then add a
+  representative object-count load gate. G2 proved that per-body history,
+  wire fan-out, scripting, and presentation costs can make a larger world
+  chug even when a small peer-only test is smooth.
 - Add a focused regression before changing movement or collision behavior.
 - Run `./scripts/test.sh` before committing.
 - Use Tailscale (`ssh macai2-ts`) for macai2. This server owns UDP 10080 and launchd label `com.whenjohn.car-fight-server`.
