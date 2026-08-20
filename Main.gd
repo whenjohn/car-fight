@@ -16,6 +16,7 @@ const DRIFT_GUIDE_SCRIPT := preload("res://player/drift_guide.gd")
 const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
+const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const SHIELD_SHADER := preload("res://fx/vehicle_shield.gdshader")
@@ -95,6 +96,7 @@ var _drone_last_fire_tick := -100000
 var _drone_shot_count := 0
 var _maximum_impact_speed := 0.0
 var _crash_telemetry: Node
+var _grass_contacts := {}
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -448,6 +450,16 @@ func _build_world() -> void:
 	add_child(_jump_gates)
 	_build_combat_targets()
 	if not _is_headless():
+		# Grass is intentionally presentation-only. The existing GroundCollision
+		# remains the sole static collider on server and predicting clients.
+		var grass := Node3D.new()
+		grass.name = "InteractiveGrass"
+		grass.set_script(INTERACTIVE_GRASS_SCRIPT)
+		grass.call("setup", _players, _combat_bolts)
+		# A deliberate 36 m test plot on the quiet east side of the arena: dense
+		# enough to read as a real patch, but small enough to compare with bare ground.
+		grass.position = Vector3(58.0, 0.0, 18.0)
+		add_child(grass)
 		_driving_course.call("build_presentation")
 		_jump_gates.call("build_presentation")
 		_build_presentation()
@@ -1674,6 +1686,7 @@ func _receive_authority_probe(tick: int, owner_id: int, authoritative_position: 
 
 func _track_server_contacts() -> void:
 	var bodies := _players.get_children()
+	var active_grass_contacts := {}
 	for i in range(bodies.size()):
 		var a := bodies[i] as RigidBody3D
 		if a == null:
@@ -1684,9 +1697,24 @@ func _track_server_contacts() -> void:
 				continue
 			_minimum_pair_distance = minf(_minimum_pair_distance, a.position.distance_to(b.position))
 			if a.get_colliding_bodies().has(b):
+				var contact_key := "%s:%s" % [a.name, b.name]
+				active_grass_contacts[contact_key] = true
+				if not _grass_contacts.has(contact_key):
+					var impact_speed := (a.linear_velocity - b.linear_velocity).length()
+					if impact_speed >= 2.0:
+						_broadcast_grass_impact((a.global_position + b.global_position) * 0.5,
+							clampf(impact_speed * 0.24, 3.0, 6.0))
 				if not _contact_seen:
 					_log("CONTACT a=%s b=%s" % [a.name, b.name])
 				_contact_seen = true
+	_grass_contacts = active_grass_contacts
+
+func _broadcast_grass_impact(world_position: Vector3, radius: float) -> void:
+	_play_grass_impact.rpc(world_position, radius)
+
+@rpc("authority", "call_remote", "unreliable")
+func _play_grass_impact(world_position: Vector3, radius: float) -> void:
+	get_tree().call_group("interactive_grass", "trigger_impact_ripple", world_position, radius)
 
 func _sample_impact_motion() -> void:
 	if _players == null:

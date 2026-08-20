@@ -84,6 +84,7 @@
 
 ## Next
 
+- Grass worktree (`~/Projects/car-fight-grass`, branch `feat/grass`) now carries a dense 36 m east-side G2-derived GPU grass test plot. It bends and flattens around all replicated Jeeps, responds to live bolt wakes with a brief ember pass, remains strictly presentation-only over the existing server-authoritative ground collider, and titles clients `Car Fight — Grass`.
 - Resume feature development from this accepted Godot implementation rather than reconstructing existing gameplay in Unity.
 - Review and merge the completed Phase 0 window safety and Phase 1 offline browser checkpoint from `feat/web` when ready.
 - Treat Phase 2 WebRTC browser/native networking as a new explicit scope decision. Keep it isolated on new ports; do not add Web transport directly to macai2 UDP 10080 or disturb the accepted native ENet service.
