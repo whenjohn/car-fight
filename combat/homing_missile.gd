@@ -3,8 +3,11 @@ extends RefCounted
 
 const SPEED := 24.0
 const TURN_DEGREES_PER_SECOND := 180.0
-const STEERING_RANGE := 4.5
-const CONE_DEGREES := 80.0
+# Car Fight fires the slot directly instead of G2's separate aim/arm gesture:
+# maintain G2's capped turn, but give a confirmed target a reliable 360-degree
+# lock and enough authority to cross this larger arena before lifetime expires.
+const STEERING_RANGE := 24.0
+const CONE_DEGREES := 180.0
 const COMMIT_DISTANCE := 6.5
 const LIFETIME := 2.5
 

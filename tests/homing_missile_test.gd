@@ -11,6 +11,11 @@ func _init() -> void:
 		push_error("HOMING_MISSILE_TEST FAIL: eligible target must bend the fixed-speed missile")
 		quit(1)
 		return
+	var behind := HOMING.steer(initial, start, Vector3(0.0, 0.0, 12.0), 1.0 / 60.0)
+	if is_zero_approx(behind.x):
+		push_error("HOMING_MISSILE_TEST FAIL: a confirmed target must steer from any bearing")
+		quit(1)
+		return
 	var committed := HOMING.steer(initial,
 		target + Vector3(HOMING.COMMIT_DISTANCE - 0.1, 0.0, 0.0), target, 1.0 / 60.0)
 	if not is_equal_approx(committed.x, 0.0):
