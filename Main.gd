@@ -35,6 +35,7 @@ const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const DRIVING_COURSE_SCRIPT := preload("res://world/driving_course.gd")
 const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
+const DOTS_SCRIPT := preload("res://world/dots.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
@@ -114,11 +115,11 @@ var _fps_label: Label
 var _shader_prewarm: Node3D
 var _driving_course: Node3D
 var _jump_gates: Node3D
+var _dots: Node3D
 
 func _ready() -> void:
 	_parse_args()
-	if _role == "client" and DisplayServer.get_name() != "headless":
-		DisplayServer.window_set_title("Car Fight — %s" % _player_name)
+	_set_client_window_title()
 	_start_crash_telemetry()
 	_start_window_safety()
 	# Launch directly into driving. The coverage editor remains available on E,
@@ -225,6 +226,9 @@ func _process(_delta: float) -> void:
 			mode = "DRIVE + CLOAKED (AUTO FIRE OFF)"
 		elif not _combat_editor_active and local != null and bool(local.get("shield_up")):
 			mode = "DRIVE + SHIELDED"
+		if _dots != null:
+			mode = "%s  ·  dots %d (%d left)" % [mode, int(_dots.call("collected_by", id)),
+				int(_dots.call("remaining"))]
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
 			mode, id, speed, location,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
@@ -333,6 +337,7 @@ func _start_server() -> void:
 		get_tree().quit(2)
 		return
 	multiplayer.multiplayer_peer = peer
+	_dots.call("generate")
 	_log("server listening on udp://0.0.0.0:%d" % _port)
 
 func _start_client() -> void:
@@ -348,8 +353,8 @@ func _start_client() -> void:
 			get_tree().quit(2)
 	)
 	multiplayer.multiplayer_peer = peer
+	_set_client_window_title()
 	_log("connecting to udp://%s:%d as %s" % [_host, _port, _player_name])
-
 
 func _start_offline() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
@@ -392,6 +397,7 @@ func _on_peer_join(id: int) -> void:
 	if not _ball_seeded:
 		_ball_seeded = true
 		_ball_spawner.spawn({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
+	_dots.call("send_state_to", id)
 
 func _on_peer_leave(id: int) -> void:
 	if not multiplayer.is_server():
@@ -448,6 +454,10 @@ func _build_world() -> void:
 	_jump_gates.set_script(JUMP_GATES_SCRIPT)
 	_jump_gates.call("setup", _players)
 	add_child(_jump_gates)
+	_dots = Node3D.new()
+	_dots.name = "Dots"
+	_dots.set_script(DOTS_SCRIPT)
+	add_child(_dots)
 	_build_combat_targets()
 	if not _is_headless():
 		# Grass is intentionally presentation-only. The existing GroundCollision
