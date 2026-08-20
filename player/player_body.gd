@@ -103,6 +103,7 @@ func _ready() -> void:
 	_sync.add_input(_input, "cloak_held")
 	_sync.add_input(_input, "shield_held")
 	_sync.add_input(_input, "tractor")
+	_sync.add_input(_input, "homing_held")
 	_sync.add_input(_input, "editing")
 	_sync.process_settings()
 

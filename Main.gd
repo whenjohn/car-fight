@@ -19,6 +19,7 @@ const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const SHIELD_SHADER := preload("res://fx/vehicle_shield.gdshader")
+const HOMING_MISSILE_SHADER := preload("res://fx/homing_missile_head.gdshader")
 const SHIELD_VISUAL_SCRIPT := preload("res://fx/vehicle_shield.gd")
 const IMPACT_FX_SCRIPT := preload("res://fx/impact_fx.gd")
 const COVERAGE := preload("res://combat/coverage_config.gd")
@@ -27,6 +28,8 @@ const COVERAGE_VISUAL_SCRIPT := preload("res://combat/coverage_visual.gd")
 const TARGET_DUMMY_SCRIPT := preload("res://combat/target_dummy.gd")
 const TARGET_LAYOUT := preload("res://combat/target_layout.gd")
 const BOLT_VISUAL_SCRIPT := preload("res://combat/bolt_visual.gd")
+const HOMING_MISSILE := preload("res://combat/homing_missile.gd")
+const HOMING_MISSILE_VISUAL_SCRIPT := preload("res://combat/homing_missile_visual.gd")
 const SHIELD_DRONE_SCRIPT := preload("res://combat/shield_drone.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
@@ -44,6 +47,7 @@ const COMBAT_BALL_IMPULSE := 4.2
 const BALL_TARGET_ID_BASE := -1000
 const BOLT_KIND_PLAYER := 0
 const BOLT_KIND_DRONE := 1
+const BOLT_KIND_HOMING := 2
 
 var _role := "client"
 var _host := "127.0.0.1"
@@ -93,6 +97,7 @@ var _combat_ball_hit_count := 0
 var _drone_last_fire_tick := -100000
 var _drone_shot_count := 0
 var _maximum_impact_speed := 0.0
+var _homing_held_last := {}
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -113,6 +118,8 @@ var _jump_gates: Node3D
 
 func _ready() -> void:
 	_parse_args()
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_title("Car Fight — homing missile")
 	_start_crash_telemetry()
 	# Launch directly into driving. The coverage editor remains available on E,
 	# and its cones remain opt-in during driving on C.
@@ -202,7 +209,7 @@ func _process(_delta: float) -> void:
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
 			mode, id, speed, location,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  1: homing missile  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
 	if _fps_label != null:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
@@ -845,7 +852,7 @@ func _build_shader_prewarm() -> void:
 	_shader_prewarm.name = "ShaderPrewarm"
 	_camera.add_child(_shader_prewarm)
 	_shader_prewarm.position = Vector3(0.0, 0.0, -2.0)
-	for shader in [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER]:
+	for shader in [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER, HOMING_MISSILE_SHADER]:
 		var instance := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
 		sphere.radius = 0.001
@@ -857,7 +864,7 @@ func _build_shader_prewarm() -> void:
 			material.set_shader_parameter("cut_position", -999.0)
 		elif shader == CLOAK_GHOST_SHADER:
 			material.set_shader_parameter("cloak_strength", 0.0)
-		else:
+		elif shader == SHIELD_SHADER:
 			material.set_shader_parameter("shield_strength", 0.0)
 			material.set_shader_parameter("impact_age", 1.2)
 		instance.material_override = material
@@ -1210,6 +1217,7 @@ func _on_tick(delta: float, tick: int) -> void:
 
 func _service_auto_combat(delta: float, tick: int) -> void:
 	_step_server_bolts(delta)
+	_service_homing_missiles(tick)
 	_service_shield_drone(tick)
 	for player_node in _players.get_children():
 		var body := player_node as RigidBody3D
@@ -1234,6 +1242,53 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 				continue
 			_zone_last_fire_tick[cooldown_key] = tick
 			_fire_combat_bolt(body, target, zone)
+
+func _service_homing_missiles(_tick: int) -> void:
+	for player_node in _players.get_children():
+		var body := player_node as RigidBody3D
+		if body == null:
+			continue
+		var input := body.get_node_or_null("Input")
+		var owner_id := int(body.name)
+		var held := input != null and bool(input.get("homing_held")) and not bool(input.get("editing"))
+		var was_held := bool(_homing_held_last.get(owner_id, false))
+		_homing_held_last[owner_id] = held
+		if held and not was_held:
+			_fire_homing_missile(body)
+
+func _fire_homing_missile(body: RigidBody3D) -> void:
+	var target := _nearest_homing_target(body)
+	if target == null:
+		return
+	var origin := _combat_muzzle_origin(body, target.global_position)
+	# Preserve G2's dodge model: the player launches along their aim, then the
+	# locked target can only pull the missile through its capped cone.
+	var direction := Vector3(body.aim.x, 0.0, body.aim.z).normalized()
+	if direction.is_zero_approx():
+		direction = (target.global_position - origin).normalized()
+	var velocity := direction * HOMING_MISSILE.SPEED
+	var bolt_id := _next_bolt_id
+	_next_bolt_id += 1
+	_server_bolts[bolt_id] = {"position": origin, "velocity": velocity, "age": 0.0,
+		"shooter": int(body.name), "zone": -1, "kind": BOLT_KIND_HOMING,
+		"target_id": int(target.name)}
+	_combat_shot_count += 1
+	_spawn_combat_bolt.rpc(bolt_id, int(body.name), -1, origin, velocity,
+		BOLT_KIND_HOMING, int(target.name))
+
+func _nearest_homing_target(shooter: RigidBody3D) -> RigidBody3D:
+	var selected: RigidBody3D
+	var best_distance := INF
+	for player_node in _players.get_children():
+		var candidate := player_node as RigidBody3D
+		if candidate == null or candidate == shooter or int(candidate.get("map_id")) != int(shooter.get("map_id")):
+			continue
+		var distance := shooter.global_position.distance_squared_to(candidate.global_position)
+		if distance < best_distance or (selected != null and is_equal_approx(distance, best_distance) \
+				and int(candidate.name) < int(selected.name)):
+			selected = candidate
+			best_distance = distance
+	return selected
 
 func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
 		tip_outward: bool) -> Node3D:
@@ -1353,6 +1408,12 @@ func _step_server_bolts(delta: float) -> void:
 		var bolt_id := int(bolt_id_value)
 		var bolt: Dictionary = _server_bolts[bolt_id]
 		var start: Vector3 = bolt["position"]
+		var kind := int(bolt.get("kind", BOLT_KIND_PLAYER))
+		if kind == BOLT_KIND_HOMING:
+			var target := _players.get_node_or_null(str(int(bolt.get("target_id", -1)))) as RigidBody3D
+			var shooter := _players.get_node_or_null(str(int(bolt["shooter"]))) as RigidBody3D
+			if target != null and shooter != null and int(target.get("map_id")) == int(shooter.get("map_id")):
+				bolt["velocity"] = HOMING_MISSILE.steer(bolt["velocity"], start, target.global_position, delta)
 		var finish := start + (bolt["velocity"] as Vector3) * delta
 		var segment := finish - start
 		var wall_fraction := 1.01
@@ -1363,7 +1424,6 @@ func _step_server_bolts(delta: float) -> void:
 		if not wall_hit.is_empty() and segment.length_squared() > 0.0001:
 			wall_fraction = start.distance_to(wall_hit["position"]) / segment.length()
 			wall_position = wall_hit["position"]
-		var kind := int(bolt.get("kind", BOLT_KIND_PLAYER))
 		if kind == BOLT_KIND_DRONE:
 			var player_hit: RigidBody3D
 			var player_fraction := 1.01
@@ -1382,6 +1442,36 @@ func _step_server_bolts(delta: float) -> void:
 			if player_hit != null and player_fraction <= wall_fraction:
 				var impact_position := start + segment * player_fraction
 				var incoming_direction: Vector3 = (bolt["velocity"] as Vector3).normalized()
+				var shielded := bool(player_hit.get("shield_up"))
+				var response := IMPACT_CONTROLLER.response(incoming_direction, shielded)
+				player_hit.call("apply_external_impact", response["linear_impulse"],
+					response["torque_impulse"], response["recovery_time"], shielded)
+				_register_player_impact.rpc(bolt_id, int(player_hit.name), impact_position,
+					incoming_direction, shielded)
+				_end_combat_bolt.rpc(bolt_id)
+				_server_bolts.erase(bolt_id)
+				continue
+			if wall_fraction <= 1.0:
+				_register_world_impact.rpc(bolt_id, wall_position,
+					(bolt["velocity"] as Vector3).normalized())
+				_end_combat_bolt.rpc(bolt_id)
+				_server_bolts.erase(bolt_id)
+				continue
+		elif kind == BOLT_KIND_HOMING:
+			var player_hit: RigidBody3D
+			var player_fraction := 1.01
+			for player_node in _players.get_children():
+				var player := player_node as RigidBody3D
+				if player == null or int(player.name) == int(bolt["shooter"]):
+					continue
+				var fraction := IMPACT_CONTROLLER.segment_sphere_entry(start, finish,
+					player.global_position, PLAYER_RADIUS)
+				if fraction < player_fraction:
+					player_fraction = fraction
+					player_hit = player
+			if player_hit != null and player_fraction <= wall_fraction:
+				var impact_position := start + segment * player_fraction
+				var incoming_direction := (bolt["velocity"] as Vector3).normalized()
 				var shielded := bool(player_hit.get("shield_up"))
 				var response := IMPACT_CONTROLLER.response(incoming_direction, shielded)
 				player_hit.call("apply_external_impact", response["linear_impulse"],
@@ -1439,8 +1529,8 @@ func _step_server_bolts(delta: float) -> void:
 				continue
 		bolt["position"] = finish
 		bolt["age"] = float(bolt["age"]) + delta
-		var lifetime: float = SHIELD_DRONE_SCRIPT.BOLT_LIFETIME \
-			if kind == BOLT_KIND_DRONE else COMBAT_BOLT_LIFETIME
+		var lifetime: float = SHIELD_DRONE_SCRIPT.BOLT_LIFETIME if kind == BOLT_KIND_DRONE \
+			else HOMING_MISSILE.LIFETIME if kind == BOLT_KIND_HOMING else COMBAT_BOLT_LIFETIME
 		if float(bolt["age"]) >= lifetime:
 			_end_combat_bolt.rpc(bolt_id)
 			_server_bolts.erase(bolt_id)
@@ -1449,15 +1539,19 @@ func _step_server_bolts(delta: float) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _spawn_combat_bolt(bolt_id: int, shooter_id: int, zone: int,
-		origin: Vector3, velocity: Vector3, kind: int) -> void:
+		origin: Vector3, velocity: Vector3, kind: int, target_id: int = -1) -> void:
 	if not _is_headless():
 		var visual := Node3D.new()
-		visual.name = "Bolt_%d" % bolt_id
-		visual.set_script(BOLT_VISUAL_SCRIPT)
+		visual.name = "Missile_%d" % bolt_id if kind == BOLT_KIND_HOMING else "Bolt_%d" % bolt_id
+		visual.set_script(HOMING_MISSILE_VISUAL_SCRIPT
+			if kind == BOLT_KIND_HOMING else BOLT_VISUAL_SCRIPT)
 		_combat_bolts.add_child(visual)
-		var color: Color = SHIELD_DRONE_SCRIPT.BOLT_COLOR if kind == BOLT_KIND_DRONE \
-			else COVERAGE.ZONE_COLORS[zone]
-		visual.call("setup", bolt_id, origin, velocity, color, kind == BOLT_KIND_DRONE)
+		if kind == BOLT_KIND_HOMING:
+			visual.call("setup", origin, velocity, target_id)
+		else:
+			var color: Color = SHIELD_DRONE_SCRIPT.BOLT_COLOR \
+				if kind == BOLT_KIND_DRONE else COVERAGE.ZONE_COLORS[zone]
+			visual.call("setup", bolt_id, origin, velocity, color, kind == BOLT_KIND_DRONE)
 		_bolt_visuals[bolt_id] = visual
 	var local := local_player() as Node3D
 	if kind == BOLT_KIND_PLAYER and local != null and int(local.name) == shooter_id:

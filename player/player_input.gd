@@ -9,6 +9,7 @@ var reverse := false
 var cloak_held := false
 var shield_held := false
 var tractor := false
+var homing_held := false
 # Safe spawn default: authority cannot fire before the owning client's first
 # gathered input declares that it has entered drive mode.
 var editing := true
@@ -20,6 +21,7 @@ func _clear_live_input() -> void:
 	cloak_held = false
 	shield_held = false
 	tractor = false
+	homing_held = false
 	# Losing focus is not a request to enter the coverage editor. Keep the
 	# vehicle in drive mode with neutral controls so it brakes to a stop.
 	editing = false
@@ -39,6 +41,7 @@ func _gather() -> void:
 		cloak_held = bool(scripted.get("cloak_held", false))
 		shield_held = bool(scripted.get("shield_held", false))
 		tractor = bool(scripted.get("tractor", false))
+		homing_held = bool(scripted.get("homing_held", false))
 		editing = bool(scripted.get("editing", false))
 		return
 	# macOS continues updating an unfocused Godot window's mouse position from
@@ -60,3 +63,5 @@ func _gather() -> void:
 	# Match g2: poll the bare modifier directly so unrelated key events cannot
 	# make InputMap lose the held Shift level.
 	tractor = Input.is_key_pressed(KEY_SHIFT) and not editing
+	# Unlike G2's slot-selection gesture, Car Fight fires slot 1 immediately.
+	homing_held = Input.is_key_pressed(KEY_1) and not editing
