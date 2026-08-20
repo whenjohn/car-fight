@@ -172,6 +172,15 @@ must remain isolated from the native ENet service.
   49 FPS minimum. The localhost capacity smoke therefore gates 30 FPS minimum
   / 45 average. This is sufficient for same-machine cross-play testing, but it
   does not meet the stricter Phase 3 remote-product cadence criterion.
+- The first human rendered localhost cross-play session used the safe monitored
+  native ENet client beside the Chrome WebRTC client in the same mux world.
+  Both players remained present and responsive for more than five minutes at
+  documentation time, and the user reported that it played well. Native
+  telemetry averaged 58.3 FPS across the active run and 74.4 FPS over its
+  latest 20 samples. The user attributed the slower earlier automation samples
+  to unusually heavy unrelated load on this machine. Keep the conservative
+  automated floor as a regression guard; human acceptance establishes that
+  browser and macOS clients can be tested together on this machine.
 - A three-sample server CPU A/B with the same two ENet clients measured median
   CPU time of 3.37 seconds for pure ENet and 3.76 seconds for the mux over an
   eight-second run: 0.39 added CPU-seconds, or 4.88% of one core. The relative
