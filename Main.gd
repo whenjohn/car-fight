@@ -273,7 +273,7 @@ func _process(_delta: float) -> void:
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
 			mode, id, speed, location,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  V: vehicle  |  1: homing missile  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
 		if local != null and bool(local.get("area_weapon_armed")):
 			_status_label.text += "\nAREA WEAPON ARMED  ·  Hold and drag Left Mouse, then release to bomb  ·  3: stow"
 	if _fps_label != null:

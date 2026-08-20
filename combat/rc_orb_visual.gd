@@ -33,13 +33,15 @@ func _process(delta: float) -> void:
 	_satellite_material.set_shader_parameter("warning", warning)
 	for index in _satellites.size():
 		var angle := _elapsed * 3.8 + PI * float(index)
-		_satellites[index].position = Vector3(cos(angle) * 0.31, sin(angle) * 0.12, sin(angle) * 0.20)
+		_satellites[index].position = Vector3(cos(angle) * 0.48, sin(angle) * 0.18, sin(angle) * 0.30)
 
 func _build_orb() -> void:
 	var mesh := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
-	sphere.radius = 0.18
-	sphere.height = 0.36
+	# The Web camera covers a large arena; keep the RC orb readable at a glance
+	# instead of reducing it to a sub-pixel projectile.
+	sphere.radius = 0.32
+	sphere.height = 0.64
 	sphere.radial_segments = 12
 	sphere.rings = 6
 	mesh.mesh = sphere
@@ -52,7 +54,7 @@ func _build_orb() -> void:
 func _build_flow() -> void:
 	var mesh := MeshInstance3D.new()
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.76, 0.76)
+	quad.size = Vector2(1.35, 1.35)
 	mesh.mesh = quad
 	mesh.extra_cull_margin = 0.5
 	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -66,8 +68,8 @@ func _build_satellites() -> void:
 	_satellite_material.shader = ORB_SHADER
 	_satellite_material.set_shader_parameter("satellite_mode", true)
 	var sphere := SphereMesh.new()
-	sphere.radius = 0.032
-	sphere.height = 0.064
+	sphere.radius = 0.055
+	sphere.height = 0.11
 	sphere.radial_segments = 8
 	sphere.rings = 4
 	for index in 2:

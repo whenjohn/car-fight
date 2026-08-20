@@ -84,13 +84,14 @@
 - Added the offline Web path, `Web Offline` export preset, reproducible build and localhost isolation-header server, headless offline regression, and bounded Chrome smoke. Offline mode spawns one local Jeep and ball without ENet or rollback synchronizers; normal mouse input drove the Chrome Jeep to 17.99 units/s with Rapier 0.8.39 and zero console/script errors. The accepted Chrome 151 single-thread release run reached runtime-ready in 2.42 seconds and its final five samples averaged 59.6 FPS (58 minimum) at a fixed 1280 x 720 render resolution. A threaded A/B showed no repeatable improvement, so the compatible single-thread preset remains accepted. Native ENet and macai2 UDP 10080 were unchanged.
 - Merged the Web checkpoint, selectable vehicle presentations, interactive grass, auto-pickup dots, det defense, area weapon, homing missile, and RC orb branches into `master` as ordered merge commits. Consolidated shared `Main.gd`, player input, rollback, telemetry, and asset smoke-test seams while retaining native ENet and offline Web behavior.
 - Final validation passed: `./scripts/test.sh` (`ALL_TESTS PASS`), `scripts/det_test.sh`, `scripts/shield_test.sh`, `scripts/rc_orb_test.sh`, and `scripts/web_smoke.sh` (`WEB_SMOKE PASS`, zero browser errors).
+- Follow-up Web usability fix: Mac/Web DET now uses Command (with Alt as a Web fallback), the Web HUD documents `2: RC orb` and click-to-detonate, and the RC orb presentation was enlarged for the wide Web camera.
 
 ## Next
 
 - Keep the merged `master` as the integration baseline; the feature worktrees are no longer needed for gameplay integration.
 - Deploy to macai2 only as a separate explicit step; this merge did not alter the production UDP 10080 service.
 - Resume feature development from this accepted Godot implementation rather than reconstructing existing gameplay in Unity.
-- Review and merge the completed Phase 0 window safety and Phase 1 offline browser checkpoint from `feat/web` when ready.
+- Keep the merged Phase 0 window safety and Phase 1 offline browser checkpoint as the current baseline.
 - Treat Phase 2 WebRTC browser/native networking as a new explicit scope decision. Keep it isolated on new ports; do not add Web transport directly to macai2 UDP 10080 or disturb the accepted native ENet service.
 - Keep using the monitored windowed launcher on this Mac. Do not merge the diagnostic branches or repeat known Godot fullscreen, edge-to-edge, ANGLE, or Vulkan experiments.
 - Review the preserved Unity native multiplayer acceptance evidence and add only the missing high-value Godot regressions; do not reproduce Unity-specific infrastructure.

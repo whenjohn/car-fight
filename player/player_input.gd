@@ -11,7 +11,10 @@ var shield_held := false
 var tractor := false
 ## Det is held, not toggled: Cmd on macOS and Alt on other platforms, matching g2.
 var det := false
-var _det_key: Key = KEY_META if OS.get_name() == "macOS" else KEY_ALT
+# The Web export reports its OS as "Web", even when it is running in a Mac
+# browser. Keep Command as the primary Mac/Web binding; accepting Alt as well
+# on Web preserves the portable fallback for non-Mac browsers.
+var _det_key: Key = KEY_META if OS.get_name() in ["macOS", "Web"] else KEY_ALT
 var area_arm_held := false
 var area_fire := false
 var homing_held := false
@@ -80,7 +83,8 @@ func _gather() -> void:
 	# Match g2: poll the bare modifier directly so unrelated key events cannot
 	# make InputMap lose the held Shift level.
 	tractor = Input.is_key_pressed(KEY_SHIFT) and not editing
-	det = Input.is_key_pressed(_det_key) and not editing
+	det = (Input.is_key_pressed(_det_key) \
+		or (OS.has_feature("web") and Input.is_key_pressed(KEY_ALT))) and not editing
 	# Slot 3 mirrors the isometric Splash weapon: arm it once, then hold the
 	# primary button and drag a ground area before releasing to call the run.
 	area_arm_held = Input.is_key_pressed(KEY_3) and not editing
