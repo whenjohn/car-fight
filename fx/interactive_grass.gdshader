@@ -44,11 +44,13 @@ void vertex() {
 		vec2 away = anchor - closest;
 		float distance = length(away);
 		vec2 direction = distance > .001 ? away / distance : vec2(1.0, 0.0);
-		float radius = .92 * mix(.62, 1.27, hash(phase + float(i) * 31.0));
-		float influence = 1.0 - smoothstep(radius * .15, radius, distance);
-		influence *= influence * mix(.50, 1.0, hash(phase + 9.0));
-		bend += direction * influence * mix(.55, 1.25, hash(phase + 14.0));
-		flatten = max(flatten, influence * mix(.10, .22, hash(phase + 23.0)));
+		// The gameplay collider is a 3 m Jeep sphere. This deliberately wider
+		// visible footprint clears a channel through the tall, dense field.
+		float radius = 2.15 * mix(.82, 1.18, hash(phase + float(i) * 31.0));
+		float influence = 1.0 - smoothstep(radius * .08, radius, distance);
+		influence *= influence * mix(.72, 1.0, hash(phase + 9.0));
+		bend += direction * influence * mix(1.85, 2.65, hash(phase + 14.0));
+		flatten = max(flatten, influence * mix(.38, .62, hash(phase + 23.0)));
 	}
 	heat = 0.0;
 	for (int i = 0; i < 3; i++) {

@@ -104,8 +104,10 @@ func _process(delta: float) -> void:
 			if body == null:
 				continue
 			positions[index] = body.global_position
+			# A Jeep is substantially wider than G2's original character: retain a
+			# longer swept centreline so the dense blades visibly part behind it.
 			trails[index] = body.global_position - Vector3(body.linear_velocity.x, 0.0,
-				body.linear_velocity.z) * 0.11
+				body.linear_velocity.z) * 0.24
 			index += 1
 	_material.set_shader_parameter("vehicle_positions", positions)
 	_material.set_shader_parameter("vehicle_trail_positions", trails)
