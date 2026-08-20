@@ -35,6 +35,7 @@ const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const DRIVING_COURSE_SCRIPT := preload("res://world/driving_course.gd")
 const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
+const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 const COMBAT_FIRE_INTERVAL_TICKS := 15
 const COMBAT_BOLT_SPEED := 30.0
@@ -93,6 +94,7 @@ var _combat_ball_hit_count := 0
 var _drone_last_fire_tick := -100000
 var _drone_shot_count := 0
 var _maximum_impact_speed := 0.0
+var _crash_telemetry: Node
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -114,6 +116,7 @@ var _jump_gates: Node3D
 func _ready() -> void:
 	_parse_args()
 	_start_crash_telemetry()
+	_start_window_safety()
 	# Launch directly into driving. The coverage editor remains available on E,
 	# and its cones remain opt-in during driving on C.
 	_combat_editor_active = false
@@ -126,6 +129,8 @@ func _ready() -> void:
 	NetworkTime.after_sync.connect(_inject_join_stall_for_test)
 	if _role == "server":
 		_start_server()
+	elif _role == "offline":
+		await _start_offline()
 	else:
 		if DisplayServer.get_name() != "headless" and _shader_prewarm != null:
 			# Compile the cloak pipelines before ENet/netfox starts its clock. Doing
@@ -155,14 +160,31 @@ func _inject_join_stall_for_test() -> void:
 
 func _start_crash_telemetry() -> void:
 	var telemetry_path := OS.get_environment("CAR_FIGHT_TELEMETRY_FILE")
-	if telemetry_path.is_empty():
+	var web_console := OS.has_feature("web")
+	if telemetry_path.is_empty() and not web_console:
 		return
-	var telemetry := Node.new()
-	telemetry.name = "CrashTelemetry"
-	telemetry.set_script(CRASH_TELEMETRY_SCRIPT)
-	telemetry.set("output_path", telemetry_path)
-	telemetry.set("role", _role)
-	add_child(telemetry)
+	_crash_telemetry = Node.new()
+	_crash_telemetry.name = "CrashTelemetry"
+	_crash_telemetry.set_script(CRASH_TELEMETRY_SCRIPT)
+	_crash_telemetry.set("output_path", telemetry_path)
+	_crash_telemetry.set("role", _role)
+	_crash_telemetry.set("console_output", web_console)
+	add_child(_crash_telemetry)
+
+
+func _start_window_safety() -> void:
+	if _role == "server" or _role == "proxy":
+		return
+	var policy := Node.new()
+	policy.name = "WindowSafetyPolicy"
+	policy.set_script(WINDOW_SAFETY_POLICY_SCRIPT)
+	policy.connect("enforced", _on_window_safety_enforced)
+	add_child(policy)
+
+
+func _on_window_safety_enforced(event: String, details: Dictionary) -> void:
+	if _crash_telemetry != null:
+		_crash_telemetry.call("record_event", event, details)
 
 func _process(_delta: float) -> void:
 	if multiplayer.is_server():
@@ -208,6 +230,11 @@ func _process(_delta: float) -> void:
 	_update_editor_label()
 
 func _parse_args() -> void:
+	# Browsers cannot create the native ENet peer. The first Web checkpoint is
+	# deliberately offline; a later explicit --client will select WebRTC after
+	# that transport exists.
+	if OS.has_feature("web"):
+		_role = "offline"
 	var args := OS.get_cmdline_user_args()
 	var index := 0
 	while index < args.size():
@@ -216,6 +243,8 @@ func _parse_args() -> void:
 			_role = "server"
 		elif arg == "--client":
 			_role = "client"
+		elif arg == "--offline":
+			_role = "offline"
 		elif arg == "--proxy":
 			_role = "proxy"
 		elif arg == "--presentation-test":
@@ -316,6 +345,33 @@ func _start_client() -> void:
 	)
 	multiplayer.multiplayer_peer = peer
 	_log("connecting to udp://%s:%d as %s" % [_host, _port, _player_name])
+
+
+func _start_offline() -> void:
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	var owner_id := multiplayer.get_unique_id()
+	var body := _spawn_player({"id": owner_id, "slot": 0})
+	_players.add_child(body, true)
+	var config := _configuration_for(owner_id)
+	_apply_coverage_config(owner_id, config["ranges"], config["widths"],
+		config["tips_outward"])
+	var ball := _spawn_ball({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
+	_balls.add_child(ball, true)
+	_ball_seeded = true
+	_next_spawn_slot = 1
+	var time_error: int = await NetworkTime.start()
+	if time_error != OK:
+		push_error("Could not start offline simulation clock: %s" % error_string(time_error))
+		get_tree().quit(2)
+		return
+	_log("OFFLINE_READY id=%d players=%d balls=%d" % [owner_id,
+		_players.get_child_count(), _balls.get_child_count()])
+	if _crash_telemetry != null:
+		_crash_telemetry.call("record_event", "offline_ready", {
+			"peer_id": owner_id,
+			"players": _players.get_child_count(),
+			"balls": _balls.get_child_count(),
+		})
 
 func _on_peer_join(id: int) -> void:
 	if not multiplayer.is_server():
@@ -440,14 +496,15 @@ func _spawn_player(data: Variant) -> Node:
 	input.name = "Input"
 	input.set_script(INPUT_SCRIPT)
 	body.add_child(input)
-	var synchronizer := Node.new()
-	synchronizer.name = "RollbackSynchronizer"
-	synchronizer.set_script(load("res://addons/netfox/rollback/rollback-synchronizer.gd"))
-	body.add_child(synchronizer)
-	var interpolator := Node.new()
-	interpolator.name = "TickInterpolator"
-	interpolator.set_script(load("res://addons/netfox/tick-interpolator.gd"))
-	body.add_child(interpolator)
+	if _role != "offline":
+		var synchronizer := Node.new()
+		synchronizer.name = "RollbackSynchronizer"
+		synchronizer.set_script(load("res://addons/netfox/rollback/rollback-synchronizer.gd"))
+		body.add_child(synchronizer)
+		var interpolator := Node.new()
+		interpolator.name = "TickInterpolator"
+		interpolator.set_script(load("res://addons/netfox/tick-interpolator.gd"))
+		body.add_child(interpolator)
 
 	if not _is_headless():
 		_build_player_presentation(body, owner_id)
@@ -506,14 +563,15 @@ func _spawn_ball(data: Variant) -> Node:
 	collision.shape = sphere
 	body.add_child(collision)
 
-	var synchronizer := Node.new()
-	synchronizer.name = "RollbackSynchronizer"
-	synchronizer.set_script(load("res://addons/netfox/rollback/rollback-synchronizer.gd"))
-	body.add_child(synchronizer)
-	var interpolator := Node.new()
-	interpolator.name = "TickInterpolator"
-	interpolator.set_script(load("res://addons/netfox/tick-interpolator.gd"))
-	body.add_child(interpolator)
+	if _role != "offline":
+		var synchronizer := Node.new()
+		synchronizer.name = "RollbackSynchronizer"
+		synchronizer.set_script(load("res://addons/netfox/rollback/rollback-synchronizer.gd"))
+		body.add_child(synchronizer)
+		var interpolator := Node.new()
+		interpolator.name = "TickInterpolator"
+		interpolator.set_script(load("res://addons/netfox/tick-interpolator.gd"))
+		body.add_child(interpolator)
 
 	if not _is_headless():
 		var mesh_instance := MeshInstance3D.new()
@@ -906,7 +964,7 @@ func _update_editor_label() -> void:
 		rad_to_deg(widths[_selected_zone]), direction_label, used, COVERAGE.TOTAL_BUDGET]
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _role != "client" or not _scripted.is_empty():
+	if _role not in ["client", "offline"] or not _scripted.is_empty():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ENTER and _combat_editor_active:
@@ -1048,8 +1106,12 @@ func _configuration_for(owner_id: int) -> Dictionary:
 
 func _submit_local_coverage_config() -> void:
 	var config := _configuration_for(multiplayer.get_unique_id())
-	_submit_coverage_config.rpc_id(1, config["ranges"], config["widths"],
-		config["tips_outward"])
+	if _role == "offline":
+		_apply_coverage_config(multiplayer.get_unique_id(), config["ranges"],
+			config["widths"], config["tips_outward"])
+	else:
+		_submit_coverage_config.rpc_id(1, config["ranges"], config["widths"],
+			config["tips_outward"])
 
 @rpc("any_peer", "call_remote", "reliable")
 func _submit_coverage_config(ranges: PackedFloat32Array, widths: PackedFloat32Array,

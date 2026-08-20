@@ -19,8 +19,10 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_layout_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/driving_course_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/crash_telemetry_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/window_safety_policy_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/elevated_course_test.gd
+"$project_root/scripts/offline_test.sh"
 "$project_root/scripts/network_test.sh"
 "$project_root/scripts/join_transient_test.sh"
 "$project_root/scripts/reconnect_test.sh"

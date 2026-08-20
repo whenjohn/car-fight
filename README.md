@@ -26,6 +26,33 @@ Networking is native ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: s
 ./scripts/play_macai2_two.sh      # two monitored native clients, remote server
 ```
 
+## Offline Web build
+
+The browser checkpoint is intentionally offline: it spawns one local Jeep and
+the arena without opening ENet, changing the native server, or adding a browser
+transport. Godot 4.7.1's matching Web export templates are required.
+
+```bash
+./scripts/web_build.sh release    # export build/web/index.html
+./scripts/web_serve.sh            # serve only on http://127.0.0.1:8088
+./scripts/web_smoke.sh            # release export + bounded Chrome smoke
+```
+
+The local server supplies the cross-origin isolation headers required by the
+Rapier Web GDExtension. The smoke opens Chrome with a temporary profile,
+focuses the canvas, drives through the normal mouse input path, captures a
+screenshot and JSON telemetry under `build/`, then closes only the Chrome
+process it started. It requires Rapier initialization, an offline-ready event,
+movement, at least five telemetry samples, and no browser/script errors.
+
+The accepted 2026-08-20 Chrome 151 release run used the single-threaded Web
+export and a fixed 1280 x 720 render surface. Runtime ready took 2.42 seconds;
+the final five samples averaged 59.6 FPS with a 58 FPS minimum, normal driving
+reached 17.99 units/s, and the browser console was clean. A same-machine
+threaded comparison produced no repeatable improvement, so threading remains
+disabled. WebRTC networking is a separate Phase 2 decision in
+[`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md).
+
 Controls:
 
 - A normal client starts in the coverage editor. Drag a zone's centre handle to change range and either edge handle to change width. Press `F` to flip its tip and `R` to restore all four presets, then press `Enter` to drive. Press `E` to return to editing. Editor handles remain recoverable outside the Jeep when a cone is collapsed.

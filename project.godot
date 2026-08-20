@@ -50,6 +50,7 @@ shield={
 [netfox]
 
 time/tickrate=60
+time/suppress_offline_peer_warning=true
 rollback/input_delay=8
 
 [physics]

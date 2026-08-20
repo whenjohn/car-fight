@@ -1,6 +1,7 @@
 # Web and platform plan
 
-Status: planned, not yet implemented. Native ENet remains the accepted production baseline.
+Status: Phases 0 and 1 implemented on `feat/web`; Phase 2 is not started.
+Native ENet remains the accepted production baseline.
 
 ## Decision
 
@@ -86,6 +87,34 @@ transport changes.
 Only consider a threaded export if the measured single-threaded build cannot
 hold the simulation cadence. A threaded build requires correct COOP/COEP
 headers and must be a measured decision rather than a default.
+
+### Phase 0-1 result — 2026-08-20
+
+- Added an affected-platform-only runtime policy for rendered Intel macOS. It
+  restores decorated windowed mode, clamps to 1280 x 720 inside a 48-pixel
+  usable-screen inset, preserves minimization, and records enforcement through
+  crash telemetry. Pure policy regressions cover maximized, borderless,
+  oversized, and near-edge inputs without repeating a risky native display
+  experiment.
+- Added an offline role that directly spawns one local Jeep and ball without
+  rollback synchronizers or an ENet bind/connect. Its deterministic headless
+  gate proves normal boost input and rejects stale rollback or transport logs.
+- Added the `Web Offline` export, localhost isolation-header server, and bounded
+  Chrome smoke. The Web build uses Compatibility, Rapier's Web GDExtension,
+  single-threading, and a fixed 1280 x 720 render surface scaled to the browser
+  viewport with aspect preservation.
+- The retained Chrome 151 release smoke reached offline-ready in 2.42 seconds,
+  loaded Rapier 0.8.39, moved the Jeep at 17.99 units/s through normal mouse
+  input, and produced ten telemetry samples with no console/script errors. The
+  final five samples averaged 59.6 FPS (58 minimum); the latest sample had 409
+  nodes, 61 draw calls, 187 render objects, and 22,166 render primitives.
+- A same-machine threaded A/B was clean but did not materially improve the
+  earlier single-thread measurement. The final single-thread confirmation was
+  faster, so the compatible single-thread preset remains accepted for this
+  offline checkpoint. Revisit threads only if a repeatable browser workload
+  falls into sustained simulation catch-up.
+- Native ENet and macai2 UDP 10080 were not changed or redeployed. Phase 2
+  remains an explicit future WebRTC scope decision.
 
 ## Phase 2: isolated WebRTC network proof
 
@@ -190,11 +219,12 @@ confound CPU/GPU readings.
 
 1. Pull `master` and read `AGENTS.md`, `.ai/CURRENT_PHASE.md`, and this file.
 2. Confirm the native suite is green and macai2 UDP 10080 is healthy.
-3. Complete Phase 0 before another broad rendered Mac test.
-4. Create the isolated Web worktree; do not develop the Web experiment in the
-   production checkout.
-5. Finish and record each phase's acceptance result before starting the next.
-6. Update this plan and `.ai/CURRENT_PHASE.md`, then commit and push.
+3. Keep the Phase 0 safety policy active before any broad rendered Mac test.
+4. Keep Web work isolated from the production checkout and macai2 UDP 10080.
+5. Treat Phase 2 WebRTC work as a new explicitly reviewed scope; do not infer
+   transport authorization from the accepted offline browser checkpoint.
+6. Finish and record each phase's acceptance result before starting the next.
+7. Update this plan and `.ai/CURRENT_PHASE.md`, then commit and push.
 
 ## References
 
