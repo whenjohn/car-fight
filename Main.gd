@@ -1274,24 +1274,45 @@ func _fire_homing_missile(body: RigidBody3D) -> void:
 	_next_bolt_id += 1
 	_server_bolts[bolt_id] = {"position": origin, "velocity": velocity, "age": 0.0,
 		"shooter": int(body.name), "zone": -1, "kind": BOLT_KIND_HOMING,
-		"target_id": -1 if target == null else int(target.name)}
+		"target_id": _homing_target_id(target)}
 	_combat_shot_count += 1
 	_spawn_combat_bolt.rpc(bolt_id, int(body.name), -1, origin, velocity,
-		BOLT_KIND_HOMING, -1 if target == null else int(target.name))
+		BOLT_KIND_HOMING, _homing_target_id(target))
 
-func _nearest_homing_target(shooter: RigidBody3D) -> RigidBody3D:
-	var selected: RigidBody3D
+func _nearest_homing_target(shooter: RigidBody3D) -> Node3D:
+	var selected: Node3D
 	var best_distance := INF
-	for player_node in _players.get_children():
-		var candidate := player_node as RigidBody3D
-		if candidate == null or candidate == shooter or int(candidate.get("map_id")) != int(shooter.get("map_id")):
+	for target_node in _targets.get_children():
+		var candidate := target_node as StaticBody3D
+		if candidate == null or not _has_target_line_of_sight(shooter, candidate):
 			continue
 		var distance := shooter.global_position.distance_squared_to(candidate.global_position)
-		if distance < best_distance or (selected != null and is_equal_approx(distance, best_distance) \
-				and int(candidate.name) < int(selected.name)):
+		if distance < best_distance:
+			selected = candidate
+			best_distance = distance
+	for index in range(_balls.get_child_count()):
+		var candidate := _balls.get_child(index) as RigidBody3D
+		if candidate == null or not _has_target_line_of_sight(shooter, candidate):
+			continue
+		var distance := shooter.global_position.distance_squared_to(candidate.global_position)
+		if distance < best_distance:
 			selected = candidate
 			best_distance = distance
 	return selected
+
+func _homing_target_id(target: Node3D) -> int:
+	if target == null:
+		return -1
+	if target.is_in_group("arena_ball"):
+		return BALL_TARGET_ID_BASE - target.get_index()
+	return int(target.get("target_id"))
+
+func homing_target_for(target_id: int) -> Node3D:
+	if target_id >= 0:
+		return _targets.get_node_or_null("Target_%02d" % target_id) as Node3D
+	var ball_index := BALL_TARGET_ID_BASE - target_id
+	return _balls.get_child(ball_index) as Node3D if ball_index >= 0 \
+		and ball_index < _balls.get_child_count() else null
 
 func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
 		tip_outward: bool) -> Node3D:
@@ -1413,9 +1434,8 @@ func _step_server_bolts(delta: float) -> void:
 		var start: Vector3 = bolt["position"]
 		var kind := int(bolt.get("kind", BOLT_KIND_PLAYER))
 		if kind == BOLT_KIND_HOMING:
-			var target := _players.get_node_or_null(str(int(bolt.get("target_id", -1)))) as RigidBody3D
-			var shooter := _players.get_node_or_null(str(int(bolt["shooter"]))) as RigidBody3D
-			if target != null and shooter != null and int(target.get("map_id")) == int(shooter.get("map_id")):
+			var target := homing_target_for(int(bolt.get("target_id", -1)))
+			if target != null:
 				bolt["velocity"] = HOMING_MISSILE.steer(bolt["velocity"], start, target.global_position, delta)
 		var finish := start + (bolt["velocity"] as Vector3) * delta
 		var segment := finish - start
@@ -1461,26 +1481,36 @@ func _step_server_bolts(delta: float) -> void:
 				_server_bolts.erase(bolt_id)
 				continue
 		elif kind == BOLT_KIND_HOMING:
-			var player_hit: RigidBody3D
-			var player_fraction := 1.01
-			for player_node in _players.get_children():
-				var player := player_node as RigidBody3D
-				if player == null or int(player.name) == int(bolt["shooter"]):
+			var target_hit: Node3D
+			var target_fraction := 1.01
+			for target_node in _targets.get_children():
+				var target := target_node as StaticBody3D
+				if target == null or segment.length_squared() <= 0.0001:
 					continue
-				var fraction := IMPACT_CONTROLLER.segment_sphere_entry(start, finish,
-					player.global_position, PLAYER_RADIUS)
-				if fraction < player_fraction:
-					player_fraction = fraction
-					player_hit = player
-			if player_hit != null and player_fraction <= wall_fraction:
-				var impact_position := start + segment * player_fraction
-				var incoming_direction := (bolt["velocity"] as Vector3).normalized()
-				var shielded := bool(player_hit.get("shield_up"))
-				var response := IMPACT_CONTROLLER.response(incoming_direction, shielded)
-				player_hit.call("apply_external_impact", response["linear_impulse"],
-					response["torque_impulse"], response["recovery_time"], shielded)
-				_register_player_impact.rpc(bolt_id, int(player_hit.name), impact_position,
-					incoming_direction, shielded)
+				var fraction := clampf((target.global_position - start).dot(segment) \
+					/ segment.length_squared(), 0.0, 1.0)
+				if (start + segment * fraction).distance_to(target.global_position) <= COMBAT_TARGET_RADIUS \
+						and fraction < target_fraction:
+					target_hit = target
+					target_fraction = fraction
+			for ball_node in _balls.get_children():
+				var ball := ball_node as RigidBody3D
+				if ball == null or segment.length_squared() <= 0.0001:
+					continue
+				var fraction := clampf((ball.global_position - start).dot(segment) \
+					/ segment.length_squared(), 0.0, 1.0)
+				if (start + segment * fraction).distance_to(ball.global_position) <= BALL_SCRIPT.RADIUS \
+						and fraction < target_fraction:
+					target_hit = ball
+					target_fraction = fraction
+			if target_hit != null and target_fraction <= wall_fraction:
+				_combat_hit_count += 1
+				if target_hit.is_in_group("arena_ball"):
+					target_hit.call("apply_external_impulse",
+						(bolt["velocity"] as Vector3).normalized() * COMBAT_BALL_IMPULSE)
+					_combat_ball_hit_count += 1
+				else:
+					_register_target_hit.rpc(int(target_hit.get("target_id")))
 				_end_combat_bolt.rpc(bolt_id)
 				_server_bolts.erase(bolt_id)
 				continue

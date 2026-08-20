@@ -20,8 +20,7 @@ func setup(start: Vector3, shot_velocity: Vector3, locked_target_id: int) -> voi
 
 func _process(delta: float) -> void:
 	var main := get_node_or_null("/root/Main")
-	var target: Node3D = main.get_node_or_null("Players/%d" % target_id) \
-		if main != null else null
+	var target: Node3D = main.call("homing_target_for", target_id) if main != null else null
 	if target != null:
 		velocity = HOMING_MISSILE.steer(velocity, global_position,
 			target.global_position, delta)
