@@ -386,6 +386,9 @@ func _service_area_weapon() -> void:
 		area_gesture_active = false
 		area_gesture_end = cursor
 		area_strike_serial += 1
+		# Splash is a one-shot call-in. Stow it on release so the regular
+		# coverage/auto-fire weapon resumes while the aircraft is still inbound.
+		area_weapon_armed = false
 
 func area_gesture_preview() -> Dictionary:
 	return {"start": area_gesture_start, "end": area_gesture_end} if area_gesture_active else {}
