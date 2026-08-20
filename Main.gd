@@ -45,9 +45,9 @@ const COMBAT_BALL_IMPULSE := 4.2
 const BALL_TARGET_ID_BASE := -1000
 const BOLT_KIND_PLAYER := 0
 const BOLT_KIND_DRONE := 1
-const RC_ORB_SPEED := 31.5
-const RC_ORB_ACCEL := 133.0
-const RC_ORB_TURN := 6.0
+const RC_ORB_SPEED := 14.0
+const RC_ORB_ACCEL := 30.0
+const RC_ORB_TURN := 3.2
 const RC_ORB_DEADZONE := 1.0
 const RC_ORB_MAX_DISTANCE := 23.0
 const RC_ORB_LIFETIME := 6.0
@@ -1116,12 +1116,19 @@ func cursor_offset_for(body: Node3D) -> Vector2:
 	var direction := _camera.project_ray_normal(mouse)
 	if absf(direction.y) < 0.00001:
 		return Vector2.ZERO
-	var road_plane_y := body.global_position.y - PLAYER_RADIUS
+	var control_origin := body.global_position
+	# During RC flight the camera is centered on the orb. Measure the mouse at
+	# that same world point, otherwise its angular change is compressed by the
+	# parked Jeep-to-orb distance and steering appears unresponsive.
+	var rc_visual: Variant = _rc_orb_visuals.get(int(body.name))
+	if is_instance_valid(rc_visual):
+		control_origin = (rc_visual as Node3D).global_position
+	var road_plane_y := control_origin.y - PLAYER_RADIUS
 	var t := (road_plane_y - origin.y) / direction.y
 	if t < 0.0:
 		return Vector2.ZERO
 	var hit := origin + direction * t
-	var delta := hit - body.global_position
+	var delta := hit - control_origin
 	return Vector2(delta.x, delta.z).limit_length(FOLLOW.MAX_DISTANCE)
 
 func is_scripted_client() -> bool:
