@@ -1530,7 +1530,10 @@ func _spawn_rc_orb_visual(pilot_id: int, position: Vector3, remaining_life: floa
 	visual.call("setup", position, remaining_life)
 	_rc_orb_visuals[pilot_id] = visual
 
-@rpc("authority", "call_remote", "unreliable")
+# Offline Web has no remote peer, so the authoritative snapshot must also
+# update the local presentation. Native peers still receive the same cheap
+# unreliable snapshot over the network.
+@rpc("authority", "call_local", "unreliable")
 func _sync_rc_orb(pilot_id: int, position: Vector3, _velocity: Vector3, remaining_life: float) -> void:
 	var visual: Variant = _rc_orb_visuals.get(pilot_id)
 	if is_instance_valid(visual):
