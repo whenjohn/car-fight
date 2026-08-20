@@ -1,7 +1,9 @@
 # Web and platform plan
 
-Status: Phases 0 and 1 implemented on `feat/web`; Phase 2 is not started.
-Native ENet remains the accepted production baseline.
+Status: Phases 0 and 1 are merged. The Phase 2 localhost cross-play proof is
+implemented on `feature/browser-networking`; remote/TURN impairment acceptance
+and production deployment have not started. Native ENet remains the accepted
+production baseline.
 
 ## Decision
 
@@ -137,6 +139,46 @@ The native WebRTC server/client path will require the compatible native
 WebRTC extension. TURN is required for a real relay/loss acceptance test, but
 must remain isolated from the native ENet service.
 
+### Phase 2 localhost result — 2026-08-20
+
+- The pre-network same-machine control ran one offline browser beside one
+  monitored rendered native ENet client. The browser's final five samples
+  averaged 58.4 FPS (55 minimum); native telemetry averaged 77.7 FPS and its
+  physics maximum was 1.03 ms. This established that the machine can host both
+  renderers before transport cost is introduced. `browser_native_baseline.sh`
+  reproduces that control.
+- Chose the mixed-transport candidate: native clients remain on ENet, browsers
+  use WebRTC DataChannels, and one server-side `MultiplayerPeer` mux presents
+  both transports to the unchanged authoritative game world. WebSocket is used
+  only for WebRTC signaling.
+- Added separate `Web Offline` and `Web Network` exports. The offline preset is
+  still transport-free; the network preset opts into WebRTC through the
+  `web_network` custom feature and accepts a `signal` query parameter.
+- Ported the smallest G2 transport subset: signaling/WebRTC lifecycle, the
+  mux, send-queue telemetry, and the macOS universal native WebRTC extension.
+  The extension declares Godot 4.3 compatibility and loads under 4.7.1. Its
+  debug/release dylib SHA-256 values are `e7dafd2d345b8e8591734f7bdd243f43fc859dc711f73639d9348bbda190f382`
+  and `e477dbdcce56adeb024e34e56abb023f3eeee6b412097977d693858e560408a1`.
+- Automated localhost coverage proves distinct ENet/WebRTC peer IDs in one
+  world, reciprocal authoritative movement/contact, ordinary leave and browser
+  refresh/replacement, a retained RPC tombstone while cross-transport packets
+  drain, peer-ID collision rejection, and survival when either transport leg
+  closes.
+- Repeated exported Chrome 151 runs admitted browser peers 2 then 3 alongside
+  a surviving native ENet peer, produced changing shared-world snapshots, and
+  drained the WebRTC buffer after peaks no larger than 5,080 bytes. There were
+  no script/browser errors. The slow repeated final window ranged from 31 to
+  60 FPS and averaged 47.6 FPS; the final accepted run averaged 57.2 FPS with a
+  49 FPS minimum. The localhost capacity smoke therefore gates 30 FPS minimum
+  / 45 average. This is sufficient for same-machine cross-play testing, but it
+  does not meet the stricter Phase 3 remote-product cadence criterion.
+- A three-sample server CPU A/B with the same two ENet clients measured median
+  CPU time of 3.37 seconds for pure ENet and 3.76 seconds for the mux over an
+  eight-second run: 0.39 added CPU-seconds, or 4.88% of one core. The relative
+  increase is 11.57% because the control server is deliberately tiny.
+- No StateBundle, packing, batching, rate division, TURN service, WAN shaping,
+  or macai2 deployment was added. UDP 10080 remains untouched.
+
 ## Phase 3: acceptance matrix
 
 Every row must retain the current native ENet control. Use measured shaping,
@@ -169,8 +211,8 @@ Require:
 
 ## Phase 4: production cross-play decision
 
-Only after the isolated WebRTC world passes should the project choose how
-browser and native players share production:
+The localhost proof selected how browser and native players should share a
+test world; production still waits for the full Phase 3 matrix:
 
 - Preferred candidate: retain ENet for native clients and add the smallest
   proven mixed-peer/mux layer needed for WebRTC browsers.
@@ -221,8 +263,8 @@ confound CPU/GPU readings.
 2. Confirm the native suite is green and macai2 UDP 10080 is healthy.
 3. Keep the Phase 0 safety policy active before any broad rendered Mac test.
 4. Keep Web work isolated from the production checkout and macai2 UDP 10080.
-5. Treat Phase 2 WebRTC work as a new explicitly reviewed scope; do not infer
-   transport authorization from the accepted offline browser checkpoint.
+5. Keep Phase 2 work on isolated ports; do not infer macai2 or production
+   authorization from the accepted localhost mux proof.
 6. Finish and record each phase's acceptance result before starting the next.
 7. Update this plan and `.ai/CURRENT_PHASE.md`, then commit and push.
 

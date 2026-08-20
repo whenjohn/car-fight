@@ -3,6 +3,7 @@ extends Node3D
 ## player scripts own deterministic FOLLOW simulation and presentation.
 
 const DEFAULT_PORT := 10080
+const DEFAULT_SIGNAL_PORT := 10181
 const MAX_CLIENTS := 16
 const ARENA_CONFIG := preload("res://world/arena_config.gd")
 const ARENA_HALF := ARENA_CONFIG.HALF_EXTENT
@@ -50,6 +51,8 @@ const DOTS_SCRIPT := preload("res://world/dots.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
+const WEBRTC_TRANSPORT_SCRIPT := preload("res://net/webrtc_transport.gd")
+const MUX_MULTIPLAYER_PEER_SCRIPT := preload("res://net/mux_multiplayer_peer.gd")
 const COMBAT_FIRE_INTERVAL_TICKS := 15
 const COMBAT_BOLT_SPEED := 30.0
 const COMBAT_BOLT_LIFETIME := 1.0
@@ -70,8 +73,16 @@ const RC_ORB_BLAST_RADIUS := 2.7
 const RC_ORB_LAUNCH_OFFSET := 0.72
 
 var _role := "client"
+var _transport := "enet"
 var _host := "127.0.0.1"
 var _port := DEFAULT_PORT
+var _signal_port := DEFAULT_SIGNAL_PORT
+var _signal_url := ""
+var _ice_servers: Array = []
+var _ice_relay_only := false
+var _webrtc_channel_telemetry := false
+var _mux_collision_test := false
+var _mux_close_transport_test := ""
 var _player_name := "driver"
 var _session_label := ""
 var _scripted := ""
@@ -149,6 +160,9 @@ var _shader_prewarm: Node3D
 var _driving_course: Node3D
 var _jump_gates: Node3D
 var _dots: Node3D
+var _webrtc_transport: Node
+var _mux_peer
+var _network_status := ""
 
 func _ready() -> void:
 	_parse_args()
@@ -178,6 +192,11 @@ func _ready() -> void:
 			await RenderingServer.frame_post_draw
 			_shader_prewarm.visible = false
 		_start_client()
+
+
+func _exit_tree() -> void:
+	if _webrtc_transport != null:
+		_webrtc_transport.call("close")
 
 ## Deterministic positive control for the late-join/render-stall regression.
 ## A real rendered client can pause here for shader compilation after netfox
@@ -276,16 +295,29 @@ func _process(_delta: float) -> void:
 			else "Mouse: drive  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
 		if local != null and bool(local.get("area_weapon_armed")):
 			_status_label.text += "\nAREA WEAPON ARMED  ·  Hold and drag Left Mouse, then release to bomb  ·  3: stow"
+		if local == null and not _network_status.is_empty():
+			_status_label.text = "CAR FIGHT  |  BROWSER NETWORK\n%s\n%s" % [
+				_network_status, _connection_target()]
 	if _fps_label != null:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
 
 func _parse_args() -> void:
-	# Browsers cannot create the native ENet peer. The first Web checkpoint is
-	# deliberately offline; a later explicit --client will select WebRTC after
-	# that transport exists.
+	# Keep the accepted offline export unchanged. The separate Web Network
+	# preset opts into the browser WebRTC client with a custom feature.
 	if OS.has_feature("web"):
-		_role = "offline"
+		if OS.has_feature("web_network"):
+			_role = "client"
+			_transport = "webrtc"
+			_signal_url = _web_query("signal")
+			if _signal_url.is_empty():
+				_signal_url = _default_web_signaling_url()
+			var browser_name := _web_query("name")
+			if not browser_name.is_empty():
+				_player_name = browser_name
+			_webrtc_channel_telemetry = _web_query("webrtcTelemetry") == "1"
+		else:
+			_role = "offline"
 	var args := OS.get_cmdline_user_args()
 	var index := 0
 	while index < args.size():
@@ -298,6 +330,41 @@ func _parse_args() -> void:
 			_role = "offline"
 		elif arg == "--proxy":
 			_role = "proxy"
+		elif arg.begins_with("--transport="):
+			_transport = arg.get_slice("=", 1).to_lower()
+		elif arg == "--transport" and index + 1 < args.size():
+			index += 1
+			_transport = args[index].to_lower()
+		elif arg.begins_with("--signal-port="):
+			_signal_port = int(arg.get_slice("=", 1))
+		elif arg == "--signal-port" and index + 1 < args.size():
+			index += 1
+			_signal_port = int(args[index])
+		elif arg.begins_with("--signal-url="):
+			_signal_url = arg.get_slice("=", 1)
+		elif arg == "--signal-url" and index + 1 < args.size():
+			index += 1
+			_signal_url = args[index]
+		elif arg == "--webrtc-telemetry":
+			_webrtc_channel_telemetry = true
+		elif arg == "--ice-relay-only":
+			_ice_relay_only = true
+		elif arg == "--ice-server" and index + 1 < args.size():
+			index += 1
+			_ice_servers.push_back({"urls": [args[index]]})
+		elif arg == "--ice-username" and index + 1 < args.size():
+			index += 1
+			if not _ice_servers.is_empty():
+				_ice_servers[-1]["username"] = args[index]
+		elif arg == "--ice-credential" and index + 1 < args.size():
+			index += 1
+			if not _ice_servers.is_empty():
+				_ice_servers[-1]["credential"] = args[index]
+		elif arg == "--mux-collision-test":
+			_mux_collision_test = true
+		elif arg == "--mux-close-transport-test" and index + 1 < args.size():
+			index += 1
+			_mux_close_transport_test = args[index].to_lower()
 		elif arg == "--presentation-test":
 			_force_presentation = true
 		elif arg == "--course-test":
@@ -354,6 +421,19 @@ func _parse_args() -> void:
 			_loss_pct = float(arg.get_slice("=", 1))
 		index += 1
 
+
+func _web_query(key: String) -> String:
+	if not OS.has_feature("web"):
+		return ""
+	return str(JavaScriptBridge.eval(
+		"new URLSearchParams(location.search).get(%s) || ''" % JSON.stringify(key)))
+
+
+func _default_web_signaling_url() -> String:
+	var protocol := str(JavaScriptBridge.eval("location.protocol"))
+	var hostname := str(JavaScriptBridge.eval("location.hostname"))
+	return "%s://%s:%d" % ["wss" if protocol == "https:" else "ws", hostname, _signal_port]
+
 func _set_client_window_title() -> void:
 	if _role != "client" or DisplayServer.get_name() == "headless":
 		return
@@ -377,7 +457,10 @@ func _start_proxy() -> void:
 
 func _connect_network_events() -> void:
 	NetworkEvents.on_server_start.connect(func(): _log("SERVER_READY port=%d" % _port))
-	NetworkEvents.on_client_start.connect(func(id: int): _log("CLIENT_READY id=%d name=%s" % [id, _player_name]))
+	NetworkEvents.on_client_start.connect(func(id: int):
+		_network_status = ""
+		_log("CLIENT_READY id=%d name=%s" % [id, _player_name])
+	)
 	NetworkEvents.on_client_stop.connect(func():
 		_log("CLIENT_STOPPED")
 		if _quit_after_ticks > 0:
@@ -387,31 +470,111 @@ func _connect_network_events() -> void:
 	NetworkEvents.on_peer_leave.connect(_on_peer_leave)
 
 func _start_server() -> void:
-	var peer := ENetMultiplayerPeer.new()
-	var error := peer.create_server(_port, MAX_CLIENTS)
+	var peer: MultiplayerPeer
+	var error := OK
+	if _transport == "webrtc":
+		_webrtc_transport = WEBRTC_TRANSPORT_SCRIPT.new()
+		add_child(_webrtc_transport)
+		_webrtc_transport.connect("failed", _on_webrtc_failed)
+		peer = _webrtc_transport.call("start_server", _signal_port, _ice_servers,
+			_ice_relay_only, 1, _webrtc_channel_telemetry)
+		error = OK if peer != null else ERR_CANT_CREATE
+	elif _transport == "mux":
+		var enet_peer := ENetMultiplayerPeer.new()
+		error = enet_peer.create_server(_port, MAX_CLIENTS)
+		if error == OK:
+			_mux_peer = MUX_MULTIPLAYER_PEER_SCRIPT.new()
+			_mux_peer.call("add_inner", "enet", enet_peer)
+			_mux_peer.connect("peer_rejected", _on_mux_peer_rejected)
+			_webrtc_transport = WEBRTC_TRANSPORT_SCRIPT.new()
+			add_child(_webrtc_transport)
+			_webrtc_transport.connect("failed", _on_webrtc_failed)
+			_webrtc_transport.call("set_peer_id_reserved_provider",
+				_mux_peer.has_enet_peer)
+			if _mux_collision_test:
+				_webrtc_transport.call("set_forced_peer_id_provider",
+					_mux_peer.first_peer_for_transport.bind("enet"))
+			var rtc_peer: MultiplayerPeer = _webrtc_transport.call("start_server",
+				_signal_port, _ice_servers, _ice_relay_only, 1, _webrtc_channel_telemetry)
+			if rtc_peer == null:
+				error = ERR_CANT_CREATE
+				enet_peer.close()
+			else:
+				_mux_peer.call("add_inner", "webrtc", rtc_peer)
+				_mux_peer.call("set_send_guard", "webrtc", _webrtc_transport.peer_can_send)
+				peer = _mux_peer
+	else:
+		_transport = "enet"
+		peer = ENetMultiplayerPeer.new()
+		error = (peer as ENetMultiplayerPeer).create_server(_port, MAX_CLIENTS)
 	if error != OK:
-		push_error("Could not listen on UDP %d: %s" % [_port, error_string(error)])
+		push_error("Could not start %s server: %s" % [_transport, error_string(error)])
 		get_tree().quit(2)
 		return
 	multiplayer.multiplayer_peer = peer
 	_dots.call("generate")
-	_log("server listening on udp://0.0.0.0:%d" % _port)
+	if _transport == "mux":
+		_log("server listening transport=mux enet=:%d webrtc_signal=:%d" % [_port, _signal_port])
+	elif _transport == "webrtc":
+		_log("server listening transport=webrtc signal=:%d" % _signal_port)
+	else:
+		_log("server listening on udp://0.0.0.0:%d" % _port)
 
 func _start_client() -> void:
+	multiplayer.connection_failed.connect(func():
+		_network_status = "CONNECTION FAILED"
+		push_error("Connection failed to %s" % _connection_target())
+		if _quit_after_ticks > 0:
+			get_tree().quit(2)
+	)
+	if _transport == "webrtc":
+		if _signal_url.is_empty():
+			_signal_url = "ws://%s:%d" % [_host, _signal_port]
+		_network_status = "CONNECTING TO WEBRTC"
+		_webrtc_transport = WEBRTC_TRANSPORT_SCRIPT.new()
+		add_child(_webrtc_transport)
+		_webrtc_transport.connect("failed", _on_webrtc_failed)
+		_webrtc_transport.connect("multiplayer_peer_ready", _on_webrtc_peer_ready,
+			CONNECT_ONE_SHOT)
+		var rtc_peer: MultiplayerPeer = _webrtc_transport.call("start_client", _signal_url,
+			_ice_servers, _ice_relay_only, 1, _webrtc_channel_telemetry)
+		if rtc_peer == null:
+			_on_webrtc_failed("Could not create WebRTC client")
+			return
+		_set_client_window_title()
+		_log("client signaling transport=webrtc at %s as %s" % [_signal_url, _player_name])
+		return
+	_transport = "enet"
 	var peer := ENetMultiplayerPeer.new()
 	var error := peer.create_client(_host, _port)
 	if error != OK:
 		push_error("Could not connect to %s:%d: %s" % [_host, _port, error_string(error)])
 		get_tree().quit(2)
 		return
-	multiplayer.connection_failed.connect(func():
-		push_error("Connection failed to %s:%d" % [_host, _port])
-		if _quit_after_ticks > 0:
-			get_tree().quit(2)
-	)
 	multiplayer.multiplayer_peer = peer
 	_set_client_window_title()
 	_log("connecting to udp://%s:%d as %s" % [_host, _port, _player_name])
+
+
+func _connection_target() -> String:
+	return _signal_url if _transport == "webrtc" else "%s:%d" % [_host, _port]
+
+
+func _on_webrtc_peer_ready(peer: MultiplayerPeer) -> void:
+	multiplayer.multiplayer_peer = peer
+	_network_status = "JOINING AUTHORITATIVE WORLD"
+	_log("client connecting transport=webrtc to %s" % _signal_url)
+
+
+func _on_webrtc_failed(message: String) -> void:
+	_network_status = "WEBRTC FAILED: %s" % message
+	if _quit_after_ticks > 0 or DisplayServer.get_name() == "headless":
+		get_tree().quit(2)
+
+
+func _on_mux_peer_rejected(peer_id: int, transport: String) -> void:
+	if transport == "webrtc" and _webrtc_transport != null:
+		_webrtc_transport.call("reject_server_peer", peer_id, "peer id collision")
 
 func _start_offline() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
@@ -461,8 +624,21 @@ func _on_peer_leave(id: int) -> void:
 		return
 	var body := _players.get_node_or_null(str(id))
 	if body != null:
-		body.queue_free()
+		if _transport == "mux":
+			var synchronizer := body.get_node_or_null("RollbackSynchronizer")
+			if synchronizer != null and synchronizer.has_method("suspend_for_departure"):
+				synchronizer.call("suspend_for_departure")
+			_free_mux_departure_later(body, id)
+		else:
+			body.queue_free()
 	_log("PEER_LEAVE id=%d" % id)
+
+
+func _free_mux_departure_later(body: Node, peer_id: int) -> void:
+	await get_tree().create_timer(1.0).timeout
+	if is_instance_valid(body):
+		body.queue_free()
+		_log("MUX_DEPARTURE_DRAINED id=%d" % peer_id)
 
 func _build_world() -> void:
 	var driver := Node.new()
@@ -1363,6 +1539,14 @@ func _on_tick(delta: float, tick: int) -> void:
 	if _start_tick < 0:
 		_start_tick = tick
 	var elapsed := tick - _start_tick
+	if multiplayer.is_server() and _transport == "mux" and elapsed == 180 \
+			and _mux_close_transport_test in ["enet", "webrtc"]:
+		if _mux_close_transport_test == "webrtc":
+			_webrtc_transport.call("close")
+			_mux_peer.call("remove_inner", "webrtc")
+		else:
+			_mux_peer.call("close_inner", "enet")
+		_log("MUX_TEST_CLOSED transport=%s tick=%d" % [_mux_close_transport_test, elapsed])
 	if multiplayer.is_server():
 		_service_area_weapons()
 		_service_rc_orbs(delta, tick)

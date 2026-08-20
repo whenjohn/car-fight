@@ -236,7 +236,13 @@ func _ready() -> void:
 
 	process_settings.call_deferred()
 
+var _signals_connected := false
+
+
 func _connect_signals() -> void:
+	if _signals_connected:
+		return
+	_signals_connected = true
 	NetworkTime.before_tick.connect(_before_tick)
 	NetworkTime.after_tick.connect(_after_tick)
 
@@ -248,15 +254,29 @@ func _connect_signals() -> void:
 	NetworkRollback.after_loop.connect(_after_rollback_loop)
 
 func _disconnect_signals() -> void:
-	NetworkTime.before_tick.disconnect(_before_tick)
-	NetworkTime.after_tick.disconnect(_after_tick)
+	if not _signals_connected:
+		return
+	_signals_connected = false
+	if NetworkTime.before_tick.is_connected(_before_tick):
+		NetworkTime.before_tick.disconnect(_before_tick)
+	if NetworkTime.after_tick.is_connected(_after_tick):
+		NetworkTime.after_tick.disconnect(_after_tick)
+	if NetworkRollback.on_prepare_tick.is_connected(_on_prepare_tick):
+		NetworkRollback.on_prepare_tick.disconnect(_on_prepare_tick)
+	if NetworkRollback.on_process_tick.is_connected(_process_tick):
+		NetworkRollback.on_process_tick.disconnect(_process_tick)
+	if NetworkRollback.on_record_tick.is_connected(_on_record_tick):
+		NetworkRollback.on_record_tick.disconnect(_on_record_tick)
+	if NetworkRollback.before_loop.is_connected(_before_rollback_loop):
+		NetworkRollback.before_loop.disconnect(_before_rollback_loop)
+	if NetworkRollback.after_loop.is_connected(_after_rollback_loop):
+		NetworkRollback.after_loop.disconnect(_after_rollback_loop)
 
-	NetworkRollback.on_prepare_tick.disconnect(_on_prepare_tick)
-	NetworkRollback.on_process_tick.disconnect(_process_tick)
-	NetworkRollback.on_record_tick.disconnect(_on_record_tick)
 
-	NetworkRollback.before_loop.disconnect(_before_rollback_loop)
-	NetworkRollback.after_loop.disconnect(_after_rollback_loop)
+## Mixed-transport leave seam: stop producing state immediately but retain the
+## RPC path briefly while already-delivered packets drain from the other leg.
+func suspend_for_departure() -> void:
+	_disconnect_signals()
 
 func _before_tick(_dt: float, tick: int) -> void:
 	_history_recorder.apply_state(tick)
