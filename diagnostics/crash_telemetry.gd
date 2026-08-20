@@ -8,6 +8,7 @@ const SLOW_FRAME_SECONDS := 0.050
 
 var output_path := ""
 var role := "unknown"
+var console_output := false
 
 var _file: FileAccess
 var _sample_elapsed := 0.0
@@ -24,15 +25,17 @@ var _fake_stall_done := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	if output_path.is_empty():
+	if output_path.is_empty() and not console_output:
 		set_process(false)
 		return
-	_file = FileAccess.open(output_path, FileAccess.WRITE)
-	if _file == null:
-		push_warning("Crash telemetry could not open %s: %s" % [
-			output_path, error_string(FileAccess.get_open_error())])
-		set_process(false)
-		return
+	if not output_path.is_empty():
+		_file = FileAccess.open(output_path, FileAccess.WRITE)
+		if _file == null:
+			push_warning("Crash telemetry could not open %s: %s" % [
+				output_path, error_string(FileAccess.get_open_error())])
+			if not console_output:
+				set_process(false)
+				return
 	_last_window_mode = int(DisplayServer.window_get_mode())
 	_started_msec = Time.get_ticks_msec()
 	_configure_fake_stall()
@@ -63,7 +66,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _file == null:
+	if _file == null and not console_output:
 		return
 	_service_fake_stall()
 	_sample_elapsed += delta
@@ -95,7 +98,7 @@ func _process(delta: float) -> void:
 
 
 func _notification(what: int) -> void:
-	if _file == null:
+	if _file == null and not console_output:
 		return
 	if what == NOTIFICATION_APPLICATION_FOCUS_IN:
 		_write_record("focus_in", {})
@@ -106,11 +109,16 @@ func _notification(what: int) -> void:
 
 
 func _exit_tree() -> void:
-	if _file == null:
+	if _file == null and not console_output:
 		return
 	_write_record("stop", {})
-	_file.close()
-	_file = null
+	if _file != null:
+		_file.close()
+		_file = null
+
+
+func record_event(event: String, data: Dictionary) -> void:
+	_write_record(event, data)
 
 
 func _write_sample() -> void:
@@ -161,7 +169,7 @@ func _write_sample() -> void:
 
 
 func _write_record(event: String, data: Dictionary) -> void:
-	if _file == null:
+	if _file == null and not console_output:
 		return
 	var record := data.duplicate()
 	record["event"] = event
@@ -170,8 +178,12 @@ func _write_record(event: String, data: Dictionary) -> void:
 	record["monotonic_msec"] = Time.get_ticks_msec()
 	record["unix_time"] = Time.get_unix_time_from_system()
 	record["local_time"] = Time.get_datetime_string_from_system(false, true)
-	_file.store_line(JSON.stringify(record))
-	_file.flush()
+	var json := JSON.stringify(record)
+	if console_output:
+		print("CAR_FIGHT_TELEMETRY %s" % json)
+	if _file != null:
+		_file.store_line(json)
+		_file.flush()
 
 
 func _rendering_string(method: String) -> String:

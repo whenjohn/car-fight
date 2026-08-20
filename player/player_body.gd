@@ -43,8 +43,8 @@ var gate_cooldown := 0.0
 var gate_transition_count := 0
 
 @onready var _input := get_node("Input")
-@onready var _sync := get_node("RollbackSynchronizer")
-@onready var _interpolator := get_node("TickInterpolator")
+@onready var _sync := get_node_or_null("RollbackSynchronizer")
+@onready var _interpolator := get_node_or_null("TickInterpolator")
 var _cursor_marker: Node3D
 var _max_speed_marker: Node3D
 var _cursor_line: Node3D
@@ -62,55 +62,56 @@ func _ready() -> void:
 	owner_id = int(name)
 	set_multiplayer_authority(1)
 	_input.set_multiplayer_authority(owner_id)
-	_sync.root = self
-	_sync.enable_prediction = true
-	_sync.enable_input_broadcast = false
-	_sync.add_state(self, "physics_state")
-	_sync.add_state(self, "burst_turn_sign")
-	_sync.add_state(self, "boost_active")
-	_sync.add_state(self, "brake_skid_amount")
-	_sync.add_state(self, "drift_assist_amount")
-	_sync.add_state(self, "drift_assist_charge")
-	_sync.add_state(self, "drift_assist_side")
-	_sync.add_state(self, "drift_assist_hold")
-	_sync.add_state(self, "drift_assist_latched")
-	_sync.add_state(self, "drift_assist_rearm_ready")
-	_sync.add_state(self, "is_cloaked")
-	_sync.add_state(self, "cloak_held_prev")
-	_sync.add_state(self, "shield_up")
-	_sync.add_state(self, "shield_held_prev")
-	_sync.add_state(self, "impact_recovery_time")
-	_sync.add_state(self, "impact_hit_count")
-	_sync.add_state(self, "shield_hit_count")
-	_sync.add_state(self, "tractor_ball_held")
-	_sync.add_state(self, "tractor_grab_count")
-	_sync.add_state(self, "tractor_reel_ticks")
-	_sync.add_state(self, "collision_stall_time")
-	_sync.add_state(self, "collision_escape_time")
-	_sync.add_state(self, "collision_escape_sign")
-	_sync.add_state(self, "collision_escape_count")
-	_sync.add_state(self, "wall_bump_cooldown")
-	_sync.add_state(self, "wall_bump_count")
-	_sync.add_state(self, "was_supported")
-	_sync.add_state(self, "landing_fall_speed")
-	_sync.add_state(self, "landing_jostle_cooldown")
-	_sync.add_state(self, "map_id")
-	_sync.add_state(self, "gate_cooldown")
-	_sync.add_state(self, "gate_transition_count")
-	_sync.add_input(_input, "cursor_offset")
-	_sync.add_input(_input, "burst")
-	_sync.add_input(_input, "reverse")
-	_sync.add_input(_input, "cloak_held")
-	_sync.add_input(_input, "shield_held")
-	_sync.add_input(_input, "tractor")
-	_sync.add_input(_input, "editing")
-	_sync.process_settings()
+	if _sync != null:
+		_sync.root = self
+		_sync.enable_prediction = true
+		_sync.enable_input_broadcast = false
+		_sync.add_state(self, "physics_state")
+		_sync.add_state(self, "burst_turn_sign")
+		_sync.add_state(self, "boost_active")
+		_sync.add_state(self, "brake_skid_amount")
+		_sync.add_state(self, "drift_assist_amount")
+		_sync.add_state(self, "drift_assist_charge")
+		_sync.add_state(self, "drift_assist_side")
+		_sync.add_state(self, "drift_assist_hold")
+		_sync.add_state(self, "drift_assist_latched")
+		_sync.add_state(self, "drift_assist_rearm_ready")
+		_sync.add_state(self, "is_cloaked")
+		_sync.add_state(self, "cloak_held_prev")
+		_sync.add_state(self, "shield_up")
+		_sync.add_state(self, "shield_held_prev")
+		_sync.add_state(self, "impact_recovery_time")
+		_sync.add_state(self, "impact_hit_count")
+		_sync.add_state(self, "shield_hit_count")
+		_sync.add_state(self, "tractor_ball_held")
+		_sync.add_state(self, "tractor_grab_count")
+		_sync.add_state(self, "tractor_reel_ticks")
+		_sync.add_state(self, "collision_stall_time")
+		_sync.add_state(self, "collision_escape_time")
+		_sync.add_state(self, "collision_escape_sign")
+		_sync.add_state(self, "collision_escape_count")
+		_sync.add_state(self, "wall_bump_cooldown")
+		_sync.add_state(self, "wall_bump_count")
+		_sync.add_state(self, "was_supported")
+		_sync.add_state(self, "landing_fall_speed")
+		_sync.add_state(self, "landing_jostle_cooldown")
+		_sync.add_state(self, "map_id")
+		_sync.add_state(self, "gate_cooldown")
+		_sync.add_state(self, "gate_transition_count")
+		_sync.add_input(_input, "cursor_offset")
+		_sync.add_input(_input, "burst")
+		_sync.add_input(_input, "reverse")
+		_sync.add_input(_input, "cloak_held")
+		_sync.add_input(_input, "shield_held")
+		_sync.add_input(_input, "tractor")
+		_sync.add_input(_input, "editing")
+		_sync.process_settings()
 
 	var local_player := owner_id == multiplayer.get_unique_id()
-	if not multiplayer.is_server() and not local_player:
+	if _interpolator != null and not multiplayer.is_server() and not local_player:
 		_interpolator.root = self
 		_interpolator.add_property(self, "global_transform")
-	else:
+	elif _interpolator != null:
 		_interpolator.enabled = false
 	if local_player:
 		_cursor_marker = get_node_or_null("CursorMarker")
