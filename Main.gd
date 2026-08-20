@@ -1260,7 +1260,7 @@ func _fire_homing_missile(body: RigidBody3D) -> void:
 	var target := _nearest_homing_target(body)
 	# Match G2: target acquisition is optional. With no opponent the seeker is
 	# still a visible straight shot rather than a swallowed key press.
-	var aim_point := body.global_position + body.aim
+	var aim_point: Vector3 = body.global_position + body.aim
 	if target != null:
 		aim_point = target.global_position
 	var origin := _combat_muzzle_origin(body, aim_point)
