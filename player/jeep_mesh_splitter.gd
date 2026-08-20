@@ -1,6 +1,6 @@
 extends RefCounted
 ## Derives a chassis mesh and four independently pivotable wheel meshes from
-## the combined CC0 Jeep FBX. The source asset remains untouched.
+## each combined CC0 vehicle-pack FBX. Source assets remain untouched.
 
 const WHEEL_MATERIALS := ["Tires", "Wheel"]
 

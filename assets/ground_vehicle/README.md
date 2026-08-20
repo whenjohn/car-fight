@@ -1,14 +1,13 @@
-# Ground vehicle — Jeep
+# Ground vehicles
 
-Selected from Daniel Quevedo's CC0 **Low Poly Vehicles Pack** during live visual
-review.
+Daniel Quevedo's CC0 **Low Poly Vehicles Pack**. The game includes the five
+drivable source vehicles: Jeep, Pickup, Sedan, Wagon, and Bus.
 
-- Selected model: `Jeep.fbx`
-- Complexity: 706 triangles, eight colored material surfaces
-- Geometry note: the source body and four wheels are one mesh. Car Fight keeps
-  that CC0 source untouched and derives a chassis plus four wheel assemblies at
-  runtime from the `Tires`/`Wheel` surfaces and their spatial quadrants.
+- Geometry note: each source body and its four wheels are one mesh. Car Fight
+  keeps every CC0 source untouched and derives a chassis plus four wheel
+  assemblies at runtime from the `Tires`/`Wheel` surfaces and spatial quadrants.
 
 Source: https://opengameart.org/content/low-poly-vehicles-pack
 
-The unused Pickup and Wagon audition FBXs were removed after selection.
+The vehicle selection is visual only, so its five scaled models all retain the
+same authoritative equal-mass sphere collider.

@@ -1,14 +1,20 @@
 extends Node3D
-## Presentation-only CC0 Jeep from g2. Chassis lean and wheel animation are
+## Presentation-only CC0 vehicle pack. Chassis lean and wheel animation are
 ## derived locally; the rollback collider remains one equal-mass sphere.
 
-const JEEP_SCENE: PackedScene = preload("res://assets/ground_vehicle/Jeep.fbx")
-const JEEP_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
+const VEHICLE_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const CLOAK_DUST_SCRIPT := preload("res://fx/vehicle_cloak_dust.gd")
 const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
+const VEHICLES := [
+	{"name": "Jeep", "scene": preload("res://assets/ground_vehicle/Jeep.fbx"), "scale": 0.45},
+	{"name": "Pickup", "scene": preload("res://assets/ground_vehicle/Pickup.fbx"), "scale": 0.33},
+	{"name": "Sedan", "scene": preload("res://assets/ground_vehicle/Sedan.fbx"), "scale": 0.33},
+	{"name": "Wagon", "scene": preload("res://assets/ground_vehicle/Wagon.fbx"), "scale": 0.33},
+	{"name": "Bus", "scene": preload("res://assets/ground_vehicle/Bus.fbx"), "scale": 0.175},
+]
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
 const BODY_ROLL_MAX := deg_to_rad(11.0)
@@ -33,6 +39,8 @@ var _chassis_lean: Node3D
 var _front_steer_nodes: Array[Node3D] = []
 var _wheel_spin_nodes: Array[Node3D] = []
 var _wheel_spin_angle := 0.0
+var _wheel_radius := WHEEL_RADIUS
+var _vehicle_index := 0
 var _visual_parts: Array[Node3D] = []
 var _boost_echoes: Array[Node3D] = []
 var _boost_echo_materials: Array[StandardMaterial3D] = []
@@ -48,7 +56,7 @@ var _cloak_ghost_material: ShaderMaterial
 
 func _ready() -> void:
 	_body = get_parent() as Node3D
-	_build_jeep()
+	_build_selected_vehicle()
 	_prepare_cloak_meshes(self)
 	_build_cloak_dust()
 	_build_cloak_ghost()
@@ -72,7 +80,7 @@ func _process(delta: float) -> void:
 			steer_node.rotation.y = lerp_angle(steer_node.rotation.y, target_steer, 1.0 - exp(-12.0 * delta))
 		var forward := -rigid.global_basis.z
 		var signed_speed := rigid.linear_velocity.dot(forward)
-		_wheel_spin_angle = fposmod(_wheel_spin_angle + signed_speed / WHEEL_RADIUS * delta \
+		_wheel_spin_angle = fposmod(_wheel_spin_angle + signed_speed / _wheel_radius * delta \
 			* wheel_roll_scale(brake_skid), TAU)
 		for spin_node in _wheel_spin_nodes:
 			spin_node.rotation.x = _wheel_spin_angle
@@ -113,22 +121,57 @@ func _mesh_node(node_name: String, mesh: Mesh, position: Vector3, material: Mate
 	node.material_override = material
 	return node
 
-func _build_jeep() -> void:
-	var source := JEEP_SCENE.instantiate() as Node3D
+func vehicle_name() -> String:
+	return str((VEHICLES[_vehicle_index] as Dictionary)["name"])
+
+func cycle_vehicle() -> void:
+	_vehicle_index = (_vehicle_index + 1) % VEHICLES.size()
+	_clear_vehicle_visuals()
+	_build_selected_vehicle()
+	_prepare_cloak_meshes(self)
+	_build_cloak_ghost()
+	_build_boost_echoes()
+	_cloak_override_active = false
+	_set_cloak_override_active(_cloak_strength > 0.0001)
+
+func _clear_vehicle_visuals() -> void:
+	for echo in _boost_echoes:
+		if is_instance_valid(echo):
+			echo.free()
+	_boost_echoes.clear()
+	_boost_echo_materials.clear()
+	_boost_echo_ages.clear()
+	_boost_echo_cursor = 0
+	_boost_echo_accum = 0.0
+	if _cloak_ghost != null and is_instance_valid(_cloak_ghost):
+		_cloak_ghost.free()
+	_cloak_ghost = null
+	for part in _visual_parts:
+		if is_instance_valid(part):
+			part.free()
+	_visual_parts.clear()
+	_front_steer_nodes.clear()
+	_wheel_spin_nodes.clear()
+	_cloak_surfaces.clear()
+
+func _build_selected_vehicle() -> void:
+	var vehicle: Dictionary = VEHICLES[_vehicle_index]
+	var source := (vehicle["scene"] as PackedScene).instantiate() as Node3D
 	var source_mesh_instance := source.find_child("*", true, false) as MeshInstance3D
-	var split: Dictionary = JEEP_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
+	var split: Dictionary = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
 	source.free()
+	_wheel_radius = WHEEL_RADIUS * float(vehicle["scale"]) / JEEP_SCALE
 
 	_chassis_lean = Node3D.new()
 	_chassis_lean.name = "ChassisLean"
 	add_child(_chassis_lean)
-	var chassis_model := _model_root("ChassisModel", _chassis_lean)
+	var chassis_model := _model_root("ChassisModel", _chassis_lean, float(vehicle["scale"]))
 	var chassis := MeshInstance3D.new()
 	chassis.name = "SeparatedChassis"
 	chassis.mesh = split["chassis"]
 	chassis_model.add_child(chassis)
 
-	var wheel_model := _model_root("WheelModel", self)
+	var wheel_model := _model_root("WheelModel", self, float(vehicle["scale"]))
 	_visual_parts = [_chassis_lean, wheel_model]
 	var wheels: Dictionary = split["wheels"]
 	for wheel_name in wheels.keys():
@@ -354,10 +397,10 @@ func _apply_echo_material(node: Node, material: StandardMaterial3D) -> void:
 	for child in node.get_children():
 		_apply_echo_material(child, material)
 
-func _model_root(node_name: String, parent: Node3D) -> Node3D:
+func _model_root(node_name: String, parent: Node3D, scale_amount: float) -> Node3D:
 	var model := Node3D.new()
 	model.name = node_name
-	model.scale = Vector3.ONE * JEEP_SCALE
+	model.scale = Vector3.ONE * scale_amount
 	model.rotation.y = PI
 	model.position = Vector3(0.0, 0.065, -0.05)
 	parent.add_child(model)

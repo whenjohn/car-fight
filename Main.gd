@@ -115,6 +115,8 @@ var _jump_gates: Node3D
 
 func _ready() -> void:
 	_parse_args()
+	if _role == "client" and DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_title("Car Fight — %s" % _player_name)
 	_start_crash_telemetry()
 	_start_window_safety()
 	# Launch directly into driving. The coverage editor remains available on E,
@@ -224,7 +226,7 @@ func _process(_delta: float) -> void:
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
 			mode, id, speed, location,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  V: vehicle  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
 	if _fps_label != null:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
@@ -977,6 +979,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			_coverage_overlay_visible = not _coverage_overlay_visible
 			_update_local_coverage_visual()
 			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_V:
+			_cycle_local_vehicle()
+			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_F and _combat_editor_active:
 			_flip_selected_cone()
 			get_viewport().set_input_as_handled()
@@ -1001,6 +1006,14 @@ func _set_combat_editor_active(enabled: bool) -> void:
 	_update_local_coverage_visual()
 	if not enabled:
 		_submit_local_coverage_config()
+
+func _cycle_local_vehicle() -> void:
+	var local: Node3D = local_player()
+	if local == null:
+		return
+	var hull: Node = local.get_node_or_null("GroundVehicleHull")
+	if hull != null and hull.has_method("cycle_vehicle"):
+		hull.call("cycle_vehicle")
 
 func _flip_selected_cone() -> void:
 	var id := multiplayer.get_unique_id()
