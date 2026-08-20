@@ -33,6 +33,7 @@ const AREA_STRIKE_SCRIPT := preload("res://combat/area_strike.gd")
 const AREA_BURN_ZONE_SCRIPT := preload("res://combat/area_burn_zone.gd")
 const AREA_STRIKE_VISUAL_SCRIPT := preload("res://fx/area_strike_visual.gd")
 const AREA_BURN_VISUAL_SCRIPT := preload("res://fx/area_burn_visual.gd")
+const AREA_TARGET_PREVIEW_SCRIPT := preload("res://fx/area_target_preview.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
@@ -630,6 +631,11 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	body.add_child(line)
 
 	if is_local:
+		var area_preview := Node3D.new()
+		area_preview.name = "AreaTargetPreview"
+		area_preview.set_script(AREA_TARGET_PREVIEW_SCRIPT)
+		area_preview.set("owner_body", body)
+		body.add_child(area_preview)
 		var catch_ring := MeshInstance3D.new()
 		catch_ring.name = "TractorCatchRing"
 		catch_ring.top_level = true
