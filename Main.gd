@@ -16,6 +16,7 @@ const DRIFT_GUIDE_SCRIPT := preload("res://player/drift_guide.gd")
 const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
+const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const SHIELD_SHADER := preload("res://fx/vehicle_shield.gdshader")
@@ -390,6 +391,13 @@ func _build_world() -> void:
 	add_child(_jump_gates)
 	_build_combat_targets()
 	if not _is_headless():
+		# Grass is intentionally presentation-only. The existing GroundCollision
+		# remains the sole static collider on server and predicting clients.
+		var grass := Node3D.new()
+		grass.name = "InteractiveGrass"
+		grass.set_script(INTERACTIVE_GRASS_SCRIPT)
+		grass.call("setup", _players, _combat_bolts)
+		add_child(grass)
 		_driving_course.call("build_presentation")
 		_jump_gates.call("build_presentation")
 		_build_presentation()

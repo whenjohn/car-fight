@@ -82,6 +82,7 @@
 
 ## Next
 
+- Grass worktree (`~/Projects/car-fight-grass`, branch `feat/grass`) now carries G2-derived chunked GPU grass. It bends and flattens around all replicated Jeeps, responds to live bolt wakes with a brief ember pass, remains strictly presentation-only over the existing server-authoritative ground collider, and titles clients `Car Fight — Grass`.
 - Resume feature development from this accepted Godot implementation rather than reconstructing existing gameplay in Unity.
 - Follow `WEB_PLATFORM_PLAN.md` for platform work. Complete its Intel window-safety Phase 0, then create an isolated `feat/web` worktree for the offline export smoke; do not add Web transport directly to the production checkout or macai2 UDP 10080.
 - Add a small, tested display-safety policy that enforces ordinary non-edge-to-edge windowed presentation on affected macOS Intel systems before the next broad rendered-play cycle.
