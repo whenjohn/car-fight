@@ -1258,9 +1258,12 @@ func _service_homing_missiles(_tick: int) -> void:
 
 func _fire_homing_missile(body: RigidBody3D) -> void:
 	var target := _nearest_homing_target(body)
-	if target == null:
-		return
-	var origin := _combat_muzzle_origin(body, target.global_position)
+	# Match G2: target acquisition is optional. With no opponent the seeker is
+	# still a visible straight shot rather than a swallowed key press.
+	var aim_point := body.global_position + body.aim
+	if target != null:
+		aim_point = target.global_position
+	var origin := _combat_muzzle_origin(body, aim_point)
 	# Preserve G2's dodge model: the player launches along their aim, then the
 	# locked target can only pull the missile through its capped cone.
 	var direction := Vector3(body.aim.x, 0.0, body.aim.z).normalized()
@@ -1271,10 +1274,10 @@ func _fire_homing_missile(body: RigidBody3D) -> void:
 	_next_bolt_id += 1
 	_server_bolts[bolt_id] = {"position": origin, "velocity": velocity, "age": 0.0,
 		"shooter": int(body.name), "zone": -1, "kind": BOLT_KIND_HOMING,
-		"target_id": int(target.name)}
+		"target_id": -1 if target == null else int(target.name)}
 	_combat_shot_count += 1
 	_spawn_combat_bolt.rpc(bolt_id, int(body.name), -1, origin, velocity,
-		BOLT_KIND_HOMING, int(target.name))
+		BOLT_KIND_HOMING, -1 if target == null else int(target.name))
 
 func _nearest_homing_target(shooter: RigidBody3D) -> RigidBody3D:
 	var selected: RigidBody3D

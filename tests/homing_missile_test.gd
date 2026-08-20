@@ -17,5 +17,10 @@ func _init() -> void:
 		push_error("HOMING_MISSILE_TEST FAIL: missile must go ballistic inside commit distance")
 		quit(1)
 		return
+	var fallback := HOMING.steer(initial, start, Vector3.ZERO, 1.0 / 60.0)
+	if not fallback.is_equal_approx(initial):
+		push_error("HOMING_MISSILE_TEST FAIL: no-lock missile must keep its launch heading")
+		quit(1)
+		return
 	print("HOMING_MISSILE_TEST PASS")
 	quit(0)
