@@ -7,8 +7,10 @@
 > [`MAC_INTEL_FULLSCREEN_FINDINGS.md`](MAC_INTEL_FULLSCREEN_FINDINGS.md) for the
 > canonical affected-Intel-Mac evidence and windowed policy, and
 > [`MIGRATION_TO_UNITY.md`](MIGRATION_TO_UNITY.md) for the engine-decision
-> history. Do not merge the diagnostic branches into this gameplay branch or
-> rerun known-risk fullscreen/edge-to-edge probes merely to reconfirm them.
+> history. The next platform roadmap is in
+> [`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md). Do not merge the diagnostic
+> branches into this gameplay branch or rerun known-risk
+> fullscreen/edge-to-edge probes merely to reconfirm them.
 
 A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
@@ -102,6 +104,6 @@ Validate the monitor without opening a rendered window with `./scripts/play_moni
 
 For multiplayer feel testing without hosting the server on this Mac, deploy the isolated macai2 service and run `./scripts/play_macai2_two.sh`. It opens two named 1280 x 720 native clients side by side, both through the same telemetry and Intel-display monitor used above. An unfocused client deliberately sends neutral controls, so its Jeep brakes instead of following the focused window's macOS cursor. The server remains on macai2 UDP `10080`; G2 remains separate on UDP `9950`.
 
-The first two-rendered-client trial on this Intel Mac proved that both clients replicated both player bodies, but it was not a valid networking-feel result: each client saturated one CPU core, fell to roughly 4-7 FPS, and entered netfox's rollback-history warning loop. Treat that as an unresolved local presentation/load limit. Use the headless 120 ms gate for correctness evidence until a rendered pair stays above the simulation cadence without history warnings.
+The first two-rendered-client trial exposed the stale-history loop later fixed by D-040. Subsequent pairs remain in one shared world and play smoothly. In the latest accepted run, accidentally enlarging one client from 1280 x 720 to 2800 x 1518 briefly reduced it to 6-8 FPS while physics stayed inexpensive; reducing the window restored performance. Keep both clients at the launcher's safe inset size. See [`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md) for the evidence and next platform sequence.
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.
