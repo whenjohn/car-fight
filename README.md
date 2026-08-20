@@ -12,7 +12,7 @@
 
 A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
-Networking is native ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
+Networking is native ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. The vendored netfox includes G2's D-040 stale-history recovery patch: after a client stall advances beyond retained rollback history, impossible origins are skipped with a bounded warning while the client waits for fresh authority. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
 
 ## Play
 
@@ -53,7 +53,7 @@ Four small fixed weapon mounts show the side zones. At runtime the combined CC0 
 ./scripts/test.sh
 ```
 
-The gate checks FOLLOW movement, coverage geometry and budget enforcement, presentation assets and shaders, collision recovery, ball physics, ramps, reverse, boost, cloak, tractor, and shields. It runs real headless servers and clients, including a deterministic 120 ms one-way UDP relay, then verifies automatic combat, drone hits, shield absorption, and cloak/shield exclusion.
+The gate checks FOLLOW movement, coverage geometry and budget enforcement, presentation assets and shaders, collision recovery, ball physics, ramps, reverse, boost, cloak, tractor, and shields. It runs real headless servers and clients, including a deterministic 120 ms one-way UDP relay, then verifies automatic combat, drone hits, shield absorption, and cloak/shield exclusion. The join-transient gate deliberately blocks a synchronized client for 1.5 seconds—longer than the 64-tick history—and requires bounded recovery without impossible rollback or stale-packet log flooding.
 
 ## Structure
 

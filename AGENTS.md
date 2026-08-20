@@ -6,6 +6,9 @@ This is a clean Godot 4.7 experiment. Keep it small and auditable.
 - Server authority and ENet lifecycle live in `Main.gd`.
 - Deterministic FOLLOW math lives in `player/follow_controller.gd`; presentation must not affect it.
 - Player input authority belongs to its owning client; body/state authority stays with server peer 1.
+- Vendored netfox carries the four-file G2 D-040 stale-history patch plus
+  `scripts/join_transient_test.sh`. Preserve/reapply it when updating netfox;
+  never accept a client that retries rollback older than `history_start`.
 - The Jeep and turret are presentation only. The equal-mass sphere is the gameplay collider.
 - Do not add weapons, damage, resources, bots, maps, or g2's custom transport/bundle stack without a new explicit scope decision.
 - Add a focused regression before changing movement or collision behavior.

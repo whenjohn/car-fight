@@ -123,6 +123,7 @@ func _ready() -> void:
 	_connect_network_events()
 	_build_world()
 	NetworkTime.on_tick.connect(_on_tick)
+	NetworkTime.after_sync.connect(_inject_join_stall_for_test)
 	if _role == "server":
 		_start_server()
 	else:
@@ -134,6 +135,23 @@ func _ready() -> void:
 			await RenderingServer.frame_post_draw
 			_shader_prewarm.visible = false
 		_start_client()
+
+## Deterministic positive control for the late-join/render-stall regression.
+## A real rendered client can pause here for shader compilation after netfox
+## synchronizes. Headless gates use the otherwise-unset environment variables
+## to reproduce that pause without changing ordinary client behavior.
+func _inject_join_stall_for_test() -> void:
+	if _role != "client":
+		return
+	var stall_ms := int(OS.get_environment("CAR_FIGHT_JOIN_STALL_MS"))
+	if stall_ms <= 0:
+		return
+	var after_ms := int(OS.get_environment("CAR_FIGHT_JOIN_STALL_AFTER_MS"))
+	if after_ms > 0:
+		await get_tree().create_timer(float(after_ms) / 1000.0).timeout
+	_log("JOINSTALL begin ms=%d tick=%d" % [stall_ms, NetworkTime.tick])
+	OS.delay_msec(stall_ms)
+	_log("JOINSTALL end ms=%d tick=%d" % [stall_ms, NetworkTime.tick])
 
 func _start_crash_telemetry() -> void:
 	var telemetry_path := OS.get_environment("CAR_FIGHT_TELEMETRY_FILE")

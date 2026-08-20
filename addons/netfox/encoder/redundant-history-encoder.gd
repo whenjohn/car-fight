@@ -88,11 +88,8 @@ func apply(tick: int, snapshots: Array[_PropertySnapshot], sender: int = 0) -> i
 		var snapshot := snapshots[i]
 
 		if offset_tick < NetworkRollback.history_start:
-			# Data too old
-			_logger.warning(
-				"Received data for %s, rejecting because older than %s frames",
-				[offset_tick, NetworkRollback.history_limit]
-			)
+			# Expected after a main-thread stall advances NetworkTime beyond queued
+			# packets. NetworkRollback centrally owns the bounded D-040 warning.
 			continue
 
 		if sender > 0:

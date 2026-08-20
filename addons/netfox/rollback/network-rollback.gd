@@ -164,6 +164,13 @@ var _rollback_from: int = -1
 var _rollback_to: int = -1
 var _rollback_stage: String = ""
 
+# Car Fight netfox patch, ported from G2 D-040: a render/main-thread stall can
+# advance NetworkTime beyond retained history while synchronizers still point
+# at pre-stall state/input. That origin is impossible to restore. Report it at
+# most once per second and wait for fresh authority instead of feeding a
+# rollback/logging spiral.
+var _stale_origin_report_after_msec: int = 0
+
 # Resim + mutations
 var _is_rollback: bool = false
 var _simulated_nodes: _Set = _Set.new()
@@ -182,6 +189,15 @@ static var _logger: NetfoxLogger = NetfoxLogger._for_netfox("NetworkRollback")
 ##
 ## This is used to determine the resimulation range during each loop.
 func notify_resimulation_start(tick: int) -> void:
+	if tick < history_start:
+		var now := Time.get_ticks_msec()
+		if now >= _stale_origin_report_after_msec:
+			_logger.warning(
+				"Skipping stale rollback origin %d older than retained history start %d; waiting for fresh network data",
+				[tick, history_start]
+			)
+			_stale_origin_report_after_msec = now + 1000
+		return
 	_resim_from = min(_resim_from, tick)
 
 ## Submit node for simulation.
