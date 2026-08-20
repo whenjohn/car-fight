@@ -31,7 +31,8 @@ Controls:
 - A normal client starts in the coverage editor. Drag a zone's centre handle to change range and either edge handle to change width. Press `F` to flip its tip and `R` to restore all four presets, then press `Enter` to drive. Press `E` to return to editing. Editor handles remain recoverable outside the Jeep when a cone is collapsed.
 - Four triangular cones are preset at the Jeep's front, right, rear, and left. Their combined area cannot exceed the four default 90° cones at range 8. Narrowing or disabling one cone frees area for longer or wider coverage elsewhere.
 - Press `F` to flip the selected cone. A vehicle-pointing cone starts precise and widens with distance; an outward-pointing cone starts wide beside the Jeep and narrows toward its far tip.
-- Move the mouse around the Jeep to steer toward it.
+- Move the mouse around the vehicle to steer toward it. Press `V` to cycle
+  your local presentation through the Jeep, Pickup, Sedan, Wagon, and Bus.
 - Cursor distance continuously controls speed and acceleration: inside 1 world unit is stopped; at 20 units it requests 18 units/s and the strongest normal acceleration. The wider control radius and softened small-angle steering provide room for precise throttle and racing-line adjustments.
 - Braking and drifting need no extra button. At road speed, pull the cursor inward to fully lock the wheels and preserve an exaggerated forward skid; the chassis snaps into a pronounced 18-degree dive. Add a sharp direction change to rotate that same skid into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
 - Hold `Space` to burst at 28 units/s with stronger acceleration and a wider, committed turn.
@@ -47,7 +48,7 @@ Controls:
 
 The 168-unit-wide floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Its obstacles, outer targets, and shield-test clearing are spread across longer driving lines. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
 
-Four small fixed weapon mounts show the side zones. At runtime the combined CC0 mesh is split into a chassis and four wheel assemblies: only the chassis leans under turning load, the front tires visibly steer, and all tires spin with signed road speed. This rig is presentation-only; collision always uses the same server-authoritative, equal-mass sphere on every peer.
+Four small fixed weapon mounts show the side zones. At runtime every combined CC0 vehicle-pack mesh is split into a chassis and four wheel assemblies: only the chassis leans under turning load, the front tires visibly steer, and all tires spin with signed road speed. This rig and the `V` selection are presentation-only; collision always uses the same server-authoritative, equal-mass sphere on every peer.
 
 ## Tests
 

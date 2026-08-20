@@ -49,6 +49,42 @@ func _init() -> void:
 		push_error("JEEP_SPLIT_TEST FAIL: expected two steerable front wheels")
 		quit(1)
 		return
+	for vehicle in JEEP_PRESENTATION.VEHICLES:
+		var vehicle_config: Dictionary = vehicle
+		var vehicle_scene := vehicle_config["scene"] as PackedScene
+		var vehicle_instance := vehicle_scene.instantiate()
+		var vehicle_meshes := vehicle_instance.find_children("*", "MeshInstance3D", true, false)
+		var vehicle_mesh := vehicle_meshes[0] as MeshInstance3D if not vehicle_meshes.is_empty() else null
+		if vehicle_mesh == null:
+			push_error("VEHICLE_ASSET_TEST FAIL: %s has no mesh" % vehicle_config["name"])
+			quit(1)
+			return
+		var vehicle_split: Dictionary = JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
+		var vehicle_wheels: Dictionary = vehicle_split["wheels"]
+		if (vehicle_split["chassis"] as ArrayMesh).get_surface_count() < 1 or vehicle_wheels.size() != 4:
+			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs a chassis and four wheels" % vehicle_config["name"])
+			quit(1)
+			return
+		var vehicle_front_wheels := 0
+		for vehicle_wheel in vehicle_wheels.values():
+			if (vehicle_wheel["mesh"] as ArrayMesh).get_surface_count() != 2:
+				push_error("VEHICLE_SPLIT_TEST FAIL: %s wheel must retain tire and hub" % vehicle_config["name"])
+				quit(1)
+				return
+			if bool(vehicle_wheel["front"]):
+				vehicle_front_wheels += 1
+		if vehicle_front_wheels != 2:
+			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs two steerable front wheels" % vehicle_config["name"])
+			quit(1)
+			return
+		var vehicle_footprint := _visual_footprint_radius(vehicle_mesh.mesh, vehicle_mesh.transform,
+			float(vehicle_config["scale"]))
+		if vehicle_footprint > VEHICLE_CONFIG.COLLISION_RADIUS + 0.01:
+			push_error("VEHICLE_COLLIDER_TEST FAIL: %s footprint %.3f exceeds collider" % [
+				vehicle_config["name"], vehicle_footprint])
+			quit(1)
+			return
+		vehicle_instance.free()
 	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
 	if grid_shader == null or grid_shader.code.is_empty():
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")
@@ -113,6 +149,10 @@ func _init() -> void:
 		return
 	if "MaxSpeedMarker" not in main_source:
 		push_error("CURSOR_SPEED_MARKER_TEST FAIL: local cursor path must show its max-speed point")
+		quit(1)
+		return
+	if "DisplayServer.window_set_title(\"Car Fight — %s\" % _player_name)" not in main_source:
+		push_error("CLIENT_WINDOW_TITLE_TEST FAIL: client title must include the session name")
 		quit(1)
 		return
 	if INPUT_FOCUS_POLICY.live_input_allowed(false) \
@@ -218,9 +258,10 @@ func _init() -> void:
 	jeep.free()
 	quit()
 
-func _visual_footprint_radius(mesh: Mesh, source_transform: Transform3D) -> float:
+func _visual_footprint_radius(mesh: Mesh, source_transform: Transform3D,
+		scale_amount: float = JEEP_PRESENTATION.JEEP_SCALE) -> float:
 	var radius := 0.0
-	var model_basis := Basis(Vector3.UP, PI).scaled(Vector3.ONE * JEEP_PRESENTATION.JEEP_SCALE)
+	var model_basis := Basis(Vector3.UP, PI).scaled(Vector3.ONE * scale_amount)
 	var model_offset := Vector3(0.0, 0.065, -0.05)
 	for surface in range(mesh.get_surface_count()):
 		var arrays := mesh.surface_get_arrays(surface)
