@@ -5,7 +5,7 @@ extends Node3D
 const GRASS_SHADER := preload("res://fx/interactive_grass.gdshader")
 const CHUNK_SIZE := 14.0
 const CHUNKS_PER_SIDE := 3
-const TUFTS_PER_CHUNK := 620
+const TUFTS_PER_CHUNK := 900
 const FIELD_HALF_EXTENT := CHUNK_SIZE * CHUNKS_PER_SIDE * 0.5
 const OFF_FIELD := Vector3(10000.0, 0.0, 10000.0)
 
@@ -44,8 +44,8 @@ func _build_tuft_mesh() -> ArrayMesh:
 			var hi := float(segment + 1) * 0.5
 			var lo_width := lerpf(0.085, 0.012, lo)
 			var hi_width := lerpf(0.085, 0.012, hi)
-			var lo_center := offset + Vector3.UP * lo * 1.05
-			var hi_center := offset + Vector3.UP * hi * 1.05
+			var lo_center := offset + Vector3.UP * lo * 1.65
+			var hi_center := offset + Vector3.UP * hi * 1.65
 			_add_quad(surface, lo_center - right * lo_width, lo_center + right * lo_width,
 				hi_center + right * hi_width, hi_center - right * hi_width, lo, hi, normal)
 	surface.index()
@@ -76,7 +76,7 @@ func _add_chunk(x: int, z: int, tuft_mesh: ArrayMesh, random: RandomNumberGenera
 		var position := Vector3(random.randf_range(-CHUNK_SIZE * 0.5, CHUNK_SIZE * 0.5), 0.0,
 			random.randf_range(-CHUNK_SIZE * 0.5, CHUNK_SIZE * 0.5))
 		var width := random.randf_range(0.70, 1.18)
-		var height := random.randf_range(0.48, 1.52)
+		var height := random.randf_range(0.80, 1.48)
 		var basis := Basis(Vector3.UP, random.randf_range(0.0, TAU)).scaled(Vector3(width, height, width))
 		multimesh.set_instance_transform(index, Transform3D(basis, position))
 		multimesh.set_instance_custom_data(index, Color(random.randf_range(0.0, TAU), width,
