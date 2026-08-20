@@ -45,6 +45,13 @@ if ! rg -q 'CLIENT_READY' "$log_dir/client-a.log" || ! rg -q 'CLIENT_READY' "$lo
 	tail -60 "$log_dir/client-b.log" >&2
 	exit 1
 fi
+for client_log in "$log_dir/client-a.log" "$log_dir/client-b.log"; do
+	if ! rg -q 'CLIENT_TICK .*players=2 world=[^|]+\|[^ ]+' "$client_log"; then
+		echo "a client did not replicate both player bodies into one world; logs: $log_dir" >&2
+		tail -80 "$client_log" >&2
+		exit 1
+	fi
+done
 if ! rg -q 'RESULT players=2 .*contact=1' "$log_dir/server.log"; then
 	echo "authoritative two-car contact was not observed; logs: $log_dir" >&2
 	tail -100 "$log_dir/server.log" >&2

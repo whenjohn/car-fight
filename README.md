@@ -21,6 +21,7 @@ Networking is native ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: s
 ./scripts/join.sh 127.0.0.1      # another local client
 ./scripts/serve.sh               # server only, UDP 10080
 ./scripts/join_macai2.sh         # Tailscale address, if separately deployed
+./scripts/play_macai2_two.sh      # two monitored native clients, remote server
 ```
 
 Controls:
@@ -73,7 +74,7 @@ The Jeep source and license are in `assets/ground_vehicle/`. Vendored add-on ver
 
 ## macai2
 
-The deployment helper is intentionally manual and has not been run:
+The isolated Car Fight server is deployed on macai2. Redeploy it explicitly with:
 
 ```bash
 ./scripts/deploy_macai2.sh
@@ -98,5 +99,9 @@ After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin
 ```
 
 Validate the monitor without opening a rendered window with `./scripts/play_monitored.sh --headless --ticks 180`. Normal monitored play explicitly starts windowed. On the affected Intel Mac, keep the decorated window inside the usable desktop area; native fullscreen, borderless fullscreen, exact edge-to-edge windows, and edge-to-edge maximization are unsupported. OpenGL, ANGLE, and Vulkan fullscreen alternatives have already been ruled out. See [`MAC_INTEL_FULLSCREEN_FINDINGS.md`](MAC_INTEL_FULLSCREEN_FINDINGS.md) before proposing any new display experiment.
+
+For multiplayer feel testing without hosting the server on this Mac, deploy the isolated macai2 service and run `./scripts/play_macai2_two.sh`. It opens two named 1280 x 720 native clients side by side, both through the same telemetry and Intel-display monitor used above. An unfocused client deliberately sends neutral controls, so its Jeep brakes instead of following the focused window's macOS cursor. The server remains on macai2 UDP `10080`; G2 remains separate on UDP `9950`.
+
+The first two-rendered-client trial on this Intel Mac proved that both clients replicated both player bodies, but it was not a valid networking-feel result: each client saturated one CPU core, fell to roughly 4-7 FPS, and entered netfox's rollback-history warning loop. Treat that as an unresolved local presentation/load limit. Use the headless 120 ms gate for correctness evidence until a rendered pair stays above the simulation cadence without history warnings.
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.

@@ -9,6 +9,7 @@ const TARGET_DUMMY := preload("res://combat/target_dummy.gd")
 const BOLT_VISUAL := preload("res://combat/bolt_visual.gd")
 const SHIELD_VISUAL := preload("res://fx/vehicle_shield.gd")
 const SHIELD_DRONE := preload("res://combat/shield_drone.gd")
+const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -112,6 +113,11 @@ func _init() -> void:
 		return
 	if "MaxSpeedMarker" not in main_source:
 		push_error("CURSOR_SPEED_MARKER_TEST FAIL: local cursor path must show its max-speed point")
+		quit(1)
+		return
+	if INPUT_FOCUS_POLICY.live_input_allowed(false) \
+			or not INPUT_FOCUS_POLICY.live_input_allowed(true):
+		push_error("INPUT_FOCUS_TEST FAIL: only the focused window may gather live controls")
 		quit(1)
 		return
 	var coverage_visual := COVERAGE_VISUAL.new()

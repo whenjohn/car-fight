@@ -15,7 +15,20 @@ case "${1:-status}" in
 		exec "$godot_bin" --headless --path "$project_root" -- --server --port "$port"
 		;;
 	import)
-		"$godot_bin" --headless --path "$project_root" --editor --quit >/dev/null
+		# A fresh netfox checkout registers its plugin globals during the first
+		# editor pass. Verify a second pass so deployment cannot report success
+		# merely because Godot returned zero while still printing parse errors.
+		first_log="$(mktemp "${TMPDIR:-/tmp}/car-fight-import-first.XXXXXX")"
+		verify_log="$(mktemp "${TMPDIR:-/tmp}/car-fight-import-verify.XXXXXX")"
+		"$godot_bin" --headless --path "$project_root" --editor --quit \
+			>"$first_log" 2>&1
+		"$godot_bin" --headless --path "$project_root" --editor --quit \
+			>"$verify_log" 2>&1
+		if /usr/bin/grep -Eq 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script' \
+				"$verify_log"; then
+			cat "$verify_log" >&2
+			exit 1
+		fi
 		;;
 	install)
 		mkdir -p "$(dirname "$log_file")"
@@ -39,4 +52,3 @@ case "${1:-status}" in
 		exit 2
 		;;
 esac
-

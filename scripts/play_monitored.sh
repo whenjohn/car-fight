@@ -13,6 +13,10 @@ ticks=0
 rendering_driver="${CAR_FIGHT_RENDERING_DRIVER:-}"
 deep_capture=0
 post_exit_seconds=-1
+client_host="127.0.0.1"
+client_name="monitored"
+client_position=""
+start_local_server=1
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -44,6 +48,19 @@ while (( $# > 0 )); do
 			post_exit_seconds="${2:?--post-exit-seconds requires a value}"
 			shift 2
 			;;
+		--host)
+			client_host="${2:?--host requires a value}"
+			start_local_server=0
+			shift 2
+			;;
+		--name)
+			client_name="${2:?--name requires a value}"
+			shift 2
+			;;
+		--position)
+			client_position="${2:?--position requires X,Y}"
+			shift 2
+			;;
 		*)
 			echo "unknown option: $1" >&2
 			exit 2
@@ -65,6 +82,14 @@ if (( headless == 1 && fullscreen == 1 )); then
 fi
 if (( fake_stall == 1 && headless == 0 )); then
 	echo "--fake-stall is restricted to --headless monitor tests" >&2
+	exit 2
+fi
+if (( headless == 1 )) && [[ -n "$client_position" ]]; then
+	echo "--position cannot be combined with --headless" >&2
+	exit 2
+fi
+if [[ -n "$client_position" && "$client_position" != <->,<-> ]]; then
+	echo "--position must be non-negative X,Y coordinates" >&2
 	exit 2
 fi
 if [[ "$post_exit_seconds" != -1 && "$post_exit_seconds" != <-> ]]; then
@@ -96,6 +121,10 @@ initial_windowserver_pid="${initial_windowserver_pid:-unknown}"
 	echo "godot_bin=$godot_bin"
 	echo "godot_version=$($godot_bin --version | head -1)"
 	echo "port=$port"
+	echo "client_host=$client_host"
+	echo "client_name=$client_name"
+	echo "client_position=${client_position:-default}"
+	echo "start_local_server=$start_local_server"
 	echo "headless=$headless"
 	echo "fullscreen_requested=$fullscreen"
 	echo "fake_stall=$fake_stall"
@@ -131,7 +160,7 @@ log_pid=$!
 typeset -a driver_args client_display_args client_user_args
 driver_args=()
 client_display_args=(--windowed)
-client_user_args=(--client --host 127.0.0.1 --port "$port" --name monitored)
+client_user_args=(--client --host "$client_host" --port "$port" --name "$client_name")
 if [[ -n "$rendering_driver" ]]; then
 	driver_args=(--rendering-driver "$rendering_driver")
 fi
@@ -142,6 +171,8 @@ if (( headless == 1 )); then
 	fi
 elif (( fullscreen == 1 )); then
 	client_display_args=(--fullscreen)
+elif [[ -n "$client_position" ]]; then
+	client_display_args+=(--position "$client_position")
 fi
 
 fake_stall_after=""
@@ -151,22 +182,25 @@ if (( fake_stall == 1 )); then
 	fake_stall_duration="7.0"
 fi
 
-CAR_FIGHT_TELEMETRY_FILE="$run_dir/server.telemetry.jsonl" \
-	"$godot_bin" "${driver_args[@]}" --headless --path "$project_root" -- \
-	--server --port "$port" > "$run_dir/server.log" 2>&1 &
-server_pid=$!
-sleep 0.8
-if ! kill -0 "$server_pid" >/dev/null 2>&1; then
-	set +e
-	wait "$server_pid"
-	server_status=$?
-	set -e
-	echo "state=server-exit-$server_status" >> "$run_dir/metadata.txt"
-	print -r -- "server-exit-$server_status" > "$run_dir/state"
-	kill "$log_pid" >/dev/null 2>&1 || true
-	wait "$log_pid" 2>/dev/null || true
-	echo "server failed before client launch; see $run_dir/server.log" >&2
-	exit "$server_status"
+server_pid=""
+if (( start_local_server == 1 )); then
+	CAR_FIGHT_TELEMETRY_FILE="$run_dir/server.telemetry.jsonl" \
+		"$godot_bin" "${driver_args[@]}" --headless --path "$project_root" -- \
+		--server --port "$port" > "$run_dir/server.log" 2>&1 &
+	server_pid=$!
+	sleep 0.8
+	if ! kill -0 "$server_pid" >/dev/null 2>&1; then
+		set +e
+		wait "$server_pid"
+		server_status=$?
+		set -e
+		echo "state=server-exit-$server_status" >> "$run_dir/metadata.txt"
+		print -r -- "server-exit-$server_status" > "$run_dir/state"
+		kill "$log_pid" >/dev/null 2>&1 || true
+		wait "$log_pid" 2>/dev/null || true
+		echo "server failed before client launch; see $run_dir/server.log" >&2
+		exit "$server_status"
+	fi
 fi
 CAR_FIGHT_TELEMETRY_FILE="$run_dir/client.telemetry.jsonl" \
 	CAR_FIGHT_FAKE_STALL_AFTER_SECONDS="$fake_stall_after" \
@@ -208,7 +242,10 @@ watch_display_precursor() {
 
 sample_processes() {
 	local sample_count=0
-	local watched_pids="$server_pid,$client_pid"
+	local watched_pids="$client_pid"
+	if [[ "$server_pid" == <-> ]]; then
+		watched_pids="$server_pid,$watched_pids"
+	fi
 	if [[ "$initial_windowserver_pid" == <-> ]]; then
 		watched_pids+=",$initial_windowserver_pid"
 	fi
@@ -279,14 +316,17 @@ requested_exit_status=0
 handle_signal() {
 	requested_exit_status="$1"
 	echo "signal received; stopping Godot and preserving post-exit evidence"
-	kill "$client_pid" "$server_pid" >/dev/null 2>&1 || true
+	kill "$client_pid" >/dev/null 2>&1 || true
+	if [[ "$server_pid" == <-> ]]; then
+		kill "$server_pid" >/dev/null 2>&1 || true
+	fi
 }
 trap 'handle_signal 129' HUP
 trap 'handle_signal 130' INT
 trap 'handle_signal 143' TERM
 
 echo "monitored run: $run_dir"
-echo "server PID $server_pid, client PID $client_pid, WindowServer PID $initial_windowserver_pid"
+echo "server PID ${server_pid:-remote}, client PID $client_pid, WindowServer PID $initial_windowserver_pid"
 echo "If the login session restarts, run: ./scripts/collect_crash_run.sh"
 
 set +e
@@ -297,8 +337,10 @@ if (( requested_exit_status != 0 )); then
 	client_status="$requested_exit_status"
 fi
 
-kill "$server_pid" >/dev/null 2>&1 || true
-wait "$server_pid" 2>/dev/null || true
+if [[ "$server_pid" == <-> ]]; then
+	kill "$server_pid" >/dev/null 2>&1 || true
+	wait "$server_pid" 2>/dev/null || true
+fi
 
 if (( deep_capture == 1 )); then
 	"$snapshot_script" "$run_dir" client-exit "$initial_windowserver_pid" \

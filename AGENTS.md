@@ -15,6 +15,9 @@ This is a clean Godot 4.7 experiment. Keep it small and auditable.
   borderless fullscreen, an exact edge-to-edge window, or edge-to-edge
   maximization. Use an ordinary decorated window inside the usable desktop;
   use `./scripts/play_monitored.sh` for any approved agent-initiated rendered
-  run. Do not repeat OpenGL, ANGLE, Vulkan, or edge-coverage diagnostics merely
-  to reconfirm them. Read `MAC_INTEL_FULLSCREEN_FINDINGS.md` before changing
-  display policy.
+  run. `./scripts/play_macai2_two.sh` is the approved two-native-client wrapper
+  around that monitor, but its first trial saturated both client cores and was
+  not valid networking-feel evidence. An unfocused live client must emit
+  neutral controls. Do not repeat OpenGL, ANGLE, Vulkan, or edge-coverage
+  diagnostics merely to reconfirm them. Read
+  `MAC_INTEL_FULLSCREEN_FINDINGS.md` before changing display policy.

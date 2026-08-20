@@ -1148,6 +1148,15 @@ func local_player():
 		return null
 	return _players.get_node_or_null(str(multiplayer.get_unique_id()))
 
+func _client_world_positions() -> String:
+	var entries: PackedStringArray = []
+	for child in _players.get_children():
+		var body := child as Node3D
+		if body != null:
+			entries.append("%s:%.2f,%.2f" % [body.name, body.position.x, body.position.z])
+	entries.sort()
+	return "|".join(entries)
+
 func _on_tick(delta: float, tick: int) -> void:
 	if _start_tick < 0:
 		_start_tick = tick
@@ -1172,7 +1181,7 @@ func _on_tick(delta: float, tick: int) -> void:
 				if int(old_tick) < tick - 240:
 					_prediction_history.erase(old_tick)
 			if elapsed % 60 == 0:
-				_log("CLIENT_TICK tick=%d id=%d pos=(%.3f,%.3f) speed=%.3f map=%d cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), local.position.x, local.position.z, local.speed(), int(local.get("map_id")), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
+				_log("CLIENT_TICK tick=%d id=%d players=%d world=%s pos=(%.3f,%.3f) speed=%.3f map=%d cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), _players.get_child_count(), _client_world_positions(), local.position.x, local.position.z, local.speed(), int(local.get("map_id")), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
 			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d impacthits=%d shieldhits=%d impactmax=%.3f coursemaps=%d courseoff=%d gatetransitions=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed, _server_course_map_count(), _server_course_off_count(), _server_gate_transition_count()])
