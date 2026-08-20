@@ -53,6 +53,7 @@ const RC_ORB_MAX_DISTANCE := 23.0
 const RC_ORB_LIFETIME := 6.0
 const RC_ORB_RADIUS := 0.47
 const RC_ORB_BLAST_RADIUS := 2.7
+const RC_ORB_LAUNCH_OFFSET := 0.72
 
 var _role := "client"
 var _host := "127.0.0.1"
@@ -1329,7 +1330,9 @@ func _spawn_rc_orb(pilot_id: int, pilot: RigidBody3D) -> void:
 		heading = -pilot.global_basis.z
 	heading.y = 0.0
 	heading = heading.normalized()
-	var origin := pilot.global_position + heading * (PLAYER_RADIUS + RC_ORB_RADIUS + 0.08)
+	# Start at the Jeep's nose rather than outside its collision envelope; the
+	# pilot is excluded from the RC collision sweep, so this stays safe.
+	var origin := pilot.global_position + heading * RC_ORB_LAUNCH_OFFSET
 	_server_rc_orbs[pilot_id] = {"position": origin, "velocity": heading * RC_ORB_SPEED,
 		"age": 0.0, "detonate_previous": false}
 	_set_rc_pilot_active.rpc(pilot_id, true)

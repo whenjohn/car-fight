@@ -415,7 +415,7 @@ func _process(_delta: float) -> void:
 	_update_tractor_rope()
 	if _cursor_marker == null or _cursor_line == null:
 		return
-	if _input.editing or is_cloaked:
+	if _input.editing or is_cloaked or rc_pilot_active:
 		_cursor_marker.visible = false
 		if _max_speed_marker != null:
 			_max_speed_marker.visible = false
