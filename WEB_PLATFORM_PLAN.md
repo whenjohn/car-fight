@@ -193,6 +193,12 @@ must remain isolated from the native ENet service.
 Every row must retain the current native ENet control. Use measured shaping,
 not configured-delay assumptions.
 
+Before this matrix, port G2's shaping harness in the smallest form that can
+exercise Car Fight's mux topology. It must apply real latency, jitter, loss,
+reordering, and reconnect disruption to the relevant transport leg, then record
+rollback recovery and WebRTC queue behavior. Do not accept a setting that merely
+claims a delay without changing packet delivery.
+
 Run, in order:
 
 1. localhost clean link;
@@ -217,6 +223,16 @@ Require:
 - bounded WebRTC send queues and rollback debt that recover after impairment;
 - application-message and byte-rate telemetry by class;
 - no acceptance threshold weakened merely to make Web pass.
+
+## Windows native checkpoint
+
+Add a Windows export/build smoke before treating the native side as
+cross-platform complete. Reuse G2's packaging pattern: a Windows export preset,
+a Windows player smoke, and the matching Windows `webrtc-native` extension
+binary for the optional WebRTC path. ENet remains the normal Windows-native
+transport; the extension must be present so a Windows client can join the mux
+when that scenario is explicitly tested. Keep platform integration code at the
+transport/export boundary, not in gameplay scripts.
 
 ## Phase 4: production cross-play decision
 
