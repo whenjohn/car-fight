@@ -3,11 +3,12 @@
 > **Project status:** This Godot implementation is again the active Car Fight
 > project. The Unity handoff was superseded after its browser transport proved
 > non-reproducible from tracked source and its Editor/build iteration conflicted
-> with the required workflow. The decision history and affected-Intel-Mac
-> windowed policy are summarized in
-> [`MIGRATION_TO_UNITY.md`](MIGRATION_TO_UNITY.md). Do not merge the diagnostic
-> branches into this gameplay branch or run another Godot fullscreen probe merely
-> to reconfirm the known Intel/macOS failures.
+> with the required workflow. See
+> [`MAC_INTEL_FULLSCREEN_FINDINGS.md`](MAC_INTEL_FULLSCREEN_FINDINGS.md) for the
+> canonical affected-Intel-Mac evidence and windowed policy, and
+> [`MIGRATION_TO_UNITY.md`](MIGRATION_TO_UNITY.md) for the engine-decision
+> history. Do not merge the diagnostic branches into this gameplay branch or
+> rerun known-risk fullscreen/edge-to-edge probes merely to reconfirm them.
 
 A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
@@ -88,7 +89,7 @@ Because this Intel Mac has experienced WindowServer watchdog failures during ren
 ./scripts/play_monitored.sh
 ```
 
-It writes flushed game/render telemetry—including window mode, focus, screen, and fullscreen transitions—plus process and thermal samples, filtered macOS display/GPU logs, and short Godot stack samples if telemetry stalls to `.crash-runs/<timestamp>/`. It does not upload anything. Every rendered run still requires explicit approval.
+It writes flushed game/render telemetry—including window mode, focus, screen, and fullscreen transitions—plus process and thermal samples, filtered macOS display/GPU logs, and short Godot stack samples if telemetry stalls to `.crash-runs/<timestamp>/`. It does not upload anything. Every agent-initiated rendered run still requires explicit approval.
 
 After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin`, and historical unified log to the last run with:
 
@@ -96,6 +97,6 @@ After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin
 ./scripts/collect_crash_run.sh
 ```
 
-Validate the monitor without opening a rendered window with `./scripts/play_monitored.sh --headless --ticks 180`. All three known crashes occurred fullscreen, so normal monitored play explicitly starts windowed. Only use `--fullscreen` for an approved fullscreen comparison. A later one-variable driver comparison can use `--driver opengl3_angle`, but do not combine window-mode, driver, gameplay, or shader changes.
+Validate the monitor without opening a rendered window with `./scripts/play_monitored.sh --headless --ticks 180`. Normal monitored play explicitly starts windowed. On the affected Intel Mac, keep the decorated window inside the usable desktop area; native fullscreen, borderless fullscreen, exact edge-to-edge windows, and edge-to-edge maximization are unsupported. OpenGL, ANGLE, and Vulkan fullscreen alternatives have already been ruled out. See [`MAC_INTEL_FULLSCREEN_FINDINGS.md`](MAC_INTEL_FULLSCREEN_FINDINGS.md) before proposing any new display experiment.
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.

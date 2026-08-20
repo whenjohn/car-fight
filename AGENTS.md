@@ -11,4 +11,10 @@ This is a clean Godot 4.7 experiment. Keep it small and auditable.
 - Add a focused regression before changing movement or collision behavior.
 - Run `./scripts/test.sh` before committing.
 - Use Tailscale (`ssh macai2-ts`) for macai2. This server owns UDP 10080 and launchd label `com.whenjohn.car-fight-server`.
-
+- On the affected Intel Mac, never launch Godot in native fullscreen,
+  borderless fullscreen, an exact edge-to-edge window, or edge-to-edge
+  maximization. Use an ordinary decorated window inside the usable desktop;
+  use `./scripts/play_monitored.sh` for any approved agent-initiated rendered
+  run. Do not repeat OpenGL, ANGLE, Vulkan, or edge-coverage diagnostics merely
+  to reconfirm them. Read `MAC_INTEL_FULLSCREEN_FINDINGS.md` before changing
+  display policy.

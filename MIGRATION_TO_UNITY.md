@@ -20,6 +20,9 @@ not use native fullscreen, borderless fullscreen, exact edge-to-edge windows,
 or edge-to-edge maximization. Do not repeat the known-risk renderer/fullscreen
 experiments merely to reconfirm this boundary.
 
+The combined Godot evidence and current operational policy are now canonical
+in [`MAC_INTEL_FULLSCREEN_FINDINGS.md`](MAC_INTEL_FULLSCREEN_FINDINGS.md).
+
 Preserve `~/Projects/car-fight-unity` at revision `e312c42` as an investigation
 and carry its useful authority, prediction, lifecycle, impairment, telemetry,
 and launch-isolation requirements back into Godot tests. The complete rationale
@@ -151,8 +154,9 @@ G2 migration.
 
 - Do not repeat the known Godot native OpenGL, ANGLE, Vulkan, native-fullscreen,
   or edge-to-edge probes merely to reconfirm them.
-- If this Godot build must be opened for reference, keep rendered play windowed.
+- Keep rendered development in an ordinary decorated, inset window on the
+  affected Intel Mac.
 - Do not merge the diagnostic branches into `master`; consult them by branch and
   revision when detailed evidence is needed.
-- Preserve this repository as the behavioral reference until the Unity port has
-  equivalent tests and accepted gameplay feel.
+- Treat `MAC_INTEL_FULLSCREEN_FINDINGS.md` as the canonical safety policy; the
+  sections above preserve the historical Unity handoff context.
