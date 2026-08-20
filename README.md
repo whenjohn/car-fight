@@ -1,9 +1,11 @@
 # Car Fight
 
-> **Project status:** This Godot implementation is preserved as the canonical
-> gameplay and behavior reference, but active development is moving to a fresh
-> Unity project. The fullscreen investigation and engine decision are summarized
-> in [`MIGRATION_TO_UNITY.md`](MIGRATION_TO_UNITY.md). Do not merge the diagnostic
+> **Project status:** This Godot implementation is again the active Car Fight
+> project. The Unity handoff was superseded after its browser transport proved
+> non-reproducible from tracked source and its Editor/build iteration conflicted
+> with the required workflow. The decision history and affected-Intel-Mac
+> windowed policy are summarized in
+> [`MIGRATION_TO_UNITY.md`](MIGRATION_TO_UNITY.md). Do not merge the diagnostic
 > branches into this gameplay branch or run another Godot fullscreen probe merely
 > to reconfirm the known Intel/macOS failures.
 

@@ -1,8 +1,31 @@
-# Car Fight: Godot archive and Unity handoff
+# Car Fight: Unity handoff history (superseded)
 
-Updated: 2026-08-17
+Updated: 2026-08-19
 
-## Decision
+## Current decision
+
+The 2026-08-17 Unity handoff is superseded. Active Car Fight development has
+returned to this Godot repository. The Unity investigation proved a meaningful
+native FishNet multiplayer foundation, but its mixed native/browser WebRTC path
+was not reproducible from tracked source, depended on an old project-owned
+compatibility stack, and imposed unsustainable rebuild/iteration time under the
+required CLI-first, no-persistent-Editor workflow.
+
+Unity's rendering advantage on the affected Intel Mac was also narrower than a
+general engine advantage: Unity recovered from the timestamp-warning/stall
+family more safely, but did not eliminate it. Godot's failure has a bounded
+compatibility policy acceptable to this project. On affected macOS Intel
+systems, use an ordinary decorated window inside the usable desktop area; do
+not use native fullscreen, borderless fullscreen, exact edge-to-edge windows,
+or edge-to-edge maximization. Do not repeat the known-risk renderer/fullscreen
+experiments merely to reconfirm this boundary.
+
+Preserve `~/Projects/car-fight-unity` at revision `e312c42` as an investigation
+and carry its useful authority, prediction, lifecycle, impairment, telemetry,
+and launch-isolation requirements back into Godot tests. The complete rationale
+is in `car-fight-unity/docs/RETURN_TO_GODOT.md`.
+
+## Prior decision — 2026-08-17
 
 Active Car Fight development is moving from Godot to a fresh Unity project.
 This repository's `master` branch remains the canonical reference for completed
@@ -82,7 +105,7 @@ historical controls. Their evidence is already reflected in the committed
 branches and crash log; they are not development branches and should not be
 merged.
 
-## What to carry into Unity
+## What was to be carried into Unity
 
 Port behavior and tests, not Godot's engine structure.
 
@@ -105,7 +128,7 @@ Rebuild in Unity-native form:
 - Scene and prefab content through the Unity Editor/Pipeline rather than by
   copying Godot scenes or hand-authoring Unity YAML.
 
-## Recommended Unity reconstruction order
+## Historical Unity reconstruction order
 
 1. Create a clean, lean `car-fight-unity` repository with Unity CLI,
    `com.unity.pipeline`, project-local AI instructions, tests, and automated

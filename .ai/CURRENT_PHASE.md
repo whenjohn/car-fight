@@ -1,5 +1,11 @@
 # Current phase
 
+## Current decision
+
+- Active Car Fight development returned to this Godot repository on 2026-08-19. The prior Unity handoff is superseded; see `MIGRATION_TO_UNITY.md` and `~/Projects/car-fight-unity/docs/RETURN_TO_GODOT.md`.
+- Preserve the Unity repository at revision `e312c42` as an investigation. Carry its useful native multiplayer authority, prediction, lifecycle, impairment, telemetry, and launcher requirements back into Godot tests; do not port its scene, FishNet adapters, or browser transport fork.
+- On affected macOS Intel systems, rendered play must use an ordinary decorated window inside the usable desktop area. Do not use native fullscreen, borderless fullscreen, or exact edge-to-edge/maximized presentation. This bounded compatibility limitation is accepted.
+
 ## Completed
 
 - Added a fixed, non-targetable arena drone that fires a slow server-authored bolt every two seconds at the nearest visible driving player.
@@ -61,6 +67,7 @@
 
 ## Next
 
-- Keep this Godot repository as the canonical gameplay behavior, tuning, asset-license, and regression reference while rebuilding Car Fight in a new Unity repository.
-- Do not merge the diagnostic branches into `master` or repeat the known Godot fullscreen/edge-to-edge experiments. If rendered Godot reference play is unavoidable, keep it windowed.
-- Create a clean `car-fight-unity` project with Unity CLI and Pipeline support. Begin with pure testable FOLLOW movement, then a thin authoritative multiplayer slice before porting the remaining gameplay systems in focused increments.
+- Resume feature development from this accepted Godot implementation rather than reconstructing existing gameplay in Unity.
+- Add a small, tested display-safety policy that enforces ordinary non-edge-to-edge windowed presentation on affected macOS Intel systems before the next broad rendered-play cycle.
+- Keep using the monitored windowed launcher on this Mac. Do not merge the diagnostic branches or repeat known Godot fullscreen, edge-to-edge, ANGLE, or Vulkan experiments.
+- Review the preserved Unity native multiplayer acceptance evidence and add only the missing high-value Godot regressions; do not reproduce Unity-specific infrastructure.
