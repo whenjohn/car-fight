@@ -45,6 +45,12 @@ var landing_jostle_cooldown := 0.0
 var map_id := MAP_LAYOUT.ARENA
 var gate_cooldown := 0.0
 var gate_transition_count := 0
+var area_weapon_armed := false
+var area_arm_held_prev := false
+var area_gesture_active := false
+var area_gesture_start := Vector3.ZERO
+var area_gesture_end := Vector3.ZERO
+var area_strike_serial := 0
 
 @onready var _input := get_node("Input")
 @onready var _sync := get_node_or_null("RollbackSynchronizer")
@@ -109,6 +115,8 @@ func _ready() -> void:
 		_sync.add_input(_input, "cloak_held")
 		_sync.add_input(_input, "shield_held")
 		_sync.add_input(_input, "det")
+		_sync.add_input(_input, "area_arm_held")
+		_sync.add_input(_input, "area_fire")
 		_sync.add_input(_input, "tractor")
 		_sync.add_input(_input, "editing")
 		_sync.process_settings()
@@ -140,6 +148,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	_service_cloak_toggle(bool(_input.cloak_held))
 	_service_shield_toggle(bool(_input.shield_held))
 	_service_det(delta)
+	_service_area_weapon()
 	var rollback := get_node_or_null("/root/NetworkRollback")
 	if rollback != null and bool(rollback.call("is_rollback")):
 		impact_recovery_time = maxf(impact_recovery_time - delta, 0.0)
@@ -367,6 +376,36 @@ func _service_det(delta: float) -> void:
 
 func det_radius() -> float:
 	return DET_ZONE_RADIUS * clampf(det_t / DET_GROW_TIME, 0.0, 1.0)
+
+func _service_area_weapon() -> void:
+	# Explicit slot-3 edge, stored as rollback state: a held key toggles once on
+	# every participant's identical input timeline.
+	if bool(_input.area_arm_held) != area_arm_held_prev:
+		area_arm_held_prev = bool(_input.area_arm_held)
+		if area_arm_held_prev:
+			area_weapon_armed = not area_weapon_armed
+			area_gesture_active = false
+	if not area_weapon_armed or bool(_input.editing):
+		area_gesture_active = false
+		return
+	var cursor := Vector3(global_position.x + _input.cursor_offset.x, 0.0,
+		global_position.z + _input.cursor_offset.y)
+	if bool(_input.area_fire):
+		if not area_gesture_active:
+			area_gesture_active = true
+			area_gesture_start = cursor
+		area_gesture_end = cursor
+		return
+	if area_gesture_active:
+		area_gesture_active = false
+		area_gesture_end = cursor
+		area_strike_serial += 1
+		# Splash is a one-shot call-in. Stow it on release so the regular
+		# coverage/auto-fire weapon resumes while the aircraft is still inbound.
+		area_weapon_armed = false
+
+func area_gesture_preview() -> Dictionary:
+	return {"start": area_gesture_start, "end": area_gesture_end} if area_gesture_active else {}
 
 ## Cross-body hit commands arrive after this body's current tick. Queue them
 ## until its own rollback simulation owns a live direct_state, as the tractor

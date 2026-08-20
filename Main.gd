@@ -30,6 +30,12 @@ const TARGET_DUMMY_SCRIPT := preload("res://combat/target_dummy.gd")
 const TARGET_LAYOUT := preload("res://combat/target_layout.gd")
 const BOLT_VISUAL_SCRIPT := preload("res://combat/bolt_visual.gd")
 const SHIELD_DRONE_SCRIPT := preload("res://combat/shield_drone.gd")
+const AREA_WEAPON := preload("res://combat/area_weapon.gd")
+const AREA_STRIKE_SCRIPT := preload("res://combat/area_strike.gd")
+const AREA_BURN_ZONE_SCRIPT := preload("res://combat/area_burn_zone.gd")
+const AREA_STRIKE_VISUAL_SCRIPT := preload("res://fx/area_strike_visual.gd")
+const AREA_BURN_VISUAL_SCRIPT := preload("res://fx/area_burn_visual.gd")
+const AREA_TARGET_PREVIEW_SCRIPT := preload("res://fx/area_target_preview.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
@@ -101,6 +107,9 @@ var _det_nullification_count := 0
 var _maximum_impact_speed := 0.0
 var _crash_telemetry: Node
 var _grass_contacts := {}
+var _area_strike_serial_seen := {}
+var _area_strikes: Node3D
+var _area_burns: Node3D
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -235,7 +244,9 @@ func _process(_delta: float) -> void:
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
 			mode, id, speed, location,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  V: vehicle  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  V: vehicle  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+		if local != null and bool(local.get("area_weapon_armed")):
+			_status_label.text += "\nAREA WEAPON ARMED  ·  Hold and drag Left Mouse, then release to bomb  ·  3: stow"
 	if _fps_label != null:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	_update_editor_label()
@@ -453,6 +464,12 @@ func _build_world() -> void:
 	_combat_bolts = Node3D.new()
 	_combat_bolts.name = "CombatBolts"
 	add_child(_combat_bolts)
+	_area_strikes = Node3D.new()
+	_area_strikes.name = "AreaStrikes"
+	add_child(_area_strikes)
+	_area_burns = Node3D.new()
+	_area_burns.name = "AreaBurns"
+	add_child(_area_burns)
 	_shield_drone = Node3D.new()
 	_shield_drone.name = "ShieldTestDrone"
 	_shield_drone.set_script(SHIELD_DRONE_SCRIPT)
@@ -712,6 +729,11 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	body.add_child(line)
 
 	if is_local:
+		var area_preview := Node3D.new()
+		area_preview.name = "AreaTargetPreview"
+		area_preview.set_script(AREA_TARGET_PREVIEW_SCRIPT)
+		area_preview.set("owner_body", body)
+		body.add_child(area_preview)
 		var catch_ring := MeshInstance3D.new()
 		catch_ring.name = "TractorCatchRing"
 		catch_ring.top_level = true
@@ -1300,6 +1322,7 @@ func _on_tick(delta: float, tick: int) -> void:
 		_start_tick = tick
 	var elapsed := tick - _start_tick
 	if multiplayer.is_server():
+		_service_area_weapons()
 		_service_auto_combat(delta, tick)
 		_track_server_contacts()
 		_track_server_ball()
@@ -1336,7 +1359,8 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 		if body == null or int(body.get("map_id")) != MAP_LAYOUT.ARENA:
 			continue
 		var input := body.get_node_or_null("Input")
-		if input == null or bool(input.get("editing")) or bool(body.get("is_cloaked")):
+		if input == null or bool(input.get("editing")) or bool(body.get("is_cloaked")) \
+				or bool(body.get("area_weapon_armed")):
 			continue
 		var owner_id := int(body.name)
 		var config := _configuration_for(owner_id)
@@ -1354,6 +1378,66 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 				continue
 			_zone_last_fire_tick[cooldown_key] = tick
 			_fire_combat_bolt(body, target, zone)
+
+func _service_area_weapons() -> void:
+	for player_node in _players.get_children():
+		var body := player_node as RigidBody3D
+		if body == null:
+			continue
+		var owner_id := int(body.name)
+		var serial := int(body.get("area_strike_serial"))
+		var seen := int(_area_strike_serial_seen.get(owner_id, 0))
+		if serial <= seen:
+			continue
+		_area_strike_serial_seen[owner_id] = serial
+		var layout := AREA_WEAPON.layout(body.global_position,
+			body.get("area_gesture_start"), body.get("area_gesture_end"))
+		var strike := Node.new()
+		strike.name = "AreaStrike_%d_%d" % [owner_id, serial]
+		strike.set_script(AREA_STRIKE_SCRIPT)
+		_area_strikes.add_child(strike)
+		strike.call("configure", owner_id, layout["impacts"], float(layout["radius"]))
+		_present_area_strike.rpc(body.global_position, layout)
+
+func resolve_area_bomb(owner_id: int, position: Vector3, radius: float, tick: int) -> void:
+	_apply_area_targets(owner_id, position, radius, tick, true)
+	var burn := Node3D.new()
+	burn.name = "AreaBurn_%d" % _next_bolt_id
+	burn.set_script(AREA_BURN_ZONE_SCRIPT)
+	_area_burns.add_child(burn)
+	burn.call("configure", owner_id, position, radius)
+	_present_area_burn.rpc(position, radius)
+	_register_world_impact.rpc(_next_bolt_id, position, Vector3.UP)
+	_next_bolt_id += 1
+
+func apply_area_burn(owner_id: int, position: Vector3, radius: float, tick: int) -> void:
+	_apply_area_targets(owner_id, position, radius, tick, false)
+
+func _apply_area_targets(owner_id: int, position: Vector3, radius: float, tick: int,
+		impact: bool) -> void:
+	for target_node in _targets.get_children():
+		var target := target_node as StaticBody3D
+		if target != null and _planar_distance(position, target.global_position) <= radius + COMBAT_TARGET_RADIUS:
+			_register_target_hit.rpc(int(target.get("target_id")))
+	for player_node in _players.get_children():
+		var player := player_node as RigidBody3D
+		if player == null or int(player.name) == owner_id:
+			continue
+		if _planar_distance(position, player.global_position) > radius + PLAYER_RADIUS:
+			continue
+		var direction := player.global_position - position
+		direction.y = 0.0
+		direction = direction.normalized() if direction.length_squared() > 0.0001 else Vector3.FORWARD
+		var shielded := bool(player.get("shield_up"))
+		var response := IMPACT_CONTROLLER.response(direction, shielded)
+		var strength := 1.5 if impact else 0.24
+		player.call("apply_external_impact", response["linear_impulse"] * strength,
+			response["torque_impulse"] * strength, float(response["recovery_time"]) * strength, shielded)
+		if impact:
+			_register_player_impact.rpc(_next_bolt_id, int(player.name), position, direction, shielded)
+
+func _planar_distance(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
 
 func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
 		tip_outward: bool) -> Node3D:
@@ -1608,6 +1692,26 @@ func _spawn_combat_bolt(bolt_id: int, shooter_id: int, zone: int,
 		var coverage_visual := local.get_node_or_null("CoverageDebug")
 		if coverage_visual != null:
 			coverage_visual.call("flash_zone", zone)
+
+@rpc("authority", "call_local", "reliable")
+func _present_area_strike(origin: Vector3, layout: Dictionary) -> void:
+	if _is_headless():
+		return
+	var visual := Node3D.new()
+	visual.name = "AreaStrikeVisual"
+	visual.set_script(AREA_STRIKE_VISUAL_SCRIPT)
+	_area_strikes.add_child(visual)
+	visual.call("configure", origin, layout)
+
+@rpc("authority", "call_local", "reliable")
+func _present_area_burn(position: Vector3, radius: float) -> void:
+	if _is_headless():
+		return
+	var visual := MeshInstance3D.new()
+	visual.name = "AreaBurnVisual"
+	visual.set_script(AREA_BURN_VISUAL_SCRIPT)
+	_area_burns.add_child(visual)
+	visual.call("configure", position, radius)
 
 @rpc("authority", "call_local", "reliable")
 func _end_combat_bolt(bolt_id: int) -> void:
