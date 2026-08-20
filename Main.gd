@@ -1281,7 +1281,7 @@ func _fire_homing_missile(body: RigidBody3D) -> void:
 
 func _nearest_homing_target(shooter: RigidBody3D) -> Node3D:
 	var selected: Node3D
-	var best_distance := INF
+	var best_distance := HOMING_MISSILE.ACQUIRE_RANGE * HOMING_MISSILE.ACQUIRE_RANGE
 	for target_node in _targets.get_children():
 		var candidate := target_node as StaticBody3D
 		if candidate == null:

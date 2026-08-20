@@ -27,5 +27,9 @@ func _init() -> void:
 		push_error("HOMING_MISSILE_TEST FAIL: no-lock missile must keep its launch heading")
 		quit(1)
 		return
+	if HOMING.ACQUIRE_RANGE <= HOMING.COMMIT_DISTANCE:
+		push_error("HOMING_MISSILE_TEST FAIL: immediate-lock range must exceed the terminal hit envelope")
+		quit(1)
+		return
 	print("HOMING_MISSILE_TEST PASS")
 	quit(0)

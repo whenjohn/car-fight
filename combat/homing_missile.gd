@@ -2,6 +2,7 @@ extends RefCounted
 ## Pure slot-1 missile guidance, ported from G2's isometric homing weapon.
 
 const SPEED := 24.0
+const ACQUIRE_RANGE := 18.0
 const TURN_DEGREES_PER_SECOND := 180.0
 # Car Fight fires the slot directly instead of G2's separate aim/arm gesture:
 # maintain G2's capped turn, but give a confirmed target a reliable 360-degree
