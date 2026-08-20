@@ -10,6 +10,7 @@ const BOLT_VISUAL := preload("res://combat/bolt_visual.gd")
 const SHIELD_VISUAL := preload("res://fx/vehicle_shield.gd")
 const SHIELD_DRONE := preload("res://combat/shield_drone.gd")
 const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
+const RC_ORB_VISUAL := preload("res://combat/rc_orb_visual.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -99,6 +100,13 @@ func _init() -> void:
 		push_error("SHIELD_DRONE_TEST FAIL: fixture must retain its slow firing pace")
 		quit(1)
 		return
+	var rc_orb := RC_ORB_VISUAL.new()
+	rc_orb.call("_ready")
+	if rc_orb.get_child_count() != 4:
+		push_error("RC_ORB_ASSET_TEST FAIL: energy orb must retain core, flow, and two satellites")
+		quit(1)
+		return
+	rc_orb.free()
 	var drone_range: float = SHIELD_DRONE.BOLT_SPEED * SHIELD_DRONE.BOLT_LIFETIME
 	var central_spawn_distance := Vector2(SHIELD_DRONE.ARENA_POSITION.x,
 		SHIELD_DRONE.ARENA_POSITION.z).length()

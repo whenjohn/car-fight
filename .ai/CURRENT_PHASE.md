@@ -8,6 +8,7 @@
 
 ## Completed
 
+- Added the G2-isometric RC energy orb as a bounded, event-driven Car Fight projectile: Num 2 directly fires one cursor-steered orb, the pilot is parked until its terminal event, left click detonates it, collision/fuse also detonate it, and its server-authoritative blast applies the existing shield-aware impact response. Carried over the energy-orb core/flow/satellite shaders and late-fuse warning. Added `scripts/rc_orb_test.sh` plus asset coverage. The focused RC test and asset smoke pass; the broad suite's existing reconnect gate failed twice during a late-join history transient, after its network and join-transient gates passed.
 - Added a fixed, non-targetable arena drone that fires a slow server-authored bolt every two seconds at the nearest visible driving player.
 - Added authoritative player impacts with a small linear deflection, torque jostle, and short steering-recovery window.
 - Added a freely toggled `Q` shield that absorbs 85% of the drone shove; cloak and shield are mutually exclusive, with cloak taking priority.

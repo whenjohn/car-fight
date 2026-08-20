@@ -30,6 +30,7 @@ fi
 "$project_root/scripts/reverse_test.sh"
 "$project_root/scripts/gate_test.sh"
 "$project_root/scripts/combat_test.sh"
+"$project_root/scripts/rc_orb_test.sh"
 "$project_root/scripts/shield_test.sh"
 git -C "$project_root" diff --check
 echo "ALL_TESTS PASS"

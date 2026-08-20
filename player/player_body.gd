@@ -41,6 +41,7 @@ var landing_jostle_cooldown := 0.0
 var map_id := MAP_LAYOUT.ARENA
 var gate_cooldown := 0.0
 var gate_transition_count := 0
+var rc_pilot_active := false
 
 @onready var _input := get_node("Input")
 @onready var _sync := get_node("RollbackSynchronizer")
@@ -103,6 +104,8 @@ func _ready() -> void:
 	_sync.add_input(_input, "cloak_held")
 	_sync.add_input(_input, "shield_held")
 	_sync.add_input(_input, "tractor")
+	_sync.add_input(_input, "rc_fire_held")
+	_sync.add_input(_input, "rc_detonate_held")
 	_sync.add_input(_input, "editing")
 	_sync.process_settings()
 
@@ -149,7 +152,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 			_pending_shield_hits = 0
 	# The vacuum is independent of navigation: Shift never changes the mouse's
 	# normal FOLLOW direction or speed command.
-	var offset: Vector2 = Vector2.ZERO if _input.editing else _input.cursor_offset
+	var offset: Vector2 = Vector2.ZERO if _input.editing or rc_pilot_active else _input.cursor_offset
 	var velocity: Vector3 = direct_state.linear_velocity
 	var planar_speed := Vector2(velocity.x, velocity.z).length()
 	landing_jostle_cooldown = maxf(landing_jostle_cooldown - delta, 0.0)
@@ -167,8 +170,8 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 		landing_fall_speed = maxf(landing_fall_speed, maxf(-velocity.y, 0.0))
 	was_supported = touching_support
 	var current_yaw := FOLLOW.heading_yaw(direct_state.transform.basis)
-	var burst_requested: bool = _input.burst and not _input.editing and not is_cloaked
-	var reverse_requested: bool = _input.reverse and not _input.editing
+	var burst_requested: bool = _input.burst and not _input.editing and not is_cloaked and not rc_pilot_active
+	var reverse_requested: bool = _input.reverse and not _input.editing and not rc_pilot_active
 	var probe := FOLLOW.command(offset, current_yaw, burst_requested, burst_turn_sign,
 		planar_speed, reverse_requested, touching_support, drift_assist_charge)
 	var assist_sustain := FOLLOW.automatic_drift_assist_sustain(
@@ -361,7 +364,7 @@ func apply_external_impact(linear_impulse: Vector3, torque_impulse: Vector3,
 		_pending_shield_hits += 1
 
 func _service_tractor(delta: float) -> void:
-	if not bool(_input.tractor) or bool(_input.editing) or is_cloaked:
+	if not bool(_input.tractor) or bool(_input.editing) or is_cloaked or rc_pilot_active:
 		tractor_ball_held = false
 		return
 	var origin: Vector3 = direct_state.transform.origin
@@ -385,6 +388,11 @@ func _service_tractor(delta: float) -> void:
 		tractor_reel_ticks += 1
 		pulled_any = true
 	tractor_ball_held = pulled_any
+
+func set_rc_pilot_active(active: bool) -> void:
+	rc_pilot_active = active
+	if active:
+		tractor_ball_held = false
 
 func _arena_ball() -> Node:
 	var balls := get_node_or_null("/root/Main/Balls")

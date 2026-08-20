@@ -9,6 +9,8 @@ var reverse := false
 var cloak_held := false
 var shield_held := false
 var tractor := false
+var rc_fire_held := false
+var rc_detonate_held := false
 # Safe spawn default: authority cannot fire before the owning client's first
 # gathered input declares that it has entered drive mode.
 var editing := true
@@ -20,6 +22,8 @@ func _clear_live_input() -> void:
 	cloak_held = false
 	shield_held = false
 	tractor = false
+	rc_fire_held = false
+	rc_detonate_held = false
 	# Losing focus is not a request to enter the coverage editor. Keep the
 	# vehicle in drive mode with neutral controls so it brakes to a stop.
 	editing = false
@@ -39,6 +43,8 @@ func _gather() -> void:
 		cloak_held = bool(scripted.get("cloak_held", false))
 		shield_held = bool(scripted.get("shield_held", false))
 		tractor = bool(scripted.get("tractor", false))
+		rc_fire_held = bool(scripted.get("rc_fire_held", false))
+		rc_detonate_held = bool(scripted.get("rc_detonate_held", false))
 		editing = bool(scripted.get("editing", false))
 		return
 	# macOS continues updating an unfocused Godot window's mouse position from
@@ -60,3 +66,7 @@ func _gather() -> void:
 	# Match g2: poll the bare modifier directly so unrelated key events cannot
 	# make InputMap lose the held Shift level.
 	tractor = Input.is_key_pressed(KEY_SHIFT) and not editing
+	# Unlike G2's slot selector, Num 2 fires the RC orb immediately. Left mouse
+	# detonates an active orb; both values cross the existing input timeline.
+	rc_fire_held = Input.is_key_pressed(KEY_2) and not editing
+	rc_detonate_held = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not editing

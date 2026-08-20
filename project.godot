@@ -3,7 +3,7 @@ config_version=5
 
 [application]
 
-config/name="Car Fight"
+config/name="Car Fight — RC Orb"
 config/description="Server-authoritative multiplayer Jeep bumping prototype."
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
