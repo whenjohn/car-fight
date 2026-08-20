@@ -1284,7 +1284,7 @@ func _nearest_homing_target(shooter: RigidBody3D) -> Node3D:
 	var best_distance := INF
 	for target_node in _targets.get_children():
 		var candidate := target_node as StaticBody3D
-		if candidate == null or not _has_target_line_of_sight(shooter, candidate):
+		if candidate == null:
 			continue
 		var distance := shooter.global_position.distance_squared_to(candidate.global_position)
 		if distance < best_distance:
@@ -1292,7 +1292,7 @@ func _nearest_homing_target(shooter: RigidBody3D) -> Node3D:
 			best_distance = distance
 	for index in range(_balls.get_child_count()):
 		var candidate := _balls.get_child(index) as RigidBody3D
-		if candidate == null or not _has_target_line_of_sight(shooter, candidate):
+		if candidate == null:
 			continue
 		var distance := shooter.global_position.distance_squared_to(candidate.global_position)
 		if distance < best_distance:
