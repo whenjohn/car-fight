@@ -187,6 +187,14 @@ func _process(_delta: float) -> void:
 	var local: Node3D = local_player()
 	var target: Vector3 = Vector3.ZERO if local == null \
 		else ELEVATED_COURSE.camera_target(local.global_position)
+	# The RC orb is the player's active viewpoint. Its visual is fed by the
+	# authoritative lightweight projectile snapshots, so the camera follows the
+	# same state every observer sees and cleanly returns to the Jeep on the
+	# reliable terminal event.
+	if local != null:
+		var rc_visual: Variant = _rc_orb_visuals.get(int(local.name))
+		if is_instance_valid(rc_visual):
+			target = ELEVATED_COURSE.camera_target((rc_visual as Node3D).global_position)
 	var yaw := deg_to_rad(45.0)
 	var pitch := deg_to_rad(55.0)
 	var horizontal := cos(pitch) * 80.0
