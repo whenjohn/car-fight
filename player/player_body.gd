@@ -7,6 +7,9 @@ const TRACTOR := preload("res://player/tractor_controller.gd")
 const IMPACT := preload("res://player/impact_controller.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
 
+const DET_ZONE_RADIUS := 3.6
+const DET_GROW_TIME := 0.08
+
 var owner_id := 0
 var spawn_slot := 0
 var aim := Vector3(0.0, 0.0, -1.0)
@@ -23,6 +26,7 @@ var is_cloaked := false
 var cloak_held_prev := false
 var shield_up := false
 var shield_held_prev := false
+var det_t := 0.0
 var impact_recovery_time := 0.0
 var impact_hit_count := 0
 var shield_hit_count := 0
@@ -79,6 +83,7 @@ func _ready() -> void:
 	_sync.add_state(self, "cloak_held_prev")
 	_sync.add_state(self, "shield_up")
 	_sync.add_state(self, "shield_held_prev")
+	_sync.add_state(self, "det_t")
 	_sync.add_state(self, "impact_recovery_time")
 	_sync.add_state(self, "impact_hit_count")
 	_sync.add_state(self, "shield_hit_count")
@@ -102,6 +107,7 @@ func _ready() -> void:
 	_sync.add_input(_input, "reverse")
 	_sync.add_input(_input, "cloak_held")
 	_sync.add_input(_input, "shield_held")
+	_sync.add_input(_input, "det")
 	_sync.add_input(_input, "tractor")
 	_sync.add_input(_input, "editing")
 	_sync.process_settings()
@@ -132,6 +138,7 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var queued_torque_impulse := Vector3.ZERO
 	_service_cloak_toggle(bool(_input.cloak_held))
 	_service_shield_toggle(bool(_input.shield_held))
+	_service_det(delta)
 	var rollback := get_node_or_null("/root/NetworkRollback")
 	if rollback != null and bool(rollback.call("is_rollback")):
 		impact_recovery_time = maxf(impact_recovery_time - delta, 0.0)
@@ -337,6 +344,7 @@ func _service_cloak_toggle(held: bool) -> void:
 		is_cloaked = not is_cloaked
 		if is_cloaked:
 			shield_up = false
+			det_t = 0.0
 
 func _service_shield_toggle(held: bool) -> void:
 	if held == shield_held_prev:
@@ -347,6 +355,17 @@ func _service_shield_toggle(held: bool) -> void:
 			shield_up = false
 		elif not is_cloaked:
 			shield_up = true
+
+func _service_det(delta: float) -> void:
+	# Unlike the shield's toggle, det is a held defensive field. Keep its grow
+	# timer rollback state so every peer evaluates the same projectile boundary.
+	if bool(_input.det) and not bool(_input.editing) and not is_cloaked:
+		det_t = minf(det_t + delta, DET_GROW_TIME)
+	else:
+		det_t = 0.0
+
+func det_radius() -> float:
+	return DET_ZONE_RADIUS * clampf(det_t / DET_GROW_TIME, 0.0, 1.0)
 
 ## Cross-body hit commands arrive after this body's current tick. Queue them
 ## until its own rollback simulation owns a live direct_state, as the tractor

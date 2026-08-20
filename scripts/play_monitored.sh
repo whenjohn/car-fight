@@ -160,7 +160,8 @@ log_pid=$!
 typeset -a driver_args client_display_args client_user_args
 driver_args=()
 client_display_args=(--windowed)
-client_user_args=(--client --host "$client_host" --port "$port" --name "$client_name")
+session_label="${CAR_FIGHT_SESSION_LABEL:-$(git -C "$project_root" branch --show-current)}"
+client_user_args=(--client --host "$client_host" --port "$port" --name "$client_name" --session-label "$session_label")
 if [[ -n "$rendering_driver" ]]; then
 	driver_args=(--rendering-driver "$rendering_driver")
 fi
