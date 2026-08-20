@@ -8,6 +8,7 @@
 
 ## Completed
 
+- Created the `feature/homing-missile` worktree. Pressing `1` now fires a server-authoritative slot-1 homing missile immediately (rather than arming it): it locks the nearest same-map opponent, launches along the driver's aim, and retains G2's fixed target, capped turn, cone, range falloff, terminal commit, lifetime, shield/impact behavior, and isometric seeker shader. Rendered clients identify this worktree in the title bar as `Car Fight — homing missile`. Focused homing and presentation-asset checks pass.
 - Added a fixed, non-targetable arena drone that fires a slow server-authored bolt every two seconds at the nearest visible driving player.
 - Added authoritative player impacts with a small linear deflection, torque jostle, and short steering-recovery window.
 - Added a freely toggled `Q` shield that absorbs 85% of the drone shove; cloak and shield are mutually exclusive, with cloak taking priority.
