@@ -10,6 +10,7 @@ const BOLT_VISUAL := preload("res://combat/bolt_visual.gd")
 const SHIELD_VISUAL := preload("res://fx/vehicle_shield.gd")
 const SHIELD_DRONE := preload("res://combat/shield_drone.gd")
 const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
+const HOMING_VISUAL := preload("res://combat/homing_missile_visual.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -119,6 +120,15 @@ func _init() -> void:
 			push_error("SHIELD_SHADER_TEST FAIL: missing %s" % required)
 			quit(1)
 			return
+	var homing_shader := load("res://fx/homing_missile_head.gdshader") as Shader
+	if homing_shader == null or "chevron" not in homing_shader.code or "hot_color" not in homing_shader.code:
+		push_error("HOMING_SHADER_TEST FAIL: G2 isometric seeker shader did not load")
+		quit(1)
+		return
+	if HOMING_VISUAL == null:
+		push_error("HOMING_VISUAL_TEST FAIL: missile presentation did not load")
+		quit(1)
+		return
 	if SHIELD_VISUAL.SHELL_RADIUS <= VEHICLE_CONFIG.COLLISION_RADIUS:
 		push_error("SHIELD_SHELL_TEST FAIL: shield must fully contain the gameplay collider")
 		quit(1)
@@ -143,8 +153,8 @@ func _init() -> void:
 		quit(1)
 		return
 	var main_source := FileAccess.get_file_as_string("res://Main.gd")
-	if "[CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER]" not in main_source:
-		push_error("SHIELD_PREWARM_TEST FAIL: shield pipeline must compile before ENet starts")
+	if "HOMING_MISSILE_SHADER" not in main_source:
+		push_error("SHADER_PREWARM_TEST FAIL: homing pipeline must compile before ENet starts")
 		quit(1)
 		return
 	if "MaxSpeedMarker" not in main_source:

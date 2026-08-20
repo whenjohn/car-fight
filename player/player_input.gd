@@ -14,6 +14,7 @@ var det := false
 var _det_key: Key = KEY_META if OS.get_name() == "macOS" else KEY_ALT
 var area_arm_held := false
 var area_fire := false
+var homing_held := false
 # Safe spawn default: authority cannot fire before the owning client's first
 # gathered input declares that it has entered drive mode.
 var editing := true
@@ -28,6 +29,7 @@ func _clear_live_input() -> void:
 	det = false
 	area_arm_held = false
 	area_fire = false
+	homing_held = false
 	# Losing focus is not a request to enter the coverage editor. Keep the
 	# vehicle in drive mode with neutral controls so it brakes to a stop.
 	editing = false
@@ -50,6 +52,7 @@ func _gather() -> void:
 		det = bool(scripted.get("det", false))
 		area_arm_held = bool(scripted.get("area_arm_held", false))
 		area_fire = bool(scripted.get("area_fire", false))
+		homing_held = bool(scripted.get("homing_held", false))
 		editing = bool(scripted.get("editing", false))
 		return
 	# macOS continues updating an unfocused Godot window's mouse position from
@@ -76,3 +79,5 @@ func _gather() -> void:
 	# primary button and drag a ground area before releasing to call the run.
 	area_arm_held = Input.is_key_pressed(KEY_3) and not editing
 	area_fire = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not editing
+	# Unlike G2's slot-selection gesture, Car Fight fires slot 1 immediately.
+	homing_held = Input.is_key_pressed(KEY_1) and not editing
