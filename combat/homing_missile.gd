@@ -8,7 +8,10 @@ const TURN_DEGREES_PER_SECOND := 180.0
 # lock and enough authority to cross this larger arena before lifetime expires.
 const STEERING_RANGE := 24.0
 const CONE_DEGREES := 180.0
-const COMMIT_DISTANCE := 6.5
+# Car Fight's dummies/ball are sub-unit collision targets. G2's 6.5-unit
+# ballistic commit was appropriate for ship duels, but lets this missile peel
+# away before it can register a close hit.
+const COMMIT_DISTANCE := 0.75
 const LIFETIME := 2.5
 
 static func steer(velocity: Vector3, position: Vector3, target_position: Vector3,
