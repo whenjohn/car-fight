@@ -14,7 +14,7 @@
 
 A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
-Networking is native ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. The vendored netfox includes G2's D-040 stale-history recovery patch: after a client stall advances beyond retained rollback history, impossible origins are skipped with a bounded warning while the client waits for fresh authority. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
+Native networking remains ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. An isolated localhost cross-play path now adds browser WebRTC without moving native clients off ENet; a server-side mux exposes both transports as one authoritative world. The vendored netfox includes G2's D-040 stale-history recovery patch: after a client stall advances beyond retained rollback history, impossible origins are skipped with a bounded warning while the client waits for fresh authority. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
 
 ## Play
 
@@ -50,7 +50,36 @@ export and a fixed 1280 x 720 render surface. Runtime ready took 2.42 seconds;
 the final five samples averaged 59.6 FPS with a 58 FPS minimum, normal driving
 reached 17.99 units/s, and the browser console was clean. A same-machine
 threaded comparison produced no repeatable improvement, so threading remains
-disabled. WebRTC networking is a separate Phase 2 decision in
+disabled. The offline preset remains the accepted standalone renderer
+checkpoint.
+
+## Local browser/native cross-play
+
+The `Web Network` export connects browsers over WebRTC while the native macOS
+client continues to use ENet. The mux server merges both into the same world;
+WebSocket carries signaling only, never gameplay data.
+
+```bash
+./scripts/web_network_build.sh release  # export build/web-network/index.html
+./scripts/web_network_smoke.sh          # automated browser + native ENet gate
+./scripts/play_web_network_local.sh     # safe rendered browser/native session
+./scripts/browser_native_baseline.sh    # separate-world render/CPU control
+./scripts/mux_perf_test.sh              # pure ENet versus mux server CPU A/B
+```
+
+`play_web_network_local.sh` uses isolated localhost ports (ENet 12580, WebRTC
+signaling 12581, HTTP 18089), launches the native client through the monitored
+safe-window wrapper, and opens Chrome with a temporary profile. Closing the
+native client ends the session and cleans up only the processes it started.
+It does not deploy or modify macai2 UDP 10080.
+
+The automated network smoke covers a browser refresh/replacement while the
+native ENet peer survives, verifies changing two-player world snapshots and a
+draining WebRTC queue, and records a JSON report plus screenshot in its printed
+temporary directory. The current same-machine capacity floor is 30 FPS minimum
+and 45 FPS average over the final browser samples. Repeated final-window
+averages were 47.6-57.2 FPS; the final accepted run held a 49 FPS minimum and
+57.2 FPS average. Remote/TURN impairment and a production cutover remain future work in
 [`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md).
 
 Controls:
@@ -83,11 +112,13 @@ Four small fixed weapon mounts show the side zones. At runtime every combined CC
 ./scripts/test.sh
 ```
 
-The gate checks FOLLOW movement, coverage geometry and budget enforcement, presentation assets and shaders, collision recovery, ball physics, ramps, reverse, boost, cloak, tractor, and shields. It runs real headless servers and clients, including a deterministic 120 ms one-way UDP relay, then verifies automatic combat, drone hits, shield absorption, and cloak/shield exclusion. The join-transient gate deliberately blocks a synchronized client for 1.5 seconds—longer than the 64-tick history—and requires bounded recovery without impossible rollback or stale-packet log flooding.
+The gate checks FOLLOW movement, coverage geometry and budget enforcement, presentation assets and shaders, collision recovery, ball physics, ramps, reverse, boost, cloak, tractor, and shields. It runs real headless servers and clients, including a deterministic 120 ms one-way UDP relay, then verifies automatic combat, drone hits, shield absorption, and cloak/shield exclusion. The mixed-transport gate places ENet and WebRTC peers in one world and covers leave draining, peer-ID collisions, and either transport leg closing. The join-transient gate deliberately blocks a synchronized client for 1.5 seconds—longer than the 64-tick history—and requires bounded recovery without impossible rollback or stale-packet log flooding.
 
 ## Structure
 
-- `Main.gd` — role router, ENet lifecycle, spawn authority, arena, camera, and HUD.
+- `Main.gd` — role/transport router, ENet/WebRTC lifecycle, spawn authority, arena, camera, and HUD.
+- `net/mux_multiplayer_peer.gd` — server-side ENet/WebRTC peer merger.
+- `net/webrtc_transport.gd` — WebSocket signaling and WebRTC peer lifecycle.
 - `player/follow_controller.gd` — pure deterministic mouse steering math.
 - `player/player_input.gd` — networked drive and editor intent.
 - `player/player_body.gd` — predicted/rollback Rapier body.
