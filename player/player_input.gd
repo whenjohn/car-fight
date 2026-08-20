@@ -9,6 +9,8 @@ var reverse := false
 var cloak_held := false
 var shield_held := false
 var tractor := false
+var area_arm_held := false
+var area_fire := false
 # Safe spawn default: authority cannot fire before the owning client's first
 # gathered input declares that it has entered drive mode.
 var editing := true
@@ -20,6 +22,8 @@ func _clear_live_input() -> void:
 	cloak_held = false
 	shield_held = false
 	tractor = false
+	area_arm_held = false
+	area_fire = false
 	# Losing focus is not a request to enter the coverage editor. Keep the
 	# vehicle in drive mode with neutral controls so it brakes to a stop.
 	editing = false
@@ -39,6 +43,8 @@ func _gather() -> void:
 		cloak_held = bool(scripted.get("cloak_held", false))
 		shield_held = bool(scripted.get("shield_held", false))
 		tractor = bool(scripted.get("tractor", false))
+		area_arm_held = bool(scripted.get("area_arm_held", false))
+		area_fire = bool(scripted.get("area_fire", false))
 		editing = bool(scripted.get("editing", false))
 		return
 	# macOS continues updating an unfocused Godot window's mouse position from
@@ -60,3 +66,7 @@ func _gather() -> void:
 	# Match g2: poll the bare modifier directly so unrelated key events cannot
 	# make InputMap lose the held Shift level.
 	tractor = Input.is_key_pressed(KEY_SHIFT) and not editing
+	# Slot 3 mirrors the isometric Splash weapon: arm it once, then hold the
+	# primary button and drag a ground area before releasing to call the run.
+	area_arm_held = Input.is_key_pressed(KEY_3) and not editing
+	area_fire = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not editing
