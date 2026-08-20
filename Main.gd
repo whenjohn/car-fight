@@ -397,6 +397,9 @@ func _build_world() -> void:
 		grass.name = "InteractiveGrass"
 		grass.set_script(INTERACTIVE_GRASS_SCRIPT)
 		grass.call("setup", _players, _combat_bolts)
+		# A deliberate 36 m test plot on the quiet east side of the arena: dense
+		# enough to read as a real patch, but small enough to compare with bare ground.
+		grass.position = Vector3(58.0, 0.0, 18.0)
 		add_child(grass)
 		_driving_course.call("build_presentation")
 		_jump_gates.call("build_presentation")
