@@ -68,5 +68,5 @@ func _gather() -> void:
 	tractor = Input.is_key_pressed(KEY_SHIFT) and not editing
 	# Unlike G2's slot selector, Num 2 fires the RC orb immediately. Left mouse
 	# detonates an active orb; both values cross the existing input timeline.
-	rc_fire_held = Input.is_key_pressed(KEY_2) and not editing
+	rc_fire_held = (Input.is_key_pressed(KEY_2) or Input.is_key_pressed(KEY_KP_2)) and not editing
 	rc_detonate_held = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not editing
