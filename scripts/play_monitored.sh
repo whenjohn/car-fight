@@ -13,10 +13,10 @@ ticks=0
 rendering_driver="${CAR_FIGHT_RENDERING_DRIVER:-}"
 deep_capture=0
 post_exit_seconds=-1
-client_host="127.0.0.1"
+client_host="${CAR_FIGHT_HOST:-100.113.2.60}"
 client_name="monitored"
 client_position=""
-start_local_server=1
+start_local_server=0
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -52,6 +52,11 @@ while (( $# > 0 )); do
 			client_host="${2:?--host requires a value}"
 			start_local_server=0
 			shift 2
+			;;
+		--local)
+			client_host="127.0.0.1"
+			start_local_server=1
+			shift
 			;;
 		--name)
 			client_name="${2:?--name requires a value}"

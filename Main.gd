@@ -74,7 +74,7 @@ const RC_ORB_LAUNCH_OFFSET := 0.72
 
 var _role := "client"
 var _transport := "enet"
-var _host := "127.0.0.1"
+var _host := "100.113.2.60" # macai2 over Tailscale; local tools pass 127.0.0.1 explicitly.
 var _port := DEFAULT_PORT
 var _signal_port := DEFAULT_SIGNAL_PORT
 var _signal_url := ""

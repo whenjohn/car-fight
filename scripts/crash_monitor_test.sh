@@ -7,7 +7,7 @@ test_root="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-monitor-test.XXXXXX")"
 test_port="${CAR_FIGHT_MONITOR_TEST_PORT:-10190}"
 
 CAR_FIGHT_MONITOR_ROOT="$test_root" CAR_FIGHT_PORT="$test_port" \
-	"$project_root/scripts/play_monitored.sh" --headless --ticks 180 --fake-stall \
+"$project_root/scripts/play_monitored.sh" --local --headless --ticks 180 --fake-stall \
 	--deep-capture --post-exit-seconds 1
 
 run_dir="$(< "$test_root/last_run")"

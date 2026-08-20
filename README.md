@@ -19,12 +19,20 @@ Native networking remains ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 co
 ## Play
 
 ```bash
-./scripts/play.sh                 # local server + one visible client
-./scripts/join.sh 127.0.0.1      # another local client
-./scripts/serve.sh               # server only, UDP 10080
-./scripts/join_macai2.sh         # Tailscale address, if separately deployed
+./scripts/play.sh                 # monitored client, macai2 by default
+./scripts/join.sh                 # another macai2 client
+./scripts/play_local.sh           # explicit local server + monitored client
+./scripts/join.sh 127.0.0.1       # join an already-running local server
+./scripts/serve.sh                # explicit local mux server
+./scripts/join_macai2.sh          # explicit macai2 alias
 ./scripts/play_macai2_two.sh      # two monitored native clients, remote server
 ```
+
+Normal native client launches prefer macai2 over Tailscale (`100.113.2.60`) to
+keep server simulation off this Mac. Set `CAR_FIGHT_HOST` to select another
+remote host, or use `play_local.sh`/an explicit `127.0.0.1` host for isolated
+development. Browser-local test helpers always use their own isolated local
+ports and do not contact macai2.
 
 ## Offline Web build
 
@@ -145,7 +153,7 @@ It uses `ssh macai2-ts`, installs the isolated launchd label `com.whenjohn.car-f
 
 # Monitored local play
 
-Because this Intel Mac has experienced WindowServer watchdog failures during rendered play, use the monitored launcher for future local tests:
+Because this Intel Mac has experienced WindowServer watchdog failures during rendered play, use the monitored launcher for ordinary play:
 
 ```sh
 ./scripts/play_monitored.sh
@@ -159,7 +167,15 @@ After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin
 ./scripts/collect_crash_run.sh
 ```
 
-Validate the monitor without opening a rendered window with `./scripts/play_monitored.sh --headless --ticks 180`. Normal monitored play explicitly starts windowed. On the affected Intel Mac, keep the decorated window inside the usable desktop area; native fullscreen, borderless fullscreen, exact edge-to-edge windows, and edge-to-edge maximization are unsupported. OpenGL, ANGLE, and Vulkan fullscreen alternatives have already been ruled out. See [`MAC_INTEL_FULLSCREEN_FINDINGS.md`](MAC_INTEL_FULLSCREEN_FINDINGS.md) before proposing any new display experiment.
+It connects to macai2 by default. Add `--local` when the monitor must launch an
+isolated local server, including the headless monitor check:
+`./scripts/play_monitored.sh --local --headless --ticks 180`. Normal monitored
+play explicitly starts windowed. On the affected Intel Mac, keep the decorated
+window inside the usable desktop area; native fullscreen, borderless fullscreen,
+exact edge-to-edge windows, and edge-to-edge maximization are unsupported.
+OpenGL, ANGLE, and Vulkan fullscreen alternatives have already been ruled out.
+See [`MAC_INTEL_FULLSCREEN_FINDINGS.md`](MAC_INTEL_FULLSCREEN_FINDINGS.md)
+before proposing any new display experiment.
 
 For multiplayer feel testing without hosting the server on this Mac, deploy the isolated macai2 service and run `./scripts/play_macai2_two.sh`. It opens two named 1280 x 720 native clients side by side, both through the same telemetry and Intel-display monitor used above. An unfocused client deliberately sends neutral controls, so its Jeep brakes instead of following the focused window's macOS cursor. The server remains on macai2 UDP `10080`; G2 remains separate on UDP `9950`.
 

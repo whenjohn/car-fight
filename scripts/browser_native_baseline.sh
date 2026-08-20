@@ -55,6 +55,7 @@ fi
 
 CAR_FIGHT_PORT="$native_port" CAR_FIGHT_MONITOR_ROOT="$run_root/native" \
 	"$project_root/scripts/play_monitored.sh" --name browser-baseline \
+	--local \
 	--position 80,80 >"$run_root/native-runner.log" 2>&1 &
 native_runner_pid=$!
 echo "baseline: waiting for native client telemetry"
