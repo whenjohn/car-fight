@@ -54,15 +54,15 @@ if [[ -z "$hull_result" || -z "$shield_result" || -z "$exclusion_result" ]]; the
 	echo "shield test produced no server result; logs: $log_dir" >&2
 	exit 1
 fi
-if ! print -r -- "$hull_result" | rg -q 'droneshots=[1-9][0-9]* impacthits=[1-9][0-9]* shieldhits=0'; then
+if ! print -r -- "$hull_result" | rg -q 'droneshots=[1-9][0-9]* .*impacthits=[1-9][0-9]* shieldhits=0'; then
 	echo "unshielded drone bolts did not authoritatively hit the Jeep: $hull_result" >&2
 	exit 1
 fi
-if ! print -r -- "$shield_result" | rg -q 'cloaked=0 shields=1 .*droneshots=[1-9][0-9]* impacthits=[1-9][0-9]* shieldhits=[1-9][0-9]*'; then
+if ! print -r -- "$shield_result" | rg -q 'cloaked=0 shields=1 .*droneshots=[1-9][0-9]* .*impacthits=[1-9][0-9]* shieldhits=[1-9][0-9]*'; then
 	echo "raised shield did not absorb authoritative drone hits: $shield_result" >&2
 	exit 1
 fi
-if ! print -r -- "$exclusion_result" | rg -q 'cloaked=1 shields=0 .*droneshots=0 impacthits=0 shieldhits=0'; then
+if ! print -r -- "$exclusion_result" | rg -q 'cloaked=1 shields=0 .*droneshots=0 .*impacthits=0 shieldhits=0'; then
 	echo "cloak did not win shield mutual exclusion and drone targeting: $exclusion_result" >&2
 	exit 1
 fi

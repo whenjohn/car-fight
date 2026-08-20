@@ -32,6 +32,7 @@ const TARGET_LAYOUT := preload("res://combat/target_layout.gd")
 const BOLT_VISUAL_SCRIPT := preload("res://combat/bolt_visual.gd")
 const HOMING_MISSILE := preload("res://combat/homing_missile.gd")
 const HOMING_MISSILE_VISUAL_SCRIPT := preload("res://combat/homing_missile_visual.gd")
+const RC_ORB_VISUAL_SCRIPT := preload("res://combat/rc_orb_visual.gd")
 const SHIELD_DRONE_SCRIPT := preload("res://combat/shield_drone.gd")
 const AREA_WEAPON := preload("res://combat/area_weapon.gd")
 const AREA_STRIKE_SCRIPT := preload("res://combat/area_strike.gd")
@@ -58,6 +59,15 @@ const BALL_TARGET_ID_BASE := -1000
 const BOLT_KIND_PLAYER := 0
 const BOLT_KIND_DRONE := 1
 const BOLT_KIND_HOMING := 2
+const RC_ORB_SPEED := 14.0
+const RC_ORB_ACCEL := 30.0
+const RC_ORB_TURN := 3.2
+const RC_ORB_DEADZONE := 1.0
+const RC_ORB_MAX_DISTANCE := 23.0
+const RC_ORB_LIFETIME := 6.0
+const RC_ORB_RADIUS := 0.47
+const RC_ORB_BLAST_RADIUS := 2.7
+const RC_ORB_LAUNCH_OFFSET := 0.72
 
 var _role := "client"
 var _host := "127.0.0.1"
@@ -115,6 +125,12 @@ var _area_strike_serial_seen := {}
 var _area_strikes: Node3D
 var _area_burns: Node3D
 var _homing_held_last := {}
+var _server_rc_orbs := {}
+var _rc_orb_visuals := {}
+var _rc_fire_prev := {}
+var _rc_shot_count := 0
+var _rc_detonation_count := 0
+var _rc_hit_count := 0
 
 var _players: Node3D
 var _spawner: MultiplayerSpawner
@@ -216,6 +232,14 @@ func _process(_delta: float) -> void:
 	var local: Node3D = local_player()
 	var target: Vector3 = Vector3.ZERO if local == null \
 		else ELEVATED_COURSE.camera_target(local.global_position)
+	# The RC orb is the player's active viewpoint. Its visual is fed by the
+	# authoritative lightweight projectile snapshots, so the camera follows the
+	# same state every observer sees and cleanly returns to the Jeep on the
+	# reliable terminal event.
+	if local != null:
+		var rc_visual: Variant = _rc_orb_visuals.get(int(local.name))
+		if is_instance_valid(rc_visual):
+			target = ELEVATED_COURSE.camera_target((rc_visual as Node3D).global_position)
 	var yaw := deg_to_rad(45.0)
 	var pitch := deg_to_rad(55.0)
 	var horizontal := cos(pitch) * 80.0
@@ -1238,12 +1262,19 @@ func cursor_offset_for(body: Node3D) -> Vector2:
 	var direction := _camera.project_ray_normal(mouse)
 	if absf(direction.y) < 0.00001:
 		return Vector2.ZERO
-	var road_plane_y := body.global_position.y - PLAYER_RADIUS
+	var control_origin := body.global_position
+	# During RC flight the camera is centered on the orb. Measure the mouse at
+	# that same world point, otherwise its angular change is compressed by the
+	# parked Jeep-to-orb distance and steering appears unresponsive.
+	var rc_visual: Variant = _rc_orb_visuals.get(int(body.name))
+	if is_instance_valid(rc_visual):
+		control_origin = (rc_visual as Node3D).global_position
+	var road_plane_y := control_origin.y - PLAYER_RADIUS
 	var t := (road_plane_y - origin.y) / direction.y
 	if t < 0.0:
 		return Vector2.ZERO
 	var hit := origin + direction * t
-	var delta := hit - body.global_position
+	var delta := hit - control_origin
 	return Vector2(delta.x, delta.z).limit_length(FOLLOW.MAX_DISTANCE)
 
 func is_scripted_client() -> bool:
@@ -1295,6 +1326,12 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			# Vacuum has no aim input. A zero drive cursor proves the ball enters
 			# solely because it is inside the centered field.
 			return {"cursor_offset": Vector2.ZERO, "tractor": true, "editing": false}
+		"rc-orb":
+			var elapsed: int = NetworkTime.tick - _start_tick
+			return {"cursor_offset": Vector2(FOLLOW.MAX_DISTANCE, 0.0),
+				"rc_fire_held": elapsed >= 20 and elapsed < 24,
+				"rc_detonate_held": elapsed >= 130 and elapsed < 134,
+				"editing": false}
 		"combat":
 			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 		"combat-edit":
@@ -1328,6 +1365,7 @@ func _on_tick(delta: float, tick: int) -> void:
 	var elapsed := tick - _start_tick
 	if multiplayer.is_server():
 		_service_area_weapons()
+		_service_rc_orbs(delta, tick)
 		_service_auto_combat(delta, tick)
 		_track_server_contacts()
 		_track_server_ball()
@@ -1353,8 +1391,163 @@ func _on_tick(delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d players=%d world=%s pos=(%.3f,%.3f) speed=%.3f map=%d cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), _players.get_child_count(), _client_world_positions(), local.position.x, local.position.z, local.speed(), int(local.get("map_id")), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d dets=%d impacthits=%d shieldhits=%d impactmax=%.3f coursemaps=%d courseoff=%d gatetransitions=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _det_nullification_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed, _server_course_map_count(), _server_course_off_count(), _server_gate_transition_count()])
+			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d dets=%d impacthits=%d shieldhits=%d impactmax=%.3f rcshots=%d rcdets=%d rchits=%d coursemaps=%d courseoff=%d gatetransitions=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _det_nullification_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed, _rc_shot_count, _rc_detonation_count, _rc_hit_count, _server_course_map_count(), _server_course_off_count(), _server_gate_transition_count()])
 		get_tree().quit()
+
+## RC orbs are an event-driven, server-authored object family: only a small
+## position/velocity record exists on the server, and presentation receives
+## spawn/end events plus lightweight snapshots. They deliberately are not
+## rollback rigid bodies; a player may only have one, so the cost remains
+## bounded as the arena gains ordinary physics objects.
+func _service_rc_orbs(delta: float, tick: int) -> void:
+	for player_node in _players.get_children():
+		var pilot := player_node as RigidBody3D
+		if pilot == null:
+			continue
+		var input := pilot.get_node_or_null("Input")
+		var pilot_id := int(pilot.name)
+		var fire_held := input != null and bool(input.get("rc_fire_held")) \
+			and not bool(input.get("editing")) and not bool(pilot.get("is_cloaked"))
+		if fire_held and not bool(_rc_fire_prev.get(pilot_id, false)) \
+			and not _server_rc_orbs.has(pilot_id):
+			_spawn_rc_orb(pilot_id, pilot)
+		_rc_fire_prev[pilot_id] = fire_held
+
+	for pilot_id_value in _server_rc_orbs.keys():
+		var pilot_id := int(pilot_id_value)
+		var orb: Dictionary = _server_rc_orbs[pilot_id]
+		var pilot := _players.get_node_or_null(str(pilot_id)) as RigidBody3D
+		if pilot == null:
+			_end_rc_orb(pilot_id, false, "pilot_left", tick)
+			continue
+		var input := pilot.get_node_or_null("Input")
+		var detonate := input != null and bool(input.get("rc_detonate_held"))
+		var detonate_previous := bool(orb.get("detonate_previous", false))
+		if detonate and not detonate_previous:
+			_end_rc_orb(pilot_id, true, "manual", tick)
+			continue
+		orb["detonate_previous"] = detonate
+		var position: Vector3 = orb["position"]
+		var velocity: Vector3 = orb["velocity"]
+		var cursor_offset: Vector2 = input.get("cursor_offset") if input != null else Vector2.ZERO
+		# The cursor is a steering ray from the parked Jeep, not an RC waypoint.
+		# Using the orb-to-cursor distance here made it brake at the line and turn
+		# back toward it. Keep its full motor speed so it can cross the arena and
+		# only end through detonation, a collision, or its fuse.
+		var steer := Vector3(cursor_offset.x, 0.0, cursor_offset.y)
+		var heading := Vector3(velocity.x, 0.0, velocity.z).normalized()
+		if heading.is_zero_approx():
+			heading = pilot.get("aim") as Vector3
+		if heading.is_zero_approx():
+			heading = -pilot.global_basis.z
+		if not steer.is_zero_approx():
+			var bearing := heading.signed_angle_to(steer.normalized(), Vector3.UP)
+			heading = heading.rotated(Vector3.UP,
+				clampf(bearing, -RC_ORB_TURN * delta, RC_ORB_TURN * delta)).normalized()
+		velocity = velocity.move_toward(heading * RC_ORB_SPEED, RC_ORB_ACCEL * delta)
+		var finish := position + velocity * delta
+		var wall_query := PhysicsRayQueryParameters3D.create(position, finish, 1)
+		wall_query.exclude = _combat_dynamic_rids()
+		if not get_world_3d().direct_space_state.intersect_ray(wall_query).is_empty():
+			orb["position"] = finish
+			_end_rc_orb(pilot_id, true, "wall", tick)
+			continue
+		var hit_player: RigidBody3D
+		for candidate_node in _players.get_children():
+			var candidate := candidate_node as RigidBody3D
+			if candidate == null or candidate == pilot:
+				continue
+			if IMPACT_CONTROLLER.segment_sphere_entry(position, finish, candidate.global_position,
+					PLAYER_RADIUS + RC_ORB_RADIUS) <= 1.0:
+				hit_player = candidate
+				break
+		orb["position"] = finish
+		orb["velocity"] = velocity
+		orb["age"] = float(orb["age"]) + delta
+		if hit_player != null:
+			_end_rc_orb(pilot_id, true, "ram", tick)
+		elif float(orb["age"]) >= RC_ORB_LIFETIME:
+			_end_rc_orb(pilot_id, true, "fuse", tick)
+		else:
+			_server_rc_orbs[pilot_id] = orb
+			_sync_rc_orb.rpc(pilot_id, finish, velocity, RC_ORB_LIFETIME - float(orb["age"]))
+
+func _spawn_rc_orb(pilot_id: int, pilot: RigidBody3D) -> void:
+	var heading: Vector3 = pilot.get("aim")
+	if heading.is_zero_approx():
+		heading = -pilot.global_basis.z
+	heading.y = 0.0
+	heading = heading.normalized()
+	# Start at the Jeep's nose rather than outside its collision envelope; the
+	# pilot is excluded from the RC collision sweep, so this stays safe.
+	var origin := pilot.global_position + heading * RC_ORB_LAUNCH_OFFSET
+	_server_rc_orbs[pilot_id] = {"position": origin, "velocity": heading * RC_ORB_SPEED,
+		"age": 0.0, "detonate_previous": false}
+	_set_rc_pilot_active.rpc(pilot_id, true)
+	_rc_shot_count += 1
+	_log("RCSPAWN tick=%d shooter=%d" % [NetworkTime.tick, pilot_id])
+	_spawn_rc_orb_visual.rpc(pilot_id, origin, RC_ORB_LIFETIME)
+
+func _end_rc_orb(pilot_id: int, detonate: bool, reason: String, tick: int) -> void:
+	var orb: Dictionary = _server_rc_orbs.get(pilot_id, {})
+	if orb.is_empty():
+		return
+	var position: Vector3 = orb["position"]
+	_server_rc_orbs.erase(pilot_id)
+	_set_rc_pilot_active.rpc(pilot_id, false)
+	if detonate:
+		_rc_detonation_count += 1
+		_apply_rc_blast(pilot_id, position)
+		_register_world_impact.rpc(-100000 - pilot_id - tick, position, Vector3.UP)
+	_log("RCDET tick=%d shooter=%d reason=%s" % [tick, pilot_id, reason])
+	_end_rc_orb_visual.rpc(pilot_id)
+
+func _apply_rc_blast(pilot_id: int, position: Vector3) -> void:
+	for player_node in _players.get_children():
+		var target := player_node as RigidBody3D
+		if target == null or int(target.name) == pilot_id:
+			continue
+		var away := target.global_position - position
+		away.y = 0.0
+		var distance := away.length()
+		if distance > RC_ORB_BLAST_RADIUS + PLAYER_RADIUS:
+			continue
+		var strength := clampf(1.0 - distance / (RC_ORB_BLAST_RADIUS + PLAYER_RADIUS), 0.25, 1.0)
+		var response := IMPACT_CONTROLLER.response(away.normalized(), bool(target.get("shield_up")))
+		target.call("apply_external_impact", (response["linear_impulse"] as Vector3) * strength,
+			(response["torque_impulse"] as Vector3) * strength, response["recovery_time"],
+			bool(target.get("shield_up")))
+		_rc_hit_count += 1
+
+@rpc("authority", "call_local", "reliable")
+func _spawn_rc_orb_visual(pilot_id: int, position: Vector3, remaining_life: float) -> void:
+	if _is_headless():
+		return
+	var visual := Node3D.new()
+	visual.name = "RcOrb_%d" % pilot_id
+	visual.set_script(RC_ORB_VISUAL_SCRIPT)
+	_combat_bolts.add_child(visual)
+	visual.call("setup", position, remaining_life)
+	_rc_orb_visuals[pilot_id] = visual
+
+@rpc("authority", "call_remote", "unreliable")
+func _sync_rc_orb(pilot_id: int, position: Vector3, _velocity: Vector3, remaining_life: float) -> void:
+	var visual: Variant = _rc_orb_visuals.get(pilot_id)
+	if is_instance_valid(visual):
+		(visual as Node).call("update_state", position, remaining_life)
+
+@rpc("authority", "call_local", "reliable")
+func _end_rc_orb_visual(pilot_id: int) -> void:
+	var visual: Variant = _rc_orb_visuals.get(pilot_id)
+	if is_instance_valid(visual):
+		(visual as Node).queue_free()
+	_rc_orb_visuals.erase(pilot_id)
+
+@rpc("authority", "call_local", "reliable")
+func _set_rc_pilot_active(pilot_id: int, active: bool) -> void:
+	var pilot := _players.get_node_or_null(str(pilot_id))
+	if pilot != null:
+		pilot.call("set_rc_pilot_active", active)
 
 func _service_auto_combat(delta: float, tick: int) -> void:
 	_step_server_bolts(delta)
@@ -1366,7 +1559,7 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 			continue
 		var input := body.get_node_or_null("Input")
 		if input == null or bool(input.get("editing")) or bool(body.get("is_cloaked")) \
-				or bool(body.get("area_weapon_armed")):
+				or bool(body.get("area_weapon_armed")) or bool(body.get("rc_pilot_active")):
 			continue
 		var owner_id := int(body.name)
 		var config := _configuration_for(owner_id)
@@ -1614,7 +1807,7 @@ func _nearest_drone_target() -> RigidBody3D:
 	for player_node in _players.get_children():
 		var body := player_node as RigidBody3D
 		if body == null or int(body.get("map_id")) != MAP_LAYOUT.ARENA \
-				or bool(body.get("is_cloaked")):
+				or bool(body.get("is_cloaked")) or bool(body.get("rc_pilot_active")):
 			continue
 		var input := body.get_node_or_null("Input")
 		if input == null or bool(input.get("editing")):
@@ -1649,7 +1842,6 @@ func _step_server_bolts(delta: float) -> void:
 		if not wall_hit.is_empty() and segment.length_squared() > 0.0001:
 			wall_fraction = start.distance_to(wall_hit["position"]) / segment.length()
 			wall_position = wall_hit["position"]
-		var kind := int(bolt.get("kind", BOLT_KIND_PLAYER))
 		var detonator: RigidBody3D
 		var det_fraction := 1.01
 		for player_node in _players.get_children():

@@ -11,6 +11,7 @@ const SHIELD_VISUAL := preload("res://fx/vehicle_shield.gd")
 const SHIELD_DRONE := preload("res://combat/shield_drone.gd")
 const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
 const HOMING_VISUAL := preload("res://combat/homing_missile_visual.gd")
+const RC_ORB_VISUAL := preload("res://combat/rc_orb_visual.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -109,6 +110,13 @@ func _init() -> void:
 		push_error("CLOAK_WIPE_TEST FAIL: cloak must cut front-to-back and return back-to-front")
 		quit(1)
 		return
+	var rc_orb := RC_ORB_VISUAL.new()
+	rc_orb.call("_ready")
+	if rc_orb.get_child_count() != 4:
+		push_error("RC_ORB_ASSET_TEST FAIL: energy orb must retain core, flow, and two satellites")
+		quit(1)
+		return
+	rc_orb.free()
 	var shield_shader := load("res://fx/vehicle_shield.gdshader") as Shader
 	if shield_shader == null or shield_shader.code.is_empty():
 		push_error("SHIELD_SHADER_TEST FAIL: glass shield shader did not load")
@@ -161,7 +169,8 @@ func _init() -> void:
 		push_error("CURSOR_SPEED_MARKER_TEST FAIL: local cursor path must show its max-speed point")
 		quit(1)
 		return
-	if "DisplayServer.window_set_title(\"Car Fight — %s\" % _player_name)" not in main_source:
+	if "DisplayServer.window_set_title(\"Car Fight — %s\" % _player_name)" not in main_source \
+			and "DisplayServer.window_set_title(\"CAR FIGHT — %s — %s\" % [_session_label, _player_name])" not in main_source:
 		push_error("CLIENT_WINDOW_TITLE_TEST FAIL: client title must include the session name")
 		quit(1)
 		return
