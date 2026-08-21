@@ -8,6 +8,13 @@
 
 ## Completed
 
+- Added the `feature/pickup-dropoff` worktree prototype: a green recruitment
+  area streams lightweight visible troops into a car only while it remains in
+  range; a red destination area accepts a held `F` deployment only while the
+  car is inside its radius. Troops visibly walk from the source to the car and
+  from the car to the destination. The server owns accounting and broadcasts
+  spawn/arrival events; troops are not rollback physics bodies. Added a
+  focused radius/input contract test and the offline integration check passes.
 - Created the `feature/area-weapon` Car Fight worktree. Ported G2 Splash's slot-3 arm→hold/drag→release interaction as rollback-synchronized input/state: bounded tap clusters and 18-unit bombing runs release five server-authored impacts, which apply a compact jostle and leave lightweight authoritative burn zones. The isometric aircraft, falling bombs, target reticle shader, and fire-ground presentation are carried into the Car Fight visual language. Pressing `3` calls the plane in from offscreen and it hovers/orbits the live cursor target; holding the drag adds five live reticles showing the exact server-bounded footprint. Release fires one strike then immediately returns to default auto-fire. The rendered client title is `Car Fight — Area Weapon` to distinguish this worktree. Added the focused area-gesture layout test; complete `./scripts/test.sh` passes, including the 120 ms network check.
 - Added a fixed, non-targetable arena drone that fires a slow server-authored bolt every two seconds at the nearest visible driving player.
 - Added authoritative player impacts with a small linear deflection, torque jostle, and short steering-recovery window.
@@ -96,6 +103,9 @@
 
 ## Next
 
+- Feel-test the pickup/dropoff rates and pad placement in a monitored window;
+  decide whether delivery should be a hold-to-stream action or a single-key
+  batch once the drive-in interaction has been evaluated.
 - Keep the merged `master` as the integration baseline; the feature worktrees are no longer needed for gameplay integration.
 - Deploy to macai2 only as a separate explicit step; this merge did not alter the production UDP 10080 service.
 - Resume feature development from this accepted Godot implementation rather than reconstructing existing gameplay in Unity.
