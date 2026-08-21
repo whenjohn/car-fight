@@ -35,7 +35,6 @@ const CLOAK_CUT_FRONT := 2.10
 const CLOAK_CUT_BACK := -2.10
 
 var _body: Node3D
-var body_tint := Color(0.0, 0.0, 0.0, 0.0)
 var _chassis_lean: Node3D
 var _front_steer_nodes: Array[Node3D] = []
 var _wheel_spin_nodes: Array[Node3D] = []
@@ -170,8 +169,6 @@ func _build_selected_vehicle() -> void:
 	var chassis := MeshInstance3D.new()
 	chassis.name = "SeparatedChassis"
 	chassis.mesh = split["chassis"]
-	if body_tint.a > 0.0:
-		chassis.material_override = _material(body_tint, 0.12)
 	chassis_model.add_child(chassis)
 
 	var wheel_model := _model_root("WheelModel", self, float(vehicle["scale"]))

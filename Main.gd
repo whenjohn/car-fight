@@ -1118,8 +1118,6 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	var hull := Node3D.new()
 	hull.name = "GroundVehicleHull"
 	hull.set_script(HULL_SCRIPT)
-	if OS.get_environment("CAR_FIGHT_COLOR_PLAYERS") == "1":
-		hull.set("body_tint", Color("ff9f43") if owner_id == 1 else Color("45cfff"))
 	hull.position.y = -PLAYER_RADIUS
 	body.add_child(hull)
 	var shield_visual := Node3D.new()
