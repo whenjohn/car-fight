@@ -137,7 +137,7 @@ Native ENet and browser WebRTC use the same named one-way profiles: `clean`,
 ./scripts/network_matrix_test.sh         # complete native ENet matrix
 ./scripts/play_shaped.sh combined        # one monitored client through macai2
 ./scripts/play_shaped_two.sh combined    # two monitored clients through macai2
-./scripts/play_shaped_local_two.sh latency120  # two clients + moving server car
+./scripts/play_shaped_local.sh latency120      # one client + moving server car
 
 # Opt-in G2-derived transport A/B; normal game defaults remain unchanged.
 CAR_FIGHT_G2_STACK=1 ./scripts/network_test.sh latency120
@@ -159,13 +159,13 @@ off in ordinary play until the A/B evidence justifies a product-default change.
 `CAR_FIGHT_RESIM_BUDGET_MS=10` remains an explicit rejected experiment, not a
 recommended mitigation: it preserved FPS but caused large divergence.
 
-`play_shaped_local_two.sh` is the visual smoothness harness. It owns an isolated
+`play_shaped_local.sh` is the visual smoothness harness. It owns an isolated
 local server and relay, enables the G2 profile, and spawns peer 1 as a
-server-authoritative Jeep following a repeatable 24-unit circuit. Both rendered
-clients see that same body and can chase it; closing the two client windows
-stops only the processes launched by the harness. For local browser/native
+server-authoritative Jeep following a wide route through the arena's open outer
+lanes. The single rendered client can chase it; closing that client window stops
+only the processes launched by the harness. For local browser/native
 comparison, run `CAR_FIGHT_G2_STACK=1 ./scripts/play_web_network_local.sh`; its
-server circuit car is enabled by default as well.
+server-driven car is enabled by default as well.
 
 The native relay reports received, forwarded, dropped, reordered, queued, and
 high-water packet counts in both directions. A gate fails if the configured

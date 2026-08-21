@@ -71,6 +71,17 @@ const RC_ORB_LIFETIME := 6.0
 const RC_ORB_RADIUS := 0.47
 const RC_ORB_BLAST_RADIUS := 2.7
 const RC_ORB_LAUNCH_OFFSET := 0.72
+const SERVER_DRIVER_SPAWN := Vector2(-52.0, -58.0)
+const SERVER_DRIVER_ROUTE := [
+	Vector2(-52.0, -58.0), Vector2(25.0, -58.0),
+	Vector2(52.0, -40.0), Vector2(58.0, -5.0),
+	Vector2(52.0, 25.0), Vector2(30.0, 52.0),
+	Vector2(-25.0, 58.0), Vector2(-52.0, 42.0),
+	Vector2(-62.0, 10.0), Vector2(-60.0, -25.0),
+]
+const SERVER_DRIVER_WAYPOINT_RADIUS := 5.0
+const SERVER_DRIVER_PROGRESS_DISTANCE := 2.0
+const SERVER_DRIVER_STUCK_TICKS := 180
 
 var _role := "client"
 var _transport := "enet"
@@ -100,6 +111,9 @@ var _player_name := "driver"
 var _session_label := ""
 var _scripted := ""
 var _server_driver_enabled := false
+var _server_driver_waypoint := 1
+var _server_driver_progress_tick := -1
+var _server_driver_progress_position := Vector2.ZERO
 var _quit_after_ticks := 0
 var _to_port := DEFAULT_PORT
 var _proxy_server_host := "127.0.0.1"
@@ -795,9 +809,15 @@ func _on_peer_join(id: int) -> void:
 func _spawn_server_driver() -> void:
 	if not multiplayer.is_server() or _players.get_node_or_null("1") != null:
 		return
-	_log("SERVER_DRIVER spawn id=1 slot=%d path=circuit" % _next_spawn_slot)
+	_log("SERVER_DRIVER spawn id=1 slot=%d path=open-perimeter" % _next_spawn_slot)
 	_spawner.spawn({"id": 1, "slot": _next_spawn_slot,
+		"position": Vector3(SERVER_DRIVER_SPAWN.x,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y),
+		"yaw": -PI * 0.5,
 		"remote_generation": _allocate_remote_state_generation()})
+	_server_driver_waypoint = 1
+	_server_driver_progress_tick = -1
+	_server_driver_progress_position = SERVER_DRIVER_SPAWN
 	_next_spawn_slot += 1
 
 func _on_peer_leave(id: int) -> void:
@@ -943,6 +963,10 @@ func _spawn_player(data: Variant) -> Node:
 	body.contact_monitor = true
 	body.max_contacts_reported = 8
 	var spawn := _spawn_transform(slot)
+	if info.has("position"):
+		spawn.origin = info["position"] as Vector3
+	if info.has("yaw"):
+		spawn.basis = Basis(Vector3.UP, float(info["yaw"]))
 	body.position = spawn.origin
 	body.rotation.y = spawn.basis.get_euler().y
 	var physics_material := PhysicsMaterial.new()
@@ -1735,17 +1759,40 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
 func _server_driver_input(body: Node3D) -> Dictionary:
-	# A slow, repeatable authoritative circuit gives rendered clients one target
-	# to chase while evaluating remote interpolation under shaping.
-	var origin_tick := maxi(_start_tick, 0)
-	var elapsed_seconds := float(maxi(0, NetworkTime.tick - origin_tick)) \
-		/ float(NetworkTime.tickrate)
-	var phase := elapsed_seconds * 0.18
-	var target := Vector3(cos(phase) * 24.0, body.global_position.y,
-		sin(phase) * 24.0)
-	var delta := target - body.global_position
-	return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(
+	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+	var delta := Vector2(waypoint.x - body.global_position.x,
+		waypoint.y - body.global_position.z)
+	return {"cursor_offset": delta.limit_length(
 		FOLLOW.MAX_DISTANCE), "burst": false, "editing": false}
+
+func _service_server_driver_route(tick: int) -> void:
+	if not _server_driver_enabled:
+		return
+	var body := _players.get_node_or_null("1") as RigidBody3D
+	if body == null:
+		return
+	var position := Vector2(body.global_position.x, body.global_position.z)
+	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+	if position.distance_to(waypoint) <= SERVER_DRIVER_WAYPOINT_RADIUS:
+		_server_driver_waypoint = (_server_driver_waypoint + 1) % SERVER_DRIVER_ROUTE.size()
+		_server_driver_progress_tick = tick
+		_server_driver_progress_position = position
+		waypoint = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+	elif _server_driver_progress_tick < 0 \
+			or position.distance_to(_server_driver_progress_position) \
+			>= SERVER_DRIVER_PROGRESS_DISTANCE:
+		_server_driver_progress_tick = tick
+		_server_driver_progress_position = position
+	elif tick - _server_driver_progress_tick >= SERVER_DRIVER_STUCK_TICKS:
+		_server_driver_waypoint = (_server_driver_waypoint + 1) % SERVER_DRIVER_ROUTE.size()
+		_server_driver_progress_tick = tick
+		_server_driver_progress_position = position
+		waypoint = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+		_log("SERVER_DRIVER escape tick=%d next=%d" % [tick, _server_driver_waypoint])
+	if tick % 60 == 0:
+		_log("SERVER_DRIVER tick=%d waypoint=%d pos=(%.1f,%.1f) target=(%.1f,%.1f) speed=%.1f" % [
+			tick, _server_driver_waypoint, position.x, position.y,
+			waypoint.x, waypoint.y, body.linear_velocity.length()])
 
 func local_player():
 	if _players == null:
@@ -1774,6 +1821,7 @@ func _on_tick(delta: float, tick: int) -> void:
 			_mux_peer.call("close_inner", "enet")
 		_log("MUX_TEST_CLOSED transport=%s tick=%d" % [_mux_close_transport_test, elapsed])
 	if multiplayer.is_server():
+		_service_server_driver_route(tick)
 		_service_area_weapons()
 		_service_rc_orbs(delta, tick)
 		_service_auto_combat(delta, tick)

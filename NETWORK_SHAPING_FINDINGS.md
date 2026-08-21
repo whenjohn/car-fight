@@ -62,12 +62,11 @@ The corrected native run also proved that batch presentation was carrying real
 bodies rather than empty envelopes: each peer received one self-excluded remote
 body, with 25 non-empty envelopes and 2,200 logical bytes per reporting window.
 
-For human smoothness checks, `scripts/play_shaped_local_two.sh` adds peer 1 as a
-server-authoritative Jeep on a repeatable 24-unit circuit. Its input is generated
-on the server, it does not auto-fire, and both shaped clients receive the same
-body through the full profile. This is the Car Fight equivalent of G2's moving
-server fixture: drive behind it and judge the remote hull rather than comparing
-two independently controlled client cars.
+For human smoothness checks, `scripts/play_shaped_local.sh` adds peer 1 as a
+server-authoritative Jeep on a wide route through the open outer lanes. Its input
+is generated on the server, it does not auto-fire, and the shaped observer
+receives the body through the full profile. This is the Car Fight equivalent of
+G2's moving server fixture: drive behind it and judge the remote hull.
 
 ## Native desynchronization under 120 ms one-way latency
 
