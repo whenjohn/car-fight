@@ -71,15 +71,12 @@ const RC_ORB_LIFETIME := 6.0
 const RC_ORB_RADIUS := 0.47
 const RC_ORB_BLAST_RADIUS := 2.7
 const RC_ORB_LAUNCH_OFFSET := 0.72
-const SERVER_DRIVER_SPAWN := Vector2(-42.0, -48.0)
+const SERVER_DRIVER_SPAWN := Vector2(-52.0, -55.0)
 const SERVER_DRIVER_ROUTE := [
-	Vector2(-42.0, -48.0), Vector2(0.0, -52.0),
-	Vector2(38.0, -48.0), Vector2(52.0, -40.0),
-	Vector2(58.0, -18.0), Vector2(56.0, 12.0),
-	Vector2(44.0, 30.0), Vector2(20.0, 42.0),
-	Vector2(-12.0, 45.0), Vector2(-38.0, 38.0),
-	Vector2(-52.0, 22.0), Vector2(-58.0, -5.0),
-	Vector2(-54.0, -30.0),
+	Vector2(-52.0, -55.0), Vector2(52.0, -55.0),
+	Vector2(58.0, -45.0), Vector2(58.0, 40.0),
+	Vector2(52.0, 55.0), Vector2(-52.0, 55.0),
+	Vector2(-58.0, 40.0), Vector2(-58.0, -45.0),
 ]
 const SERVER_DRIVER_WAYPOINT_RADIUS := 5.0
 const SERVER_DRIVER_PROGRESS_DISTANCE := 2.0

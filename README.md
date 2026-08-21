@@ -161,8 +161,8 @@ recommended mitigation: it preserved FPS but caused large divergence.
 
 `play_shaped_local.sh` is the visual smoothness harness. It owns an isolated
 local server and relay, enables the G2 profile, and spawns peer 1 as a
-server-authoritative Jeep following a wide route through the arena's open outer
-lanes. The observer spawns beside it, the route stays clear of the driving-course
+server-authoritative Jeep following long straight runs around the arena's open
+perimeter, joined by short chamfered corners. The observer spawns beside it, the route stays clear of the driving-course
 gate, and the harness removes the elevated ramps on both server and client to
 leave a flat arena for the moving test target. It also disables the physical
 arena ball, shield-test drone presentation, and the orange marker mounted above
