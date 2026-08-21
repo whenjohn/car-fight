@@ -130,6 +130,7 @@ var _course_test := false
 var _reverse_test := false
 var _gate_test := false
 var _drone_enabled := true
+var _ball_enabled := true
 var _start_tick := -1
 var _next_spawn_slot := 0
 var _next_remote_state_generation := 1
@@ -340,6 +341,8 @@ func _process(_delta: float) -> void:
 
 func _parse_args() -> void:
 	_ramps_enabled = OS.get_environment("CAR_FIGHT_NO_RAMPS") != "1"
+	_drone_enabled = OS.get_environment("CAR_FIGHT_NO_DRONE") != "1"
+	_ball_enabled = OS.get_environment("CAR_FIGHT_NO_BALL") != "1"
 	# Keep the accepted offline export unchanged. The separate Web Network
 	# preset opts into the browser WebRTC client with a custom feature.
 	if OS.has_feature("web"):
@@ -521,6 +524,8 @@ func _parse_args() -> void:
 			_gate_test = true
 		elif arg == "--no-drone":
 			_drone_enabled = false
+		elif arg == "--no-ball":
+			_ball_enabled = false
 		elif arg.begins_with("--host="):
 			_host = arg.get_slice("=", 1)
 			_proxy_server_host = _host
@@ -820,7 +825,7 @@ func _on_peer_join(id: int) -> void:
 		target_counts.append(int(target.get("hit_count")))
 	_sync_target_hits.rpc_id(id, target_counts)
 	_next_spawn_slot += 1
-	if not _ball_seeded:
+	if _ball_enabled and not _ball_seeded:
 		_ball_seeded = true
 		_ball_spawner.spawn({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
 	_dots.call("send_state_to", id)

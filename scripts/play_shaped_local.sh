@@ -37,7 +37,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 mkdir -p "$run_root/client"
-"$godot_bin" --headless --path "$project_root" -- --server --no-drone \
+"$godot_bin" --headless --path "$project_root" -- --server --no-drone --no-ball \
 	--server-driver --no-ramps --port "$server_port" "${stack_args[@]}" \
 	>"$run_root/server.log" 2>&1 &
 server_pid=$!
@@ -64,7 +64,8 @@ echo "server open-area car: peer 1"
 echo "one-way: ${CAR_FIGHT_SHAPE_LATENCY_MS}ms jitter=+/-${CAR_FIGHT_SHAPE_JITTER_MS}ms loss=${CAR_FIGHT_SHAPE_LOSS_PCT}%"
 echo "evidence: $run_root"
 
-CAR_FIGHT_G2_STACK=1 CAR_FIGHT_NO_RAMPS=1 CAR_FIGHT_PORT="$proxy_port" \
+CAR_FIGHT_G2_STACK=1 CAR_FIGHT_NO_RAMPS=1 CAR_FIGHT_NO_DRONE=1 \
+CAR_FIGHT_NO_BALL=1 CAR_FIGHT_PORT="$proxy_port" \
 CAR_FIGHT_MONITOR_ROOT="$run_root/client" \
 CAR_FIGHT_SESSION_LABEL="network-$profile-server-driver" \
 	"$project_root/scripts/play_monitored.sh" --host 127.0.0.1 \
