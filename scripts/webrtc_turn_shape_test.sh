@@ -29,6 +29,7 @@ remote_enet_port="${CAR_FIGHT_SHAPE_REMOTE_ENET_PORT:-12480}"
 remote_signal_port="${CAR_FIGHT_SHAPE_REMOTE_SIGNAL_PORT:-12481}"
 local_signal_port="${CAR_FIGHT_SHAPE_LOCAL_SIGNAL_PORT:-12581}"
 web_port="${CAR_FIGHT_SHAPE_WEB_PORT:-18189}"
+chrome_debug_port="${CAR_FIGHT_SHAPE_CHROME_DEBUG_PORT:-19229}"
 remote_pidfile="/tmp/car-fight-network-shaping-server.pid"
 remote_log="/tmp/car-fight-network-shaping-server.log"
 failsafe_seconds="${CAR_FIGHT_SHAPE_FAILSAFE_SECONDS:-300}"
@@ -156,7 +157,13 @@ server_drone_arg="--no-drone"
 if [[ "$enable_drone" == "1" ]]; then
 	server_drone_arg=""
 fi
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' $server_drone_arg --webrtc-telemetry --ticks 4200 $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+server_ticks_arg="--ticks 4200"
+server_fixture_arg=""
+if [[ "$interactive_browser" == "1" ]]; then
+	server_ticks_arg=""
+	server_fixture_arg="--fixture-start"
+fi
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' $server_drone_arg $server_fixture_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
@@ -207,6 +214,7 @@ if [[ "$interactive_browser" == "1" ]]; then
 	chrome_bin="${CHROME_BIN:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 	"$chrome_bin" --user-data-dir="$chrome_profile" --no-first-run \
 		--no-default-browser-check --disable-extensions --window-size=1280,815 \
+		--remote-debugging-port="$chrome_debug_port" \
 		--new-window "$browser_url" >"$run_dir/browser.stdout.log" 2>"$run_dir/browser.stderr.log" &
 	chrome_pid=$!
 	echo "browser started: $browser_url"
