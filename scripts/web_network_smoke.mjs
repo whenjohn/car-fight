@@ -158,8 +158,8 @@ async function run() {
   await drive();
   await waitForValue(() => twoPlayerLines()[1], 15000, "replacement shared-world sample");
   await waitForValue(() => telemetry.slice(secondStartIndex)
-    .filter(record => record.event === "sample").length >= 12,
-    22000, "replacement telemetry window");
+	.filter(record => record.event === "sample").length >= 18,
+	30000, "replacement telemetry window");
   const secondId = Number(secondReady.text.match(/CLIENT_READY id=(\d+)/)?.[1] || 0);
 
   // Stop driving, then wait for a clean channel sample after the active input
@@ -200,6 +200,10 @@ async function run() {
       process_ms: record.process_ms,
       physics_ms: record.physics_ms,
       slow_frames: record.slow_frames,
+      maximum_network_loop_ms: record.maximum_network_loop_ms,
+      maximum_rollback_loop_ms: record.maximum_rollback_loop_ms,
+      maximum_network_ticks: record.maximum_network_ticks,
+      maximum_rollback_ticks: record.maximum_rollback_ticks,
     })),
     steady_fps: {
       minimum: steady.length ? Math.min(...steady) : 0,
@@ -211,6 +215,11 @@ async function run() {
       final: bufferedValues.at(-1) ?? -1,
       drained_to_zero: bufferedValues.includes(0),
     },
+    network_configuration: consoleMessages
+      .filter(message => message.text.includes("[network-shape]"))
+      .map(message => message.text),
+    stale_rollback_warnings: consoleMessages
+      .filter(message => message.text.includes("Skipping stale rollback origin")).length,
     browser_performance_metrics: Object.fromEntries(
       performance.metrics.map(metric => [metric.name, metric.value])),
     errors,

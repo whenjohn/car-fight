@@ -15,6 +15,8 @@ NetworkTimeSynchronizer="*uid://5rmn2ik3kjo8"
 NetworkRollback="*uid://gas743comroj"
 NetworkEvents="*uid://bdmobxxptryj0"
 NetworkPerformance="*uid://cqgf7aqmjfoa3"
+StateBundle="*res://net/state_bundle.gd"
+RemotePositionTransport="*res://net/remote_position_transport.gd"
 
 [display]
 

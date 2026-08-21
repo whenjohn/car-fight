@@ -58,6 +58,14 @@ if [[ "${recoveries:-0}" -lt 1 || "${recoveries:-0}" -gt 2 ]]; then
 	echo "stale-origin recovery was absent or unbounded (${recoveries:-0}); logs: $log_dir" >&2
 	exit 1
 fi
+requests="$(rg -c '^\[netfox-recovery\] request .*reason=stale_authority_tick' \
+	"$log_dir/client.log" || true)"
+applied="$(rg -c '^\[netfox-recovery\] applied ' "$log_dir/client.log" || true)"
+if [[ "${requests:-0}" -lt 1 || "${requests:-0}" -gt 2 || "${applied:-0}" -lt 1 ]]; then
+	echo "reliable authority recovery failed requests=${requests:-0} applied=${applied:-0}; logs: $log_dir" >&2
+	rg 'netfox-recovery|Skipping stale rollback' "$log_dir"/*.log >&2 || true
+	exit 1
+fi
 if rg -q 'Trying to run rollback .*past the history limit|rejecting because older than' \
 		"$log_dir"/*.log; then
 	echo "join-transient produced an impossible rollback or stale-packet flood; logs: $log_dir" >&2
@@ -76,5 +84,5 @@ if rg -q 'SCRIPT ERROR|Parse Error|Failed to load script' "$log_dir"/*.log; then
 	exit 1
 fi
 
-echo "JOIN_TRANSIENT_TEST PASS recoveries=${recoveries:-0} post_stall_tick=500"
+echo "JOIN_TRANSIENT_TEST PASS recoveries=${recoveries:-0} reliable_requests=${requests:-0} applied=${applied:-0} post_stall_tick=500"
 echo "logs: $log_dir"

@@ -72,6 +72,17 @@ const RC_ORB_LIFETIME := 6.0
 const RC_ORB_RADIUS := 0.47
 const RC_ORB_BLAST_RADIUS := 2.7
 const RC_ORB_LAUNCH_OFFSET := 0.72
+const SERVER_DRIVER_SPAWN := Vector2(-52.0, -55.0)
+const SERVER_DRIVER_ROUTE := [
+	Vector2(-52.0, -55.0), Vector2(52.0, -55.0),
+	Vector2(58.0, -45.0), Vector2(58.0, 40.0),
+	Vector2(52.0, 55.0), Vector2(-52.0, 55.0),
+	Vector2(-58.0, 40.0), Vector2(-58.0, -45.0),
+]
+const SERVER_DRIVER_WAYPOINT_RADIUS := 5.0
+const SERVER_DRIVER_PROGRESS_DISTANCE := 2.0
+const SERVER_DRIVER_STUCK_TICKS := 180
+const SERVER_DRIVER_ARENA_LIMIT := ARENA_HALF + 4.0
 
 var _role := "client"
 var _transport := "enet"
@@ -82,23 +93,45 @@ var _signal_url := ""
 var _ice_servers: Array = []
 var _ice_relay_only := false
 var _webrtc_channel_telemetry := false
+var _state_bundles := false
+var _input_broadcast := false
+var _packed_input := false
+var _packed_state := false
+var _state_rate_divisor := 1
+var _adaptive_state_rate := false
+var _network_app_telemetry := false
+var _remote_state_push := true
+var _remote_state_transport := "legacy"
+var _remote_state_rate := 60
+var _remote_state_relevance := "all"
+var _remote_state_include_self := true
+var _resim_budget_ms := 0.0
 var _mux_collision_test := false
 var _mux_close_transport_test := ""
 var _player_name := "driver"
 var _session_label := ""
 var _scripted := ""
+var _server_driver_enabled := false
+var _ramps_enabled := true
+var _server_driver_waypoint := 1
+var _server_driver_progress_tick := -1
+var _server_driver_progress_position := Vector2.ZERO
 var _quit_after_ticks := 0
 var _to_port := DEFAULT_PORT
+var _proxy_server_host := "127.0.0.1"
 var _latency_ms := 0
 var _jitter_ms := 0
 var _loss_pct := 0.0
+var _shape_seed := 0xCA4F19
 var _force_presentation := false
 var _course_test := false
 var _reverse_test := false
 var _gate_test := false
 var _drone_enabled := true
+var _ball_enabled := true
 var _start_tick := -1
 var _next_spawn_slot := 0
+var _next_remote_state_generation := 1
 var _contact_seen := false
 var _minimum_pair_distance := INF
 var _prediction_history := {}
@@ -168,6 +201,7 @@ var _network_status := ""
 
 func _ready() -> void:
 	_parse_args()
+	_configure_network_stack()
 	_set_client_window_title()
 	_start_crash_telemetry()
 	_start_window_safety()
@@ -308,6 +342,9 @@ func _process(_delta: float) -> void:
 	_update_editor_label()
 
 func _parse_args() -> void:
+	_ramps_enabled = OS.get_environment("CAR_FIGHT_NO_RAMPS") != "1"
+	_drone_enabled = OS.get_environment("CAR_FIGHT_NO_DRONE") != "1"
+	_ball_enabled = OS.get_environment("CAR_FIGHT_NO_BALL") != "1"
 	# Keep the accepted offline export unchanged. The separate Web Network
 	# preset opts into the browser WebRTC client with a custom feature.
 	if OS.has_feature("web"):
@@ -321,6 +358,57 @@ func _parse_args() -> void:
 			if not browser_name.is_empty():
 				_player_name = browser_name
 			_webrtc_channel_telemetry = _web_query("webrtcTelemetry") == "1"
+			var bundles_query := _web_query("stateBundles")
+			if not bundles_query.is_empty():
+				_state_bundles = bundles_query == "1"
+			var input_broadcast_query := _web_query("inputBroadcast")
+			if not input_broadcast_query.is_empty():
+				_input_broadcast = input_broadcast_query == "1"
+			var packed_input_query := _web_query("packedInput")
+			if not packed_input_query.is_empty():
+				_packed_input = packed_input_query == "1"
+			var packed_state_query := _web_query("packedState")
+			if not packed_state_query.is_empty():
+				_packed_state = packed_state_query == "1"
+			var state_rate_query := _web_query("stateRateDivisor")
+			if state_rate_query.is_valid_int():
+				_state_rate_divisor = maxi(1, int(state_rate_query))
+			var adaptive_rate_query := _web_query("adaptiveStateRate")
+			if not adaptive_rate_query.is_empty():
+				_adaptive_state_rate = adaptive_rate_query == "1"
+			_network_app_telemetry = _web_query("netTelemetry") == "1"
+			var remote_transport_query := _web_query("remoteStateTransport")
+			if remote_transport_query in ["legacy", "batch"]:
+				_remote_state_transport = remote_transport_query
+			var remote_rate_query := _web_query("remoteStateRate")
+			if int(remote_rate_query) in [20, 30, 60]:
+				_remote_state_rate = int(remote_rate_query)
+			var remote_relevance_query := _web_query("remoteStateRelevance")
+			if remote_relevance_query in ["all", "same-map"]:
+				_remote_state_relevance = remote_relevance_query
+			var remote_self_query := _web_query("remoteStateIncludeSelf")
+			if not remote_self_query.is_empty():
+				_remote_state_include_self = remote_self_query == "1"
+			var resim_budget_query := _web_query("resimBudgetMs")
+			if resim_budget_query.is_valid_float():
+				_resim_budget_ms = maxf(0.0, float(resim_budget_query))
+			var turn_url := _web_query("turn")
+			if not turn_url.is_empty():
+				var ice_server := {"urls": [turn_url]}
+				var turn_username := _web_query("turnUser")
+				var turn_credential := _web_query("turnCredential")
+				if not turn_username.is_empty():
+					ice_server["username"] = turn_username
+				if not turn_credential.is_empty():
+					ice_server["credential"] = turn_credential
+				_ice_servers.push_back(ice_server)
+			_ice_relay_only = _web_query("relay") == "1"
+			if not turn_url.is_empty() or _ice_relay_only:
+				print("[network-shape] transport=webrtc turn=%s relay_only=%s credentials=%s" % [
+					str(not turn_url.is_empty()), str(_ice_relay_only),
+					str(not _web_query("turnUser").is_empty() and
+						not _web_query("turnCredential").is_empty()),
+				])
 		else:
 			_role = "offline"
 	var args := OS.get_cmdline_user_args()
@@ -352,6 +440,60 @@ func _parse_args() -> void:
 			_signal_url = args[index]
 		elif arg == "--webrtc-telemetry":
 			_webrtc_channel_telemetry = true
+		elif arg == "--net-telemetry":
+			_network_app_telemetry = true
+		elif arg.begins_with("--remote-state-transport="):
+			_remote_state_transport = arg.get_slice("=", 1).to_lower()
+		elif arg == "--remote-state-transport" and index + 1 < args.size():
+			index += 1
+			_remote_state_transport = args[index].to_lower()
+		elif arg.begins_with("--remote-state-rate="):
+			_remote_state_rate = int(arg.get_slice("=", 1))
+		elif arg == "--remote-state-rate" and index + 1 < args.size():
+			index += 1
+			_remote_state_rate = int(args[index])
+		elif arg.begins_with("--remote-state-relevance="):
+			_remote_state_relevance = arg.get_slice("=", 1).to_lower()
+		elif arg == "--remote-state-relevance" and index + 1 < args.size():
+			index += 1
+			_remote_state_relevance = args[index].to_lower()
+		elif arg.begins_with("--remote-state-include-self="):
+			_remote_state_include_self = int(arg.get_slice("=", 1)) != 0
+		elif arg == "--remote-state-include-self" and index + 1 < args.size():
+			index += 1
+			_remote_state_include_self = int(args[index]) != 0
+		elif arg.begins_with("--resim-budget-ms="):
+			_resim_budget_ms = maxf(0.0, float(arg.get_slice("=", 1)))
+		elif arg == "--resim-budget-ms" and index + 1 < args.size():
+			index += 1
+			_resim_budget_ms = maxf(0.0, float(args[index]))
+		elif arg == "--state-bundles":
+			_state_bundles = true
+		elif arg == "--no-state-bundles":
+			_state_bundles = false
+		elif arg == "--packed-input":
+			_packed_input = true
+		elif arg == "--no-packed-input":
+			_packed_input = false
+		elif arg == "--packed-state":
+			_packed_state = true
+		elif arg == "--no-packed-state":
+			_packed_state = false
+		elif arg.begins_with("--input-broadcast="):
+			_input_broadcast = int(arg.get_slice("=", 1)) != 0
+		elif arg == "--input-broadcast" and index + 1 < args.size():
+			index += 1
+			_input_broadcast = int(args[index]) != 0
+		elif arg.begins_with("--state-rate-divisor="):
+			_state_rate_divisor = maxi(1, int(arg.get_slice("=", 1)))
+		elif arg == "--state-rate-divisor" and index + 1 < args.size():
+			index += 1
+			_state_rate_divisor = maxi(1, int(args[index]))
+		elif arg.begins_with("--adaptive-state-rate="):
+			_adaptive_state_rate = int(arg.get_slice("=", 1)) != 0
+		elif arg == "--adaptive-state-rate" and index + 1 < args.size():
+			index += 1
+			_adaptive_state_rate = int(args[index]) != 0
 		elif arg == "--ice-relay-only":
 			_ice_relay_only = true
 		elif arg == "--ice-server" and index + 1 < args.size():
@@ -372,6 +514,10 @@ func _parse_args() -> void:
 			_mux_close_transport_test = args[index].to_lower()
 		elif arg == "--presentation-test":
 			_force_presentation = true
+		elif arg == "--server-driver":
+			_server_driver_enabled = true
+		elif arg == "--no-ramps":
+			_ramps_enabled = false
 		elif arg == "--course-test":
 			_course_test = true
 		elif arg == "--reverse-test":
@@ -380,11 +526,20 @@ func _parse_args() -> void:
 			_gate_test = true
 		elif arg == "--no-drone":
 			_drone_enabled = false
+		elif arg == "--no-ball":
+			_ball_enabled = false
 		elif arg.begins_with("--host="):
 			_host = arg.get_slice("=", 1)
+			_proxy_server_host = _host
 		elif arg == "--host" and index + 1 < args.size():
 			index += 1
 			_host = args[index]
+			_proxy_server_host = _host
+		elif arg.begins_with("--to-host="):
+			_proxy_server_host = arg.get_slice("=", 1)
+		elif arg == "--to-host" and index + 1 < args.size():
+			index += 1
+			_proxy_server_host = args[index]
 		elif arg.begins_with("--port="):
 			_port = int(arg.get_slice("=", 1))
 		elif arg == "--port" and index + 1 < args.size():
@@ -422,9 +577,35 @@ func _parse_args() -> void:
 			_latency_ms = int(args[index])
 		elif arg.begins_with("--jitter="):
 			_jitter_ms = int(arg.get_slice("=", 1))
+		elif arg == "--jitter" and index + 1 < args.size():
+			index += 1
+			_jitter_ms = int(args[index])
 		elif arg.begins_with("--loss="):
 			_loss_pct = float(arg.get_slice("=", 1))
+		elif arg == "--loss" and index + 1 < args.size():
+			index += 1
+			_loss_pct = float(args[index])
+		elif arg.begins_with("--shape-seed="):
+			_shape_seed = int(arg.get_slice("=", 1))
+		elif arg == "--shape-seed" and index + 1 < args.size():
+			index += 1
+			_shape_seed = int(args[index])
 		index += 1
+
+
+func _configure_network_stack() -> void:
+	NetworkPerformance.set_app_telemetry_enabled(_network_app_telemetry)
+	RemotePositionTransport.configure(_remote_state_push, _remote_state_transport,
+		_remote_state_rate, _network_app_telemetry, _remote_state_relevance,
+		_remote_state_include_self)
+	StateBundle.set_enabled(_state_bundles)
+	StateBundle.set_input_broadcast(_input_broadcast)
+	StateBundle.set_input_packing(_packed_input)
+	StateBundle.set_state_packing(_packed_state)
+	StateBundle.set_state_rate_divisor(_state_rate_divisor)
+	StateBundle.set_adaptive_state_rate(_adaptive_state_rate)
+	NetworkRollback.resim_budget_ms = _resim_budget_ms
+	print("[resim-budget] ms=%.1f" % _resim_budget_ms)
 
 
 func _web_query(key: String) -> String:
@@ -453,10 +634,12 @@ func _start_proxy() -> void:
 	proxy.name = "LatencyProxy"
 	proxy.set_script(load("res://net/latency_proxy.gd"))
 	proxy.set("listen_port", _port)
+	proxy.set("server_host", _proxy_server_host)
 	proxy.set("server_port", _to_port)
 	proxy.set("latency_ms", _latency_ms)
 	proxy.set("jitter_ms", _jitter_ms)
 	proxy.set("loss_pct", _loss_pct)
+	proxy.set("seed", _shape_seed)
 	add_child(proxy)
 	proxy.call("start")
 
@@ -484,6 +667,8 @@ func _start_server() -> void:
 		peer = _webrtc_transport.call("start_server", _signal_port, _ice_servers,
 			_ice_relay_only, 1, _webrtc_channel_telemetry)
 		error = OK if peer != null else ERR_CANT_CREATE
+		if peer != null:
+			StateBundle.set_send_pressure_provider(_webrtc_transport.peer_buffered_bytes)
 	elif _transport == "mux":
 		var enet_peer := ENetMultiplayerPeer.new()
 		error = enet_peer.create_server(_port, MAX_CLIENTS)
@@ -508,6 +693,8 @@ func _start_server() -> void:
 				_mux_peer.call("add_inner", "webrtc", rtc_peer)
 				_mux_peer.call("set_send_guard", "webrtc", _webrtc_transport.peer_can_send)
 				peer = _mux_peer
+				StateBundle.set_peer_transport_provider(_mux_peer.transport_for_peer)
+				StateBundle.set_send_pressure_provider(_webrtc_transport.peer_buffered_bytes)
 	else:
 		_transport = "enet"
 		peer = ENetMultiplayerPeer.new()
@@ -518,6 +705,8 @@ func _start_server() -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	_dots.call("generate")
+	if _server_driver_enabled:
+		_spawn_server_driver()
 	if _transport == "mux":
 		_log("server listening transport=mux enet=:%d webrtc_signal=:%d" % [_port, _signal_port])
 	elif _transport == "webrtc":
@@ -546,6 +735,7 @@ func _start_client() -> void:
 		if rtc_peer == null:
 			_on_webrtc_failed("Could not create WebRTC client")
 			return
+		StateBundle.set_send_pressure_provider(_webrtc_transport.peer_buffered_bytes)
 		_set_client_window_title()
 		_log("client signaling transport=webrtc at %s as %s" % [_signal_url, _player_name])
 		return
@@ -584,7 +774,8 @@ func _on_mux_peer_rejected(peer_id: int, transport: String) -> void:
 func _start_offline() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	var owner_id := multiplayer.get_unique_id()
-	var body := _spawn_player({"id": owner_id, "slot": 0})
+	var body := _spawn_player({"id": owner_id, "slot": 0,
+		"remote_generation": _allocate_remote_state_generation()})
 	_players.add_child(body, true)
 	var config := _configuration_for(owner_id)
 	_apply_coverage_config(owner_id, config["ranges"], config["widths"],
@@ -611,7 +802,24 @@ func _on_peer_join(id: int) -> void:
 	if not multiplayer.is_server():
 		return
 	_log("PEER_JOIN id=%d slot=%d" % [id, _next_spawn_slot])
-	_spawner.spawn({"id": id, "slot": _next_spawn_slot})
+	if _transport == "mux":
+		# Push before spawn: synchronizers latch input-broadcast policy while
+		# entering the tree, so native peers need the WebRTC recipient map now.
+		_broadcast_peer_transport_map()
+	var spawn_data := {"id": id, "slot": _next_spawn_slot,
+		"remote_generation": _allocate_remote_state_generation()}
+	if _server_driver_enabled:
+		var observer_position := Vector3(SERVER_DRIVER_SPAWN.x + 8.0,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y + 6.0)
+		var driver := _players.get_node_or_null("1") as Node3D
+		if driver != null:
+			observer_position.x = clampf(driver.global_position.x - 8.0,
+				-ARENA_HALF + 3.0, ARENA_HALF - 3.0)
+			observer_position.z = clampf(driver.global_position.z + 6.0,
+				-ARENA_HALF + 3.0, ARENA_HALF - 3.0)
+		spawn_data["position"] = observer_position
+		spawn_data["yaw"] = -PI * 0.5
+	_spawner.spawn(spawn_data)
 	var config := _configuration_for(id)
 	_apply_coverage_config.rpc(id, config["ranges"], config["widths"], config["tips_outward"])
 	var target_counts := PackedInt32Array()
@@ -619,12 +827,27 @@ func _on_peer_join(id: int) -> void:
 		target_counts.append(int(target.get("hit_count")))
 	_sync_target_hits.rpc_id(id, target_counts)
 	_next_spawn_slot += 1
-	if not _ball_seeded:
+	if _ball_enabled and not _ball_seeded:
 		_ball_seeded = true
 		_ball_spawner.spawn({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
 	_dots.call("send_state_to", id)
 
+func _spawn_server_driver() -> void:
+	if not multiplayer.is_server() or _players.get_node_or_null("1") != null:
+		return
+	_log("SERVER_DRIVER spawn id=1 slot=%d path=open-perimeter" % _next_spawn_slot)
+	_spawner.spawn({"id": 1, "slot": _next_spawn_slot,
+		"position": Vector3(SERVER_DRIVER_SPAWN.x,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y),
+		"yaw": -PI * 0.5,
+		"remote_generation": _allocate_remote_state_generation()})
+	_server_driver_waypoint = 1
+	_server_driver_progress_tick = -1
+	_server_driver_progress_position = SERVER_DRIVER_SPAWN
+	_next_spawn_slot += 1
+
 func _on_peer_leave(id: int) -> void:
+	StateBundle.forget_peer_transport(id)
 	if not multiplayer.is_server():
 		return
 	var body := _players.get_node_or_null(str(id))
@@ -637,6 +860,27 @@ func _on_peer_leave(id: int) -> void:
 		else:
 			body.queue_free()
 	_log("PEER_LEAVE id=%d" % id)
+
+
+func _broadcast_peer_transport_map() -> void:
+	if _role != "server" or _transport != "mux" or _mux_peer == null:
+		return
+	var transports := {}
+	for peer_variant in multiplayer.get_peers():
+		var peer_id := int(peer_variant)
+		transports[peer_id] = _mux_peer.transport_for_peer(peer_id)
+	_apply_peer_transport_map.rpc(transports)
+
+
+@rpc("authority", "reliable", "call_local")
+func _apply_peer_transport_map(transports: Dictionary) -> void:
+	var clean := {}
+	for peer_variant in transports:
+		var peer_id := int(peer_variant)
+		var transport := str(transports[peer_variant])
+		if peer_id > 1 and transport in ["enet", "webrtc"]:
+			clean[peer_id] = transport
+	StateBundle.set_peer_transport_map(clean)
 
 
 func _free_mux_departure_later(body: Node, peer_id: int) -> void:
@@ -732,6 +976,7 @@ func _spawn_player(data: Variant) -> Node:
 	body.name = str(owner_id)
 	body.set("owner_id", owner_id)
 	body.set("spawn_slot", slot)
+	body.set("remote_state_generation", int(info.get("remote_generation", 0)))
 	if not _coverage_configs.has(owner_id):
 		_coverage_configs[owner_id] = {
 			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths(),
@@ -749,6 +994,10 @@ func _spawn_player(data: Variant) -> Node:
 	body.contact_monitor = true
 	body.max_contacts_reported = 8
 	var spawn := _spawn_transform(slot)
+	if info.has("position"):
+		spawn.origin = info["position"] as Vector3
+	if info.has("yaw"):
+		spawn.basis = Basis(Vector3.UP, float(info["yaw"]))
 	body.position = spawn.origin
 	body.rotation.y = spawn.basis.get_euler().y
 	var physics_material := PhysicsMaterial.new()
@@ -782,6 +1031,12 @@ func _spawn_player(data: Variant) -> Node:
 	if not _is_headless():
 		_build_player_presentation(body, owner_id)
 	return body
+
+
+func _allocate_remote_state_generation() -> int:
+	var generation := _next_remote_state_generation
+	_next_remote_state_generation += 1
+	return generation
 
 func _spawn_transform(slot: int) -> Transform3D:
 	if _gate_test and slot == 0:
@@ -906,6 +1161,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	pip.mesh = pip_mesh
 	pip.position = Vector3(0.0, 1.68 - PLAYER_RADIUS, 0.0)
 	pip.material_override = _material(color, true)
+	pip.visible = OS.get_environment("CAR_FIGHT_HIDE_PEER_MARKERS") != "1"
 	body.add_child(pip)
 
 	var is_local := owner_id == multiplayer.get_unique_id()
@@ -1001,7 +1257,8 @@ func _build_arena() -> void:
 	for obstacle in ARENA_LAYOUT.collision_objects():
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
-	_build_elevated_course()
+	if _ramps_enabled:
+		_build_elevated_course()
 	_build_driving_course_space()
 
 
@@ -1464,9 +1721,12 @@ func cursor_offset_for(body: Node3D) -> Vector2:
 	return Vector2(delta.x, delta.z).limit_length(FOLLOW.MAX_DISTANCE)
 
 func is_scripted_client() -> bool:
-	return not _scripted.is_empty()
+	return not _scripted.is_empty() \
+		or (_server_driver_enabled and multiplayer.is_server())
 
 func scripted_input_for(body: Node3D) -> Dictionary:
+	if _server_driver_enabled and multiplayer.is_server() and int(body.name) == 1:
+		return _server_driver_input(body)
 	match _scripted:
 		"converge", "converge-burst":
 			# Fixed opposing headings make the network gate test collision rather
@@ -1531,6 +1791,61 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 		_:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
+func _server_driver_input(body: Node3D) -> Dictionary:
+	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+	var delta := Vector2(waypoint.x - body.global_position.x,
+		waypoint.y - body.global_position.z)
+	return {"cursor_offset": delta.limit_length(
+		FOLLOW.MAX_DISTANCE), "burst": false, "editing": false}
+
+func _service_server_driver_route(tick: int) -> void:
+	if not _server_driver_enabled:
+		return
+	var body := _players.get_node_or_null("1") as RigidBody3D
+	if body == null:
+		return
+	if int(body.get("map_id")) != MAP_LAYOUT.ARENA \
+			or absf(body.global_position.x) > SERVER_DRIVER_ARENA_LIMIT \
+			or absf(body.global_position.z) > SERVER_DRIVER_ARENA_LIMIT:
+		_recover_server_driver(body, tick)
+	var position := Vector2(body.global_position.x, body.global_position.z)
+	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+	if position.distance_to(waypoint) <= SERVER_DRIVER_WAYPOINT_RADIUS:
+		_server_driver_waypoint = (_server_driver_waypoint + 1) % SERVER_DRIVER_ROUTE.size()
+		_server_driver_progress_tick = tick
+		_server_driver_progress_position = position
+		waypoint = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+	elif _server_driver_progress_tick < 0 \
+			or position.distance_to(_server_driver_progress_position) \
+			>= SERVER_DRIVER_PROGRESS_DISTANCE:
+		_server_driver_progress_tick = tick
+		_server_driver_progress_position = position
+	elif tick - _server_driver_progress_tick >= SERVER_DRIVER_STUCK_TICKS:
+		_server_driver_waypoint = (_server_driver_waypoint + 1) % SERVER_DRIVER_ROUTE.size()
+		_server_driver_progress_tick = tick
+		_server_driver_progress_position = position
+		waypoint = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+		_log("SERVER_DRIVER escape tick=%d next=%d" % [tick, _server_driver_waypoint])
+	if tick % 60 == 0:
+		_log("SERVER_DRIVER tick=%d waypoint=%d pos=(%.1f,%.1f) target=(%.1f,%.1f) speed=%.1f" % [
+			tick, _server_driver_waypoint, position.x, position.y,
+			waypoint.x, waypoint.y, body.linear_velocity.length()])
+
+func _recover_server_driver(body: RigidBody3D, tick: int) -> void:
+	body.set("map_id", MAP_LAYOUT.ARENA)
+	body.set("gate_cooldown", MAP_LAYOUT.GATE_COOLDOWN)
+	body.position = Vector3(SERVER_DRIVER_SPAWN.x,
+		ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y)
+	body.rotation = Vector3(0.0, -PI * 0.5, 0.0)
+	body.linear_velocity = Vector3.ZERO
+	body.angular_velocity = Vector3.ZERO
+	body.sleeping = false
+	body.reset_physics_interpolation()
+	_server_driver_waypoint = 1
+	_server_driver_progress_tick = tick
+	_server_driver_progress_position = SERVER_DRIVER_SPAWN
+	_log("SERVER_DRIVER recovered tick=%d reason=left-arena" % tick)
+
 func local_player():
 	if _players == null:
 		return null
@@ -1558,6 +1873,7 @@ func _on_tick(delta: float, tick: int) -> void:
 			_mux_peer.call("close_inner", "enet")
 		_log("MUX_TEST_CLOSED transport=%s tick=%d" % [_mux_close_transport_test, elapsed])
 	if multiplayer.is_server():
+		_service_server_driver_route(tick)
 		_service_area_weapons()
 		_service_rc_orbs(delta, tick)
 		_service_auto_combat(delta, tick)
@@ -1753,6 +2069,8 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 	for player_node in _players.get_children():
 		var body := player_node as RigidBody3D
 		if body == null or int(body.get("map_id")) != MAP_LAYOUT.ARENA:
+			continue
+		if _server_driver_enabled and int(body.name) == 1:
 			continue
 		var input := body.get_node_or_null("Input")
 		if input == null or bool(input.get("editing")) or bool(body.get("is_cloaked")) \

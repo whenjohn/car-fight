@@ -21,6 +21,10 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_layout_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/driving_course_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/crash_telemetry_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/input_codec_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://net/state_codec_selftest.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/state_bundle_coalescing_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/remote_position_transport_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/window_safety_policy_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/dots_test.gd

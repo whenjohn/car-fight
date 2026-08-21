@@ -122,6 +122,99 @@ Four small fixed weapon mounts show the side zones. At runtime every combined CC
 
 The gate checks FOLLOW movement, coverage geometry and budget enforcement, presentation assets and shaders, collision recovery, ball physics, ramps, reverse, boost, cloak, tractor, and shields. It runs real headless servers and clients, including a deterministic 120 ms one-way UDP relay, then verifies automatic combat, drone hits, shield absorption, and cloak/shield exclusion. The mixed-transport gate places ENet and WebRTC peers in one world and covers leave draining, peer-ID collisions, and either transport leg closing. The join-transient gate deliberately blocks a synchronized client for 1.5 seconds—longer than the 64-tick history—and requires bounded recovery without impossible rollback or stale-packet log flooding.
 
+## Network shaping
+
+The current impairment results, desynchronization recovery design, and measured
+rollback/FPS bottleneck are recorded in
+[`NETWORK_SHAPING_FINDINGS.md`](NETWORK_SHAPING_FINDINGS.md).
+
+Native ENet and browser WebRTC use the same named one-way profiles: `clean`,
+`latency60`, `latency120`, `jitter` (60 +/- 30 ms), `loss05`, `loss1`, and
+`combined` (120 +/- 40 ms plus 1% loss).
+
+```bash
+./scripts/network_test.sh combined       # one focused native ENet row
+./scripts/network_matrix_test.sh         # complete native ENet matrix
+./scripts/play_shaped.sh combined        # one monitored client through macai2
+./scripts/play_shaped_two.sh combined    # two monitored clients through macai2
+./scripts/play_shaped_local.sh latency120      # one client + moving server car
+
+# Opt-in G2-derived transport A/B; normal game defaults remain unchanged.
+CAR_FIGHT_G2_STACK=1 ./scripts/network_test.sh latency120
+CAR_FIGHT_G2_STACK=1 CAR_FIGHT_STATE_RATE_DIVISOR=1 \
+	./scripts/network_test.sh combined
+CAR_FIGHT_G2_STACK=1 CAR_FIGHT_ADAPTIVE_STATE_RATE=1 \
+	CAR_FIGHT_NETWORK_SERVER_TICKS=1500 CAR_FIGHT_NETWORK_CLIENT_TICKS=1500 \
+	./scripts/network_test.sh latency120
+```
+
+`CAR_FIGHT_G2_STACK=1` enables the measured G2-derived lab profile on every
+process: per-route `StateBundle` backpressure, packed input/state snapshots,
+input broadcast disabled, ordinary state cadence division, 30 Hz complete-set
+remote-position batches, same-map relevance, self exclusion, and render-only
+remote interpolation. The default cadence divisor is 3 (20 Hz); use divisor 1
+for the current robust combined-impairment baseline. Adaptive cadence may step
+from 3 to 2 to 1 when the receiver reports pressure. All of these switches are
+off in ordinary play until the A/B evidence justifies a product-default change.
+`CAR_FIGHT_RESIM_BUDGET_MS=10` remains an explicit rejected experiment, not a
+recommended mitigation: it preserved FPS but caused large divergence.
+
+`play_shaped_local.sh` is the visual smoothness harness. It owns an isolated
+local server and relay, enables the G2 profile, and spawns peer 1 as a
+server-authoritative Jeep following long straight runs around the arena's open
+perimeter, joined by short chamfered corners. The observer spawns beside it, the route stays clear of the driving-course
+gate, and the harness removes the elevated ramps on both server and client to
+leave a flat arena for the moving test target. It also disables the physical
+arena ball, shield-test drone presentation, and the orange marker mounted above
+each peer, leaving only the two Jeeps. A
+server guard restores the moving Jeep if it ever leaves the arena. The single rendered client can chase it; closing
+that client window stops only the processes launched by the harness. For local browser/native
+comparison, run `CAR_FIGHT_G2_STACK=1 ./scripts/play_web_network_local.sh`; its
+server-driven car is enabled by default as well.
+
+The native relay reports received, forwarded, dropped, reordered, queued, and
+high-water packet counts in both directions. A gate fails if the configured
+profile is not echoed, traffic does not cross the relay, requested loss drops
+no packets, or requested jitter produces no packet reordering. Pass a host as
+the second play argument to target a different isolated server, including
+`127.0.0.1`.
+
+Browser shaping uses a forced WebRTC TURN allocation rather than Chrome HTTP
+throttling or the ENet relay:
+
+```bash
+./scripts/webrtc_turn_shape_test.sh combined  # one browser + native mux row
+./scripts/webrtc_turn_matrix_test.sh           # complete browser matrix
+CAR_FIGHT_G2_STACK=1 ./scripts/web_network_smoke.sh
+CAR_FIGHT_G2_STACK=1 ./scripts/webrtc_turn_shape_test.sh latency120
+```
+
+The harness serves the current Web build locally, syncs only to the isolated
+`/Users/macai2/Projects/car-fight-network-shaping` checkout, starts the mux on
+ENet 12480/signaling 12481, and creates uniquely named temporary TURN/netem
+resources on macmini. It proves the browser requested relay-only ICE, requires
+real packets and requested drops in the TURN qdisc, records browser and server
+WebRTC queue high-water marks, and preserves reports under `.network-runs/`.
+Cleanup targets only those harness resources and a remote failsafe removes TURN
+if the local runner disappears. The production Car Fight UDP 10080/TCP 10181
+service is not modified.
+
+The local exported browser/native G2-stack smoke now requires proof of a
+non-empty remote-position batch. Its accepted run survived browser replacement,
+held 59.2 steady FPS, peaked at 678 queued bytes, drained the queue, and emitted
+zero browser errors. The latest isolated `latency120` TURN attempt did not reach
+gameplay: ICE remained `connecting` and the browser join timed out, while the
+native ENet peer remained healthy. That is a harness/ICE failure, not a passing
+or failing desynchronization result, so the shaped browser matrix remains open.
+
+The earlier remote measurements intentionally remain failing evidence. A clean
+forced-TURN row reached both browser generations but peaked at 106,560 queued
+browser bytes and emitted buffer-full errors. The combined 120 +/- 40 ms plus
+1% loss row proved 2,998 qdisc packets and 24 drops, held 60.2 average browser
+FPS with no script errors, and survived refresh/rejoin, but peaked at 125,197
+browser bytes with 15,166 still queued; the server's ordered channel exceeded
+600 KiB. Do not raise the 64 KiB acceptance ceiling to make these rows pass.
+
 ## Structure
 
 - `Main.gd` — role/transport router, ENet/WebRTC lifecycle, spawn authority, arena, camera, and HUD.

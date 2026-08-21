@@ -147,6 +147,11 @@ signal after_process_tick(tick: int)
 ## their resulting states for the given tick.
 signal on_record_tick(tick: int)
 
+## Event emitted after every rollback recorder has saved the given tick.
+## Application-level bundle assembly uses this boundary so a coordinated
+## envelope can never contain a mixture of old and new body states.
+signal after_record_tick(tick: int)
+
 ## Event emitted after running the network rollback loop.
 signal after_loop()
 
@@ -171,6 +176,14 @@ var _rollback_stage: String = ""
 # rollback/logging spiral.
 var _stale_origin_report_after_msec: int = 0
 
+## Optional per-frame rollback work budget. Corrections deeper than the chosen
+## window are retried by later authority or repaired by a coordinated key.
+## The current forward batch is always retained so fresh ticks are recorded.
+var resim_budget_ms: float = 0.0
+var last_resim_debt: int = 0
+var _resim_ema_tick_ms: float = 0.0
+var _last_loop_end_tick: int = -1
+
 # Resim + mutations
 var _is_rollback: bool = false
 var _simulated_nodes: _Set = _Set.new()
@@ -189,6 +202,11 @@ static var _logger: NetfoxLogger = NetfoxLogger._for_netfox("NetworkRollback")
 ##
 ## This is used to determine the resimulation range during each loop.
 func notify_resimulation_start(tick: int) -> void:
+	# -1 is the transmitter's explicit "no history received yet" sentinel. It
+	# cannot name a replay origin and is normal for a server-owned fixture before
+	# the first network peer joins.
+	if tick < 0:
+		return
 	if tick < history_start:
 		var now := Time.get_ticks_msec()
 		if now >= _stale_origin_report_after_msec:
@@ -324,6 +342,7 @@ func _get_rollback_tag() -> String:
 func _rollback() -> void:
 	if not enabled:
 		return
+	last_resim_debt = 0
 
 	# Ask all rewindables to submit their earliest inputs
 	_resim_from = NetworkTime.tick
@@ -347,9 +366,18 @@ func _rollback() -> void:
 		)
 		from = NetworkTime.tick - history_limit
 
+	if resim_budget_ms > 0.0 and _resim_ema_tick_ms > 0.0 and _last_loop_end_tick >= 0:
+		var forward_batch := NetworkTime.tick - _last_loop_end_tick
+		var budget_ticks := maxi(maxi(1, forward_batch),
+			int(resim_budget_ms / _resim_ema_tick_ms))
+		if to - from > budget_ticks:
+			last_resim_debt = (to - budget_ticks) - from
+			from = to - budget_ticks
+
 	# for tick in from .. to:
 	_rollback_from = from
 	_rollback_to = to
+	var loop_start_usec := Time.get_ticks_usec()
 	for tick in range(from, to):
 		_tick = tick
 		_simulated_nodes.clear()
@@ -374,6 +402,14 @@ func _rollback() -> void:
 		# Record state for tick + 1
 		_rollback_stage = _STAGE_RECORD
 		on_record_tick.emit(tick + 1)
+		after_record_tick.emit(tick + 1)
+
+	if to > from:
+		var per_tick_ms := float(Time.get_ticks_usec() - loop_start_usec) \
+			/ 1000.0 / float(to - from)
+		_resim_ema_tick_ms = per_tick_ms if _resim_ema_tick_ms == 0.0 \
+			else lerpf(_resim_ema_tick_ms, per_tick_ms, 0.2)
+	_last_loop_end_tick = NetworkTime.tick
 
 	# Restore display state
 	_rollback_stage = _STAGE_AFTER
