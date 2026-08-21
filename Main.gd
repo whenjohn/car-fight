@@ -105,6 +105,13 @@ var _remote_state_transport := "legacy"
 var _remote_state_rate := 60
 var _remote_state_relevance := "all"
 var _remote_state_include_self := true
+var _remote_interp_mode := "fixed"
+var _remote_interp_ms := 75.0
+var _remote_interp_max_ms := 150.0
+var _presentation_trace_path := ""
+var _presentation_trace_seconds := 0.0
+var _network_hud_enabled := false
+var _network_profile := "unshaped"
 var _resim_budget_ms := 0.0
 var _mux_collision_test := false
 var _mux_close_transport_test := ""
@@ -190,6 +197,13 @@ var _shadow_light: SpotLight3D
 var _status_label: Label
 var _editor_label: Label
 var _fps_label: Label
+var _network_hud_label: Label
+var _network_hud_elapsed := 0.0
+var _network_hud_frames := 0
+var _network_hud_frame_ms_sum := 0.0
+var _network_hud_frame_ms_max := 0.0
+var _network_hud_rb_ms_max := 0.0
+var _network_hud_rb_ticks_max := 0
 var _shader_prewarm: Node3D
 var _driving_course: Node3D
 var _jump_gates: Node3D
@@ -280,6 +294,8 @@ func _on_window_safety_enforced(event: String, details: Dictionary) -> void:
 		_crash_telemetry.call("record_event", event, details)
 
 func _process(_delta: float) -> void:
+	if _network_hud_enabled:
+		_update_network_hud(_delta)
 	if multiplayer.is_server():
 		_sample_impact_motion()
 	if _camera == null:
@@ -377,6 +393,10 @@ func _parse_args() -> void:
 			if not adaptive_rate_query.is_empty():
 				_adaptive_state_rate = adaptive_rate_query == "1"
 			_network_app_telemetry = _web_query("netTelemetry") == "1"
+			_network_hud_enabled = _web_query("networkHud") == "1"
+			var profile_query := _web_query("networkProfile")
+			if not profile_query.is_empty():
+				_network_profile = profile_query
 			var remote_transport_query := _web_query("remoteStateTransport")
 			if remote_transport_query in ["legacy", "batch"]:
 				_remote_state_transport = remote_transport_query
@@ -389,6 +409,19 @@ func _parse_args() -> void:
 			var remote_self_query := _web_query("remoteStateIncludeSelf")
 			if not remote_self_query.is_empty():
 				_remote_state_include_self = remote_self_query == "1"
+			var interp_mode_query := _web_query("remoteInterpMode")
+			if interp_mode_query in ["fixed", "adaptive"]:
+				_remote_interp_mode = interp_mode_query
+			var interp_query := _web_query("remoteInterpMs")
+			if interp_query.is_valid_float():
+				_remote_interp_ms = maxf(0.0, float(interp_query))
+			var interp_max_query := _web_query("remoteInterpMaxMs")
+			if interp_max_query.is_valid_float():
+				_remote_interp_max_ms = maxf(_remote_interp_ms, float(interp_max_query))
+			var trace_seconds_query := _web_query("presentationTraceSeconds")
+			if trace_seconds_query.is_valid_float():
+				_presentation_trace_path = "console"
+				_presentation_trace_seconds = maxf(0.0, float(trace_seconds_query))
 			var resim_budget_query := _web_query("resimBudgetMs")
 			if resim_budget_query.is_valid_float():
 				_resim_budget_ms = maxf(0.0, float(resim_budget_query))
@@ -442,6 +475,13 @@ func _parse_args() -> void:
 			_webrtc_channel_telemetry = true
 		elif arg == "--net-telemetry":
 			_network_app_telemetry = true
+		elif arg == "--network-hud":
+			_network_hud_enabled = true
+		elif arg.begins_with("--network-profile="):
+			_network_profile = arg.get_slice("=", 1)
+		elif arg == "--network-profile" and index + 1 < args.size():
+			index += 1
+			_network_profile = args[index]
 		elif arg.begins_with("--remote-state-transport="):
 			_remote_state_transport = arg.get_slice("=", 1).to_lower()
 		elif arg == "--remote-state-transport" and index + 1 < args.size():
@@ -462,6 +502,32 @@ func _parse_args() -> void:
 		elif arg == "--remote-state-include-self" and index + 1 < args.size():
 			index += 1
 			_remote_state_include_self = int(args[index]) != 0
+		elif arg.begins_with("--remote-interp-mode="):
+			_remote_interp_mode = arg.get_slice("=", 1).to_lower()
+		elif arg == "--remote-interp-mode" and index + 1 < args.size():
+			index += 1
+			_remote_interp_mode = args[index].to_lower()
+		elif arg.begins_with("--remote-interp="):
+			_remote_interp_ms = maxf(0.0, float(arg.get_slice("=", 1)))
+		elif arg == "--remote-interp" and index + 1 < args.size():
+			index += 1
+			_remote_interp_ms = maxf(0.0, float(args[index]))
+		elif arg.begins_with("--remote-interp-max="):
+			_remote_interp_max_ms = maxf(_remote_interp_ms,
+				float(arg.get_slice("=", 1)))
+		elif arg == "--remote-interp-max" and index + 1 < args.size():
+			index += 1
+			_remote_interp_max_ms = maxf(_remote_interp_ms, float(args[index]))
+		elif arg.begins_with("--presentation-trace="):
+			_presentation_trace_path = arg.get_slice("=", 1)
+		elif arg == "--presentation-trace" and index + 1 < args.size():
+			index += 1
+			_presentation_trace_path = args[index]
+		elif arg.begins_with("--presentation-trace-seconds="):
+			_presentation_trace_seconds = maxf(0.0, float(arg.get_slice("=", 1)))
+		elif arg == "--presentation-trace-seconds" and index + 1 < args.size():
+			index += 1
+			_presentation_trace_seconds = maxf(0.0, float(args[index]))
 		elif arg.begins_with("--resim-budget-ms="):
 			_resim_budget_ms = maxf(0.0, float(arg.get_slice("=", 1)))
 		elif arg == "--resim-budget-ms" and index + 1 < args.size():
@@ -594,10 +660,16 @@ func _parse_args() -> void:
 
 
 func _configure_network_stack() -> void:
+	if _remote_interp_mode not in ["fixed", "adaptive"]:
+		push_error("--remote-interp-mode must be fixed or adaptive")
+		_remote_interp_mode = "fixed"
 	NetworkPerformance.set_app_telemetry_enabled(_network_app_telemetry)
 	RemotePositionTransport.configure(_remote_state_push, _remote_state_transport,
 		_remote_state_rate, _network_app_telemetry, _remote_state_relevance,
 		_remote_state_include_self)
+	RemotePositionTransport.configure_presentation(_remote_interp_mode,
+		_remote_interp_ms, _remote_interp_max_ms, _presentation_trace_path,
+		_presentation_trace_seconds)
 	StateBundle.set_enabled(_state_bundles)
 	StateBundle.set_input_broadcast(_input_broadcast)
 	StateBundle.set_input_packing(_packed_input)
@@ -1435,7 +1507,85 @@ func _build_presentation() -> void:
 	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_fps_label.add_theme_font_size_override("font_size", 16)
 	_fps_label.add_theme_color_override("font_color", Color("aebfc3"))
+	_fps_label.visible = not _network_hud_enabled
 	hud.add_child(_fps_label)
+	_network_hud_label = Label.new()
+	_network_hud_label.name = "NetworkDiagnostics"
+	_network_hud_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_network_hud_label.offset_left = -455.0
+	_network_hud_label.offset_top = 16.0
+	_network_hud_label.offset_right = -18.0
+	_network_hud_label.offset_bottom = 126.0
+	_network_hud_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_network_hud_label.add_theme_font_size_override("font_size", 16)
+	_network_hud_label.add_theme_color_override("font_color", Color("b8efcc"))
+	_network_hud_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
+	_network_hud_label.add_theme_constant_override("shadow_offset_x", 2)
+	_network_hud_label.add_theme_constant_override("shadow_offset_y", 2)
+	_network_hud_label.visible = _network_hud_enabled
+	hud.add_child(_network_hud_label)
+
+
+func _update_network_hud(delta: float) -> void:
+	if not _network_hud_enabled:
+		return
+	_network_hud_elapsed += delta
+	_network_hud_frames += 1
+	var frame_ms := delta * 1000.0
+	_network_hud_frame_ms_sum += frame_ms
+	_network_hud_frame_ms_max = maxf(_network_hud_frame_ms_max, frame_ms)
+	_network_hud_rb_ms_max = maxf(_network_hud_rb_ms_max,
+		NetworkPerformance.get_rollback_loop_duration_ms())
+	_network_hud_rb_ticks_max = maxi(_network_hud_rb_ticks_max,
+		NetworkPerformance.get_rollback_ticks())
+	if _network_hud_elapsed < 1.0:
+		return
+	var elapsed := maxf(_network_hud_elapsed, 0.001)
+	var fps := float(_network_hud_frames) / elapsed
+	var frame_avg := _network_hud_frame_ms_sum / maxf(1.0, float(_network_hud_frames))
+	var rtt_ms := NetworkTime.remote_rtt * 1000.0
+	var jitter_ms := NetworkTimeSynchronizer.rtt_jitter * 1000.0
+	var presentation: Dictionary = RemotePositionTransport.presentation_snapshot()
+	var target_ms := float(presentation.get("selected_msec", _remote_interp_ms))
+	var headroom_ms := float(presentation.get("headroom_min_msec", 0.0))
+	var interp_pct := int(round(float(presentation.get("interp_fraction", 0.0)) * 100.0))
+	var extra_pct := int(round(float(presentation.get("extrapolate_fraction", 0.0)) * 100.0))
+	var hold_pct := int(round(float(presentation.get("hold_fraction", 0.0)) * 100.0))
+	var app: Dictionary = NetworkPerformance.get_app_telemetry_snapshot(NetworkTime.tick)
+	var recoveries := int(app.get("fresh_key_requests", 0))
+	var hud_text := "FPS %.0f  |  frame %.1f / %.1f ms\n%s %s  |  RTT %.0f ms ±%.0f\nPRES %s %.0f ms  |  headroom %.0f  |  I/E/H %d/%d/%d\nRB %.1f ms / %dt  |  correction %.2fu  |  recovery %d" % [
+		fps, frame_avg, _network_hud_frame_ms_max, _transport.to_upper(),
+		_network_profile, rtt_ms, jitter_ms,
+		str(presentation.get("mode", _remote_interp_mode)), target_ms, headroom_ms,
+		interp_pct, extra_pct, hold_pct, _network_hud_rb_ms_max,
+		_network_hud_rb_ticks_max, _worst_correction_error, recoveries]
+	var unhealthy := fps < 30.0 or _network_hud_frame_ms_max >= 66.0 \
+		or _network_hud_rb_ms_max >= 16.7 or _network_hud_rb_ticks_max > 24 \
+		or hold_pct >= 10 or _worst_correction_error > 2.0
+	var warning := fps < 50.0 or _network_hud_frame_ms_max >= 33.0 \
+		or _network_hud_rb_ms_max >= 8.0 or extra_pct >= 20 or recoveries > 0
+	if _network_hud_label != null:
+		_network_hud_label.text = hud_text
+		_network_hud_label.add_theme_color_override("font_color",
+			Color("ff6b66") if unhealthy else (Color("ffd166") if warning else Color("b8efcc")))
+	var snapshot := {
+		"profile": _network_profile, "transport": _transport, "fps": fps,
+		"frame_ms_avg": frame_avg, "frame_ms_max": _network_hud_frame_ms_max,
+		"rtt_ms": rtt_ms, "jitter_ms": jitter_ms,
+		"presentation": presentation,
+		"rollback_ms_max": _network_hud_rb_ms_max,
+		"rollback_ticks_max": _network_hud_rb_ticks_max,
+		"worst_correction": _worst_correction_error, "recoveries": recoveries,
+	}
+	print("NETWORKHUD %s" % JSON.stringify(snapshot))
+	if _crash_telemetry != null:
+		_crash_telemetry.call("record_event", "network_hud", snapshot)
+	_network_hud_elapsed = 0.0
+	_network_hud_frames = 0
+	_network_hud_frame_ms_sum = 0.0
+	_network_hud_frame_ms_max = 0.0
+	_network_hud_rb_ms_max = 0.0
+	_network_hud_rb_ticks_max = 0
 
 func _build_shader_prewarm() -> void:
 	_shader_prewarm = Node3D.new()

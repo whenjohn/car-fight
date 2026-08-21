@@ -33,6 +33,10 @@ remote_pidfile="/tmp/car-fight-network-shaping-server.pid"
 remote_log="/tmp/car-fight-network-shaping-server.log"
 failsafe_seconds="${CAR_FIGHT_SHAPE_FAILSAFE_SECONDS:-300}"
 interactive_browser="${CAR_FIGHT_INTERACTIVE_BROWSER:-0}"
+presentation_mode="${CAR_FIGHT_REMOTE_INTERP_MODE:-fixed}"
+presentation_min="${CAR_FIGHT_REMOTE_INTERP_MS:-75}"
+presentation_max="${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}"
+presentation_trace_seconds="${CAR_FIGHT_PRESENTATION_TRACE_SECONDS:-0}"
 server_driver_arg=""
 if [[ "$interactive_browser" == "1" || "${CAR_FIGHT_SHAPE_SERVER_DRIVER:-0}" == "1" ]]; then
 	server_driver_arg="--server-driver"
@@ -59,6 +63,15 @@ if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
 	server_stack_args+=" --adaptive-state-rate 1"
 	native_stack_args+=(--adaptive-state-rate 1)
 	browser_stack_query+="&adaptiveStateRate=1"
+fi
+native_stack_args+=(--remote-interp-mode "$presentation_mode" \
+	--remote-interp "$presentation_min" --remote-interp-max "$presentation_max")
+browser_stack_query+="&remoteInterpMode=$presentation_mode&remoteInterpMs=$presentation_min&remoteInterpMaxMs=$presentation_max&networkProfile=$profile"
+if [[ "$interactive_browser" == "1" || "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
+	browser_stack_query+="&networkHud=1&netTelemetry=1"
+fi
+if [[ "$presentation_trace_seconds" != "0" ]]; then
+	browser_stack_query+="&presentationTraceSeconds=$presentation_trace_seconds"
 fi
 
 run_stamp="$(date -u '+%Y%m%dT%H%M%SZ')"
@@ -244,6 +257,9 @@ server_stale_warnings="$(rg -c 'Skipping stale rollback origin' "$run_dir/server
 {
 	echo "profile=$profile"
 	echo "stack=$stack_label"
+	echo "presentation_mode=$presentation_mode"
+	echo "presentation_min_ms=$presentation_min"
+	echo "presentation_max_ms=$presentation_max"
 	echo "latency_each_direction_ms=$CAR_FIGHT_SHAPE_LATENCY_MS"
 	echo "jitter_each_direction_ms=$CAR_FIGHT_SHAPE_JITTER_MS"
 	echo "loss_each_direction_pct=$CAR_FIGHT_SHAPE_LOSS_PCT"

@@ -79,6 +79,7 @@ var _remote_state_min_tick := -1
 var _remote_samples := {}
 var _remote_render_tick := 0.0
 var _remote_render_tick_initialized := false
+var _remote_interp_warmup_samples := 0
 var _remote_visual_root: Node3D
 var _remote_visual_local_transform := Transform3D.IDENTITY
 const REMOTE_INTERP_MS := 75.0
@@ -513,6 +514,7 @@ func set_remote_position_relevant(relevant: bool, tick: int) -> void:
 	_remote_position_presented = false
 	_remote_samples.clear()
 	_remote_render_tick_initialized = false
+	_remote_interp_warmup_samples = 0
 	_remote_state_min_tick = maxi(_remote_state_min_tick, tick if not relevant else tick - 1)
 	_ensure_remote_visual_roots()
 	_apply_remote_position_visibility()
@@ -524,6 +526,7 @@ func receive_remote_position(generation: int, tick: int, position: Vector3) -> b
 			generation, tick):
 		return false
 	_remote_state_last_tick = tick
+	_remote_interp_warmup_samples += 1
 	var network_time := get_node_or_null("/root/NetworkTime")
 	var current_tick := tick if network_time == null else int(network_time.get("tick"))
 	REMOTE_SNAPSHOT_INTERPOLATION.insert_bounded(
@@ -535,10 +538,14 @@ func receive_remote_position(generation: int, tick: int, position: Vector3) -> b
 
 
 func _ensure_remote_visual_roots() -> void:
-	if _remote_visual_root != null or _is_headless_presentation():
+	if _remote_visual_root != null or _is_headless_presentation() \
+			or not is_inside_tree():
 		return
 	_remote_visual_root = get_node_or_null("GroundVehicleHull") as Node3D
 	if _remote_visual_root == null:
+		return
+	if not _remote_visual_root.is_inside_tree():
+		_remote_visual_root = null
 		return
 	_remote_visual_local_transform = _remote_visual_root.transform
 	var world_transform := _remote_visual_root.global_transform
@@ -552,7 +559,8 @@ func _apply_remote_position_visibility() -> void:
 
 
 func _process_remote_position(delta: float) -> void:
-	if not remote_position_transport_controlled() or not _remote_position_relevant \
+	if not is_inside_tree() or not remote_position_transport_controlled() \
+			or not _remote_position_relevant \
 			or _remote_samples.is_empty():
 		return
 	_ensure_remote_visual_roots()
@@ -560,8 +568,12 @@ func _process_remote_position(delta: float) -> void:
 	if network_time == null:
 		return
 	var rate := float(network_time.get("tickrate"))
+	var selected_delay_msec := REMOTE_INTERP_MS
+	var remote_transport := get_node_or_null("/root/RemotePositionTransport")
+	if remote_transport != null:
+		selected_delay_msec = float(remote_transport.call("presentation_delay_msec"))
 	var desired_tick := float(network_time.get("tick")) \
-		- REMOTE_INTERP_MS / 1000.0 * rate
+		- selected_delay_msec / 1000.0 * rate
 	if not _remote_render_tick_initialized:
 		_remote_render_tick = desired_tick
 		_remote_render_tick_initialized = true
@@ -572,7 +584,19 @@ func _process_remote_position(delta: float) -> void:
 		_remote_render_tick, REMOTE_EXTRAPOLATE_MS / 1000.0 * rate)
 	if sampled.is_empty():
 		return
-	if is_instance_valid(_remote_visual_root):
+	if remote_transport != null \
+			and str(remote_transport.call("presentation_mode")) == "adaptive":
+		var ticks: Array = _remote_samples.keys()
+		var oldest_tick := int(ticks.min())
+		var newest_tick := int(ticks.max())
+		var required_span := 150.0 / 1000.0 * rate
+		var established := _remote_interp_warmup_samples >= 6 \
+			and float(newest_tick - oldest_tick) >= required_span
+		remote_transport.call("observe_presentation_body", name, established,
+			not established, float(newest_tick - _remote_render_tick) * 1000.0 / rate,
+			(float(network_time.get("tick")) - _remote_render_tick) * 1000.0 / rate,
+			_remote_render_tick, str(sampled["mode"]))
+	if is_instance_valid(_remote_visual_root) and _remote_visual_root.is_inside_tree():
 		var presentation_transform := Transform3D(global_basis, sampled["position"])
 		_remote_visual_root.global_transform = \
 			presentation_transform * _remote_visual_local_transform

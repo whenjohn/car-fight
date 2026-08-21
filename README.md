@@ -138,6 +138,7 @@ Native ENet and browser WebRTC use the same named one-way profiles: `clean`,
 ./scripts/play_shaped.sh combined        # one monitored client through macai2
 ./scripts/play_shaped_two.sh combined    # two monitored clients through macai2
 ./scripts/play_shaped_local.sh latency120      # one client + moving server car
+./scripts/play_networking1_enet.sh latency120 adaptive
 
 # Opt-in G2-derived transport A/B; normal game defaults remain unchanged.
 CAR_FIGHT_G2_STACK=1 ./scripts/network_test.sh latency120
@@ -158,6 +159,30 @@ from 3 to 2 to 1 when the receiver reports pressure. All of these switches are
 off in ordinary play until the A/B evidence justifies a product-default change.
 `CAR_FIGHT_RESIM_BUDGET_MS=10` remains an explicit rejected experiment, not a
 recommended mitigation: it preserved FPS but caused large divergence.
+
+`play_networking1_enet.sh` is the current single-observer feel harness. It
+copies this worktree to the dedicated
+`/Users/macai2/Projects/car-fight-networking-1` path, starts a temporary server
+on UDP 12680, and shapes its traffic through a local relay on UDP 12681. It does
+not restart or modify the production Car Fight service. The first argument is a
+named impairment profile and the second is `fixed` or `adaptive`. The adaptive
+controller starts at 75 ms, raises through bounded 100/125/150 ms tiers only
+after confirmed transport plus presentation pressure, and releases slowly
+after a healthy interval. Ordinary play remains fixed at 75 ms.
+
+The harness enables a compact four-line top-right diagnostic display: FPS and
+frame time; transport/profile plus RTT/jitter; selected presentation delay,
+buffer headroom, and interpolation/extrapolation/hold percentages; and rollback
+cost/depth, worst correction, and recovery requests. The same snapshot is
+written once per second as `NETWORKHUD` JSON. Set
+`CAR_FIGHT_PRESENTATION_TRACE_SECONDS` to capture a deterministic JSONL input
+trace, then replay it with:
+
+```bash
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tests/adaptive_presentation_replay.gd -- \
+  --trace path/to/presentation-trace.jsonl
+```
 
 `play_shaped_local.sh` is the visual smoothness harness. It owns an isolated
 local server and relay, enables the G2 profile, and spawns peer 1 as a
@@ -186,8 +211,15 @@ throttling or the ENet relay:
 ./scripts/webrtc_turn_shape_test.sh combined  # one browser + native mux row
 ./scripts/webrtc_turn_matrix_test.sh           # complete browser matrix
 CAR_FIGHT_G2_STACK=1 ./scripts/web_network_smoke.sh
-CAR_FIGHT_G2_STACK=1 ./scripts/webrtc_turn_shape_test.sh latency120
+CAR_FIGHT_G2_STACK=1 CAR_FIGHT_REMOTE_INTERP_MODE=adaptive \
+	./scripts/webrtc_turn_shape_test.sh latency120
 ```
+
+The browser smoke and forced-TURN harness accept the same
+`CAR_FIGHT_REMOTE_INTERP_MODE`, `CAR_FIGHT_REMOTE_INTERP_MS`, and
+`CAR_FIGHT_REMOTE_INTERP_MAX_MS` controls as ENet. WebRTC remains the second
+stage: adaptive presentation is opt-in while the remote forced-TURN ICE gate is
+still unresolved.
 
 The harness serves the current Web build locally, syncs only to the isolated
 `/Users/macai2/Projects/car-fight-network-shaping` checkout, starts the mux on

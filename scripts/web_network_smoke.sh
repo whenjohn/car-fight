@@ -30,6 +30,15 @@ if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
 	stack_args+=(--adaptive-state-rate 1)
 	browser_stack_query+="&adaptiveStateRate=1"
 fi
+presentation_mode="${CAR_FIGHT_REMOTE_INTERP_MODE:-fixed}"
+presentation_min="${CAR_FIGHT_REMOTE_INTERP_MS:-75}"
+presentation_max="${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}"
+stack_args+=(--remote-interp-mode "$presentation_mode" --remote-interp "$presentation_min" \
+	--remote-interp-max "$presentation_max")
+browser_stack_query+="&remoteInterpMode=$presentation_mode&remoteInterpMs=$presentation_min&remoteInterpMaxMs=$presentation_max&networkProfile=web-smoke"
+if [[ "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
+	browser_stack_query+="&networkHud=1&netTelemetry=1"
+fi
 
 cleanup() {
 	for process_id in "$native_pid" "$server_pid" "$web_pid"; do

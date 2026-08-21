@@ -32,6 +32,34 @@ The profile remains an A/B switch. Ordinary game launches retain the legacy
 transport and cadence. The G2 replay-budget mechanism is available only through
 an explicit lab value and remains rejected as described below.
 
+## Networking 1 presentation experiment
+
+The unmerged G2 adaptive-presentation work is now ported as an opt-in,
+client-local controller rather than a transport or authority change. Fixed
+75 ms presentation remains the product default. In adaptive mode the receiver
+combines batch-arrival variation/gaps with actual remote-body buffer headroom
+and interpolation/extrapolation/hold outcomes. It raises only after both sides
+of that evidence agree, uses bounded 75/100/125/150 ms tiers, ignores arrival
+samples contaminated by a local frame hitch, and waits 20 healthy seconds
+before releasing one tier. Epoch changes reset its history.
+
+The estimator is pure and every input can be captured as bounded JSONL and
+replayed deterministically. The single-observer harness is
+`scripts/play_networking1_enet.sh`: a server-driven Jeep runs on a temporary
+macai2 server at the isolated networking-1 checkout/port while this Mac renders
+only the observer and hosts the shaped relay. The production daemon is not
+touched. A four-line HUD and matching `NETWORKHUD` JSON report frame pacing,
+RTT/jitter, presentation target/headroom/mode shares, rollback depth/cost,
+correction, and recovery count.
+
+Two short clean macai2/Tailscale captures on 2026-08-21 stayed at the 75 ms
+floor. The latter run reached 144-145 headless FPS after startup, reported 100%
+interpolation with zero extrapolation/holds, and replayed to the same unchanged
+target. Per-stage rollback profiling showed a startup worst loop of 11.0 ms and
+then 3.1-3.8 ms loops; simulation was the largest accumulated stage. This did
+not establish a safe 5% replay optimization, so no rollback behavior was
+changed and the rejected replay budget remains disabled.
+
 ### Car Fight-specific StateBundle correction
 
 The first direct port coalesced the newest whole StateBundle envelope. Under
