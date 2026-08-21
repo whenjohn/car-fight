@@ -211,6 +211,11 @@ async function run() {
       final: bufferedValues.at(-1) ?? -1,
       drained_to_zero: bufferedValues.includes(0),
     },
+    network_configuration: consoleMessages
+      .filter(message => message.text.includes("[network-shape]"))
+      .map(message => message.text),
+    stale_rollback_warnings: consoleMessages
+      .filter(message => message.text.includes("Skipping stale rollback origin")).length,
     browser_performance_metrics: Object.fromEntries(
       performance.metrics.map(metric => [metric.name, metric.value])),
     errors,

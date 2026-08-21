@@ -122,6 +122,52 @@ Four small fixed weapon mounts show the side zones. At runtime every combined CC
 
 The gate checks FOLLOW movement, coverage geometry and budget enforcement, presentation assets and shaders, collision recovery, ball physics, ramps, reverse, boost, cloak, tractor, and shields. It runs real headless servers and clients, including a deterministic 120 ms one-way UDP relay, then verifies automatic combat, drone hits, shield absorption, and cloak/shield exclusion. The mixed-transport gate places ENet and WebRTC peers in one world and covers leave draining, peer-ID collisions, and either transport leg closing. The join-transient gate deliberately blocks a synchronized client for 1.5 seconds—longer than the 64-tick history—and requires bounded recovery without impossible rollback or stale-packet log flooding.
 
+## Network shaping
+
+Native ENet and browser WebRTC use the same named one-way profiles: `clean`,
+`latency60`, `latency120`, `jitter` (60 +/- 30 ms), `loss05`, `loss1`, and
+`combined` (120 +/- 40 ms plus 1% loss).
+
+```bash
+./scripts/network_test.sh combined       # one focused native ENet row
+./scripts/network_matrix_test.sh         # complete native ENet matrix
+./scripts/play_shaped.sh combined        # one monitored client through macai2
+./scripts/play_shaped_two.sh combined    # two monitored clients through macai2
+```
+
+The native relay reports received, forwarded, dropped, reordered, queued, and
+high-water packet counts in both directions. A gate fails if the configured
+profile is not echoed, traffic does not cross the relay, requested loss drops
+no packets, or requested jitter produces no packet reordering. Pass a host as
+the second play argument to target a different isolated server, including
+`127.0.0.1`.
+
+Browser shaping uses a forced WebRTC TURN allocation rather than Chrome HTTP
+throttling or the ENet relay:
+
+```bash
+./scripts/webrtc_turn_shape_test.sh combined  # one browser + native mux row
+./scripts/webrtc_turn_matrix_test.sh           # complete browser matrix
+```
+
+The harness serves the current Web build locally, syncs only to the isolated
+`/Users/macai2/Projects/car-fight-network-shaping` checkout, starts the mux on
+ENet 12480/signaling 12481, and creates uniquely named temporary TURN/netem
+resources on macmini. It proves the browser requested relay-only ICE, requires
+real packets and requested drops in the TURN qdisc, records browser and server
+WebRTC queue high-water marks, and preserves reports under `.network-runs/`.
+Cleanup targets only those harness resources and a remote failsafe removes TURN
+if the local runner disappears. The production Car Fight UDP 10080/TCP 10181
+service is not modified.
+
+The first remote measurements intentionally remain failing evidence. A clean
+forced-TURN row reached both browser generations but peaked at 106,560 queued
+browser bytes and emitted buffer-full errors. The combined 120 +/- 40 ms plus
+1% loss row proved 2,998 qdisc packets and 24 drops, held 60.2 average browser
+FPS with no script errors, and survived refresh/rejoin, but peaked at 125,197
+browser bytes with 15,166 still queued; the server's ordered channel exceeded
+600 KiB. Do not raise the 64 KiB acceptance ceiling to make these rows pass.
+
 ## Structure
 
 - `Main.gd` — role/transport router, ENet/WebRTC lifecycle, spawn authority, arena, camera, and HUD.

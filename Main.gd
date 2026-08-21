@@ -88,9 +88,11 @@ var _session_label := ""
 var _scripted := ""
 var _quit_after_ticks := 0
 var _to_port := DEFAULT_PORT
+var _proxy_server_host := "127.0.0.1"
 var _latency_ms := 0
 var _jitter_ms := 0
 var _loss_pct := 0.0
+var _shape_seed := 0xCA4F19
 var _force_presentation := false
 var _course_test := false
 var _reverse_test := false
@@ -316,6 +318,23 @@ func _parse_args() -> void:
 			if not browser_name.is_empty():
 				_player_name = browser_name
 			_webrtc_channel_telemetry = _web_query("webrtcTelemetry") == "1"
+			var turn_url := _web_query("turn")
+			if not turn_url.is_empty():
+				var ice_server := {"urls": [turn_url]}
+				var turn_username := _web_query("turnUser")
+				var turn_credential := _web_query("turnCredential")
+				if not turn_username.is_empty():
+					ice_server["username"] = turn_username
+				if not turn_credential.is_empty():
+					ice_server["credential"] = turn_credential
+				_ice_servers.push_back(ice_server)
+			_ice_relay_only = _web_query("relay") == "1"
+			if not turn_url.is_empty() or _ice_relay_only:
+				print("[network-shape] transport=webrtc turn=%s relay_only=%s credentials=%s" % [
+					str(not turn_url.is_empty()), str(_ice_relay_only),
+					str(not _web_query("turnUser").is_empty() and
+						not _web_query("turnCredential").is_empty()),
+				])
 		else:
 			_role = "offline"
 	var args := OS.get_cmdline_user_args()
@@ -377,9 +396,16 @@ func _parse_args() -> void:
 			_drone_enabled = false
 		elif arg.begins_with("--host="):
 			_host = arg.get_slice("=", 1)
+			_proxy_server_host = _host
 		elif arg == "--host" and index + 1 < args.size():
 			index += 1
 			_host = args[index]
+			_proxy_server_host = _host
+		elif arg.begins_with("--to-host="):
+			_proxy_server_host = arg.get_slice("=", 1)
+		elif arg == "--to-host" and index + 1 < args.size():
+			index += 1
+			_proxy_server_host = args[index]
 		elif arg.begins_with("--port="):
 			_port = int(arg.get_slice("=", 1))
 		elif arg == "--port" and index + 1 < args.size():
@@ -417,8 +443,19 @@ func _parse_args() -> void:
 			_latency_ms = int(args[index])
 		elif arg.begins_with("--jitter="):
 			_jitter_ms = int(arg.get_slice("=", 1))
+		elif arg == "--jitter" and index + 1 < args.size():
+			index += 1
+			_jitter_ms = int(args[index])
 		elif arg.begins_with("--loss="):
 			_loss_pct = float(arg.get_slice("=", 1))
+		elif arg == "--loss" and index + 1 < args.size():
+			index += 1
+			_loss_pct = float(args[index])
+		elif arg.begins_with("--shape-seed="):
+			_shape_seed = int(arg.get_slice("=", 1))
+		elif arg == "--shape-seed" and index + 1 < args.size():
+			index += 1
+			_shape_seed = int(args[index])
 		index += 1
 
 
@@ -448,10 +485,12 @@ func _start_proxy() -> void:
 	proxy.name = "LatencyProxy"
 	proxy.set_script(load("res://net/latency_proxy.gd"))
 	proxy.set("listen_port", _port)
+	proxy.set("server_host", _proxy_server_host)
 	proxy.set("server_port", _to_port)
 	proxy.set("latency_ms", _latency_ms)
 	proxy.set("jitter_ms", _jitter_ms)
 	proxy.set("loss_pct", _loss_pct)
+	proxy.set("seed", _shape_seed)
 	add_child(proxy)
 	proxy.call("start")
 
