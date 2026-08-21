@@ -29,6 +29,7 @@ var _next_diff_ack_tick: int
 
 var _earliest_input_tick: int
 var _latest_state_tick: int
+var _recovery_request_after_msec := 0
 
 var _is_predicted_tick: bool
 var _is_initialized: bool
@@ -46,6 +47,25 @@ func get_latest_state_tick() -> int:
 
 func set_predicted_tick(p_is_predicted_tick) -> void:
 	_is_predicted_tick = p_is_predicted_tick
+
+## Ask the state authority for one reliable full snapshot when ordinary
+## unreliable state can no longer be applied. This is deliberately
+## rate-limited per synchronizer so a struggling client cannot amplify its
+## recovery traffic.
+func request_full_state(reason: String) -> void:
+	if not _is_initialized or multiplayer.multiplayer_peer == null:
+		return
+	var state_owner := root.get_multiplayer_authority()
+	if state_owner == multiplayer.get_unique_id():
+		return
+	var now := Time.get_ticks_msec()
+	if now < _recovery_request_after_msec:
+		return
+	_recovery_request_after_msec = now + 1000
+	print("[netfox-recovery] request root=%s owner=%d latest=%d history_start=%d reason=%s" % [
+		root.get_path(), state_owner, _latest_state_tick, NetworkRollback.history_start, reason,
+	])
+	_request_full_state.rpc_id(state_owner)
 
 func sync_settings(p_root: Node, p_enable_input_broadcast: bool, p_full_state_interval: int, p_diff_ack_interval: int) -> void:
 	root = p_root
@@ -223,14 +243,7 @@ func _submit_full_state(data: Array, tick: int) -> void:
 		return
 
 	var sender := multiplayer.get_remote_sender_id()
-	var snapshot := _full_state_encoder.decode(data, _state_property_config.get_properties_owned_by(sender))
-	if not _full_state_encoder.apply(tick, snapshot, sender):
-		# Invalid data
-		return
-
-	_latest_state_tick = tick
-	if NetworkRollback.enable_diff_states:
-		_ack_full_state.rpc_id(sender, tick)
+	_apply_full_state(data, tick, sender)
 
 # State is a serialized _PropertySnapshot (Dictionary[String, Variant])
 @rpc("any_peer", "unreliable_ordered", "call_remote")
@@ -242,7 +255,8 @@ func _submit_diff_state(data: PackedByteArray, tick: int, reference_tick: int) -
 	var sender = multiplayer.get_remote_sender_id()
 	var diff_snapshot := _diff_state_encoder.decode(data, _state_property_config.get_properties_owned_by(sender))
 	if not _diff_state_encoder.apply(tick, diff_snapshot, reference_tick, sender):
-		# Invalid data
+		if not _state_history.has(reference_tick):
+			request_full_state("missing_diff_reference")
 		return
 
 	_latest_state_tick = tick
@@ -265,6 +279,44 @@ func _ack_diff_state(tick: int) -> void:
 	_ackd_state[sender_id] = tick
 
 	_logger.trace("Peer %d ack'd diff state for tick %d", [sender_id, tick])
+
+@rpc("any_peer", "reliable", "call_remote")
+func _request_full_state() -> void:
+	if not _is_initialized or root.get_multiplayer_authority() != multiplayer.get_unique_id():
+		return
+	var requester := multiplayer.get_remote_sender_id()
+	if requester <= 0 or not multiplayer.get_peers().has(requester) \
+			or not _visibility_filter.get_visibility_for(requester) or _state_history.is_empty():
+		return
+	var recovery_tick := _state_history.get_latest_tick()
+	var full_state_snapshot := _state_history.get_snapshot(recovery_tick).as_dictionary()
+	var full_state_data := _full_state_encoder.encode(recovery_tick, _get_owned_state_props())
+	print("[netfox-recovery] send root=%s peer=%d tick=%d" % [
+		root.get_path(), requester, recovery_tick,
+	])
+	_submit_recovery_full_state.rpc_id(requester, full_state_data, recovery_tick)
+	NetworkPerformance.push_full_state(full_state_snapshot)
+	NetworkPerformance.push_sent_state(full_state_snapshot)
+
+@rpc("authority", "reliable", "call_remote")
+func _submit_recovery_full_state(data: Array, tick: int) -> void:
+	if not _is_initialized:
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _apply_full_state(data, tick, sender):
+		print("[netfox-recovery] applied root=%s sender=%d tick=%d" % [
+			root.get_path(), sender, tick,
+		])
+
+func _apply_full_state(data: Array, tick: int, sender: int) -> bool:
+	var snapshot := _full_state_encoder.decode(
+		data, _state_property_config.get_properties_owned_by(sender))
+	if not _full_state_encoder.apply(tick, snapshot, sender):
+		return false
+	_latest_state_tick = maxi(_latest_state_tick, tick)
+	if NetworkRollback.enable_diff_states:
+		_ack_full_state.rpc_id(sender, tick)
+	return true
 
 # =============================================================================
 # Shared utils, extract later

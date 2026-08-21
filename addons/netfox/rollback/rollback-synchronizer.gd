@@ -367,7 +367,10 @@ func _notify_resim() -> void:
 		NetworkRollback.notify_resimulation_start(_history_transmitter.get_earliest_input_tick())
 	else:
 		# We own inputs, simulate from latest authorative state
-		NetworkRollback.notify_resimulation_start(_history_transmitter.get_latest_state_tick())
+		var latest_state := _history_transmitter.get_latest_state_tick()
+		if latest_state < NetworkRollback.history_start:
+			_history_transmitter.request_full_state("stale_authority_tick")
+		NetworkRollback.notify_resimulation_start(latest_state)
 
 func _prepare_tick_process(tick: int) -> void:
 	_history_recorder.set_latest_state_tick(_history_transmitter._latest_state_tick)

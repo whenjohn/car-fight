@@ -200,6 +200,10 @@ async function run() {
       process_ms: record.process_ms,
       physics_ms: record.physics_ms,
       slow_frames: record.slow_frames,
+      maximum_network_loop_ms: record.maximum_network_loop_ms,
+      maximum_rollback_loop_ms: record.maximum_rollback_loop_ms,
+      maximum_network_ticks: record.maximum_network_ticks,
+      maximum_rollback_ticks: record.maximum_rollback_ticks,
     })),
     steady_fps: {
       minimum: steady.length ? Math.min(...steady) : 0,

@@ -11,6 +11,7 @@ var _property_indexes := _BiMap.new()
 
 var _version := 0
 var _has_received := false
+var _missing_reference_report_after_msec := 0
 
 static var _logger := NetfoxLogger._for_netfox("DiffHistoryEncoder")
 
@@ -96,6 +97,21 @@ func apply(tick: int, snapshot: _PropertySnapshot, reference_tick: int, sender: 
 		# packets. NetworkRollback centrally owns the bounded D-040 warning.
 		return false
 
+	# A diff cannot be reconstructed without the exact snapshot it was encoded
+	# against. Applying it to an empty snapshot and returning true lets the
+	# caller ACK corrupt state, after which every later diff extends that bad
+	# chain. Reject it instead; the sender's periodic full snapshot will restore
+	# the chain and only successfully applied state is acknowledged.
+	if not _history.has(reference_tick):
+		var now := Time.get_ticks_msec()
+		if now >= _missing_reference_report_after_msec:
+			_logger.warning(
+				"Rejecting diff %d from #%s because reference tick %d is unavailable; waiting for a full snapshot",
+				[tick, sender, reference_tick]
+			)
+			_missing_reference_report_after_msec = now + 1000
+		return false
+
 	if snapshot.is_empty():
 		return true
 
@@ -104,10 +120,6 @@ func apply(tick: int, snapshot: _PropertySnapshot, reference_tick: int, sender: 
 		if snapshot.is_empty():
 			_logger.warning("Received invalid diff from #%s for @%s", [sender, tick])
 			return false
-
-	if not _history.has(reference_tick):
-		# Reference tick missing, hope for the best
-		_logger.warning("Reference tick %d missing for #%s applying %d", [reference_tick, sender, tick])
 
 	var reference_snapshot := _history.get_snapshot(reference_tick)
 	_history.set_snapshot(tick, reference_snapshot.merge(snapshot))

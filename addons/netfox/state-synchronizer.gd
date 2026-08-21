@@ -2,6 +2,8 @@
 extends Node
 class_name StateSynchronizer
 
+const DIFF_REFERENCE_HISTORY_MULTIPLIER := 2
+
 ## Synchronizes state from authority.
 ##
 ## Similar to Godot's [MultiplayerSynchronizer], but is tied to the network tick loop. Works well
@@ -157,7 +159,10 @@ func _after_tick(_dt: float, tick: int) -> void:
 		state.apply(_property_cache)
 
 func _after_loop() -> void:
-	_state_history.trim(NetworkTime.tick - NetworkRollback.history_limit) # TODO: Don't tie to rollback?
+	# Keep diff bases longer than the active rollback window. This synchronizer
+	# does not replay them, but late packets still need their exact reference.
+	_state_history.trim(maxi(0, NetworkTime.tick \
+		- NetworkRollback.history_limit * DIFF_REFERENCE_HISTORY_MULTIPLIER))
 
 func _reprocess_settings() -> void:
 	if not _properties_dirty:

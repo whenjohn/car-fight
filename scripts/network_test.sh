@@ -78,6 +78,19 @@ if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.
 	rg 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.log >&2
 	exit 1
 fi
+if rg -q 'Reference tick .* missing .* applying' "$log_dir"/client-*.log; then
+	echo "a client applied a diff without its reference snapshot; logs: $log_dir" >&2
+	rg 'Reference tick .* missing .* applying' "$log_dir"/client-*.log >&2
+	exit 1
+fi
+reference_rejections="$(rg --no-filename '^WARNING: .*Rejecting diff .* reference tick .* unavailable' \
+		"$log_dir"/client-*.log | wc -l | tr -d ' ' || true)"
+# The diagnostic is rate-limited to once per second per client. A higher count
+# means a recovery loop survived for essentially the entire short gate.
+if (( reference_rejections > 20 )); then
+	echo "missing-reference recovery was unbounded ($reference_rejections); logs: $log_dir" >&2
+	exit 1
+fi
 if ! rg -Fq "latency=${latency_ms}ms jitter=+/-${jitter_ms}ms loss=${loss_print}% seed=${shape_seed}" \
 		"$log_dir/proxy.log"; then
 	echo "proxy did not echo the requested '$profile' profile; logs: $log_dir" >&2
@@ -123,7 +136,7 @@ if ! awk -v value="$worst_error" 'BEGIN { exit !(value <= 2.0) }'; then
 fi
 
 result_line="$(rg 'RESULT players=2' "$log_dir/server.log" | tail -1)"
-echo "NETWORK_TEST PASS profile=$profile one_way=${latency_ms}ms jitter=+/-${jitter_ms}ms loss=${loss_pct}% worst_correction=${worst_error}"
+echo "NETWORK_TEST PASS profile=$profile one_way=${latency_ms}ms jitter=+/-${jitter_ms}ms loss=${loss_pct}% worst_correction=${worst_error} reference_rejections=${reference_rejections}"
 echo "$proxy_stats"
 echo "$result_line"
 echo "logs: $log_dir"

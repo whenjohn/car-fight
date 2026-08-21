@@ -15,16 +15,24 @@ var _sample_elapsed := 0.0
 var _sample_frames := 0
 var _slow_frames := 0
 var _maximum_frame_seconds := 0.0
+var _maximum_network_loop_ms := 0.0
+var _maximum_rollback_loop_ms := 0.0
+var _maximum_network_ticks := 0
+var _maximum_rollback_ticks := 0
 var _last_slow_frame_event_msec := -10000
 var _last_window_mode := -1
 var _started_msec := 0
 var _fake_stall_after_seconds := -1.0
 var _fake_stall_duration_seconds := 0.0
 var _fake_stall_done := false
+var _network_performance: Node
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	var main_loop := Engine.get_main_loop() as SceneTree
+	if main_loop != null:
+		_network_performance = main_loop.root.get_node_or_null("NetworkPerformance")
 	if output_path.is_empty() and not console_output:
 		set_process(false)
 		return
@@ -82,6 +90,19 @@ func _process(delta: float) -> void:
 		})
 		_last_window_mode = window_mode
 	_maximum_frame_seconds = maxf(_maximum_frame_seconds, delta)
+	# Performance.TIME_PROCESS tells us that a frame was expensive, but not
+	# whether netfox spent it catching up forward ticks or replaying rollback.
+	# Preserve the worst network sample across the whole telemetry interval so a
+	# one-frame spike is not hidden by whichever frame happens to write the row.
+	if _network_performance != null:
+		_maximum_network_loop_ms = maxf(_maximum_network_loop_ms,
+			float(_network_performance.call("get_network_loop_duration_ms")))
+		_maximum_rollback_loop_ms = maxf(_maximum_rollback_loop_ms,
+			float(_network_performance.call("get_rollback_loop_duration_ms")))
+		_maximum_network_ticks = maxi(_maximum_network_ticks,
+			int(_network_performance.call("get_network_ticks")))
+		_maximum_rollback_ticks = maxi(_maximum_rollback_ticks,
+			int(_network_performance.call("get_rollback_ticks")))
 	if delta >= SLOW_FRAME_SECONDS:
 		_slow_frames += 1
 		var now_msec := Time.get_ticks_msec()
@@ -95,6 +116,10 @@ func _process(delta: float) -> void:
 	_sample_frames = 0
 	_slow_frames = 0
 	_maximum_frame_seconds = 0.0
+	_maximum_network_loop_ms = 0.0
+	_maximum_rollback_loop_ms = 0.0
+	_maximum_network_ticks = 0
+	_maximum_rollback_ticks = 0
 
 
 func _notification(what: int) -> void:
@@ -128,6 +153,10 @@ func _write_sample() -> void:
 		"observed_frames": _sample_frames,
 		"slow_frames": _slow_frames,
 		"maximum_frame_ms": _maximum_frame_seconds * 1000.0,
+		"maximum_network_loop_ms": _maximum_network_loop_ms,
+		"maximum_rollback_loop_ms": _maximum_rollback_loop_ms,
+		"maximum_network_ticks": _maximum_network_ticks,
+		"maximum_rollback_ticks": _maximum_rollback_ticks,
 		"process_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 		"physics_ms": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
 		"static_memory_bytes": Performance.get_monitor(Performance.MEMORY_STATIC),

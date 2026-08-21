@@ -1,6 +1,8 @@
 extends RefCounted
 class_name _RollbackHistoryRecorder
 
+const DIFF_REFERENCE_HISTORY_MULTIPLIER := 2
+
 # Provided externally by RBS
 var _state_history: _PropertyHistoryBuffer
 var _input_history: _PropertyHistoryBuffer
@@ -45,8 +47,13 @@ func apply_tick(tick: int) -> void:
 	input.apply(_property_cache)
 
 func trim_history() -> void:
-	# Trim history
-	_state_history.trim()
+	# Diff decoding needs the exact snapshot acknowledged by the receiver, but
+	# that reference can legitimately be older than the window we are willing
+	# to replay. Retain state-only bases for a second rollback window without
+	# expanding rollback work or input history.
+	var state_reference_start := maxi(0, NetworkRollback.history_start \
+		- NetworkRollback.history_limit * (DIFF_REFERENCE_HISTORY_MULTIPLIER - 1))
+	_state_history.trim(state_reference_start)
 	_input_history.trim()
 
 func record_input(tick: int) -> void:

@@ -33,7 +33,11 @@ func _init() -> void:
 				and record.has("screen")
 		elif record.get("event", "") == "sample":
 			saw_sample = record.has("fps") and record.has("draw_calls") \
-				and record.has("maximum_frame_ms") and record.has("window_focused")
+				and record.has("maximum_frame_ms") and record.has("window_focused") \
+				and record.has("maximum_network_loop_ms") \
+				and record.has("maximum_rollback_loop_ms") \
+				and record.has("maximum_network_ticks") \
+				and record.has("maximum_rollback_ticks")
 		elif record.get("event", "") == "window_safety_enforced":
 			var reasons: Array = record.get("reasons", [])
 			var safe_size: Array = record.get("safe_size", [])

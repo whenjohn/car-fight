@@ -124,6 +124,10 @@ The gate checks FOLLOW movement, coverage geometry and budget enforcement, prese
 
 ## Network shaping
 
+The current impairment results, desynchronization recovery design, and measured
+rollback/FPS bottleneck are recorded in
+[`NETWORK_SHAPING_FINDINGS.md`](NETWORK_SHAPING_FINDINGS.md).
+
 Native ENet and browser WebRTC use the same named one-way profiles: `clean`,
 `latency60`, `latency120`, `jitter` (60 +/- 30 ms), `loss05`, `loss1`, and
 `combined` (120 +/- 40 ms plus 1% loss).
