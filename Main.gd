@@ -114,6 +114,7 @@ var _player_name := "driver"
 var _session_label := ""
 var _scripted := ""
 var _server_driver_enabled := false
+var _ramps_enabled := true
 var _server_driver_waypoint := 1
 var _server_driver_progress_tick := -1
 var _server_driver_progress_position := Vector2.ZERO
@@ -338,6 +339,7 @@ func _process(_delta: float) -> void:
 	_update_editor_label()
 
 func _parse_args() -> void:
+	_ramps_enabled = OS.get_environment("CAR_FIGHT_NO_RAMPS") != "1"
 	# Keep the accepted offline export unchanged. The separate Web Network
 	# preset opts into the browser WebRTC client with a custom feature.
 	if OS.has_feature("web"):
@@ -509,6 +511,8 @@ func _parse_args() -> void:
 			_force_presentation = true
 		elif arg == "--server-driver":
 			_server_driver_enabled = true
+		elif arg == "--no-ramps":
+			_ramps_enabled = false
 		elif arg == "--course-test":
 			_course_test = true
 		elif arg == "--reverse-test":
@@ -1240,7 +1244,8 @@ func _build_arena() -> void:
 	for obstacle in ARENA_LAYOUT.collision_objects():
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
-	_build_elevated_course()
+	if _ramps_enabled:
+		_build_elevated_course()
 	_build_driving_course_space()
 
 
