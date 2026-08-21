@@ -6,6 +6,8 @@ const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const TRACTOR := preload("res://player/tractor_controller.gd")
 const IMPACT := preload("res://player/impact_controller.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
+const REMOTE_POSITION_VALIDATION := preload("res://net/remote_position_validation.gd")
+const REMOTE_SNAPSHOT_INTERPOLATION := preload("res://net/remote_snapshot_interpolation.gd")
 
 const DET_ZONE_RADIUS := 3.6
 const DET_GROW_TIME := 0.08
@@ -43,6 +45,7 @@ var was_supported := false
 var landing_fall_speed := 0.0
 var landing_jostle_cooldown := 0.0
 var map_id := MAP_LAYOUT.ARENA
+var remote_state_generation := 0
 var gate_cooldown := 0.0
 var gate_transition_count := 0
 var area_weapon_armed := false
@@ -68,15 +71,30 @@ var _pending_torque_impulse := Vector3.ZERO
 var _pending_recovery_time := 0.0
 var _pending_impact_hits := 0
 var _pending_shield_hits := 0
+var _is_local := false
+var _remote_position_relevant := true
+var _remote_position_presented := true
+var _remote_state_last_tick := -1
+var _remote_state_min_tick := -1
+var _remote_samples := {}
+var _remote_render_tick := 0.0
+var _remote_render_tick_initialized := false
+var _remote_visual_root: Node3D
+var _remote_visual_local_transform := Transform3D.IDENTITY
+const REMOTE_INTERP_MS := 75.0
+const REMOTE_EXTRAPOLATE_MS := 50.0
 
 func _ready() -> void:
+	add_to_group("pilotable")
 	owner_id = int(name)
 	set_multiplayer_authority(1)
 	_input.set_multiplayer_authority(owner_id)
 	if _sync != null:
 		_sync.root = self
 		_sync.enable_prediction = true
-		_sync.enable_input_broadcast = false
+		var state_bundle := get_node_or_null("/root/StateBundle")
+		_sync.enable_input_broadcast = true if state_bundle == null \
+			else bool(state_bundle.get("input_broadcast"))
 		_sync.add_state(self, "physics_state")
 		_sync.add_state(self, "burst_turn_sign")
 		_sync.add_state(self, "boost_active")
@@ -125,13 +143,13 @@ func _ready() -> void:
 		_sync.add_input(_input, "editing")
 		_sync.process_settings()
 
-	var local_player := owner_id == multiplayer.get_unique_id()
-	if _interpolator != null and not multiplayer.is_server() and not local_player:
+	_is_local = owner_id == multiplayer.get_unique_id()
+	if _interpolator != null and not multiplayer.is_server() and not _is_local:
 		_interpolator.root = self
 		_interpolator.add_property(self, "global_transform")
 	elif _interpolator != null:
 		_interpolator.enabled = false
-	if local_player:
+	if _is_local:
 		_cursor_marker = get_node_or_null("CursorMarker")
 		_max_speed_marker = get_node_or_null("MaxSpeedMarker")
 		_cursor_line = get_node_or_null("CursorLine")
@@ -141,6 +159,13 @@ func _ready() -> void:
 			if _cursor_line_material != null:
 				_cursor_line_color = _cursor_line_material.albedo_color
 	_tractor_rope = get_node_or_null("TractorRope")
+	var remote_transport := get_node_or_null("/root/RemotePositionTransport")
+	if remote_position_transport_controlled() and remote_transport != null \
+			and not bool(remote_transport.call("body_starts_remote_position_relevant")):
+		_remote_position_relevant = false
+		_remote_position_presented = false
+		_ensure_remote_visual_roots()
+		_apply_remote_position_visibility()
 
 func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	if direct_state == null:
@@ -471,7 +496,92 @@ func _static_support_normal() -> Vector3:
 				return normal.normalized()
 	return Vector3.ZERO
 
+
+func remote_position_transport_controlled() -> bool:
+	return not multiplayer.is_server() and not _is_local
+
+
+func is_remote_position_relevant() -> bool:
+	return true if not remote_position_transport_controlled() else _remote_position_relevant
+
+
+func set_remote_position_relevant(relevant: bool, tick: int) -> void:
+	if not remote_position_transport_controlled() or relevant == _remote_position_relevant:
+		return
+	_remote_position_relevant = relevant
+	_remote_position_presented = false
+	_remote_samples.clear()
+	_remote_render_tick_initialized = false
+	_remote_state_min_tick = maxi(_remote_state_min_tick, tick if not relevant else tick - 1)
+	_ensure_remote_visual_roots()
+	_apply_remote_position_visibility()
+
+
+func receive_remote_position(generation: int, tick: int, position: Vector3) -> bool:
+	if not REMOTE_POSITION_VALIDATION.accepts_body_sample(multiplayer.is_server(), _is_local,
+			remote_state_generation, _remote_state_last_tick, _remote_state_min_tick,
+			generation, tick):
+		return false
+	_remote_state_last_tick = tick
+	var network_time := get_node_or_null("/root/NetworkTime")
+	var current_tick := tick if network_time == null else int(network_time.get("tick"))
+	REMOTE_SNAPSHOT_INTERPOLATION.insert_bounded(
+		_remote_samples, tick, position, maxi(current_tick, tick), 64)
+	if not _remote_position_presented:
+		_remote_position_presented = true
+		_apply_remote_position_visibility()
+	return true
+
+
+func _ensure_remote_visual_roots() -> void:
+	if _remote_visual_root != null or _is_headless_presentation():
+		return
+	_remote_visual_root = get_node_or_null("GroundVehicleHull") as Node3D
+	if _remote_visual_root == null:
+		return
+	_remote_visual_local_transform = _remote_visual_root.transform
+	var world_transform := _remote_visual_root.global_transform
+	_remote_visual_root.top_level = true
+	_remote_visual_root.global_transform = world_transform
+
+
+func _apply_remote_position_visibility() -> void:
+	if is_instance_valid(_remote_visual_root):
+		_remote_visual_root.visible = _remote_position_presented
+
+
+func _process_remote_position(delta: float) -> void:
+	if not remote_position_transport_controlled() or not _remote_position_relevant \
+			or _remote_samples.is_empty():
+		return
+	_ensure_remote_visual_roots()
+	var network_time := get_node_or_null("/root/NetworkTime")
+	if network_time == null:
+		return
+	var rate := float(network_time.get("tickrate"))
+	var desired_tick := float(network_time.get("tick")) \
+		- REMOTE_INTERP_MS / 1000.0 * rate
+	if not _remote_render_tick_initialized:
+		_remote_render_tick = desired_tick
+		_remote_render_tick_initialized = true
+	else:
+		_remote_render_tick = REMOTE_SNAPSHOT_INTERPOLATION.advance_cursor(
+			_remote_render_tick, desired_tick, delta, rate)
+	var sampled := REMOTE_SNAPSHOT_INTERPOLATION.sample(_remote_samples,
+		_remote_render_tick, REMOTE_EXTRAPOLATE_MS / 1000.0 * rate)
+	if sampled.is_empty():
+		return
+	if is_instance_valid(_remote_visual_root):
+		var presentation_transform := Transform3D(global_basis, sampled["position"])
+		_remote_visual_root.global_transform = \
+			presentation_transform * _remote_visual_local_transform
+
+
+func _is_headless_presentation() -> bool:
+	return DisplayServer.get_name() == "headless"
+
 func _process(_delta: float) -> void:
+	_process_remote_position(_delta)
 	_update_tractor_rope()
 	if _cursor_marker == null or _cursor_line == null:
 		return

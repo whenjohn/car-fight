@@ -14,6 +14,61 @@ The production macai2 service on UDP 10080/TCP 10181 was not changed during the
 recovery experiments below. Patched server/client comparisons used temporary
 local servers.
 
+## Full G2-derived stack A/B
+
+Car Fight now has an opt-in `CAR_FIGHT_G2_STACK=1` profile covering the G2
+network mechanisms that apply to this project:
+
+- per-route `StateBundle` queues with ordinary-state coalescing, byte bounds,
+  pressure telemetry, and full-state recovery preservation;
+- fixed-size packed input plus packed rollback state codecs;
+- disabled redundant input broadcast;
+- fixed or adaptive ordinary-state cadence division;
+- application/network/rollback telemetry; and
+- 30 Hz complete-set remote-position batching, same-map relevance, self
+  exclusion, generation/tick validation, and delayed render-only interpolation.
+
+The profile remains an A/B switch. Ordinary game launches retain the legacy
+transport and cadence. The G2 replay-budget mechanism is available only through
+an explicit lab value and remains rejected as described below.
+
+### Car Fight-specific StateBundle correction
+
+The first direct port coalesced the newest whole StateBundle envelope. Under
+120 ms latency, server resimulation can emit newer sparse envelopes for
+different bodies. A newer body B envelope therefore evicted body A's latest
+authority, leaving a client seconds stale and producing 26-56 unit corrections.
+
+Car Fight now coalesces the newest ordinary entry per route/body and regroups
+entries by source tick when draining. Complete reliable-recovery keys remain
+atomic. A focused regression covers this multi-body starvation case.
+
+### Headless native measurements
+
+| Profile | Cadence | Result | Worst correction |
+| --- | --- | --- | ---: |
+| `latency120` | fixed divisor 3 | pass | 1.379 units |
+| `combined` | fixed divisor 3 | fail | 10.890 units |
+| `combined` | fixed divisor 1 | pass | 0.388 units |
+| `latency120`, long run | adaptive 3 -> 2 -> 1 | pass | 0.860 units |
+
+The adaptive run changed at ticks 720 and 1080 with no backpressure or
+full-key events and only one bounded missing-reference rejection. Fixed 20 Hz
+ordinary state is therefore useful under pure lag but is not yet the robust
+combined latency/jitter/loss default. Divisor 1 is the current full-stack
+combined baseline.
+
+The corrected native run also proved that batch presentation was carrying real
+bodies rather than empty envelopes: each peer received one self-excluded remote
+body, with 25 non-empty envelopes and 2,200 logical bytes per reporting window.
+
+For human smoothness checks, `scripts/play_shaped_local_two.sh` adds peer 1 as a
+server-authoritative Jeep on a repeatable 24-unit circuit. Its input is generated
+on the server, it does not auto-fire, and both shaped clients receive the same
+body through the full profile. This is the Car Fight equivalent of G2's moving
+server fixture: drive behind it and judge the remote hull rather than comparing
+two independently controlled client cars.
+
 ## Native desynchronization under 120 ms one-way latency
 
 The first two rendered `latency120` runs eventually appeared desynchronized even
@@ -102,9 +157,10 @@ This evidence rejects an FPS cap as the primary fix.
 ## Rejected resimulation-budget experiment
 
 The G2-style per-frame rollback replay budget was ported and tested as a 10 ms
-rendered-client default. It was then removed from both native and browser code.
-Car Fight cannot safely discard an old replay origin: that origin may be the
-newest authoritative snapshot needed to reconcile a predicted body.
+rendered-client default, then removed from normal behavior. It is now exposed
+only as an explicit lab flag with a zero/unlimited default. Car Fight cannot
+safely discard an old replay origin: that origin may be the newest authoritative
+snapshot needed to reconcile a predicted body.
 
 The first 120 ms shaped A/B limited replay depth and mostly held 59-61 average
 FPS, but both clients visibly desynchronized. They accumulated 49 recovery
@@ -132,14 +188,33 @@ authoritative correction, for example by reducing replay cost or continuing a
 correction over frames without advancing presentation from an unreconciled
 state.
 
+A final full-stack headless retest reached the same conclusion. With packed
+state/input, StateBundle recovery, divisor 1, combined impairment, and a 10 ms
+budget, worst correction reached 34.176 units. Coordinated recovery did not make
+the cap safe. Keep `CAR_FIGHT_RESIM_BUDGET_MS` unset outside explicit failure
+reproduction.
+
 ## Browser status
 
-The browser path remains blocked independently on WebRTC backpressure. The clean
-forced-TURN row peaked at 106,560 queued browser bytes. The combined profile
-peaked at 125,197 browser bytes, ended with 15,166 still queued, and grew the
-server ordered channel past 600 KiB. Keep the 64 KiB acceptance ceiling fixed.
-Backpressure still has to be corrected before the full browser profile matrix
-and human soak can pass. The rejected replay cap is not part of that solution.
+The local exported browser/native smoke now exercises the real G2-stack batch
+path and rejects an empty remote-position stream. After limiting render-only
+world-space updates to the vehicle hull and allowing the reconnect warm-up to
+settle, it passed at 59.2 steady FPS, 678 maximum queued bytes, 102 final bytes,
+and zero browser errors. Physics remained authoritative on the rollback body;
+the 75 ms delayed/50 ms capped extrapolation path moved presentation only.
+
+This local result fixes the previously observed application-level queue growth,
+but it does not supersede the remote forced-TURN failures. The clean forced-TURN
+row peaked at 106,560 queued browser bytes. The combined row peaked at 125,197,
+ended with 15,166 still queued, and grew the server ordered channel past 600
+KiB. Keep the 64 KiB acceptance ceiling fixed.
+
+The latest isolated G2-stack `latency120` TURN retry failed before gameplay: ICE
+remained `connecting` until the browser join timed out, even though the native
+ENet peer stayed healthy and TURN qdisc traffic existed. It supplied no
+desynchronization evidence. Repair/retry that ICE path before running the full
+browser shaping matrix and human soak. The rejected replay cap is not part of
+that solution.
 
 ## Validation state
 
@@ -147,10 +222,13 @@ and human soak can pass. The rejected replay cap is not part of that solution.
 - Complete project suite: passed after reliable recovery was added.
 - After longer diff-reference retention: Godot import, crash telemetry test,
   join-transient recovery, and focused `latency120` network gate passed.
-- The 10 ms rendered-client replay budget and its 24-tick/reliable-rebase
-  follow-up were both rejected by shaped native A/B evidence and removed from
-  native and browser code.
-- After removing the rejected experiment, the complete `./scripts/test.sh` suite
-  passed. The Web Network release export and local browser/native leave/rejoin
-  smoke also passed at 60.0 steady FPS, 4,848 maximum/455 final buffered bytes,
-  and zero browser errors.
+- Focused packed-input, packed-state, per-body StateBundle coalescing, and remote
+  transport tests pass.
+- The full G2-derived native `latency120` row passes with real non-empty remote
+  batches. Combined impairment passes at divisor 1; divisor 3 is not accepted.
+- The long adaptive-cadence run passed while stepping 3 -> 2 -> 1.
+- The 10 ms replay budget, its 24-tick/reliable-rebase follow-up, and a final
+  coordinated full-stack retest were all rejected by shaped native evidence.
+- The exported local browser/native G2-stack smoke passes at 59.2 steady FPS,
+  678 maximum/102 final buffered bytes, and zero errors. Remote forced-TURN
+  shaping remains incomplete because the latest retry stopped at ICE setup.

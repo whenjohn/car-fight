@@ -17,6 +17,23 @@ web_pid=""
 server_pid=""
 native_runner_pid=""
 chrome_pid=""
+stack_args=()
+browser_stack_query=""
+server_fixture_args=()
+if [[ "${CAR_FIGHT_G2_STACK:-0}" == "1" ]]; then
+	state_rate_divisor="${CAR_FIGHT_STATE_RATE_DIVISOR:-3}"
+	stack_args=(--state-bundles --packed-input --packed-state --input-broadcast 0 \
+		--state-rate-divisor "$state_rate_divisor" --remote-state-transport batch \
+		--remote-state-rate 30 --remote-state-relevance same-map --remote-state-include-self 0)
+	browser_stack_query="&stateBundles=1&packedInput=1&packedState=1&inputBroadcast=0&stateRateDivisor=$state_rate_divisor&remoteStateTransport=batch&remoteStateRate=30&remoteStateRelevance=same-map&remoteStateIncludeSelf=0"
+	if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
+		stack_args+=(--adaptive-state-rate 1)
+		browser_stack_query+="&adaptiveStateRate=1"
+	fi
+	if [[ "${CAR_FIGHT_SERVER_DRIVER:-1}" == "1" ]]; then
+		server_fixture_args=(--server-driver --no-drone)
+	fi
+fi
 
 cleanup() {
 	for process_id in "$chrome_pid" "$native_runner_pid" "$server_pid" "$web_pid"; do
@@ -44,6 +61,7 @@ curl -fs -o /dev/null "http://127.0.0.1:$web_port/"
 
 "$godot_bin" --headless --path "$project_root" -- --server --transport mux \
 	--port "$enet_port" --signal-port "$signal_port" \
+	"${stack_args[@]}" "${server_fixture_args[@]}" \
 	>"$run_root/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
@@ -54,7 +72,7 @@ CAR_FIGHT_PORT="$enet_port" CAR_FIGHT_MONITOR_ROOT="$run_root/native" \
 native_runner_pid=$!
 sleep 1
 
-browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$signal_port&name=browser"
+browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$signal_port&name=browser$browser_stack_query"
 "$chrome_bin" --user-data-dir="$chrome_profile" --no-first-run \
 	--no-default-browser-check --disable-extensions --window-size=1280,815 \
 	--window-position=1360,80 --new-window "$browser_url" \
@@ -64,6 +82,9 @@ chrome_pid=$!
 echo "mixed local run: $run_root"
 echo "native: ENet udp://127.0.0.1:$enet_port"
 echo "browser: WebRTC via ws://127.0.0.1:$signal_port signaling"
+if [[ ${#server_fixture_args[@]} -gt 0 ]]; then
+	echo "server circuit car: peer 1"
+fi
 echo "Both clients share one authoritative mux world. Close the native window to finish."
 
 set +e

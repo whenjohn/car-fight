@@ -34,6 +34,31 @@ var _full_state_props_accum: int = 0
 var _sent_state_props: int = 0
 var _sent_state_props_accum: int = 0
 
+# g2 application-wire telemetry. This is deliberately opt-in: serializing RPC payloads to estimate their wire
+# size adds work, and browser console collection must stay off during ordinary play. The counters aggregate here
+# so individual RPC seams only pay one method call when enabled and never print from inside the rollback loop.
+var _app_telemetry_enabled := false
+var _app_message_counts: Dictionary = {}
+var _app_payload_bytes: Dictionary = {}
+var _app_bundle_counts: Dictionary = {}
+var _app_bundle_entries: Dictionary = {}
+var _app_bundle_bytes: Dictionary = {}
+var _app_bundles_skipped := 0
+var _app_bundles_backpressure_dropped := 0
+var _app_inputs_backpressure_dropped := 0
+var _app_fast_forwards := 0
+var _app_fast_forward_ticks := 0
+var _app_fresh_key_requests := 0
+var _app_pending_age_max := 0
+var _app_state_oldest_received_tick := -1
+var _app_state_newest_received_tick := -1
+var _app_state_newest_applied_tick := -1
+var _app_state_rejected := 0
+var _app_rollback_ticks_sum := 0
+var _app_rollback_ticks_max := 0
+var _app_rollback_ticks_current := 0
+var _app_last_report_msec := 0
+
 static var _logger: NetfoxLogger = NetfoxLogger._for_netfox("NetworkPerformance")
 
 ## Check if performance monitoring is enabled.
@@ -114,6 +139,211 @@ func push_sent_state(state: Dictionary) -> void:
 
 func push_sent_state_broadcast(state: Dictionary) -> void:
 	_sent_state_props_accum += state.size() * (multiplayer.get_peers().size() - 1)
+
+## Enable the lightweight, once-per-second g2 application-wire report.
+##
+## Payload bytes are serialized argument sizes, not transport bytes: MultiplayerAPI's RPC/path/channel envelope
+## is intentionally excluded. The number is still directly comparable between message categories and runs.
+func set_app_telemetry_enabled(enabled: bool) -> void:
+	_app_telemetry_enabled = enabled
+	_reset_app_telemetry_window()
+	_app_last_report_msec = Time.get_ticks_msec()
+	if enabled and not NetworkTime.on_tick.is_connected(_on_app_telemetry_tick):
+		NetworkTime.on_tick.connect(_on_app_telemetry_tick)
+	if enabled and not NetworkRollback.before_loop.is_connected(_before_app_rollback_loop):
+		NetworkRollback.before_loop.connect(_before_app_rollback_loop)
+	if enabled and not NetworkRollback.on_process_tick.is_connected(_on_app_rollback_tick):
+		NetworkRollback.on_process_tick.connect(_on_app_rollback_tick)
+	if enabled and not NetworkRollback.after_loop.is_connected(_after_app_rollback_loop):
+		NetworkRollback.after_loop.connect(_after_app_rollback_loop)
+
+func is_app_telemetry_enabled() -> bool:
+	return _app_telemetry_enabled
+
+## Count one application RPC category. `copies` is the number of remote recipients for a broadcast.
+func record_app_message(direction: String, category: String, payload: Variant, copies: int = 1) -> void:
+	if not _app_telemetry_enabled or copies <= 0:
+		return
+	var key := "%s:%s" % [direction, category]
+	_app_message_counts[key] = int(_app_message_counts.get(key, 0)) + copies
+	_app_payload_bytes[key] = int(_app_payload_bytes.get(key, 0)) + var_to_bytes(payload).size() * copies
+
+## Count actual state-envelope RPCs separately from the logical entries they carry.
+func record_app_state_bundle(direction: String, payload: Variant, entry_count: int) -> void:
+	if not _app_telemetry_enabled:
+		return
+	_app_bundle_counts[direction] = int(_app_bundle_counts.get(direction, 0)) + 1
+	_app_bundle_entries[direction] = int(_app_bundle_entries.get(direction, 0)) + entry_count
+	_app_bundle_bytes[direction] = int(_app_bundle_bytes.get(direction, 0)) + var_to_bytes(payload).size()
+
+func note_app_bundle_skipped(count: int) -> void:
+	if _app_telemetry_enabled:
+		_app_bundles_skipped += maxi(0, count)
+
+## Count a replaceable outbound envelope dropped because the recipient's transport send queue is over the
+## backpressure threshold. Dropping there is the fix for unbounded SCTP queue growth; count it honestly.
+func note_app_bundle_backpressure_dropped(count: int) -> void:
+	if _app_telemetry_enabled:
+		_app_bundles_backpressure_dropped += maxi(0, count)
+
+## Count an input send skipped because the local transport send queue is over the backpressure threshold.
+## Input packets carry a redundancy window, so a skip is covered by the next send that goes out.
+func note_app_input_backpressure_dropped(count: int) -> void:
+	if _app_telemetry_enabled:
+		_app_inputs_backpressure_dropped += maxi(0, count)
+
+func note_app_fast_forward(skipped_ticks: int) -> void:
+	if _app_telemetry_enabled:
+		_app_fast_forwards += 1
+		_app_fast_forward_ticks += maxi(0, skipped_ticks)
+
+func note_app_fresh_key_request() -> void:
+	if _app_telemetry_enabled:
+		_app_fresh_key_requests += 1
+
+func note_app_pending_age(age_ticks: int) -> void:
+	if _app_telemetry_enabled:
+		_app_pending_age_max = maxi(_app_pending_age_max, age_ticks)
+
+## Record a state tick as it enters the RPC handler, before decoding/applying it.
+func note_app_state_received(tick: int) -> void:
+	if not _app_telemetry_enabled:
+		return
+	if _app_state_oldest_received_tick < 0:
+		_app_state_oldest_received_tick = tick
+	else:
+		_app_state_oldest_received_tick = mini(_app_state_oldest_received_tick, tick)
+	_app_state_newest_received_tick = maxi(_app_state_newest_received_tick, tick)
+
+func note_app_state_applied(tick: int) -> void:
+	if _app_telemetry_enabled:
+		_app_state_newest_applied_tick = maxi(_app_state_newest_applied_tick, tick)
+
+func note_app_state_rejected() -> void:
+	if _app_telemetry_enabled:
+		_app_state_rejected += 1
+
+func get_broadcast_recipient_count() -> int:
+	return multiplayer.get_peers().size()
+
+## Return the current raw application-telemetry window. Tick spans here describe everything observed during
+## this reporting window; they are not queue depth. Queue/pending-age telemetry belongs to the later bounded
+## bundle receiver, where an application queue actually exists and can be measured honestly.
+func get_app_telemetry_snapshot(now_tick: int) -> Dictionary:
+	if not _app_telemetry_enabled:
+		return {}
+	return {
+		"message_counts": _app_message_counts.duplicate(),
+		"payload_bytes": _app_payload_bytes.duplicate(),
+		"bundle_counts": _app_bundle_counts.duplicate(),
+		"bundle_entries": _app_bundle_entries.duplicate(),
+		"bundle_bytes": _app_bundle_bytes.duplicate(),
+		"bundles_skipped": _app_bundles_skipped,
+		"bundles_backpressure_dropped": _app_bundles_backpressure_dropped,
+		"inputs_backpressure_dropped": _app_inputs_backpressure_dropped,
+		"fast_forwards": _app_fast_forwards,
+		"fast_forward_ticks": _app_fast_forward_ticks,
+		"fresh_key_requests": _app_fresh_key_requests,
+		"pending_age_max": _app_pending_age_max,
+		"state_oldest_received_tick": _app_state_oldest_received_tick,
+		"state_newest_received_tick": _app_state_newest_received_tick,
+		"state_newest_applied_tick": _app_state_newest_applied_tick,
+		"state_oldest_age_ticks": -1 if _app_state_oldest_received_tick < 0 else maxi(0, now_tick - _app_state_oldest_received_tick),
+		"state_newest_age_ticks": -1 if _app_state_newest_received_tick < 0 else maxi(0, now_tick - _app_state_newest_received_tick),
+		"state_applied_age_ticks": -1 if _app_state_newest_applied_tick < 0 else maxi(0, now_tick - _app_state_newest_applied_tick),
+		"state_rejected": _app_state_rejected,
+		"rollback_ticks_sum": _app_rollback_ticks_sum,
+		"rollback_ticks_max": _app_rollback_ticks_max,
+	}
+
+## Format the once-per-second line without mutating/resetting the current window. An empty string is the strict
+## disabled contract, which lets the automated gate prove disabled telemetry cannot emit NETAPP output.
+func build_app_telemetry_report(tick: int) -> String:
+	if not _app_telemetry_enabled:
+		return ""
+	var snapshot := get_app_telemetry_snapshot(tick)
+	return "NETAPP tick=%d rates=%s bundles=%s skipped=%d bp_dropped=%d input_bp_dropped=%d fast_forwards=%d/%dt key_requests=%d pending_age_max=%d state_rx_ticks=%s..%s state_age_ticks=%s/%s applied_tick=%s applied_age_ticks=%s rejected=%d rollback_ticks_sum=%d rollback_ticks_max=%d" % [
+		tick, _format_app_rates(), _format_app_bundles(),
+		int(snapshot["bundles_skipped"]), int(snapshot["bundles_backpressure_dropped"]),
+		int(snapshot["inputs_backpressure_dropped"]),
+		int(snapshot["fast_forwards"]),
+		int(snapshot["fast_forward_ticks"]), int(snapshot["fresh_key_requests"]),
+		int(snapshot["pending_age_max"]),
+		_tick_or_na(int(snapshot["state_oldest_received_tick"])),
+		_tick_or_na(int(snapshot["state_newest_received_tick"])),
+		_age_or_na(int(snapshot["state_oldest_age_ticks"])),
+		_age_or_na(int(snapshot["state_newest_age_ticks"])),
+		_tick_or_na(int(snapshot["state_newest_applied_tick"])),
+		_age_or_na(int(snapshot["state_applied_age_ticks"])), int(snapshot["state_rejected"]),
+		int(snapshot["rollback_ticks_sum"]), int(snapshot["rollback_ticks_max"])]
+
+func _on_app_telemetry_tick(_dt: float, tick: int) -> void:
+	if not _app_telemetry_enabled:
+		return
+	var now := Time.get_ticks_msec()
+	if now - _app_last_report_msec < 1000:
+		return
+	print(build_app_telemetry_report(tick))
+	_reset_app_telemetry_window()
+	_app_last_report_msec = now
+
+func _before_app_rollback_loop() -> void:
+	_app_rollback_ticks_current = 0
+
+func _on_app_rollback_tick(_tick: int) -> void:
+	_app_rollback_ticks_current += 1
+
+func _after_app_rollback_loop() -> void:
+	_app_rollback_ticks_sum += _app_rollback_ticks_current
+	_app_rollback_ticks_max = maxi(_app_rollback_ticks_max, _app_rollback_ticks_current)
+
+func _format_app_rates() -> String:
+	var keys := _app_message_counts.keys()
+	keys.sort()
+	if keys.is_empty():
+		return "none"
+	var parts: PackedStringArray = []
+	for key in keys:
+		parts.append("%s=%d/%dB" % [key, int(_app_message_counts[key]), int(_app_payload_bytes[key])])
+	return ",".join(parts)
+
+func _format_app_bundles() -> String:
+	var directions := _app_bundle_counts.keys()
+	directions.sort()
+	if directions.is_empty():
+		return "none"
+	var parts: PackedStringArray = []
+	for direction in directions:
+		parts.append("%s=%d/%de/%dB" % [direction, int(_app_bundle_counts[direction]),
+			int(_app_bundle_entries[direction]), int(_app_bundle_bytes[direction])])
+	return ",".join(parts)
+
+func _tick_or_na(tick: int) -> String:
+	return "n/a" if tick < 0 else str(tick)
+
+func _age_or_na(age: int) -> String:
+	return "n/a" if age < 0 else str(age)
+
+func _reset_app_telemetry_window() -> void:
+	_app_message_counts.clear()
+	_app_payload_bytes.clear()
+	_app_bundle_counts.clear()
+	_app_bundle_entries.clear()
+	_app_bundle_bytes.clear()
+	_app_bundles_skipped = 0
+	_app_bundles_backpressure_dropped = 0
+	_app_inputs_backpressure_dropped = 0
+	_app_fast_forwards = 0
+	_app_fast_forward_ticks = 0
+	_app_fresh_key_requests = 0
+	_app_pending_age_max = 0
+	_app_state_oldest_received_tick = -1
+	_app_state_newest_received_tick = -1
+	_app_state_newest_applied_tick = -1
+	_app_state_rejected = 0
+	_app_rollback_ticks_sum = 0
+	_app_rollback_ticks_max = 0
+	_app_rollback_ticks_current = 0
 
 func _ready() -> void:
 	if not is_enabled():

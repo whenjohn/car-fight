@@ -11,6 +11,25 @@ log_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-web-network.XXXXXX")"
 web_pid=""
 server_pid=""
 native_pid=""
+stack_args=()
+browser_stack_query=""
+stack_label="legacy"
+if [[ "${CAR_FIGHT_G2_STACK:-0}" == "1" ]]; then
+	state_rate_divisor="${CAR_FIGHT_STATE_RATE_DIVISOR:-3}"
+	stack_args=(--state-bundles --packed-input --packed-state --input-broadcast 0 \
+		--state-rate-divisor "$state_rate_divisor" --remote-state-transport batch \
+		--remote-state-rate 30 --remote-state-relevance same-map --remote-state-include-self 0)
+	browser_stack_query="&stateBundles=1&packedInput=1&packedState=1&inputBroadcast=0&stateRateDivisor=$state_rate_divisor&remoteStateTransport=batch&remoteStateRate=30&remoteStateRelevance=same-map&remoteStateIncludeSelf=0"
+	stack_label="g2"
+fi
+if [[ -n "${CAR_FIGHT_RESIM_BUDGET_MS:-}" ]]; then
+	stack_args+=(--resim-budget-ms "$CAR_FIGHT_RESIM_BUDGET_MS")
+	browser_stack_query+="&resimBudgetMs=$CAR_FIGHT_RESIM_BUDGET_MS"
+fi
+if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
+	stack_args+=(--adaptive-state-rate 1)
+	browser_stack_query+="&adaptiveStateRate=1"
+fi
 
 cleanup() {
 	for process_id in "$native_pid" "$server_pid" "$web_pid"; do
@@ -36,16 +55,18 @@ curl -fs -o /dev/null "http://127.0.0.1:$web_port/"
 
 "$godot_bin" --headless --path "$project_root" -- --server --transport mux \
 	--port "$enet_port" --signal-port "$signal_port" --no-drone \
+	"${stack_args[@]}" \
 	>"$log_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
 "$godot_bin" --headless --path "$project_root" -- --client --transport enet \
 	--host 127.0.0.1 --port "$enet_port" --name native-survivor --script right \
+	"${stack_args[@]}" \
 	>"$log_dir/native.log" 2>&1 &
 native_pid=$!
 sleep 0.8
 
-browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$signal_port&name=browser&webrtcTelemetry=1"
+browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$signal_port&name=browser&webrtcTelemetry=1$browser_stack_query"
 node "$project_root/scripts/web_network_smoke.mjs" "$browser_url" \
 	"$log_dir/browser-report.json" "$log_dir/browser.png" \
 	| tee "$log_dir/browser.log"
@@ -78,6 +99,11 @@ if (( stale_count > 4 )); then
 	echo "Browser refresh produced a stale-history warning flood ($stale_count); logs: $log_dir" >&2
 	exit 1
 fi
+if [[ "$stack_label" == "g2" ]] \
+		&& ! rg -q '\[remote-state-batch-proof\].*bodies=[1-9][0-9]*' "$log_dir/server.log"; then
+	echo "G2 stack sent no non-empty remote-position batch; logs: $log_dir" >&2
+	exit 1
+fi
 
-echo "WEB_NETWORK_TEST PASS"
+echo "WEB_NETWORK_TEST PASS stack=$stack_label"
 echo "logs: $log_dir"

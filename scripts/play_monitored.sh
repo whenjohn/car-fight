@@ -162,11 +162,29 @@ fi
 	> "$run_dir/unified-live.log" 2>&1 &
 log_pid=$!
 
-typeset -a driver_args client_display_args client_user_args
+typeset -a driver_args client_display_args client_user_args network_stack_args server_fixture_args
 driver_args=()
 client_display_args=(--windowed)
 session_label="${CAR_FIGHT_SESSION_LABEL:-$(git -C "$project_root" branch --show-current)}"
 client_user_args=(--client --host "$client_host" --port "$port" --name "$client_name" --session-label "$session_label")
+network_stack_args=()
+server_fixture_args=()
+if [[ "${CAR_FIGHT_G2_STACK:-0}" == "1" ]]; then
+	network_stack_args=(--state-bundles --packed-input --packed-state --input-broadcast 0 \
+		--state-rate-divisor "${CAR_FIGHT_STATE_RATE_DIVISOR:-3}" \
+		--remote-state-transport batch --remote-state-rate 30 \
+		--remote-state-relevance same-map --remote-state-include-self 0)
+	if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
+		network_stack_args+=(--adaptive-state-rate 1)
+	fi
+	if [[ -n "${CAR_FIGHT_RESIM_BUDGET_MS:-}" ]]; then
+		network_stack_args+=(--resim-budget-ms "$CAR_FIGHT_RESIM_BUDGET_MS")
+	fi
+fi
+if [[ "${CAR_FIGHT_SERVER_DRIVER:-0}" == "1" ]]; then
+	server_fixture_args=(--server-driver)
+fi
+client_user_args+=("${network_stack_args[@]}")
 if [[ -n "$rendering_driver" ]]; then
 	driver_args=(--rendering-driver "$rendering_driver")
 fi
@@ -192,7 +210,8 @@ server_pid=""
 if (( start_local_server == 1 )); then
 	CAR_FIGHT_TELEMETRY_FILE="$run_dir/server.telemetry.jsonl" \
 		"$godot_bin" "${driver_args[@]}" --headless --path "$project_root" -- \
-		--server --port "$port" > "$run_dir/server.log" 2>&1 &
+		--server --port "$port" "${network_stack_args[@]}" \
+		"${server_fixture_args[@]}" > "$run_dir/server.log" 2>&1 &
 	server_pid=$!
 	sleep 0.8
 	if ! kill -0 "$server_pid" >/dev/null 2>&1; then

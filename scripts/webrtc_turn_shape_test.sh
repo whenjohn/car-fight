@@ -32,6 +32,29 @@ web_port="${CAR_FIGHT_SHAPE_WEB_PORT:-18189}"
 remote_pidfile="/tmp/car-fight-network-shaping-server.pid"
 remote_log="/tmp/car-fight-network-shaping-server.log"
 failsafe_seconds="${CAR_FIGHT_SHAPE_FAILSAFE_SECONDS:-300}"
+stack_label="legacy"
+server_stack_args=""
+native_stack_args=()
+browser_stack_query=""
+if [[ "${CAR_FIGHT_G2_STACK:-0}" == "1" ]]; then
+	state_rate_divisor="${CAR_FIGHT_STATE_RATE_DIVISOR:-3}"
+	server_stack_args="--state-bundles --packed-input --packed-state --input-broadcast 0 --state-rate-divisor $state_rate_divisor --net-telemetry --remote-state-transport batch --remote-state-rate 30 --remote-state-relevance same-map --remote-state-include-self 0"
+	native_stack_args=(--state-bundles --packed-input --packed-state --input-broadcast 0 \
+		--state-rate-divisor "$state_rate_divisor" --remote-state-transport batch \
+		--remote-state-rate 30 --remote-state-relevance same-map --remote-state-include-self 0)
+	browser_stack_query="&stateBundles=1&packedInput=1&packedState=1&inputBroadcast=0&stateRateDivisor=$state_rate_divisor&remoteStateTransport=batch&remoteStateRate=30&remoteStateRelevance=same-map&remoteStateIncludeSelf=0"
+	stack_label="g2"
+fi
+if [[ -n "${CAR_FIGHT_RESIM_BUDGET_MS:-}" ]]; then
+	server_stack_args+=" --resim-budget-ms $CAR_FIGHT_RESIM_BUDGET_MS"
+	native_stack_args+=(--resim-budget-ms "$CAR_FIGHT_RESIM_BUDGET_MS")
+	browser_stack_query+="&resimBudgetMs=$CAR_FIGHT_RESIM_BUDGET_MS"
+fi
+if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
+	server_stack_args+=" --adaptive-state-rate 1"
+	native_stack_args+=(--adaptive-state-rate 1)
+	browser_stack_query+="&adaptiveStateRate=1"
+fi
 
 run_stamp="$(date -u '+%Y%m%dT%H%M%SZ')"
 run_dir="$project_root/.network-runs/$run_stamp-webrtc-$profile"
@@ -116,7 +139,7 @@ ssh "$turn_ssh" "pid=\$(docker inspect -f '{{.State.Pid}}' '$turn_container'); s
 # Ensure macai2 can reach the relay before starting ICE negotiation.
 ssh "$server_ssh" "ping -c 1 -W 1000 '$turn_ip' >/dev/null"
 stop_remote_server
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --no-drone --webrtc-telemetry --ticks 4200 > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --no-drone --webrtc-telemetry --ticks 4200 $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
@@ -155,11 +178,12 @@ curl -fs -o /dev/null "http://127.0.0.1:$web_port/"
 "${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}" --headless \
 	--path "$project_root" -- --client --transport enet --host "$server_ip" \
 	--port "$remote_enet_port" --name native-survivor --script right --ticks 3900 \
+	"${native_stack_args[@]}" \
 	> "$run_dir/native.log" 2>&1 &
 native_pid=$!
 sleep 0.8
 
-browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1"
+browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1$browser_stack_query"
 set +e
 node "$project_root/scripts/web_network_smoke.mjs" "$browser_url" \
 	"$run_dir/browser-report.json" "$run_dir/browser.png" \
@@ -188,6 +212,7 @@ server_queue_final="${server_queue_final:-0}"
 server_stale_warnings="$(rg -c 'Skipping stale rollback origin' "$run_dir/server.log" || true)"
 {
 	echo "profile=$profile"
+	echo "stack=$stack_label"
 	echo "latency_each_direction_ms=$CAR_FIGHT_SHAPE_LATENCY_MS"
 	echo "jitter_each_direction_ms=$CAR_FIGHT_SHAPE_JITTER_MS"
 	echo "loss_each_direction_pct=$CAR_FIGHT_SHAPE_LOSS_PCT"

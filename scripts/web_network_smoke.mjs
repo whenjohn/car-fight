@@ -158,8 +158,8 @@ async function run() {
   await drive();
   await waitForValue(() => twoPlayerLines()[1], 15000, "replacement shared-world sample");
   await waitForValue(() => telemetry.slice(secondStartIndex)
-    .filter(record => record.event === "sample").length >= 12,
-    22000, "replacement telemetry window");
+	.filter(record => record.event === "sample").length >= 18,
+	30000, "replacement telemetry window");
   const secondId = Number(secondReady.text.match(/CLIENT_READY id=(\d+)/)?.[1] || 0);
 
   // Stop driving, then wait for a clean channel sample after the active input

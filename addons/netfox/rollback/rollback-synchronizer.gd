@@ -125,6 +125,10 @@ func process_settings() -> void:
 ## RollbackSynchronizer changes. Make sure to do this at the same time on all
 ## peers.
 func process_authority():
+	# A deferred authority refresh can land after a network body was freed.
+	# There is nothing left to configure once the node has left the tree.
+	if multiplayer == null:
+		return
 	_state_property_config.local_peer_id = multiplayer.get_unique_id()
 	_input_property_config.local_peer_id = multiplayer.get_unique_id()
 

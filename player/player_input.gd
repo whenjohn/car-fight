@@ -2,6 +2,7 @@ extends "res://addons/netfox.extras/base-net-input.gd"
 ## Player intent crosses the network. The server owns resulting physics and combat.
 
 const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
+const INPUT_CODEC := preload("res://net/input_codec.gd")
 
 var cursor_offset := Vector2.ZERO
 var burst := false
@@ -41,12 +42,19 @@ func _clear_live_input() -> void:
 	# vehicle in drive mode with neutral controls so it brakes to a stop.
 	editing = false
 
+
+func _finalize_input() -> void:
+	var state_bundle := get_node_or_null("/root/StateBundle")
+	if state_bundle != null and bool(state_bundle.get("input_packing")):
+		INPUT_CODEC.quantize_input(self)
+
 func _gather() -> void:
 	var body := get_parent() as Node3D
 	var main := get_tree().current_scene
 	if body == null or main == null:
 		_clear_live_input()
 		editing = true
+		_finalize_input()
 		return
 	if main.has_method("scripted_input_for") and main.is_scripted_client():
 		var scripted: Dictionary = main.scripted_input_for(body)
@@ -63,12 +71,14 @@ func _gather() -> void:
 		rc_fire_held = bool(scripted.get("rc_fire_held", false))
 		rc_detonate_held = bool(scripted.get("rc_detonate_held", false))
 		editing = bool(scripted.get("editing", false))
+		_finalize_input()
 		return
 	# macOS continues updating an unfocused Godot window's mouse position from
 	# the focused sibling process. Never turn that global cursor into networked
 	# vehicle intent: an unfocused client must be a neutral, braking car.
 	if not INPUT_FOCUS_POLICY.live_input_allowed(DisplayServer.window_is_focused()):
 		_clear_live_input()
+		_finalize_input()
 		return
 	if main.has_method("cursor_offset_for"):
 		cursor_offset = main.cursor_offset_for(body)
@@ -95,3 +105,4 @@ func _gather() -> void:
 	# detonates an active orb; both values cross the existing input timeline.
 	rc_fire_held = (Input.is_key_pressed(KEY_2) or Input.is_key_pressed(KEY_KP_2)) and not editing
 	rc_detonate_held = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not editing
+	_finalize_input()

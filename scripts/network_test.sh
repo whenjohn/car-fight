@@ -11,8 +11,34 @@ jitter_ms="${CAR_FIGHT_SHAPE_JITTER_MS}"
 loss_pct="${CAR_FIGHT_SHAPE_LOSS_PCT}"
 loss_print="$(printf '%.2f' "$loss_pct")"
 shape_seed="${CAR_FIGHT_SHAPE_SEED:-13258521}"
+stack_args=()
+stack_label="legacy"
+if [[ "${CAR_FIGHT_G2_STACK:-0}" == "1" ]]; then
+	stack_args=(--state-bundles --packed-input --packed-state --input-broadcast 0 \
+		--state-rate-divisor "${CAR_FIGHT_STATE_RATE_DIVISOR:-3}" --net-telemetry \
+		--remote-state-transport batch --remote-state-rate 30 \
+		--remote-state-relevance same-map --remote-state-include-self 0)
+	stack_label="g2"
+elif [[ "${CAR_FIGHT_STATE_BUNDLES:-0}" == "1" \
+		|| "${CAR_FIGHT_PACKED_INPUT:-0}" == "1" \
+		|| "${CAR_FIGHT_PACKED_STATE:-0}" == "1" ]]; then
+	[[ "${CAR_FIGHT_STATE_BUNDLES:-0}" == "1" ]] && stack_args+=(--state-bundles)
+	[[ "${CAR_FIGHT_PACKED_INPUT:-0}" == "1" ]] && stack_args+=(--packed-input)
+	[[ "${CAR_FIGHT_PACKED_STATE:-0}" == "1" ]] && stack_args+=(--packed-state)
+	stack_args+=(--input-broadcast "${CAR_FIGHT_INPUT_BROADCAST:-0}" \
+		--state-rate-divisor "${CAR_FIGHT_STATE_RATE_DIVISOR:-1}" --net-telemetry)
+	stack_label="custom"
+fi
+if [[ -n "${CAR_FIGHT_RESIM_BUDGET_MS:-}" ]]; then
+	stack_args+=(--resim-budget-ms "$CAR_FIGHT_RESIM_BUDGET_MS")
+fi
+if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
+	stack_args+=(--adaptive-state-rate 1)
+fi
 server_port="${CAR_FIGHT_TEST_PORT:-10380}"
 proxy_port=$((server_port + 1))
+server_ticks="${CAR_FIGHT_NETWORK_SERVER_TICKS:-480}"
+client_ticks="${CAR_FIGHT_NETWORK_CLIENT_TICKS:-600}"
 log_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-network.XXXXXX")"
 server_pid=""
 proxy_pid=""
@@ -28,7 +54,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-"$godot_bin" --headless --path "$project_root" -- --server --no-drone --port "$server_port" --ticks 480 >"$log_dir/server.log" 2>&1 &
+"$godot_bin" --headless --path "$project_root" -- --server --no-drone --port "$server_port" --ticks "$server_ticks" "${stack_args[@]}" >"$log_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
 "$godot_bin" --headless --path "$project_root" -- --proxy --host 127.0.0.1 \
@@ -37,10 +63,10 @@ sleep 0.8
 	>"$log_dir/proxy.log" 2>&1 &
 proxy_pid=$!
 sleep 0.3
-"$godot_bin" --headless --path "$project_root" -- --client --host 127.0.0.1 --port "$proxy_port" --name alpha --script converge --presentation-test --ticks 600 >"$log_dir/client-a.log" 2>&1 &
+"$godot_bin" --headless --path "$project_root" -- --client --host 127.0.0.1 --port "$proxy_port" --name alpha --script converge --presentation-test --ticks "$client_ticks" "${stack_args[@]}" >"$log_dir/client-a.log" 2>&1 &
 client_a_pid=$!
 sleep 0.2
-"$godot_bin" --headless --path "$project_root" -- --client --host 127.0.0.1 --port "$proxy_port" --name bravo --script converge --ticks 600 >"$log_dir/client-b.log" 2>&1 &
+"$godot_bin" --headless --path "$project_root" -- --client --host 127.0.0.1 --port "$proxy_port" --name bravo --script converge --ticks "$client_ticks" "${stack_args[@]}" >"$log_dir/client-b.log" 2>&1 &
 client_b_pid=$!
 
 if ! wait "$server_pid"; then
@@ -136,7 +162,7 @@ if ! awk -v value="$worst_error" 'BEGIN { exit !(value <= 2.0) }'; then
 fi
 
 result_line="$(rg 'RESULT players=2' "$log_dir/server.log" | tail -1)"
-echo "NETWORK_TEST PASS profile=$profile one_way=${latency_ms}ms jitter=+/-${jitter_ms}ms loss=${loss_pct}% worst_correction=${worst_error} reference_rejections=${reference_rejections}"
+echo "NETWORK_TEST PASS profile=$profile stack=$stack_label one_way=${latency_ms}ms jitter=+/-${jitter_ms}ms loss=${loss_pct}% worst_correction=${worst_error} reference_rejections=${reference_rejections}"
 echo "$proxy_stats"
 echo "$result_line"
 echo "logs: $log_dir"

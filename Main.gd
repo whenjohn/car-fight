@@ -81,11 +81,25 @@ var _signal_url := ""
 var _ice_servers: Array = []
 var _ice_relay_only := false
 var _webrtc_channel_telemetry := false
+var _state_bundles := false
+var _input_broadcast := false
+var _packed_input := false
+var _packed_state := false
+var _state_rate_divisor := 1
+var _adaptive_state_rate := false
+var _network_app_telemetry := false
+var _remote_state_push := true
+var _remote_state_transport := "legacy"
+var _remote_state_rate := 60
+var _remote_state_relevance := "all"
+var _remote_state_include_self := true
+var _resim_budget_ms := 0.0
 var _mux_collision_test := false
 var _mux_close_transport_test := ""
 var _player_name := "driver"
 var _session_label := ""
 var _scripted := ""
+var _server_driver_enabled := false
 var _quit_after_ticks := 0
 var _to_port := DEFAULT_PORT
 var _proxy_server_host := "127.0.0.1"
@@ -100,6 +114,7 @@ var _gate_test := false
 var _drone_enabled := true
 var _start_tick := -1
 var _next_spawn_slot := 0
+var _next_remote_state_generation := 1
 var _contact_seen := false
 var _minimum_pair_distance := INF
 var _prediction_history := {}
@@ -168,6 +183,7 @@ var _network_status := ""
 
 func _ready() -> void:
 	_parse_args()
+	_configure_network_stack()
 	_set_client_window_title()
 	_start_crash_telemetry()
 	_start_window_safety()
@@ -318,6 +334,40 @@ func _parse_args() -> void:
 			if not browser_name.is_empty():
 				_player_name = browser_name
 			_webrtc_channel_telemetry = _web_query("webrtcTelemetry") == "1"
+			var bundles_query := _web_query("stateBundles")
+			if not bundles_query.is_empty():
+				_state_bundles = bundles_query == "1"
+			var input_broadcast_query := _web_query("inputBroadcast")
+			if not input_broadcast_query.is_empty():
+				_input_broadcast = input_broadcast_query == "1"
+			var packed_input_query := _web_query("packedInput")
+			if not packed_input_query.is_empty():
+				_packed_input = packed_input_query == "1"
+			var packed_state_query := _web_query("packedState")
+			if not packed_state_query.is_empty():
+				_packed_state = packed_state_query == "1"
+			var state_rate_query := _web_query("stateRateDivisor")
+			if state_rate_query.is_valid_int():
+				_state_rate_divisor = maxi(1, int(state_rate_query))
+			var adaptive_rate_query := _web_query("adaptiveStateRate")
+			if not adaptive_rate_query.is_empty():
+				_adaptive_state_rate = adaptive_rate_query == "1"
+			_network_app_telemetry = _web_query("netTelemetry") == "1"
+			var remote_transport_query := _web_query("remoteStateTransport")
+			if remote_transport_query in ["legacy", "batch"]:
+				_remote_state_transport = remote_transport_query
+			var remote_rate_query := _web_query("remoteStateRate")
+			if int(remote_rate_query) in [20, 30, 60]:
+				_remote_state_rate = int(remote_rate_query)
+			var remote_relevance_query := _web_query("remoteStateRelevance")
+			if remote_relevance_query in ["all", "same-map"]:
+				_remote_state_relevance = remote_relevance_query
+			var remote_self_query := _web_query("remoteStateIncludeSelf")
+			if not remote_self_query.is_empty():
+				_remote_state_include_self = remote_self_query == "1"
+			var resim_budget_query := _web_query("resimBudgetMs")
+			if resim_budget_query.is_valid_float():
+				_resim_budget_ms = maxf(0.0, float(resim_budget_query))
 			var turn_url := _web_query("turn")
 			if not turn_url.is_empty():
 				var ice_server := {"urls": [turn_url]}
@@ -366,6 +416,60 @@ func _parse_args() -> void:
 			_signal_url = args[index]
 		elif arg == "--webrtc-telemetry":
 			_webrtc_channel_telemetry = true
+		elif arg == "--net-telemetry":
+			_network_app_telemetry = true
+		elif arg.begins_with("--remote-state-transport="):
+			_remote_state_transport = arg.get_slice("=", 1).to_lower()
+		elif arg == "--remote-state-transport" and index + 1 < args.size():
+			index += 1
+			_remote_state_transport = args[index].to_lower()
+		elif arg.begins_with("--remote-state-rate="):
+			_remote_state_rate = int(arg.get_slice("=", 1))
+		elif arg == "--remote-state-rate" and index + 1 < args.size():
+			index += 1
+			_remote_state_rate = int(args[index])
+		elif arg.begins_with("--remote-state-relevance="):
+			_remote_state_relevance = arg.get_slice("=", 1).to_lower()
+		elif arg == "--remote-state-relevance" and index + 1 < args.size():
+			index += 1
+			_remote_state_relevance = args[index].to_lower()
+		elif arg.begins_with("--remote-state-include-self="):
+			_remote_state_include_self = int(arg.get_slice("=", 1)) != 0
+		elif arg == "--remote-state-include-self" and index + 1 < args.size():
+			index += 1
+			_remote_state_include_self = int(args[index]) != 0
+		elif arg.begins_with("--resim-budget-ms="):
+			_resim_budget_ms = maxf(0.0, float(arg.get_slice("=", 1)))
+		elif arg == "--resim-budget-ms" and index + 1 < args.size():
+			index += 1
+			_resim_budget_ms = maxf(0.0, float(args[index]))
+		elif arg == "--state-bundles":
+			_state_bundles = true
+		elif arg == "--no-state-bundles":
+			_state_bundles = false
+		elif arg == "--packed-input":
+			_packed_input = true
+		elif arg == "--no-packed-input":
+			_packed_input = false
+		elif arg == "--packed-state":
+			_packed_state = true
+		elif arg == "--no-packed-state":
+			_packed_state = false
+		elif arg.begins_with("--input-broadcast="):
+			_input_broadcast = int(arg.get_slice("=", 1)) != 0
+		elif arg == "--input-broadcast" and index + 1 < args.size():
+			index += 1
+			_input_broadcast = int(args[index]) != 0
+		elif arg.begins_with("--state-rate-divisor="):
+			_state_rate_divisor = maxi(1, int(arg.get_slice("=", 1)))
+		elif arg == "--state-rate-divisor" and index + 1 < args.size():
+			index += 1
+			_state_rate_divisor = maxi(1, int(args[index]))
+		elif arg.begins_with("--adaptive-state-rate="):
+			_adaptive_state_rate = int(arg.get_slice("=", 1)) != 0
+		elif arg == "--adaptive-state-rate" and index + 1 < args.size():
+			index += 1
+			_adaptive_state_rate = int(args[index]) != 0
 		elif arg == "--ice-relay-only":
 			_ice_relay_only = true
 		elif arg == "--ice-server" and index + 1 < args.size():
@@ -386,6 +490,8 @@ func _parse_args() -> void:
 			_mux_close_transport_test = args[index].to_lower()
 		elif arg == "--presentation-test":
 			_force_presentation = true
+		elif arg == "--server-driver":
+			_server_driver_enabled = true
 		elif arg == "--course-test":
 			_course_test = true
 		elif arg == "--reverse-test":
@@ -459,6 +565,21 @@ func _parse_args() -> void:
 		index += 1
 
 
+func _configure_network_stack() -> void:
+	NetworkPerformance.set_app_telemetry_enabled(_network_app_telemetry)
+	RemotePositionTransport.configure(_remote_state_push, _remote_state_transport,
+		_remote_state_rate, _network_app_telemetry, _remote_state_relevance,
+		_remote_state_include_self)
+	StateBundle.set_enabled(_state_bundles)
+	StateBundle.set_input_broadcast(_input_broadcast)
+	StateBundle.set_input_packing(_packed_input)
+	StateBundle.set_state_packing(_packed_state)
+	StateBundle.set_state_rate_divisor(_state_rate_divisor)
+	StateBundle.set_adaptive_state_rate(_adaptive_state_rate)
+	NetworkRollback.resim_budget_ms = _resim_budget_ms
+	print("[resim-budget] ms=%.1f" % _resim_budget_ms)
+
+
 func _web_query(key: String) -> String:
 	if not OS.has_feature("web"):
 		return ""
@@ -518,6 +639,8 @@ func _start_server() -> void:
 		peer = _webrtc_transport.call("start_server", _signal_port, _ice_servers,
 			_ice_relay_only, 1, _webrtc_channel_telemetry)
 		error = OK if peer != null else ERR_CANT_CREATE
+		if peer != null:
+			StateBundle.set_send_pressure_provider(_webrtc_transport.peer_buffered_bytes)
 	elif _transport == "mux":
 		var enet_peer := ENetMultiplayerPeer.new()
 		error = enet_peer.create_server(_port, MAX_CLIENTS)
@@ -542,6 +665,8 @@ func _start_server() -> void:
 				_mux_peer.call("add_inner", "webrtc", rtc_peer)
 				_mux_peer.call("set_send_guard", "webrtc", _webrtc_transport.peer_can_send)
 				peer = _mux_peer
+				StateBundle.set_peer_transport_provider(_mux_peer.transport_for_peer)
+				StateBundle.set_send_pressure_provider(_webrtc_transport.peer_buffered_bytes)
 	else:
 		_transport = "enet"
 		peer = ENetMultiplayerPeer.new()
@@ -552,6 +677,8 @@ func _start_server() -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	_dots.call("generate")
+	if _server_driver_enabled:
+		_spawn_server_driver()
 	if _transport == "mux":
 		_log("server listening transport=mux enet=:%d webrtc_signal=:%d" % [_port, _signal_port])
 	elif _transport == "webrtc":
@@ -580,6 +707,7 @@ func _start_client() -> void:
 		if rtc_peer == null:
 			_on_webrtc_failed("Could not create WebRTC client")
 			return
+		StateBundle.set_send_pressure_provider(_webrtc_transport.peer_buffered_bytes)
 		_set_client_window_title()
 		_log("client signaling transport=webrtc at %s as %s" % [_signal_url, _player_name])
 		return
@@ -618,7 +746,8 @@ func _on_mux_peer_rejected(peer_id: int, transport: String) -> void:
 func _start_offline() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	var owner_id := multiplayer.get_unique_id()
-	var body := _spawn_player({"id": owner_id, "slot": 0})
+	var body := _spawn_player({"id": owner_id, "slot": 0,
+		"remote_generation": _allocate_remote_state_generation()})
 	_players.add_child(body, true)
 	var config := _configuration_for(owner_id)
 	_apply_coverage_config(owner_id, config["ranges"], config["widths"],
@@ -645,7 +774,12 @@ func _on_peer_join(id: int) -> void:
 	if not multiplayer.is_server():
 		return
 	_log("PEER_JOIN id=%d slot=%d" % [id, _next_spawn_slot])
-	_spawner.spawn({"id": id, "slot": _next_spawn_slot})
+	if _transport == "mux":
+		# Push before spawn: synchronizers latch input-broadcast policy while
+		# entering the tree, so native peers need the WebRTC recipient map now.
+		_broadcast_peer_transport_map()
+	_spawner.spawn({"id": id, "slot": _next_spawn_slot,
+		"remote_generation": _allocate_remote_state_generation()})
 	var config := _configuration_for(id)
 	_apply_coverage_config.rpc(id, config["ranges"], config["widths"], config["tips_outward"])
 	var target_counts := PackedInt32Array()
@@ -658,7 +792,16 @@ func _on_peer_join(id: int) -> void:
 		_ball_spawner.spawn({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
 	_dots.call("send_state_to", id)
 
+func _spawn_server_driver() -> void:
+	if not multiplayer.is_server() or _players.get_node_or_null("1") != null:
+		return
+	_log("SERVER_DRIVER spawn id=1 slot=%d path=circuit" % _next_spawn_slot)
+	_spawner.spawn({"id": 1, "slot": _next_spawn_slot,
+		"remote_generation": _allocate_remote_state_generation()})
+	_next_spawn_slot += 1
+
 func _on_peer_leave(id: int) -> void:
+	StateBundle.forget_peer_transport(id)
 	if not multiplayer.is_server():
 		return
 	var body := _players.get_node_or_null(str(id))
@@ -671,6 +814,27 @@ func _on_peer_leave(id: int) -> void:
 		else:
 			body.queue_free()
 	_log("PEER_LEAVE id=%d" % id)
+
+
+func _broadcast_peer_transport_map() -> void:
+	if _role != "server" or _transport != "mux" or _mux_peer == null:
+		return
+	var transports := {}
+	for peer_variant in multiplayer.get_peers():
+		var peer_id := int(peer_variant)
+		transports[peer_id] = _mux_peer.transport_for_peer(peer_id)
+	_apply_peer_transport_map.rpc(transports)
+
+
+@rpc("authority", "reliable", "call_local")
+func _apply_peer_transport_map(transports: Dictionary) -> void:
+	var clean := {}
+	for peer_variant in transports:
+		var peer_id := int(peer_variant)
+		var transport := str(transports[peer_variant])
+		if peer_id > 1 and transport in ["enet", "webrtc"]:
+			clean[peer_id] = transport
+	StateBundle.set_peer_transport_map(clean)
 
 
 func _free_mux_departure_later(body: Node, peer_id: int) -> void:
@@ -761,6 +925,7 @@ func _spawn_player(data: Variant) -> Node:
 	body.name = str(owner_id)
 	body.set("owner_id", owner_id)
 	body.set("spawn_slot", slot)
+	body.set("remote_state_generation", int(info.get("remote_generation", 0)))
 	if not _coverage_configs.has(owner_id):
 		_coverage_configs[owner_id] = {
 			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths(),
@@ -811,6 +976,12 @@ func _spawn_player(data: Variant) -> Node:
 	if not _is_headless():
 		_build_player_presentation(body, owner_id)
 	return body
+
+
+func _allocate_remote_state_generation() -> int:
+	var generation := _next_remote_state_generation
+	_next_remote_state_generation += 1
+	return generation
 
 func _spawn_transform(slot: int) -> Transform3D:
 	if _gate_test and slot == 0:
@@ -1493,9 +1664,12 @@ func cursor_offset_for(body: Node3D) -> Vector2:
 	return Vector2(delta.x, delta.z).limit_length(FOLLOW.MAX_DISTANCE)
 
 func is_scripted_client() -> bool:
-	return not _scripted.is_empty()
+	return not _scripted.is_empty() \
+		or (_server_driver_enabled and multiplayer.is_server())
 
 func scripted_input_for(body: Node3D) -> Dictionary:
+	if _server_driver_enabled and multiplayer.is_server() and int(body.name) == 1:
+		return _server_driver_input(body)
 	match _scripted:
 		"converge", "converge-burst":
 			# Fixed opposing headings make the network gate test collision rather
@@ -1559,6 +1733,19 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 		_:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
+
+func _server_driver_input(body: Node3D) -> Dictionary:
+	# A slow, repeatable authoritative circuit gives rendered clients one target
+	# to chase while evaluating remote interpolation under shaping.
+	var origin_tick := maxi(_start_tick, 0)
+	var elapsed_seconds := float(maxi(0, NetworkTime.tick - origin_tick)) \
+		/ float(NetworkTime.tickrate)
+	var phase := elapsed_seconds * 0.18
+	var target := Vector3(cos(phase) * 24.0, body.global_position.y,
+		sin(phase) * 24.0)
+	var delta := target - body.global_position
+	return {"cursor_offset": Vector2(delta.x, delta.z).limit_length(
+		FOLLOW.MAX_DISTANCE), "burst": false, "editing": false}
 
 func local_player():
 	if _players == null:
@@ -1782,6 +1969,8 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 	for player_node in _players.get_children():
 		var body := player_node as RigidBody3D
 		if body == null or int(body.get("map_id")) != MAP_LAYOUT.ARENA:
+			continue
+		if _server_driver_enabled and int(body.name) == 1:
 			continue
 		var input := body.get_node_or_null("Input")
 		if input == null or bool(input.get("editing")) or bool(body.get("is_cloaked")) \
