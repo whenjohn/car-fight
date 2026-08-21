@@ -21,6 +21,7 @@ var area_fire := false
 var homing_held := false
 var rc_fire_held := false
 var rc_detonate_held := false
+var drop_troops := false
 # Safe spawn default: authority cannot fire before the owning client's first
 # gathered input declares that it has entered drive mode.
 var editing := true
@@ -38,6 +39,7 @@ func _clear_live_input() -> void:
 	homing_held = false
 	rc_fire_held = false
 	rc_detonate_held = false
+	drop_troops = false
 	# Losing focus is not a request to enter the coverage editor. Keep the
 	# vehicle in drive mode with neutral controls so it brakes to a stop.
 	editing = false
@@ -70,6 +72,7 @@ func _gather() -> void:
 		homing_held = bool(scripted.get("homing_held", false))
 		rc_fire_held = bool(scripted.get("rc_fire_held", false))
 		rc_detonate_held = bool(scripted.get("rc_detonate_held", false))
+		drop_troops = bool(scripted.get("drop_troops", false))
 		editing = bool(scripted.get("editing", false))
 		_finalize_input()
 		return
@@ -105,4 +108,7 @@ func _gather() -> void:
 	# detonates an active orb; both values cross the existing input timeline.
 	rc_fire_held = (Input.is_key_pressed(KEY_2) or Input.is_key_pressed(KEY_KP_2)) and not editing
 	rc_detonate_held = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not editing
+	# Troop delivery is deliberately a vehicle-area interaction: hold F only
+	# while inside the red pad's radius; there is no cursor targeting involved.
+	drop_troops = Input.is_key_pressed(KEY_F) and not editing
 	_finalize_input()

@@ -48,6 +48,7 @@ const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const DRIVING_COURSE_SCRIPT := preload("res://world/driving_course.gd")
 const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
 const DOTS_SCRIPT := preload("res://world/dots.gd")
+const TROOP_DELIVERY_SCRIPT := preload("res://world/troop_delivery.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
@@ -193,6 +194,7 @@ var _shader_prewarm: Node3D
 var _driving_course: Node3D
 var _jump_gates: Node3D
 var _dots: Node3D
+var _troop_delivery: Node3D
 var _webrtc_transport: Node
 var _mux_peer
 var _network_status := ""
@@ -323,10 +325,13 @@ func _process(_delta: float) -> void:
 		if _dots != null:
 			mode = "%s  ·  dots %d (%d left)" % [mode, int(_dots.call("collected_by", id)),
 				int(_dots.call("remaining"))]
+		if _troop_delivery != null:
+			mode = "%s  ·  troops %d carried / %d delivered" % [mode,
+				int(_troop_delivery.call("carried_by", id)), int(_troop_delivery.call("delivered_by", id))]
 		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
 			mode, id, speed, location,
 			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+			else "Mouse: drive  |  Stay in GREEN area to load troops  |  Hold F in RED area to deploy  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
 		if local != null and bool(local.get("area_weapon_armed")):
 			_status_label.text += "\nAREA WEAPON ARMED  ·  Hold and drag Left Mouse, then release to bomb  ·  3: stow"
 		if local == null and not _network_status.is_empty():
@@ -941,6 +946,11 @@ func _build_world() -> void:
 	_dots.name = "Dots"
 	_dots.set_script(DOTS_SCRIPT)
 	add_child(_dots)
+	_troop_delivery = Node3D.new()
+	_troop_delivery.name = "TroopDelivery"
+	_troop_delivery.set_script(TROOP_DELIVERY_SCRIPT)
+	_troop_delivery.call("setup", _players)
+	add_child(_troop_delivery)
 	_build_combat_targets()
 	if not _is_headless():
 		# Grass is intentionally presentation-only. The existing GroundCollision
