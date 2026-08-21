@@ -1157,6 +1157,8 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	body.add_child(pip)
 
 	var is_local := owner_id == multiplayer.get_unique_id()
+	var cursor_visible := is_local \
+		and OS.get_environment("CAR_FIGHT_HIDE_CURSOR") != "1"
 	var marker := MeshInstance3D.new()
 	marker.name = "CursorMarker"
 	marker.top_level = true
@@ -1166,7 +1168,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	marker_mesh.height = 0.04
 	marker.mesh = marker_mesh
 	marker.material_override = _material(Color(color, 0.85), true)
-	marker.visible = is_local
+	marker.visible = cursor_visible
 	body.add_child(marker)
 	var max_speed_marker := MeshInstance3D.new()
 	max_speed_marker.name = "MaxSpeedMarker"
@@ -1178,7 +1180,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	max_speed_marker.mesh = max_speed_mesh
 	max_speed_marker.material_override = _material(Color("fff1b8"), true)
 	max_speed_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	max_speed_marker.visible = is_local
+	max_speed_marker.visible = cursor_visible
 	body.add_child(max_speed_marker)
 
 	var line := MeshInstance3D.new()
@@ -1188,7 +1190,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	line_mesh.size = Vector3(0.045, 0.025, 1.0)
 	line.mesh = line_mesh
 	line.material_override = _material(Color(color, 0.7), true)
-	line.visible = is_local
+	line.visible = cursor_visible
 	body.add_child(line)
 
 	if is_local:

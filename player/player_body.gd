@@ -150,9 +150,10 @@ func _ready() -> void:
 	elif _interpolator != null:
 		_interpolator.enabled = false
 	if _is_local:
-		_cursor_marker = get_node_or_null("CursorMarker")
-		_max_speed_marker = get_node_or_null("MaxSpeedMarker")
-		_cursor_line = get_node_or_null("CursorLine")
+		if OS.get_environment("CAR_FIGHT_HIDE_CURSOR") != "1":
+			_cursor_marker = get_node_or_null("CursorMarker")
+			_max_speed_marker = get_node_or_null("MaxSpeedMarker")
+			_cursor_line = get_node_or_null("CursorLine")
 		_tractor_ring = get_node_or_null("TractorCatchRing")
 		if _cursor_line != null:
 			_cursor_line_material = _cursor_line.get("material_override") as StandardMaterial3D

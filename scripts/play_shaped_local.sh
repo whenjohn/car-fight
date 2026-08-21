@@ -65,7 +65,7 @@ echo "one-way: ${CAR_FIGHT_SHAPE_LATENCY_MS}ms jitter=+/-${CAR_FIGHT_SHAPE_JITTE
 echo "evidence: $run_root"
 
 CAR_FIGHT_G2_STACK=1 CAR_FIGHT_NO_RAMPS=1 CAR_FIGHT_NO_DRONE=1 \
-CAR_FIGHT_NO_BALL=1 CAR_FIGHT_PORT="$proxy_port" \
+CAR_FIGHT_NO_BALL=1 CAR_FIGHT_HIDE_CURSOR=1 CAR_FIGHT_PORT="$proxy_port" \
 CAR_FIGHT_MONITOR_ROOT="$run_root/client" \
 CAR_FIGHT_SESSION_LABEL="network-$profile-server-driver" \
 	"$project_root/scripts/play_monitored.sh" --host 127.0.0.1 \

@@ -165,8 +165,10 @@ server-authoritative Jeep following a wide route through the arena's open outer
 lanes. The observer spawns beside it, the route stays clear of the driving-course
 gate, and the harness removes the elevated ramps on both server and client to
 leave a flat arena for the moving test target. It also disables the physical
-arena ball and shield-test drone presentation, leaving only the two Jeeps. A
-server guard restores the moving Jeep if it ever leaves the arena. The single rendered client can chase it; closing
+arena ball and shield-test drone presentation, leaving only the two Jeeps. The
+local steering cursor is hidden while interactive grass and the rest of the
+arena presentation remain enabled. A server guard restores the moving Jeep if
+it ever leaves the arena. The single rendered client can chase it; closing
 that client window stops only the processes launched by the harness. For local browser/native
 comparison, run `CAR_FIGHT_G2_STACK=1 ./scripts/play_web_network_local.sh`; its
 server-driven car is enabled by default as well.
