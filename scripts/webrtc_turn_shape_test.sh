@@ -32,6 +32,10 @@ web_port="${CAR_FIGHT_SHAPE_WEB_PORT:-18189}"
 remote_pidfile="/tmp/car-fight-network-shaping-server.pid"
 remote_log="/tmp/car-fight-network-shaping-server.log"
 failsafe_seconds="${CAR_FIGHT_SHAPE_FAILSAFE_SECONDS:-300}"
+server_driver_arg=""
+if [[ "${CAR_FIGHT_SHAPE_SERVER_DRIVER:-0}" == "1" ]]; then
+	server_driver_arg="--server-driver"
+fi
 stack_label="legacy"
 server_stack_args=""
 native_stack_args=()
@@ -139,7 +143,7 @@ ssh "$turn_ssh" "pid=\$(docker inspect -f '{{.State.Pid}}' '$turn_container'); s
 # Ensure macai2 can reach the relay before starting ICE negotiation.
 ssh "$server_ssh" "ping -c 1 -W 1000 '$turn_ip' >/dev/null"
 stop_remote_server
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --no-drone --webrtc-telemetry --ticks 4200 $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --no-drone $server_driver_arg --webrtc-telemetry --ticks 4200 $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
