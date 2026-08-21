@@ -112,7 +112,6 @@ var _player_name := "driver"
 var _session_label := ""
 var _scripted := ""
 var _server_driver_enabled := false
-var _fixture_start := false
 var _ramps_enabled := true
 var _server_driver_waypoint := 1
 var _server_driver_progress_tick := -1
@@ -517,8 +516,6 @@ func _parse_args() -> void:
 			_force_presentation = true
 		elif arg == "--server-driver":
 			_server_driver_enabled = true
-		elif arg == "--fixture-start":
-			_fixture_start = true
 		elif arg == "--no-ramps":
 			_ramps_enabled = false
 		elif arg == "--course-test":
@@ -811,12 +808,6 @@ func _on_peer_join(id: int) -> void:
 		_broadcast_peer_transport_map()
 	var spawn_data := {"id": id, "slot": _next_spawn_slot,
 		"remote_generation": _allocate_remote_state_generation()}
-	if _fixture_start:
-		# Interactive fixture sessions begin beside the drone and recruitment pad
-		# so their presentation is immediately visible to a joining observer.
-		spawn_data["position"] = Vector3(-32.0,
-			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 4.0)
-		spawn_data["yaw"] = 0.0
 	if _server_driver_enabled:
 		var observer_position := Vector3(SERVER_DRIVER_SPAWN.x + 8.0,
 			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y + 6.0)
