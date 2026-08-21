@@ -72,7 +72,6 @@ const RC_ORB_RADIUS := 0.47
 const RC_ORB_BLAST_RADIUS := 2.7
 const RC_ORB_LAUNCH_OFFSET := 0.72
 const SERVER_DRIVER_SPAWN := Vector2(-42.0, -48.0)
-const SERVER_DRIVER_OBSERVER_SPAWN := Vector2(-34.0, -42.0)
 const SERVER_DRIVER_ROUTE := [
 	Vector2(-42.0, -48.0), Vector2(0.0, -52.0),
 	Vector2(38.0, -48.0), Vector2(52.0, -40.0),
@@ -799,9 +798,15 @@ func _on_peer_join(id: int) -> void:
 	var spawn_data := {"id": id, "slot": _next_spawn_slot,
 		"remote_generation": _allocate_remote_state_generation()}
 	if _server_driver_enabled:
-		spawn_data["position"] = Vector3(SERVER_DRIVER_OBSERVER_SPAWN.x,
-			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS),
-			SERVER_DRIVER_OBSERVER_SPAWN.y)
+		var observer_position := Vector3(SERVER_DRIVER_SPAWN.x + 8.0,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y + 6.0)
+		var driver := _players.get_node_or_null("1") as Node3D
+		if driver != null:
+			observer_position.x = clampf(driver.global_position.x - 8.0,
+				-ARENA_HALF + 3.0, ARENA_HALF - 3.0)
+			observer_position.z = clampf(driver.global_position.z + 6.0,
+				-ARENA_HALF + 3.0, ARENA_HALF - 3.0)
+		spawn_data["position"] = observer_position
 		spawn_data["yaw"] = -PI * 0.5
 	_spawner.spawn(spawn_data)
 	var config := _configuration_for(id)
