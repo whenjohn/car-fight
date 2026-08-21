@@ -24,6 +24,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/window_safety_policy_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/dots_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/troop_delivery_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/elevated_course_test.gd
 "$project_root/scripts/offline_test.sh"
 "$project_root/scripts/network_test.sh"
