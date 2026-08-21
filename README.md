@@ -162,8 +162,10 @@ recommended mitigation: it preserved FPS but caused large divergence.
 `play_shaped_local.sh` is the visual smoothness harness. It owns an isolated
 local server and relay, enables the G2 profile, and spawns peer 1 as a
 server-authoritative Jeep following a wide route through the arena's open outer
-lanes. The single rendered client can chase it; closing that client window stops
-only the processes launched by the harness. For local browser/native
+lanes. The observer spawns beside it, the route stays clear of the driving-course
+gate, and a server guard restores the Jeep if it ever leaves the arena. The
+single rendered client can chase it; closing that client window stops only the
+processes launched by the harness. For local browser/native
 comparison, run `CAR_FIGHT_G2_STACK=1 ./scripts/play_web_network_local.sh`; its
 server-driven car is enabled by default as well.
 

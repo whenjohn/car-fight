@@ -65,8 +65,10 @@ body, with 25 non-empty envelopes and 2,200 logical bytes per reporting window.
 For human smoothness checks, `scripts/play_shaped_local.sh` adds peer 1 as a
 server-authoritative Jeep on a wide route through the open outer lanes. Its input
 is generated on the server, it does not auto-fire, and the shaped observer
-receives the body through the full profile. This is the Car Fight equivalent of
-G2's moving server fixture: drive behind it and judge the remote hull.
+spawns beside it and receives the body through the full profile. The route stays
+clear of the driving-course gate, with an arena/map recovery guard as a backstop.
+This is the Car Fight equivalent of G2's moving server fixture: drive behind it
+and judge the remote hull.
 
 ## Native desynchronization under 120 ms one-way latency
 

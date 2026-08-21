@@ -71,17 +71,21 @@ const RC_ORB_LIFETIME := 6.0
 const RC_ORB_RADIUS := 0.47
 const RC_ORB_BLAST_RADIUS := 2.7
 const RC_ORB_LAUNCH_OFFSET := 0.72
-const SERVER_DRIVER_SPAWN := Vector2(-52.0, -58.0)
+const SERVER_DRIVER_SPAWN := Vector2(-42.0, -48.0)
+const SERVER_DRIVER_OBSERVER_SPAWN := Vector2(-34.0, -42.0)
 const SERVER_DRIVER_ROUTE := [
-	Vector2(-52.0, -58.0), Vector2(25.0, -58.0),
-	Vector2(52.0, -40.0), Vector2(58.0, -5.0),
-	Vector2(52.0, 25.0), Vector2(30.0, 52.0),
-	Vector2(-25.0, 58.0), Vector2(-52.0, 42.0),
-	Vector2(-62.0, 10.0), Vector2(-60.0, -25.0),
+	Vector2(-42.0, -48.0), Vector2(0.0, -52.0),
+	Vector2(38.0, -48.0), Vector2(52.0, -40.0),
+	Vector2(58.0, -18.0), Vector2(56.0, 12.0),
+	Vector2(44.0, 30.0), Vector2(20.0, 42.0),
+	Vector2(-12.0, 45.0), Vector2(-38.0, 38.0),
+	Vector2(-52.0, 22.0), Vector2(-58.0, -5.0),
+	Vector2(-54.0, -30.0),
 ]
 const SERVER_DRIVER_WAYPOINT_RADIUS := 5.0
 const SERVER_DRIVER_PROGRESS_DISTANCE := 2.0
 const SERVER_DRIVER_STUCK_TICKS := 180
+const SERVER_DRIVER_ARENA_LIMIT := ARENA_HALF + 4.0
 
 var _role := "client"
 var _transport := "enet"
@@ -792,8 +796,14 @@ func _on_peer_join(id: int) -> void:
 		# Push before spawn: synchronizers latch input-broadcast policy while
 		# entering the tree, so native peers need the WebRTC recipient map now.
 		_broadcast_peer_transport_map()
-	_spawner.spawn({"id": id, "slot": _next_spawn_slot,
-		"remote_generation": _allocate_remote_state_generation()})
+	var spawn_data := {"id": id, "slot": _next_spawn_slot,
+		"remote_generation": _allocate_remote_state_generation()}
+	if _server_driver_enabled:
+		spawn_data["position"] = Vector3(SERVER_DRIVER_OBSERVER_SPAWN.x,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS),
+			SERVER_DRIVER_OBSERVER_SPAWN.y)
+		spawn_data["yaw"] = -PI * 0.5
+	_spawner.spawn(spawn_data)
 	var config := _configuration_for(id)
 	_apply_coverage_config.rpc(id, config["ranges"], config["widths"], config["tips_outward"])
 	var target_counts := PackedInt32Array()
@@ -1771,6 +1781,10 @@ func _service_server_driver_route(tick: int) -> void:
 	var body := _players.get_node_or_null("1") as RigidBody3D
 	if body == null:
 		return
+	if int(body.get("map_id")) != MAP_LAYOUT.ARENA \
+			or absf(body.global_position.x) > SERVER_DRIVER_ARENA_LIMIT \
+			or absf(body.global_position.z) > SERVER_DRIVER_ARENA_LIMIT:
+		_recover_server_driver(body, tick)
 	var position := Vector2(body.global_position.x, body.global_position.z)
 	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
 	if position.distance_to(waypoint) <= SERVER_DRIVER_WAYPOINT_RADIUS:
@@ -1793,6 +1807,21 @@ func _service_server_driver_route(tick: int) -> void:
 		_log("SERVER_DRIVER tick=%d waypoint=%d pos=(%.1f,%.1f) target=(%.1f,%.1f) speed=%.1f" % [
 			tick, _server_driver_waypoint, position.x, position.y,
 			waypoint.x, waypoint.y, body.linear_velocity.length()])
+
+func _recover_server_driver(body: RigidBody3D, tick: int) -> void:
+	body.set("map_id", MAP_LAYOUT.ARENA)
+	body.set("gate_cooldown", MAP_LAYOUT.GATE_COOLDOWN)
+	body.position = Vector3(SERVER_DRIVER_SPAWN.x,
+		ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y)
+	body.rotation = Vector3(0.0, -PI * 0.5, 0.0)
+	body.linear_velocity = Vector3.ZERO
+	body.angular_velocity = Vector3.ZERO
+	body.sleeping = false
+	body.reset_physics_interpolation()
+	_server_driver_waypoint = 1
+	_server_driver_progress_tick = tick
+	_server_driver_progress_position = SERVER_DRIVER_SPAWN
+	_log("SERVER_DRIVER recovered tick=%d reason=left-arena" % tick)
 
 func local_player():
 	if _players == null:
