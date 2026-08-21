@@ -60,6 +60,102 @@ then 3.1-3.8 ms loops; simulation was the largest accumulated stage. This did
 not establish a safe 5% replay optimization, so no rollback behavior was
 changed and the rejected replay budget remains disabled.
 
+The first controlled human `clean / fixed 75 ms` comparison found the remote
+Jeep smooth while the observer was stationary, but visibly jerky/stuttery when
+the observer drove side-by-side with it. No pullback was noticed. Telemetry
+supports a presentation-relative symptom rather than a reconciliation snap:
+worst correction stayed at 0.008 units with zero recovery requests. FPS was
+usually 85-120, although isolated frames reached 66.7 ms; RTT was normally
+14-25 ms with brief 49-76 ms spikes, and the unreliable 30 Hz presentation
+stream continued to accumulate occasional sequence gaps. The matched adaptive
+phase uses the same live session so server route and impairment remain fixed.
+
+In that matched `clean / adaptive` phase, the estimator selected 100 ms. The
+side-by-side vibration became smaller and movement looked smoother to the human
+observer, again with no noticeable pullback. Telemetry remained at 100%
+interpolation with zero extrapolation, holds, or recovery requests. Presentation
+headroom was generally 80-135 ms. Worst reported correction reached 0.299 units
+after the live mode transition but remained well below the 2-unit recovery
+threshold and did not correspond to a perceived pullback. This comparison
+supports 100 ms as a useful clean-path buffer when relative camera motion makes
+75 ms jitter visible.
+
+The human `latency120 / fixed 75 ms` phase alternated between smooth stretches
+and small-to-moderate stutters, with an occasional pause that was difficult to
+classify visually as network lag or an FPS pause. The log shows evidence of
+both pressures: FPS was commonly about 44-55 with frame maxima up to 73.2 ms,
+while RTT was generally 260-280 ms with brief rises near 300-310 ms and jitter
+spikes around 44-49 ms. Sequence gaps increased during the run. Correction
+remained 0.299 units with zero recovery requests, so the pauses were not large
+reconciliation pullbacks. This phase also exposed that the HUD reported zero
+eligible presentation bodies despite the visible remote Jeep; presentation
+mode-share fields from this capture therefore cannot be used as proof of the
+Jeep's interpolation state and need separate instrumentation follow-up.
+
+In the matched `latency120 / adaptive` phase, the estimator selected 100 ms.
+The human observer described it as smooth overall, with only small, softened
+stutters. Telemetry reported one eligible Jeep, 100% interpolation, no holds or
+extrapolation, zero recovery requests, and the same 0.299-unit worst correction.
+The remaining visible disturbances overlapped client performance and network
+spikes: FPS briefly fell to about 36-41 with 48-52 ms frames while RTT/jitter
+rose to roughly 316-317/56-59 ms. The adaptive buffer preserved continuous
+interpolation through those spikes, explaining why the residual stutters felt
+smooth instead of presenting as pullbacks.
+
+The human `jitter / fixed 75 ms` phase was a clear visual failure: the remote
+Jeep had strong jerky stutters, and nearby grass appeared spatially separated
+ahead of the Jeep visual. Presentation packet variation p95 was commonly
+35-50 ms, sequence gaps accumulated rapidly (over 500 during the observed
+window), and RTT jitter reached 79 ms. FPS was often 60-90, so the persistent
+Jeep-specific jerk was not explained by frame pacing alone, although one 66.6 ms
+frame occurred. Worst correction reached 1.196 units with zero recovery
+requests, below the 2-unit recovery threshold. The grass/Jeep mismatch is
+consistent with the locally simulated world/camera advancing while the remote
+Jeep's 75 ms presentation history repeatedly lacks enough margin under shaped
+arrival variation; the matched adaptive phase tests that interpretation.
+
+The first two attempts to enter `jitter / adaptive` exposed a presentation
+clock-epoch bug and were discarded before evaluation. A multi-second network
+clock correction could leave the monotonic render cursor outside its retained
+history, producing an indefinite endpoint hold. The cursor now rebases only
+when clock error exceeds the retained one-second history; ordinary corrections
+remain damped. Focused tests cover large forward/backward rebases and normal
+small corrections. The corrected run initialized directly into valid history.
+
+In the corrected `jitter / adaptive` phase, the estimator ultimately selected
+125 ms. The human observer still saw moderate stutters and occasional
+vibration, but described the stutters as smooth rather than jerky; the earlier
+grass/Jeep separation was not reported again. The steady portion remained at
+100% interpolation with zero holds, extrapolation, or recovery requests and a
+0.005-unit worst correction. Arrival variation p95 remained roughly 33-45 ms
+and sequence gaps continued to accumulate. Some larger disturbances coincided
+with simultaneous client/network spikes, including a roughly 47 FPS/61 ms
+frame interval and an RTT-jitter rise to 144 ms. Adaptive presentation therefore
+softened jitter failure into continuous motion but did not eliminate visible
+cadence changes.
+
+The restarted `combined / fixed 75 ms` phase was unexpectedly human-playable:
+mostly smooth, with occasional small smooth stutters and vibration. The log was
+not objectively gentler than the jitter profile: presentation arrival variation
+p95 was often 40-65 ms and briefly exceeded 70 ms, sequence gaps exceeded 700,
+RTT was generally 240-280 ms, and jitter briefly reached 82 ms. Client FPS was
+commonly 40-52 with one dip near 37 FPS. Despite those pressures, worst
+correction stayed at 0.505 units and there were zero recovery requests. This is
+valid human evidence that fixed 75 ms can remain playable in some adverse
+windows, but it does not overturn the clear `jitter / fixed` failure; feel is
+sensitive to the timing pattern, camera-relative motion, and simultaneous frame
+pacing rather than profile labels alone.
+
+The matched `combined / adaptive` phase selected 100 ms and was human-rated
+very playable and smooth. It occasionally produced a drawn-out but smoothly
+blended stutter that did not disrupt motion. Presentation stayed at 100%
+interpolation with zero holds, extrapolation, or recovery requests, and worst
+correction remained 0.505 units. The longer disturbances coincided with local
+slowdown windows around 35-39 FPS, 40-51 ms maximum frames, and rollback loops
+around 25-33 ms while the presentation stream itself remained interpolated.
+This indicates that adaptive buffering handled the network discontinuity, while
+the residual drawn-out slowdown was primarily client frame/rollback pacing.
+
 ### Car Fight-specific StateBundle correction
 
 The first direct port coalesced the newest whole StateBundle envelope. Under

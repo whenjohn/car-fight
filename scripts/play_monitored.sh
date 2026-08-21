@@ -201,6 +201,9 @@ if [[ "${CAR_FIGHT_PRESENTATION_TRACE_SECONDS:-0}" != "0" ]]; then
 	client_user_args+=(--presentation-trace "$run_dir/presentation-trace.jsonl" \
 		--presentation-trace-seconds "$CAR_FIGHT_PRESENTATION_TRACE_SECONDS")
 fi
+if [[ -n "${CAR_FIGHT_PRESENTATION_CONTROL_PATH:-}" ]]; then
+	client_user_args+=(--presentation-control "$CAR_FIGHT_PRESENTATION_CONTROL_PATH")
+fi
 if [[ -n "$rendering_driver" ]]; then
 	driver_args=(--rendering-driver "$rendering_driver")
 fi

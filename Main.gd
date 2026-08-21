@@ -110,6 +110,9 @@ var _remote_interp_ms := 75.0
 var _remote_interp_max_ms := 150.0
 var _presentation_trace_path := ""
 var _presentation_trace_seconds := 0.0
+var _presentation_control_path := ""
+var _presentation_control_elapsed := 0.0
+var _presentation_control_last_command := ""
 var _network_hud_enabled := false
 var _network_profile := "unshaped"
 var _hotkey_hints_visible := true
@@ -207,6 +210,7 @@ var _network_hud_rb_ms_max := 0.0
 var _network_hud_rb_ticks_max := 0
 var _network_tier_label: Label
 var _network_last_target_msec := -1.0
+var _network_last_mode := ""
 var _network_tier_notice_remaining := 0.0
 var _shader_prewarm: Node3D
 var _driving_course: Node3D
@@ -298,6 +302,7 @@ func _on_window_safety_enforced(event: String, details: Dictionary) -> void:
 		_crash_telemetry.call("record_event", event, details)
 
 func _process(_delta: float) -> void:
+	_poll_presentation_control(_delta)
 	if _network_hud_enabled:
 		_update_network_hud(_delta)
 	if multiplayer.is_server():
@@ -537,6 +542,11 @@ func _parse_args() -> void:
 		elif arg == "--presentation-trace-seconds" and index + 1 < args.size():
 			index += 1
 			_presentation_trace_seconds = maxf(0.0, float(args[index]))
+		elif arg.begins_with("--presentation-control="):
+			_presentation_control_path = arg.get_slice("=", 1)
+		elif arg == "--presentation-control" and index + 1 < args.size():
+			index += 1
+			_presentation_control_path = args[index]
 		elif arg.begins_with("--resim-budget-ms="):
 			_resim_budget_ms = maxf(0.0, float(arg.get_slice("=", 1)))
 		elif arg == "--resim-budget-ms" and index + 1 < args.size():
@@ -1554,11 +1564,15 @@ func _update_network_hud(delta: float) -> void:
 	if not _network_hud_enabled:
 		return
 	var live_target_msec := RemotePositionTransport.presentation_delay_msec()
+	var live_mode := RemotePositionTransport.presentation_mode()
 	if _network_last_target_msec < 0.0:
 		_show_network_tier_notice(-1.0, live_target_msec)
+	elif live_mode != _network_last_mode:
+		_show_network_mode_notice(_network_last_mode, live_mode, live_target_msec)
 	elif not is_equal_approx(live_target_msec, _network_last_target_msec):
 		_show_network_tier_notice(_network_last_target_msec, live_target_msec)
 	_network_last_target_msec = live_target_msec
+	_network_last_mode = live_mode
 	if _network_tier_notice_remaining > 0.0:
 		_network_tier_notice_remaining = maxf(0.0,
 			_network_tier_notice_remaining - delta)
@@ -1636,6 +1650,42 @@ func _show_network_tier_notice(previous_msec: float, selected_msec: float) -> vo
 		_network_tier_label.visible = true
 	print("PRESENTATION_TIER_CHANGE mode=%s from_ms=%.0f to_ms=%.0f" % [
 		mode.to_lower(), previous_msec, selected_msec])
+
+
+func _show_network_mode_notice(previous_mode: String, selected_mode: String,
+		selected_msec: float) -> void:
+	var message := "%s → %s BUFFER  %.0f MS" % [previous_mode.to_upper(),
+		selected_mode.to_upper(), selected_msec]
+	_network_tier_notice_remaining = 3.0
+	if _network_tier_label != null:
+		_network_tier_label.text = message
+		_network_tier_label.add_theme_color_override("font_color", Color("ffd166"))
+		_network_tier_label.visible = true
+	print("PRESENTATION_MODE_CHANGE from=%s to=%s selected_ms=%.0f" % [
+		previous_mode, selected_mode, selected_msec])
+
+
+func _poll_presentation_control(delta: float) -> void:
+	if _presentation_control_path.is_empty():
+		return
+	_presentation_control_elapsed += delta
+	if _presentation_control_elapsed < 0.25:
+		return
+	_presentation_control_elapsed = 0.0
+	if not FileAccess.file_exists(_presentation_control_path):
+		return
+	var file := FileAccess.open(_presentation_control_path, FileAccess.READ)
+	if file == null:
+		return
+	var command := file.get_as_text().strip_edges().to_lower()
+	file.close()
+	if command.is_empty() or command == _presentation_control_last_command:
+		return
+	_presentation_control_last_command = command
+	if command not in ["fixed", "adaptive"]:
+		push_warning("Ignoring presentation control command: %s" % command)
+		return
+	RemotePositionTransport.set_presentation_mode(command)
 
 func _build_shader_prewarm() -> void:
 	_shader_prewarm = Node3D.new()

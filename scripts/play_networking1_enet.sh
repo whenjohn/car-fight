@@ -28,6 +28,8 @@ shape_seed="${CAR_FIGHT_SHAPE_SEED:-13258521}"
 remote_pid=""
 proxy_pid=""
 mkdir -p "$run_root/client"
+presentation_control="$run_root/presentation-control.txt"
+touch "$presentation_control"
 
 cleanup() {
 	if [[ "$proxy_pid" == <-> ]] && (( proxy_pid > 1 )); then
@@ -97,6 +99,7 @@ CAR_FIGHT_REMOTE_INTERP_MODE="$presentation_mode" \
 CAR_FIGHT_REMOTE_INTERP_MS="${CAR_FIGHT_REMOTE_INTERP_MS:-75}" \
 CAR_FIGHT_REMOTE_INTERP_MAX_MS="${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}" \
 CAR_FIGHT_PRESENTATION_TRACE_SECONDS="${CAR_FIGHT_PRESENTATION_TRACE_SECONDS:-120}" \
+CAR_FIGHT_PRESENTATION_CONTROL_PATH="$presentation_control" \
 CAR_FIGHT_NO_RAMPS=1 CAR_FIGHT_NO_DRONE=1 CAR_FIGHT_NO_BALL=1 \
 CAR_FIGHT_HIDE_PEER_MARKERS=1 CAR_FIGHT_PORT="$proxy_port" \
 CAR_FIGHT_MONITOR_ROOT="$run_root/client" \

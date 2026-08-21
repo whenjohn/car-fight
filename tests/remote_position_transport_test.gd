@@ -183,6 +183,17 @@ func _initialize() -> void:
 	check(not Validation.accepts_body_sample(false, true, 7, 10, 20, 7, 31),
 		"local authoritative body accepted a remote sample")
 
+	# Ordinary clock discipline remains damped and monotonic, but a clock-sync
+	# discontinuity outside the retained presentation history rebases immediately
+	# instead of holding an endpoint for many seconds.
+	var ordinary_cursor := Interp.advance_cursor(100.0, 100.5, 1.0 / 60.0, 60.0)
+	check(ordinary_cursor > 100.0 and ordinary_cursor < 102.0,
+		"ordinary cursor correction was not damped")
+	check(is_equal_approx(Interp.advance_cursor(100.0, 800.0, 1.0 / 60.0, 60.0), 800.0),
+		"large forward clock correction did not rebase")
+	check(is_equal_approx(Interp.advance_cursor(800.0, 100.0, 1.0 / 60.0, 60.0), 100.0),
+		"large backward clock correction did not establish a fresh epoch")
+
 	# Correlated-loss model: every body loses the same publication. Constant
 	# velocity must remain continuous, and every affected history must enter the
 	# same explicit interpolate/extrapolate/hold mode rather than pop.

@@ -7,16 +7,20 @@ const MODE_INTERPOLATE := "interp"
 const MODE_EXTRAPOLATE := "extra"
 const MODE_HOLD := "hold"
 
-## Advance a presentation timeline without ever reversing it. The synchronized network clock is allowed to
-## recalibrate; applying that correction directly to render_tick produces a one-frame forward/back hull pop.
-## Instead, advance at nominal real time and absorb clock error through a damped clock follower. The hard
-## ticks/second limit is only a safety rail for large synchronization jumps; applying it to every tiny error
-## creates a visible 57/60/63 Hz playback cadence at a 60 Hz tickrate.
+## Advance a presentation timeline without reversing it during ordinary clock discipline. The synchronized
+## network clock is allowed to recalibrate; applying every small correction directly to render_tick produces
+## a one-frame forward/back hull pop. Instead, advance at nominal real time and absorb ordinary clock error
+## through a damped follower. A discontinuity larger than the retained presentation history is different:
+## sampling would otherwise hold an endpoint for many seconds, so rebase once onto the new clock epoch.
 static func advance_cursor(current_tick: float, desired_tick: float, delta_seconds: float,
 		tickrate: float, correction_ticks_per_second := 3.0,
-		correction_time_seconds := 1.0) -> float:
+		correction_time_seconds := 1.0, rebase_threshold_seconds := 1.0) -> float:
 	if delta_seconds <= 0.0 or tickrate <= 0.0:
 		return current_tick
+	var rebase_threshold_ticks := maxf(0.0, rebase_threshold_seconds) * tickrate
+	if rebase_threshold_ticks > 0.0 \
+			and absf(desired_tick - current_tick) > rebase_threshold_ticks:
+		return desired_tick
 	var nominal := delta_seconds * tickrate
 	var candidate := current_tick + nominal
 	var correction_limit := delta_seconds * maxf(0.0, correction_ticks_per_second)

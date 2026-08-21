@@ -172,6 +172,18 @@ func presentation_mode() -> String:
 	return _presentation_mode
 
 
+func set_presentation_mode(mode: String) -> bool:
+	if mode not in ["fixed", "adaptive"] or mode == _presentation_mode:
+		return false
+	_presentation_mode = mode
+	_presentation_pending_batches.clear()
+	_presentation_body_samples.clear()
+	AdaptivePresentationDelay.reset_epoch(_presentation_state, Time.get_ticks_msec())
+	print("[presentation-buffer-live] mode=%s min_ms=%.0f max_ms=%.0f" % [
+		_presentation_mode, _presentation_min_msec, _presentation_max_msec])
+	return true
+
+
 func presentation_delay_msec() -> float:
 	return AdaptivePresentationDelay.target_msec(_presentation_state) \
 		if _presentation_mode == "adaptive" else _presentation_min_msec

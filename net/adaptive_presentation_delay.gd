@@ -15,13 +15,13 @@ const PROFILE_VERSION := "car-fight-apd-v1"
 const WINDOW_MSEC := 3000
 const WINDOW_SAMPLE_CAP := 180
 const MIN_BATCH_SAMPLES := 6
-const EPOCH_WARMUP_MSEC := 1000
+const EPOCH_WARMUP_MSEC := 8000
 const ARRIVAL_WARNING_P95_MSEC := 12.0
 const HEADROOM_CONFIRM_MSEC := 12.0
 const EXTRAPOLATE_CONFIRM_FRACTION := 0.20
 const CRITICAL_HOLD_MSEC := 50.0
 const PRESSURE_CONFIRM_MSEC := 100.0
-const UPWARD_DWELL_MSEC := 750.0
+const UPWARD_DWELL_MSEC := 5000.0
 const RECOVERY_HEALTHY_MSEC := 20000.0
 
 
@@ -189,6 +189,7 @@ static func _update_target(state: Dictionary, now_msec: int, delta_msec: float) 
 		state["recent_gap_samples"] = []
 		state["recent_sequence_gaps"] = 0
 		state["batch_samples"] = 0
+		state["last_raise_msec"] = now_msec
 		state["controller_state"] = STATE_WARMUP
 		state["pressure_reason"] = "post_epoch_samples"
 		return

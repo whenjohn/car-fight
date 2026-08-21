@@ -23,12 +23,12 @@ func body(headroom: float, mode := "interp", effective := 75.0) -> Dictionary:
 
 func warm(state: Dictionary) -> int:
 	var now := 0
-	for i in 32:
+	for i in 250:
 		batch(state, i + 1, i * 2, now)
 		now += 33
 	AdaptiveDelay.observe_frame(state, now, 16.7, [])
 	for i in 8:
-		batch(state, 33 + i, 64 + i * 2, now)
+		batch(state, 251 + i, 500 + i * 2, now)
 		now += 33
 	return now
 
@@ -46,9 +46,9 @@ func _initialize() -> void:
 	var pressured := configured()
 	now = warm(pressured)
 	for i in 8:
-		batch(pressured, 50 + i, 100 + i * 2, now + i * 55)
+		batch(pressured, 300 + i, 600 + i * 2, now + i * 55)
 	for i in 20:
-		AdaptiveDelay.observe_frame(pressured, now + 1000 + i * 17, 16.7,
+		AdaptiveDelay.observe_frame(pressured, now + 6000 + i * 17, 16.7,
 			[body(5.0, "extra")])
 	check(AdaptiveDelay.target_msec(pressured) == 100.0,
 		"sustained pressure did not raise one tier")
@@ -57,7 +57,7 @@ func _initialize() -> void:
 	now = warm(saturated)
 	saturated["target_msec"] = 150.0
 	for i in 20:
-		AdaptiveDelay.observe_frame(saturated, now + 1000 + i * 17, 16.7,
+		AdaptiveDelay.observe_frame(saturated, now + 6000 + i * 17, 16.7,
 			[body(-50.0, "hold", 150.0)])
 	check(AdaptiveDelay.target_msec(saturated) == 150.0,
 		"controller exceeded maximum")
