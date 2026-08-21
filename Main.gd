@@ -1154,6 +1154,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	pip.mesh = pip_mesh
 	pip.position = Vector3(0.0, 1.68 - PLAYER_RADIUS, 0.0)
 	pip.material_override = _material(color, true)
+	pip.visible = OS.get_environment("CAR_FIGHT_HIDE_PEER_MARKERS") != "1"
 	body.add_child(pip)
 
 	var is_local := owner_id == multiplayer.get_unique_id()
