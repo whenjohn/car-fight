@@ -63,12 +63,14 @@ bodies rather than empty envelopes: each peer received one self-excluded remote
 body, with 25 non-empty envelopes and 2,200 logical bytes per reporting window.
 
 For human smoothness checks, `scripts/play_shaped_local.sh` adds peer 1 as a
-server-authoritative Jeep on a wide route through the open outer lanes. Its input
-is generated on the server, it does not auto-fire, and the shaped observer
-spawns beside it and receives the body through the full profile. The route stays
-clear of the driving-course gate, with an arena/map recovery guard as a backstop.
-This is the Car Fight equivalent of G2's moving server fixture: drive behind it
-and judge the remote hull.
+server-authoritative Jeep on long straight perimeter runs joined by short
+chamfered corners. Its input is generated on the server, it does not auto-fire,
+and the shaped observer spawns beside it and receives the body through the full
+profile. Ramps, the arena ball, shield-test drone, and orange peer markers are
+disabled; the cursor line, interactive grass, and arena presentation remain.
+The route stays clear of the driving-course gate, with an arena/map recovery
+guard as a backstop. This is the Car Fight equivalent of G2's moving server
+fixture: judge the remote hull mainly on the sustained straightaways.
 
 ## Native desynchronization under 120 ms one-way latency
 
@@ -233,3 +235,21 @@ that solution.
 - The exported local browser/native G2-stack smoke passes at 59.2 steady FPS,
   678 maximum/102 final buffered bytes, and zero errors. Remote forced-TURN
   shaping remains incomplete because the latest retry stopped at ICE setup.
+
+## Next-session sequence
+
+1. Run `./scripts/play_shaped_local.sh clean`, then `latency120`, then `jitter`.
+   Use one rendered observer and the same straight perimeter route for every
+   comparison. Record the printed evidence directory and the user's straight-line
+   smoothness observation for each run.
+2. Run combined latency/jitter/loss with the accepted full-rate baseline:
+   `CAR_FIGHT_STATE_RATE_DIVISOR=1 ./scripts/play_shaped_local.sh combined`.
+   Do not use divisor 3 as the combined control.
+3. Separate symptoms by FPS. Healthy-FPS straight-line jitter points toward
+   remote batch cadence/interpolation or correction timing. Stutter confined to
+   10-15 FPS points back to the measured 62-63-tick rollback replay spikes.
+4. Keep `CAR_FIGHT_RESIM_BUDGET_MS` unset. The budget preserved FPS by dropping
+   required correction work and caused visible divergence in three experiments.
+5. Once native behavior is characterized, mirror the straight fixture in the
+   browser harness. Fix the forced-TURN ICE setup before running or accepting a
+   remote browser impairment matrix; preserve the 64 KiB queue ceiling.

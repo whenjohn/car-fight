@@ -107,6 +107,11 @@
 
 ## Next
 
+- Start the next session in `/Users/johnnguyen/Projects/car-fight-network` on `feature/network-shaping`, pull, then run `./scripts/play_shaped_local.sh latency120`. This is the accepted one-observer visual harness: the cursor line and interactive grass remain visible; ramps, the physical arena ball, the shield-test drone, and orange peer markers are intentionally absent. Do not revisit these fixture decisions unless runtime evidence contradicts them.
+- First judge remote motion on the long north/south straightaways rather than during cornering. Record whether stutter correlates with low FPS, whether the two Jeeps remain in one world, and the evidence directory printed by the launcher. Avoid changing route or presentation during the observation run.
+- Then compare one condition at a time with the same route: `clean`, `latency120`, `jitter`, and `CAR_FIGHT_STATE_RATE_DIVISOR=1 ./scripts/play_shaped_local.sh combined`. Divisor 1 is required for the accepted combined baseline; fixed divisor 3 previously failed combined startup correction.
+- After the native visual comparison, bring the same straight-moving server fixture and fixture exclusions to the browser harness, then evaluate Chrome under the same named profiles. Repair the isolated forced-TURN ICE setup before treating remote browser shaping as valid evidence.
+- If straight-line stutter remains at healthy FPS, inspect remote batch cadence/interpolation and correction telemetry. If it appears only when FPS falls toward 10-15, continue the rollback replay-cost investigation. Do not re-enable the rejected resimulation budget; all three budget experiments caused divergence.
 - Keep the merged `master` as the integration baseline; the feature worktrees are no longer needed for gameplay integration.
 - Deploy to macai2 only as a separate explicit step; this merge did not alter the production UDP 10080 service.
 - Resume feature development from this accepted Godot implementation rather than reconstructing existing gameplay in Unity.
