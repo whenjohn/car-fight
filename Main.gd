@@ -112,6 +112,7 @@ var _presentation_trace_path := ""
 var _presentation_trace_seconds := 0.0
 var _network_hud_enabled := false
 var _network_profile := "unshaped"
+var _hotkey_hints_visible := true
 var _resim_budget_ms := 0.0
 var _mux_collision_test := false
 var _mux_close_transport_test := ""
@@ -204,6 +205,9 @@ var _network_hud_frame_ms_sum := 0.0
 var _network_hud_frame_ms_max := 0.0
 var _network_hud_rb_ms_max := 0.0
 var _network_hud_rb_ticks_max := 0
+var _network_tier_label: Label
+var _network_last_target_msec := -1.0
+var _network_tier_notice_remaining := 0.0
 var _shader_prewarm: Node3D
 var _driving_course: Node3D
 var _jump_gates: Node3D
@@ -344,10 +348,12 @@ func _process(_delta: float) -> void:
 		if _troop_delivery != null:
 			mode = "%s  ·  troops %d carried / %d delivered" % [mode,
 				int(_troop_delivery.call("carried_by", id)), int(_troop_delivery.call("delivered_by", id))]
-		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
-			mode, id, speed, location,
-			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  Stay in GREEN area to load troops  |  Hold F in RED area to deploy  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s" % [
+			mode, id, speed, location]
+		if _hotkey_hints_visible:
+			_status_label.text += "\n%s" % (
+				"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" \
+				if _combat_editor_active else "Mouse: drive  |  Stay in GREEN area to load troops  |  Hold F in RED area to deploy  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones")
 		if local != null and bool(local.get("area_weapon_armed")):
 			_status_label.text += "\nAREA WEAPON ARMED  ·  Hold and drag Left Mouse, then release to bomb  ·  3: stow"
 		if local == null and not _network_status.is_empty():
@@ -394,6 +400,7 @@ func _parse_args() -> void:
 				_adaptive_state_rate = adaptive_rate_query == "1"
 			_network_app_telemetry = _web_query("netTelemetry") == "1"
 			_network_hud_enabled = _web_query("networkHud") == "1"
+			_hotkey_hints_visible = _web_query("hotkeyHints") != "0"
 			var profile_query := _web_query("networkProfile")
 			if not profile_query.is_empty():
 				_network_profile = profile_query
@@ -477,6 +484,8 @@ func _parse_args() -> void:
 			_network_app_telemetry = true
 		elif arg == "--network-hud":
 			_network_hud_enabled = true
+		elif arg == "--hide-hotkey-hints":
+			_hotkey_hints_visible = false
 		elif arg.begins_with("--network-profile="):
 			_network_profile = arg.get_slice("=", 1)
 		elif arg == "--network-profile" and index + 1 < args.size():
@@ -1524,11 +1533,37 @@ func _build_presentation() -> void:
 	_network_hud_label.add_theme_constant_override("shadow_offset_y", 2)
 	_network_hud_label.visible = _network_hud_enabled
 	hud.add_child(_network_hud_label)
+	_network_tier_label = Label.new()
+	_network_tier_label.name = "NetworkTierNotice"
+	_network_tier_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_network_tier_label.offset_left = -270.0
+	_network_tier_label.offset_top = 28.0
+	_network_tier_label.offset_right = 270.0
+	_network_tier_label.offset_bottom = 72.0
+	_network_tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_network_tier_label.add_theme_font_size_override("font_size", 24)
+	_network_tier_label.add_theme_color_override("font_color", Color("ffd166"))
+	_network_tier_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
+	_network_tier_label.add_theme_constant_override("shadow_offset_x", 2)
+	_network_tier_label.add_theme_constant_override("shadow_offset_y", 2)
+	_network_tier_label.visible = false
+	hud.add_child(_network_tier_label)
 
 
 func _update_network_hud(delta: float) -> void:
 	if not _network_hud_enabled:
 		return
+	var live_target_msec := RemotePositionTransport.presentation_delay_msec()
+	if _network_last_target_msec < 0.0:
+		_show_network_tier_notice(-1.0, live_target_msec)
+	elif not is_equal_approx(live_target_msec, _network_last_target_msec):
+		_show_network_tier_notice(_network_last_target_msec, live_target_msec)
+	_network_last_target_msec = live_target_msec
+	if _network_tier_notice_remaining > 0.0:
+		_network_tier_notice_remaining = maxf(0.0,
+			_network_tier_notice_remaining - delta)
+		if _network_tier_notice_remaining <= 0.0 and _network_tier_label != null:
+			_network_tier_label.visible = false
 	_network_hud_elapsed += delta
 	_network_hud_frames += 1
 	var frame_ms := delta * 1000.0
@@ -1587,6 +1622,21 @@ func _update_network_hud(delta: float) -> void:
 	_network_hud_rb_ms_max = 0.0
 	_network_hud_rb_ticks_max = 0
 
+
+func _show_network_tier_notice(previous_msec: float, selected_msec: float) -> void:
+	var mode := RemotePositionTransport.presentation_mode().to_upper()
+	var message := "%s BUFFER START  %.0f MS" % [mode, selected_msec] \
+		if previous_msec < 0.0 else "%s BUFFER  %.0f → %.0f MS" % [
+			mode, previous_msec, selected_msec]
+	_network_tier_notice_remaining = 3.0
+	if _network_tier_label != null:
+		_network_tier_label.text = message
+		_network_tier_label.add_theme_color_override("font_color",
+			Color("ffd166") if previous_msec < selected_msec else Color("b8efcc"))
+		_network_tier_label.visible = true
+	print("PRESENTATION_TIER_CHANGE mode=%s from_ms=%.0f to_ms=%.0f" % [
+		mode.to_lower(), previous_msec, selected_msec])
+
 func _build_shader_prewarm() -> void:
 	_shader_prewarm = Node3D.new()
 	_shader_prewarm.name = "ShaderPrewarm"
@@ -1639,7 +1689,7 @@ func _update_editor_presentation(local: Node3D) -> void:
 func _update_editor_label() -> void:
 	if _editor_label == null:
 		return
-	_editor_label.visible = _combat_editor_active
+	_editor_label.visible = _combat_editor_active and _hotkey_hints_visible
 	if not _combat_editor_active:
 		return
 	var config := _configuration_for(multiplayer.get_unique_id())

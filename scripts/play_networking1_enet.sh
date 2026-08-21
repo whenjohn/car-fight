@@ -86,12 +86,13 @@ echo "Networking 1 ENet: $profile / $presentation_mode"
 echo "server-driven Jeep: macai2 peer 1; local process: one rendered observer"
 echo "evidence: $run_root"
 monitor_args=(--host 127.0.0.1 --name observer)
-if [[ "${CAR_FIGHT_NETWORKING1_HEADLESS_TICKS:-0}" == <-> ]] \
-		&& (( CAR_FIGHT_NETWORKING1_HEADLESS_TICKS > 0 )); then
-	monitor_args+=(--headless --ticks "$CAR_FIGHT_NETWORKING1_HEADLESS_TICKS")
+headless_ticks="${CAR_FIGHT_NETWORKING1_HEADLESS_TICKS:-0}"
+if [[ "$headless_ticks" == <-> ]] && (( headless_ticks > 0 )); then
+	monitor_args+=(--headless --ticks "$headless_ticks")
 fi
 CAR_FIGHT_G2_STACK=1 CAR_FIGHT_STATE_RATE_DIVISOR=1 \
 CAR_FIGHT_NETWORK_HUD=1 CAR_FIGHT_NETWORK_PROFILE="$profile" \
+CAR_FIGHT_HIDE_HOTKEY_HINTS=1 \
 CAR_FIGHT_REMOTE_INTERP_MODE="$presentation_mode" \
 CAR_FIGHT_REMOTE_INTERP_MS="${CAR_FIGHT_REMOTE_INTERP_MS:-75}" \
 CAR_FIGHT_REMOTE_INTERP_MAX_MS="${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}" \

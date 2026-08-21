@@ -68,7 +68,7 @@ native_stack_args+=(--remote-interp-mode "$presentation_mode" \
 	--remote-interp "$presentation_min" --remote-interp-max "$presentation_max")
 browser_stack_query+="&remoteInterpMode=$presentation_mode&remoteInterpMs=$presentation_min&remoteInterpMaxMs=$presentation_max&networkProfile=$profile"
 if [[ "$interactive_browser" == "1" || "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
-	browser_stack_query+="&networkHud=1&netTelemetry=1"
+	browser_stack_query+="&networkHud=1&netTelemetry=1&hotkeyHints=0"
 fi
 if [[ "$presentation_trace_seconds" != "0" ]]; then
 	browser_stack_query+="&presentationTraceSeconds=$presentation_trace_seconds"
