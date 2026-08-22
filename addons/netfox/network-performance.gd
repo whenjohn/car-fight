@@ -49,6 +49,10 @@ var _app_inputs_backpressure_dropped := 0
 var _app_fast_forwards := 0
 var _app_fast_forward_ticks := 0
 var _app_fresh_key_requests := 0
+var _app_fast_forwards_total := 0
+var _app_fresh_key_requests_total := 0
+var _app_last_fast_forward_tick := -1
+var _app_last_fresh_key_request_tick := -1
 var _app_pending_age_max := 0
 var _app_state_oldest_received_tick := -1
 var _app_state_newest_received_tick := -1
@@ -194,11 +198,15 @@ func note_app_input_backpressure_dropped(count: int) -> void:
 		_app_inputs_backpressure_dropped += maxi(0, count)
 
 func note_app_fast_forward(skipped_ticks: int) -> void:
+	_app_fast_forwards_total += 1
+	_app_last_fast_forward_tick = NetworkTime.tick
 	if _app_telemetry_enabled:
 		_app_fast_forwards += 1
 		_app_fast_forward_ticks += maxi(0, skipped_ticks)
 
 func note_app_fresh_key_request() -> void:
+	_app_fresh_key_requests_total += 1
+	_app_last_fresh_key_request_tick = NetworkTime.tick
 	if _app_telemetry_enabled:
 		_app_fresh_key_requests += 1
 
@@ -253,6 +261,14 @@ func get_app_telemetry_snapshot(now_tick: int) -> Dictionary:
 		"fast_forwards": _app_fast_forwards,
 		"fast_forward_ticks": _app_fast_forward_ticks,
 		"fresh_key_requests": _app_fresh_key_requests,
+		"fast_forwards_total": _app_fast_forwards_total,
+		"fresh_key_requests_total": _app_fresh_key_requests_total,
+		"last_fast_forward_tick": _app_last_fast_forward_tick,
+		"last_fresh_key_request_tick": _app_last_fresh_key_request_tick,
+		"fast_forward_age_ticks": -1 if _app_last_fast_forward_tick < 0 else maxi(0,
+			now_tick - _app_last_fast_forward_tick),
+		"fresh_key_age_ticks": -1 if _app_last_fresh_key_request_tick < 0 else maxi(0,
+			now_tick - _app_last_fresh_key_request_tick),
 		"pending_age_max": _app_pending_age_max,
 		"state_oldest_received_tick": _app_state_oldest_received_tick,
 		"state_newest_received_tick": _app_state_newest_received_tick,

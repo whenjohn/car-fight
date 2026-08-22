@@ -189,9 +189,15 @@ func transmit_state(tick: int) -> void:
 		# We don't own state, don't transmit anything
 		return
 
-	if _is_predicted_tick and not _input_property_config.get_properties().is_empty():
+	var is_coordinated_key := StateBundle.is_key_tick(tick)
+	if _is_predicted_tick and not _input_property_config.get_properties().is_empty() \
+			and not is_coordinated_key:
 		# Don't transmit anything if we're predicting
-		# EXCEPT when we're running inputless
+		# EXCEPT when we're running inputless. Bundled coordinated keys are the
+		# other exception: at real network latency the server's current tick is
+		# normally predicted for a remote-owned input stream, but the settled
+		# post-loop best authority still has to participate in a complete world
+		# key. Later arrived input corrects it through the ordinary history path.
 		return
 
 	# Include properties we own
@@ -204,7 +210,6 @@ func transmit_state(tick: int) -> void:
 	_on_transmit_state.emit(full_state, tick)
 
 	# No properties to send?
-	var is_coordinated_key := StateBundle.is_key_tick(tick)
 	if full_state.is_empty() and not is_coordinated_key:
 		return
 

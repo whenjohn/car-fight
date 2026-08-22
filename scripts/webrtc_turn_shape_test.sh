@@ -19,8 +19,6 @@ turn_parent="${CAR_FIGHT_SHAPE_TURN_PARENT:-enp4s0f0}"
 turn_gateway="${CAR_FIGHT_SHAPE_TURN_GATEWAY:-192.168.1.254}"
 turn_subnet="${CAR_FIGHT_SHAPE_TURN_SUBNET:-192.168.1.0/24}"
 turn_image="coturn/coturn:4.6.3-r3"
-turn_container="car-fight-network-turn"
-turn_network="car-fight-network-turn-net"
 turn_user="car-fight"
 turn_credential="car-fight-shape"
 remote_root="${CAR_FIGHT_SHAPE_REMOTE_ROOT:-/Users/macai2/Projects/car-fight-network-shaping}"
@@ -29,8 +27,6 @@ remote_enet_port="${CAR_FIGHT_SHAPE_REMOTE_ENET_PORT:-12480}"
 remote_signal_port="${CAR_FIGHT_SHAPE_REMOTE_SIGNAL_PORT:-12481}"
 local_signal_port="${CAR_FIGHT_SHAPE_LOCAL_SIGNAL_PORT:-12581}"
 web_port="${CAR_FIGHT_SHAPE_WEB_PORT:-18189}"
-remote_pidfile="/tmp/car-fight-network-shaping-server.pid"
-remote_log="/tmp/car-fight-network-shaping-server.log"
 failsafe_seconds="${CAR_FIGHT_SHAPE_FAILSAFE_SECONDS:-300}"
 interactive_browser="${CAR_FIGHT_INTERACTIVE_BROWSER:-0}"
 presentation_mode="${CAR_FIGHT_REMOTE_INTERP_MODE:-fixed}"
@@ -77,6 +73,9 @@ fi
 native_stack_args+=(--remote-interp-mode "$presentation_mode" \
 	--remote-interp "$presentation_min" --remote-interp-max "$presentation_max")
 browser_stack_query+="&remoteInterpMode=$presentation_mode&remoteInterpMs=$presentation_min&remoteInterpMaxMs=$presentation_max&networkProfile=$profile"
+if [[ -n "${CAR_FIGHT_JOIN_STALL_MS:-}" ]]; then
+	browser_stack_query+="&joinStallMs=$CAR_FIGHT_JOIN_STALL_MS&joinStallAfterMs=${CAR_FIGHT_JOIN_STALL_AFTER_MS:-0}"
+fi
 if [[ "$interactive_browser" == "1" || "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
 	browser_stack_query+="&networkHud=1&netTelemetry=1&hotkeyHints=0"
 fi
@@ -85,7 +84,12 @@ if [[ "$presentation_trace_seconds" != "0" ]]; then
 fi
 
 run_stamp="$(date -u '+%Y%m%dT%H%M%SZ')"
-run_dir="$project_root/.network-runs/$run_stamp-webrtc-$profile"
+run_id="${run_stamp}-$$-${RANDOM}"
+run_dir="$project_root/.network-runs/$run_id-webrtc-$profile"
+turn_container="car-fight-network-turn-$run_id"
+turn_network="car-fight-network-turn-net-$run_id"
+remote_pidfile="/tmp/car-fight-network-shaping-server-$run_id.pid"
+remote_log="/tmp/car-fight-network-shaping-server-$run_id.log"
 web_pid=""
 native_pid=""
 chrome_pid=""
@@ -93,6 +97,29 @@ tunnel_pid=""
 turn_started=0
 failsafe_pid=""
 server_started=0
+cleanup_started=0
+evidence_captured=0
+
+port_owner() {
+	local port="$1"
+	/usr/sbin/lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+}
+
+preflight_local_port() {
+	local label="$1"
+	local port="$2"
+	local owner="$(port_owner "$port")"
+	if [[ -n "$owner" ]]; then
+		echo "$label port $port is already occupied; refusing stale harness reuse:" >&2
+		print -r -- "$owner" >&2
+		exit 1
+	fi
+}
+
+# These checks must happen before a build, rsync, or remote/container mutation.
+preflight_local_port "signaling tunnel" "$local_signal_port"
+preflight_local_port "web server" "$web_port"
+
 mkdir -p "$run_dir"
 chrome_profile=""
 if [[ "$interactive_browser" == "1" ]]; then
@@ -101,10 +128,32 @@ if [[ "$interactive_browser" == "1" ]]; then
 fi
 
 stop_remote_server() {
-	ssh "$server_ssh" "if test -r '$remote_pidfile'; then pid=\$(cat '$remote_pidfile'); command=\$(ps -p \"\$pid\" -o command= 2>/dev/null || true); case \"\$command\" in *'$remote_root'*'--signal-port $remote_signal_port'*) kill \"\$pid\" >/dev/null 2>&1 || true;; esac; unlink '$remote_pidfile' >/dev/null 2>&1 || true; fi" || true
+	ssh "$server_ssh" "if test -r '$remote_pidfile'; then pid=\$(cat '$remote_pidfile'); command=\$(ps -p \"\$pid\" -o command= 2>/dev/null || true); case \"\$command\" in *'$remote_root'*'--signal-port $remote_signal_port'*'--run-id $run_id'*) kill \"\$pid\" >/dev/null 2>&1 || true;; esac; unlink '$remote_pidfile' >/dev/null 2>&1 || true; fi" || true
+}
+
+capture_owned_evidence() {
+	if (( evidence_captured == 1 )); then
+		return
+	fi
+	evidence_captured=1
+	if (( server_started == 1 )); then
+		ssh "$server_ssh" "test -r '$remote_log' && cat '$remote_log'" \
+			> "$run_dir/server.log" 2>/dev/null || true
+	fi
+	if (( turn_started == 1 )); then
+		ssh "$turn_ssh" "docker logs '$turn_container' 2>&1" \
+			> "$run_dir/turn.log" 2>/dev/null || true
+		ssh "$turn_ssh" "pid=\$(docker inspect -f '{{.State.Pid}}' '$turn_container' 2>/dev/null) || exit 0; sudo nsenter -t \"\$pid\" -n tc -s qdisc show dev eth0" \
+			> "$run_dir/netem-final.txt" 2>/dev/null || true
+	fi
 }
 
 cleanup() {
+	if (( cleanup_started == 1 )); then
+		return
+	fi
+	cleanup_started=1
+	capture_owned_evidence
 	for process_id in "$chrome_pid" "$native_pid" "$web_pid" "$tunnel_pid"; do
 		if [[ "$process_id" == <-> ]] && (( process_id > 1 )); then
 			kill "$process_id" >/dev/null 2>&1 || true
@@ -118,12 +167,47 @@ cleanup() {
 		ssh "$turn_ssh" "test -z '$failsafe_pid' || kill '$failsafe_pid' >/dev/null 2>&1 || true; docker rm -f '$turn_container' >/dev/null 2>&1 || true; docker network rm '$turn_network' >/dev/null 2>&1 || true" || true
 	fi
 }
-trap cleanup EXIT INT TERM
+
+handle_signal() {
+	local exit_status="$1"
+	cleanup
+	trap - EXIT HUP INT TERM
+	exit "$exit_status"
+}
+
+trap cleanup EXIT
+trap 'handle_signal 129' HUP
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
 
 echo "WEBRTC_SHAPE profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms jitter=+/-${CAR_FIGHT_SHAPE_JITTER_MS}ms loss=${CAR_FIGHT_SHAPE_LOSS_PCT}%"
+echo "run_id: $run_id"
 echo "evidence: $run_dir"
 if [[ "$interactive_browser" == "1" ]]; then
 	echo "interactive browser: server-driven Jeep enabled; driver=$driver_mode; player_capsule=$player_capsule_enabled; close Chrome to stop"
+fi
+
+if [[ "${CAR_FIGHT_HARNESS_LIFECYCLE_TEST:-0}" == "1" ]]; then
+	node "$project_root/scripts/harness_port_listener.mjs" \
+		"$local_signal_port" "$web_port" "$run_id" > "$run_dir/lifecycle-listener.log" 2>&1 &
+	web_pid=$!
+	for _attempt in {1..100}; do
+		if rg -q "HARNESS_PORTS_READY run_id=$run_id" "$run_dir/lifecycle-listener.log"; then
+			echo "HARNESS_LIFECYCLE_READY run_id=$run_id signal=$local_signal_port web=$web_port"
+			wait "$web_pid"
+			exit $?
+		fi
+		sleep 0.05
+	done
+	echo "lifecycle listener did not acquire both ports" >&2
+	exit 1
+fi
+
+remote_signal_owner="$(ssh "$server_ssh" "/usr/sbin/lsof -nP -iTCP:$remote_signal_port -sTCP:LISTEN 2>/dev/null || true")"
+if [[ -n "$remote_signal_owner" ]]; then
+	echo "remote signaling port $remote_signal_port on $server_ssh is occupied; refusing stale server reuse:" >&2
+	print -r -- "$remote_signal_owner" >&2
+	exit 1
 fi
 
 "$project_root/scripts/web_network_build.sh" release
@@ -137,8 +221,6 @@ rsync -az --delete --exclude='.git/' --exclude='.godot/' --exclude='build/' \
 ssh "$server_ssh" "'$remote_godot' --headless --path '$remote_root' --editor --quit" \
 	> "$run_dir/remote-import.log" 2>&1 || true
 
-# Replace only prior resources with these harness-specific names.
-ssh "$turn_ssh" "docker rm -f '$turn_container' >/dev/null 2>&1 || true; docker network rm '$turn_network' >/dev/null 2>&1 || true"
 if ping -c 1 -W 1000 "$turn_ip" >/dev/null 2>&1; then
 	echo "TURN test address $turn_ip is already in use" >&2
 	exit 1
@@ -175,12 +257,11 @@ ssh "$turn_ssh" "pid=\$(docker inspect -f '{{.State.Pid}}' '$turn_container'); s
 
 # Ensure macai2 can reach the relay before starting ICE negotiation.
 ssh "$server_ssh" "ping -c 1 -W 1000 '$turn_ip' >/dev/null"
-stop_remote_server
 server_ticks_arg="--ticks 4200"
 if [[ "$interactive_browser" == "1" ]]; then
 	server_ticks_arg=""
 fi
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --no-drone $server_driver_arg $player_capsule_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' --no-drone $server_driver_arg $player_capsule_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
@@ -190,9 +271,9 @@ for _attempt in {1..100}; do
 	fi
 	sleep 0.1
 done
-if (( server_ready == 0 )); then
+if (( server_ready == 0 )) || ! ssh "$server_ssh" "grep -q 'RUN_ID id=$run_id role=server transport=mux' '$remote_log'"; then
 	ssh "$server_ssh" "tail -100 '$remote_log'" >&2 || true
-	echo "isolated mux server did not become ready" >&2
+	echo "isolated mux server did not become ready with run ID $run_id" >&2
 	exit 1
 fi
 
@@ -205,8 +286,11 @@ if ! kill -0 "$tunnel_pid" >/dev/null 2>&1; then
 	exit 1
 fi
 
-CAR_FIGHT_WEB_PORT="$web_port" CAR_FIGHT_WEB_OUTPUT="$project_root/build/web-network" \
-	"$project_root/scripts/web_serve.sh" > "$run_dir/web-server.log" 2>&1 &
+{
+	echo "HARNESS_RUN_ID id=$run_id component=web-server port=$web_port"
+	CAR_FIGHT_WEB_PORT="$web_port" CAR_FIGHT_WEB_OUTPUT="$project_root/build/web-network" \
+		"$project_root/scripts/web_serve.sh"
+} > "$run_dir/web-server.log" 2>&1 &
 web_pid=$!
 for _attempt in {1..100}; do
 	if curl -fs -o /dev/null "http://127.0.0.1:$web_port/"; then
@@ -226,7 +310,7 @@ if [[ "$interactive_browser" != "1" ]]; then
 	sleep 0.8
 fi
 
-browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1$browser_stack_query"
+browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&runId=$run_id&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1$browser_stack_query"
 if [[ "$interactive_browser" == "1" ]]; then
 	chrome_bin="${CHROME_BIN:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 	echo "browser control: node scripts/set_networking1_browser_mode.mjs '$chrome_profile' fixed|adaptive|predictive|proxy"
@@ -237,6 +321,31 @@ if [[ "$interactive_browser" == "1" ]]; then
 		--window-size=1280,815 --window-position=80,80 --new-window "$browser_url" \
 		>"$run_dir/browser.stdout.log" 2>"$run_dir/browser.stderr.log" &
 	chrome_pid=$!
+	interactive_ready=0
+	for _attempt in {1..900}; do
+		if ! kill -0 "$chrome_pid" >/dev/null 2>&1; then
+			break
+		fi
+		browser_identity=0
+		webrtc_ready=0
+		state_ready=0
+		rtt_ready=0
+		rg -q "RUN_ID id=$run_id role=client transport=webrtc" "$run_dir/browser.stderr.log" 2>/dev/null && browser_identity=1
+		rg -q '\[webrtc-channel\].*mode=client.*state=open' "$run_dir/browser.stderr.log" 2>/dev/null && webrtc_ready=1
+		rg -q '\[remote-state-rx\].*batches=[1-9][0-9]*' "$run_dir/browser.stderr.log" 2>/dev/null && state_ready=1
+		rg -q 'NETWORKHUD .*"rtt_ms":[1-9][0-9]*([.]?[0-9]*)' "$run_dir/browser.stderr.log" 2>/dev/null && rtt_ready=1
+		if (( browser_identity == 1 && webrtc_ready == 1 && state_ready == 1 && rtt_ready == 1 )); then
+			interactive_ready=1
+			break
+		fi
+		sleep 0.1
+	done
+	if (( interactive_ready == 0 )); then
+		echo "interactive readiness failed run_id=$run_id browser_identity=${browser_identity:-0} webrtc=${webrtc_ready:-0} first_state_batch=${state_ready:-0} nonzero_rtt=${rtt_ready:-0}" >&2
+		exit 1
+	fi
+	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1"
+	echo "mode will remain $presentation_mode until you explicitly change it; close Chrome to stop"
 	wait "$chrome_pid"
 	exit $?
 fi
@@ -250,8 +359,7 @@ set -e
 ssh "$turn_ssh" "pid=\$(docker inspect -f '{{.State.Pid}}' '$turn_container'); sudo nsenter -t \"\$pid\" -n tc -s qdisc show dev eth0" \
 	> "$run_dir/netem-after.txt"
 ssh "$turn_ssh" "docker logs '$turn_container' 2>&1" > "$run_dir/turn.log"
-ssh "$server_ssh" "cp '$remote_log' /tmp/car-fight-network-shaping-server-copy.log; cat /tmp/car-fight-network-shaping-server-copy.log" \
-	> "$run_dir/server.log"
+ssh "$server_ssh" "cat '$remote_log'" > "$run_dir/server.log"
 
 netem_packets="$(awk '/Sent [0-9]+ bytes [0-9]+ pkt/ { print $4; exit }' "$run_dir/netem-after.txt")"
 netem_drops="$(sed -n 's/.*(dropped \([0-9][0-9]*\),.*/\1/p' "$run_dir/netem-after.txt" | head -1)"
@@ -267,6 +375,7 @@ server_queue_max="${server_queue_max:-0}"
 server_queue_final="${server_queue_final:-0}"
 server_stale_warnings="$(rg -c 'Skipping stale rollback origin' "$run_dir/server.log" || true)"
 {
+	echo "run_id=$run_id"
 	echo "profile=$profile"
 	echo "stack=$stack_label"
 	echo "presentation_mode=$presentation_mode"

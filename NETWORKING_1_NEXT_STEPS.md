@@ -1,5 +1,22 @@
 # Networking 1: Jump and Teleport Follow-up
 
+## Completed 2026-08-22
+
+The ordered investigation below is complete. Harness identity/lifecycle was
+hardened first, correction-cause telemetry and HUD counters were added, then
+no-contact driving, controlled rear/head-on/side impacts, and a deterministic
+695 ms local stall were tested independently at the unchanged forced-TURN
+120 ms configuration.
+
+The visible teleport was stale-state publication, not capsule contact: the
+server discarded the newest settled replay entry for a remote-input route when
+it flushed only the current post-rollback tick. StateBundle now retains the
+newest settled entry per route and recovers explicitly from rejected applies.
+The user accepted smooth no-contact driving and all controlled impact directions.
+The deliberate local stall produced slow FPS but no network jump or teleport.
+Focused tests and the complete `./scripts/test.sh` suite pass. Detailed evidence
+and run IDs are in `NETWORK_SHAPING_FINDINGS.md`.
+
 ## Accepted checkpoint
 
 - The forced-TURN WebRTC comparison remains at 120 ms one-way latency, G2 stack,
@@ -162,3 +179,7 @@ At 120 ms forced TURN:
 - The user accepts steering and contact feel in a fresh run.
 
 Only after this gate should combined jitter/loss or adaptive cadence resume.
+
+Acceptance status: passed for the fixed 120 ms forced-TURN Networking-1 harness.
+Capsule gameplay integration, adaptive cadence, and combined impairment remain
+separate follow-up work and were not changed here.

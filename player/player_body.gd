@@ -100,6 +100,8 @@ var _remote_source_collision: CollisionShape3D
 var _remote_collision_proxy_enabled := false
 var _remote_collision_proxy_in_rollback := false
 var _remote_collision_rollback_signals_connected := false
+var _last_server_driver_contact_tick := -1
+var _last_map_transition_tick := -1
 var _remote_predictive_pose := Transform3D.IDENTITY
 var _remote_predictive_pose_initialized := false
 const REMOTE_INTERP_MS := 75.0
@@ -191,7 +193,7 @@ func _ready() -> void:
 		_ensure_remote_visual_roots()
 		_apply_remote_position_visibility()
 
-func _physics_rollback_tick(delta: float, _tick: int) -> void:
+func _physics_rollback_tick(delta: float, tick: int) -> void:
 	if direct_state == null:
 		return
 	if _service_jump_gate(delta):
@@ -274,6 +276,8 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 	var wall_normal := _static_contact_normal()
 	var touching_static := not wall_normal.is_zero_approx()
 	var touching_player := _touching_player_body()
+	if _touching_server_driver_collision():
+		_last_server_driver_contact_tick = tick
 	if wall_bump_cooldown <= 0.0 and touching_static:
 		var preferred_sign := signf(float(command["heading_error"])) \
 			if absf(float(command["heading_error"])) >= FOLLOW.ESCAPE_STEER_EPSILON \
@@ -361,6 +365,7 @@ func _service_jump_gate(delta: float) -> bool:
 	direct_state.linear_velocity = Vector3.ZERO
 	direct_state.angular_velocity = Vector3.ZERO
 	map_id = int(transition["map_id"])
+	_last_map_transition_tick = _current_network_tick()
 	gate_cooldown = MAP_LAYOUT.GATE_COOLDOWN
 	gate_transition_count += 1
 	burst_turn_sign = 0.0
@@ -397,6 +402,35 @@ func _touching_player_body() -> bool:
 		if collider != null and collider.get_parent() == get_parent():
 			return true
 	return false
+
+
+func _touching_server_driver_collision() -> bool:
+	for index in range(direct_state.get_contact_count()):
+		var collider := direct_state.get_contact_collider_object(index)
+		if collider is AnimatableBody3D and str(collider.name) == "RemoteCollisionProxy":
+			return true
+		if collider is RigidBody3D and collider.get_parent() == get_parent() \
+				and int(collider.get("owner_id")) == 1:
+			return true
+	return false
+
+
+func correction_contact_age(current_tick: int) -> int:
+	return -1 if _last_server_driver_contact_tick < 0 else maxi(0,
+		current_tick - _last_server_driver_contact_tick)
+
+
+func correction_map_transition_age(current_tick: int) -> int:
+	return -1 if _last_map_transition_tick < 0 else maxi(0,
+		current_tick - _last_map_transition_tick)
+
+
+func _current_network_tick() -> int:
+	var tree := get_tree()
+	if tree == null:
+		return -1
+	var network_time := tree.root.get_node_or_null("NetworkTime")
+	return -1 if network_time == null else int(network_time.get("tick"))
 
 func _service_cloak_toggle(held: bool) -> void:
 	# The wire carries a held level. Only real input transitions write the

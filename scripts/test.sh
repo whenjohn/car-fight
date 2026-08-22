@@ -13,6 +13,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/follow_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/tractor_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/impact_controller_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/correction_classifier_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/asset_smoke_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/boost_afterimage_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/coverage_config_test.gd
@@ -31,6 +32,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/dots_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/troop_delivery_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/elevated_course_test.gd
+"$project_root/scripts/webrtc_turn_harness_lifecycle_test.sh"
 "$project_root/scripts/offline_test.sh"
 "$project_root/scripts/network_test.sh"
 "$project_root/scripts/mixed_transport_test.sh"

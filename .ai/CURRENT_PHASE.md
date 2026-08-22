@@ -5,8 +5,8 @@
 - Active Car Fight development returned to this Godot repository on 2026-08-19. The prior Unity handoff is superseded; see `MIGRATION_TO_UNITY.md` and `~/Projects/car-fight-unity/docs/RETURN_TO_GODOT.md`.
 - Preserve the Unity repository at revision `e312c42` as an investigation. Carry its useful native multiplayer authority, prediction, lifecycle, impairment, telemetry, and launcher requirements back into Godot tests; do not port its scene, FishNet adapters, or browser transport fork.
 - On affected macOS Intel systems, rendered play must use an ordinary decorated window inside the usable desktop area. Do not use native fullscreen, borderless fullscreen, or exact edge-to-edge/maximized presentation. This bounded compatibility limitation is accepted.
-- Network shaping is active in the isolated `feature/network-shaping` worktree. The full G2-derived transport is now available as an explicit A/B profile on native ENet and browser WebRTC; ordinary game launches remain on legacy defaults. Local browser backpressure is healthy with the full profile, while remote forced-TURN acceptance remains open because the latest latency retry stopped during ICE setup. Preserve the earlier queue failures and the 64 KiB ceiling as evidence.
-- Networking 1 is implemented on `feature/networking-1` in `/Users/johnnguyen/Projects/car-fight-networking-1`. Fixed 75 ms presentation remains the default; the adaptive 75/100/125/150 ms controller, trace/replay, compact network HUD, and isolated macai2 single-observer harness are opt-in. WebRTC accepts the same controls, but remote forced-TURN ICE remains open.
+- The full G2-derived transport is available as an explicit A/B profile on native ENet and browser WebRTC; ordinary game launches remain on legacy defaults. The forced-TURN path is operational and its fixed 120 ms Networking-1 jump/teleport gate is accepted. Preserve the earlier queue failures and 64 KiB ceiling as evidence; combined impairment remains a separate unaccepted experiment.
+- Networking 1 is implemented on `feature/networking-1` in `/Users/johnnguyen/Projects/car-fight-networking-1`. The fixed 120 ms forced-TURN jump/teleport investigation is complete: per-route settled-state starvation is fixed and human no-contact, rear/head-on/side-impact, and deterministic local-stall controls are accepted. Fixed 75 ms presentation remains the ordinary default; the accepted 1.05-radius/3.40-length capsule remains harness-only.
 
 ## Completed
 
@@ -136,16 +136,37 @@
   course run missed its timing-sensitive rebound sample; the immediate isolated
   repeat passed at 1.366 units, followed by passing reverse, gate, combat, RC orb,
   shield, and detonation gates. `git diff --check` is clean.
-- The next workstream is jumps/teleports, not shape tuning. Follow
-  `NETWORKING_1_NEXT_STEPS.md`: harden interrupted-run lifecycle and identity,
-  attribute every correction, reproduce no-contact and controlled impacts, then
-  choose stale-state recovery or shared rollback collision prediction from the
-  recorded evidence. Do not resume adaptive cadence or combined impairment first.
+- Hardened the forced-TURN harness against stale processes and mismatched runs:
+  unique run identity spans browser/server/TURN/evidence, readiness verifies
+  connection/state/nonzero RTT, cleanup owns exact resources, and the lifecycle
+  regression passes both `INT` and `TERM` with successful port rebinding.
+- Added multi-signal correction telemetry and HUD counts for stall, stale,
+  impact, and unknown causes, including route-specific applied age, recovery,
+  rollback/history, frame/process, contact, proxy/authority, and map evidence.
+- Diagnosed the teleport as StateBundle route starvation. Remote-input authority
+  settled during historical replay, but the post-rollback flush discarded those
+  route entries while healthier server-owned routes masked the freeze. The
+  bundler now retains the newest settled entry per route, preserves its source
+  tick ordering, and explicitly requests a coordinated key after apply failure.
+- Human forced-TURN run `20260822T185708Z-56142-16179` was smooth without contact
+  and through accepted rear, head-on, and repeated side impacts. State age stayed
+  mostly 6-11 ticks with no stale recovery loop. Controlled impact corrections
+  remained about 0.176-0.561 units, so collision disagreement was not the jump.
+- Human stall-control run `20260822T191625Z-58196-23649` injected one 695 ms
+  main-thread pause. The world visibly slowed as FPS briefly reached 4, but no
+  network jump/teleport occurred; recoveries, key requests, rejected states, and
+  fast-forwards stayed at zero. The harness observer now starts clear of the lane.
+- Focused parser/classifier/coalescing/lifecycle checks pass. The G2 divisor-1
+  120 ms native gate passes with a 0.302-unit worst correction. The complete
+  `./scripts/test.sh` suite passes (`ALL_TESTS PASS`).
 
 ## Next
 
-- Treat the ENet human series as acceptance evidence for adaptive presentation, but keep fixed 75 ms as the ordinary default until WebRTC is compared and fixed-mode per-body I/E/H telemetry is added. The preferred observed adaptive tiers were 100 ms for clean/latency120/combined and 125 ms for jitter.
-- Repair the isolated forced-TURN ICE setup and repeat the same fixed/adaptive comparisons over WebRTC. Preserve the existing 64 KiB queue ceiling and keep production services untouched.
+- Keep fixed 75 ms as the ordinary default and the accepted capsule dimensions
+  confined to the Networking-1 harness. Capsule gameplay integration remains a
+  separate handling/physics workstream.
+- Combined impairment and adaptive cadence may resume only as a separate next
+  experiment; neither was changed to accept the 120 ms forced-TURN result.
 
 - Start the next session in `/Users/johnnguyen/Projects/car-fight-network` on `feature/network-shaping`, pull, then run `./scripts/play_shaped_local.sh latency120`. This is the accepted one-observer visual harness: the cursor line and interactive grass remain visible; ramps, the physical arena ball, the shield-test drone, and orange peer markers are intentionally absent. Do not revisit these fixture decisions unless runtime evidence contradicts them.
 - First judge remote motion on the long north/south straightaways rather than during cornering. Record whether stutter correlates with low FPS, whether the two Jeeps remain in one world, and the evidence directory printed by the launcher. Avoid changing route or presentation during the observation run.

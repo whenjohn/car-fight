@@ -1,7 +1,7 @@
 # Network shaping findings
 
-Status: active investigation on `feature/network-shaping`
-Last updated: 2026-08-21
+Status: Networking-1 120 ms forced-TURN jump/teleport fix accepted on `feature/networking-1`
+Last updated: 2026-08-22
 
 ## Scope
 
@@ -163,9 +163,65 @@ The first direct port coalesced the newest whole StateBundle envelope. Under
 different bodies. A newer body B envelope therefore evicted body A's latest
 authority, leaving a client seconds stale and producing 26-56 unit corrections.
 
-Car Fight now coalesces the newest ordinary entry per route/body and regroups
-entries by source tick when draining. Complete reliable-recovery keys remain
-atomic. A focused regression covers this multi-body starvation case.
+The 2026-08-22 forced-TURN follow-up found a second part of the same starvation
+mechanism. A remote-input body is predicted at the server's current tick, so
+netfox queues its newest settled authoritative state while replaying the newly
+arrived historical input. StateBundle was flushing only the current tick after
+rollback and discarding those replay-tick entries. The server-owned lane Jeep
+and ball continued updating, which made aggregate state telemetry look healthy
+while the browser player's own route could freeze and later teleport. A failed
+bundle apply could also be ignored instead of entering coordinated fresh-key
+recovery.
+
+Car Fight now retains the newest post-replay entry for every recipient/route,
+regroups those sparse entries by their original source tick, and drains them in
+ascending order. This preserves bounded coalescing without a replay-envelope
+storm. A coordinated recovery key is allowed through even when the current
+remote input remains predicted, and a rejected key or delta now enters the
+fresh-key wait/request path rather than silently freezing. Complete reliable
+recovery keys remain atomic. Focused regressions cover multi-route starvation,
+including settled replay entries from different source ticks. The focused
+120 ms network gate also exercises bounded missing-reference rejection/recovery.
+
+### Forced-TURN jump/teleport diagnosis and acceptance
+
+The interactive harness now preflights its local and remote ports, assigns one
+run ID to the browser, logs, server, TURN resources, and evidence directory,
+requires matching identity plus WebRTC/state/RTT readiness, and cleans up exact
+owned resources on normal exit, `INT`, and `TERM`. A lifecycle regression proves
+both local ports can be rebound after each interrupt path.
+
+Every correction at or above 0.10 units now records its before/after positions,
+source/current/applied/pending ages, rollback/history/debt, recovery and
+fast-forward recency/totals, frame/process timing, recent server-driver contact,
+proxy-to-raw-authority distance/lead, map-transition recency, run ID, and all
+matching `stall`, `stale`, `impact`, or `unknown` signals. The HUD exposes the
+corresponding lifetime counters. Authority probing runs after the rollback loop
+has settled instead of comparing against a pre-replay pose.
+
+Human run `20260822T185708Z-56142-16179` used forced TURN, 120 ms one-way,
+G2 divisor 1, proxy presentation 75-150 ms, the slow lane fixture, and the
+accepted 1.05-radius/3.40-length capsule. With no contact the user reported no
+jumps, teleports, stutter, or drone vibration. Applied route age stayed mostly
+6-11 ticks, with zero stale recovery, rejected state, or fast-forward events.
+Rear, head-on, repeated side impacts were then accepted in the same unchanged
+session. Attributed impact corrections were bounded (about 0.176-0.561 units),
+so collision prediction disagreement was not the visible teleport source.
+
+Run `20260822T191625Z-58196-23649` repeated the exact configuration from a clear
+spawn and injected one deliberate 695 ms browser-main-thread stall at tick 2839.
+The user saw temporary low FPS/slow world motion but no network jump or teleport.
+Telemetry confirmed a local frame stall (briefly 4 FPS), zero stale recoveries,
+zero key requests, zero rejected states, and no accumulating fast-forwards. The
+route caught up without a teleport-sized correction. The lane observer now
+spawns at `(32, 0)`, clear of the fixture route, so this control no longer begins
+with an accidental collision; ordinary gameplay spawn/handling is unchanged.
+
+The evidence therefore identifies stale per-route publication as the teleport
+cause. Controlled impacts are healthy in the accepted harness, and local frame
+stalls remain visibly slow rather than masquerading as state-recovery jumps.
+The accepted capsule remains harness-only; adaptive cadence and combined
+impairment were not resumed.
 
 ### Headless native measurements
 
@@ -439,6 +495,11 @@ desynchronization evidence. Repair/retry that ICE path before running the full
 browser shaping matrix and human soak. The rejected replay cap is not part of
 that solution.
 
+That ICE result is historical. Later Networking-1 work repaired the isolated
+forced-TURN path and completed the fixed 120 ms jump/teleport gate described
+above. It does not retroactively accept combined impairment or the earlier
+over-64-KiB queue rows.
+
 ## Validation state
 
 - Complete native shaping matrix: passed before the recovery changes.
@@ -453,10 +514,13 @@ that solution.
 - The 10 ms replay budget, its 24-tick/reliable-rebase follow-up, and a final
   coordinated full-stack retest were all rejected by shaped native evidence.
 - The exported local browser/native G2-stack smoke passes at 59.2 steady FPS,
-  678 maximum/102 final buffered bytes, and zero errors. Remote forced-TURN
-  shaping remains incomplete because the latest retry stopped at ICE setup.
+  678 maximum/102 final buffered bytes, and zero errors.
+- The fixed 120 ms forced-TURN Networking-1 gate passes after per-route settled
+  publication recovery: no-contact driving, controlled impacts, and a 695 ms
+  client stall were human-accepted, focused checks pass, and the complete suite
+  ends in `ALL_TESTS PASS`. Combined shaping remains unaccepted and deferred.
 
-## Next-session sequence
+## Historical next-session sequence (completed)
 
 1. Run `./scripts/play_shaped_local.sh clean`, then `latency120`, then `jitter`.
    Use one rendered observer and the same straight perimeter route for every
