@@ -41,6 +41,16 @@ server_driver_arg=""
 if [[ "$interactive_browser" == "1" || "${CAR_FIGHT_SHAPE_SERVER_DRIVER:-0}" == "1" ]]; then
 	server_driver_arg="--server-driver"
 fi
+driver_mode="perimeter"
+if [[ "${CAR_FIGHT_SERVER_DRIVER_LANE:-0}" == "1" ]]; then
+	server_driver_arg="--server-driver-lane"
+	driver_mode="slow-left-lane"
+fi
+player_capsule_enabled="${CAR_FIGHT_PLAYER_CAPSULE:-1}"
+player_capsule_arg="--player-capsule"
+if [[ "$player_capsule_enabled" == "0" ]]; then
+	player_capsule_arg="--no-player-capsule"
+fi
 stack_label="legacy"
 server_stack_args=""
 native_stack_args=()
@@ -86,7 +96,8 @@ server_started=0
 mkdir -p "$run_dir"
 chrome_profile=""
 if [[ "$interactive_browser" == "1" ]]; then
-	chrome_profile="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-shaped-browser.XXXXXX")"
+	chrome_profile="$run_dir/chrome-profile"
+	mkdir -p "$chrome_profile"
 fi
 
 stop_remote_server() {
@@ -106,16 +117,13 @@ cleanup() {
 	if (( turn_started == 1 )); then
 		ssh "$turn_ssh" "test -z '$failsafe_pid' || kill '$failsafe_pid' >/dev/null 2>&1 || true; docker rm -f '$turn_container' >/dev/null 2>&1 || true; docker network rm '$turn_network' >/dev/null 2>&1 || true" || true
 	fi
-	if [[ -n "$chrome_profile" ]]; then
-		rm -rf "$chrome_profile"
-	fi
 }
 trap cleanup EXIT INT TERM
 
 echo "WEBRTC_SHAPE profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms jitter=+/-${CAR_FIGHT_SHAPE_JITTER_MS}ms loss=${CAR_FIGHT_SHAPE_LOSS_PCT}%"
 echo "evidence: $run_dir"
 if [[ "$interactive_browser" == "1" ]]; then
-	echo "interactive browser: server-driven Jeep enabled; close Chrome to stop"
+	echo "interactive browser: server-driven Jeep enabled; driver=$driver_mode; player_capsule=$player_capsule_enabled; close Chrome to stop"
 fi
 
 "$project_root/scripts/web_network_build.sh" release
@@ -172,7 +180,7 @@ server_ticks_arg="--ticks 4200"
 if [[ "$interactive_browser" == "1" ]]; then
 	server_ticks_arg=""
 fi
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --no-drone $server_driver_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --no-drone $server_driver_arg $player_capsule_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
@@ -221,8 +229,12 @@ fi
 browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1$browser_stack_query"
 if [[ "$interactive_browser" == "1" ]]; then
 	chrome_bin="${CHROME_BIN:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
-	"$chrome_bin" --user-data-dir="$chrome_profile" --no-first-run \
-		--no-default-browser-check --disable-extensions --new-window "$browser_url" \
+	echo "browser control: node scripts/set_networking1_browser_mode.mjs '$chrome_profile' fixed|adaptive|predictive|proxy"
+	"$chrome_bin" --remote-debugging-port=0 --user-data-dir="$chrome_profile" \
+		--no-first-run --no-default-browser-check --disable-extensions \
+		--disable-background-timer-throttling --disable-backgrounding-occluded-windows \
+		--disable-renderer-backgrounding --enable-logging=stderr \
+		--window-size=1280,815 --window-position=80,80 --new-window "$browser_url" \
 		>"$run_dir/browser.stdout.log" 2>"$run_dir/browser.stderr.log" &
 	chrome_pid=$!
 	wait "$chrome_pid"

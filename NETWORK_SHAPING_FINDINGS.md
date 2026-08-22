@@ -330,6 +330,102 @@ settle, it passed at 59.2 steady FPS, 678 maximum queued bytes, 102 final bytes,
 and zero browser errors. Physics remained authoritative on the rollback body;
 the 75 ms delayed/50 ms capped extrapolation path moved presentation only.
 
+The first human forced-TURN `clean / fixed 75 ms` phase was rated very playable,
+with movement vibration and occasional small stutters. After browser startup,
+frame pacing settled at 60 FPS/16.7 ms. RTT was normally about 20-30 ms, jitter
+usually 8-17 ms with brief samples near 24 ms, and only two presentation
+sequence gaps accumulated during the observed interval. Worst correction was
+0.599 units with zero recovery requests. As with native fixed mode, per-body
+interpolation/extrapolation/hold shares were not collected in this phase.
+
+The matching human forced-TURN `clean / adaptive` phase was rated very smooth,
+with no apparent issues and fully playable motion. Adaptive settled on the
+75 ms tier. The observed steady state held 60 FPS, roughly 20 ms RTT, roughly
+8-9 ms jitter, 100% interpolation, zero holds/extrapolation/recoveries, and a
+0.342-unit worst correction.
+
+In the human forced-TURN `latency120 / fixed 75 ms` phase, the Jeep visibly
+stuttered while moving. RTT was commonly about 260-300 ms and worst correction
+reached 1.502 units. Frame pacing was also unstable: it often recovered to
+55-60 FPS, but one observed burst fell through 38.8 to 21.0 FPS with 52-70 ms
+maximum frames while measured jitter rose above 116 ms. The visible result can
+therefore include both remote-presentation stutter and whole-frame stalls.
+
+The matching `latency120 / adaptive` phase was visibly unacceptable: general
+choppiness and FPS drops accompanied jittery motion, pauses, jerks, pulling, and
+noticeable lag. Telemetry corroborated the report. Adaptive saturated at its
+150 ms tier, but snapshot headroom still went negative. Individual samples
+recorded full-frame presentation holds of about 60-184 ms and occasional full
+extrapolation. FPS fell near 29-31 during pressure bursts, application jitter
+reached roughly 133 ms, sequence gaps reached 11, and worst correction reached
+1.068 units. This is not a case where the current adaptive ceiling successfully
+hides the impairment; presentation starvation and frame stalls coincide.
+
+In the human forced-TURN `jitter / fixed 75 ms` phase, movement followed a
+recognizable normal -> jerky -> jerky -> normal pattern. Unlike the latency120
+case, the sampled interval held essentially constant 60 FPS/16.7 ms frames.
+Measured jitter cycled roughly 24-73 ms and presentation sequence gaps climbed
+rapidly (796 to 889 across the final sampled window). This phase isolates the
+visible rhythm primarily to irregular remote delivery rather than render-frame
+stalls.
+
+The matching `jitter / adaptive` phase looked very smooth with no noticeable
+stutter. Adaptive eventually selected its 150 ms tier while the client remained
+near 60 FPS. The user also identified a correctness cue that the smoothness
+metric does not capture: a small marker and the grass wake can run ahead of the
+rendered Jeep, and collision occurs at that leading position. Code inspection
+confirmed the mechanism. `player_body.gd` makes only `GroundVehicleHull` a
+top-level delayed presentation root; `PeerMarker`, the `RigidBody3D` collision
+shape, and `interactive_grass.gd` remain attached to or sample the current
+authoritative body transform. The peer/server state is not itself divergent,
+but gameplay collision and environmental reactions can visibly lead the delayed
+hull by the active presentation buffer. Treat this as presentation correctness,
+not merely cosmetic telemetry.
+
+The human forced-TURN `combined / fixed 75 ms` phase was a hard failure. The
+user observed a world pullback, repeated teleportation, the Jeep hull
+disappearing while its authoritative marker moved far ahead, and the hull later
+returning while still offset. Initial FPS fell as low as roughly 19-24, but the
+later failure persisted even after rendering returned to 60 FPS. RTT grew past
+4 seconds, application jitter exceeded 500 ms, sequence gaps exceeded 600,
+recovery requests repeated, and worst correction reached 380 units. A 75-150 ms
+presentation buffer cannot address this transport/backlog collapse. Browser
+channel telemetry identifies the immediate failure: the nominally unreliable
+channel repeatedly queued roughly 109-196 KiB, well beyond the 64 KiB acceptance
+ceiling, while its requested 1 ms packet lifetime was reported as 0. Rollback
+then repeatedly rejected correction origins that had become older than retained
+history. This is queue/backpressure and stale-state recovery failure before it
+is an interpolation-tuning problem.
+
+A follow-up combined run enabled both adaptive presentation and the G2-derived
+adaptive state cadence with a divisor-3 base. It was stopped before human
+evaluation because telemetry had already failed acceptance: client unreliable
+queueing reached 149 KiB, RTT exceeded 2.2 seconds, and presentation recorded an
+837 ms hold with adaptive saturated at 150 ms. State cadence reduces server
+state-envelope load, but this failure is dominated by the browser client's
+unreliable uplink queue. Reject adaptive cadence as the solution to this case.
+
+Removing the packed state-owner input exemption from the existing backpressure
+valve fixed its narrow target in an automated full-rate combined retry: browser
+queue maximum fell to 4,389 bytes and drained to 1,461 bytes, versus 109-196 KiB
+in the failed human run. It did not make the row acceptable by itself. Steady
+FPS averaged 18.2 because browser process time repeatedly reached 70-192 ms,
+despite sub-1 ms physics and no measured rollback-loop time. Server telemetry
+showed burst windows with hundreds of outgoing state entries per second. Test
+the input valve together with lower/adaptive state cadence; neither protection
+has passed combined impairment independently.
+
+With the input valve plus divisor-3 adaptive cadence, an automated combined run
+improved steady FPS to 33.4 but still failed acceptance; the browser queue stayed
+bounded at 4,389 bytes. Server telemetry exposed recovery bursts with roughly
+500 full-state acknowledgements per second. A follow-up coalesced successful
+bundled-full acknowledgements into one route envelope per received bundle. The
+new bundled ack path appeared in server telemetry and browser queueing remained
+bounded, but steady FPS still failed at 25.0 with browser process spikes up to
+748 ms and 20 stale-rollback warnings. Ack coalescing removes one amplification
+path but does not solve the combined row. Do not resume human combined testing
+until incoming stale/recovery burst work is bounded.
+
 This local result fixes the previously observed application-level queue growth,
 but it does not supersede the remote forced-TURN failures. The clean forced-TURN
 row peaked at 106,560 queued browser bytes. The combined row peaked at 125,197,
@@ -377,3 +473,227 @@ that solution.
 5. Once native behavior is characterized, mirror the straight fixture in the
    browser harness. Fix the forced-TURN ICE setup before running or accepting a
    remote browser impairment matrix; preserve the 64 KiB queue ceiling.
+
+## 2026-08-21 latest-G2 WebRTC presentation parity pass
+
+Car Fight now uses G2's current adaptive timings (1 s epoch warmup and 750 ms
+upward dwell), fractional `tick + tick_factor` presentation time, monotonic
+damped cursor, and body-owned 30-tick clock-discontinuity rebase with fresh
+warmup evidence. The rejected 0.35-unit visual/authority leash was removed.
+Car Fight retains its rotation samples and the newer settled-publication,
+per-route state coalescing, ACK bundling, and browser queue controls.
+
+The first forced-TURN human A/B used the full-rate G2 stack against macai2 on a
+clean network. Adaptive 75-150 ms was rated "not bad," with a repeating normal
+then stutter cadence. It rapidly selected 150 ms and stayed there. During the
+observed interval the browser was usually 60 FPS, accepted about 30 drone pose
+batches/s, had essentially no sequence loss, replayed only 1-2 rollback ticks,
+and continuously reported interpolation. Occasional 25-50 ms browser frames
+exist, but packet starvation and deep rollback do not explain the repeating
+motion symptom.
+
+The matched fixed 75 ms run was worse: the user saw many forward pulls and
+vibrations. It likewise held roughly 60 FPS, about 30 accepted pose batches/s,
+shallow rollback, no recovery, and only a handful of sequence gaps over several
+minutes. Clean adaptive is therefore the accepted side of this A/B, but neither
+mode is yet clean enough to call the presentation path solved.
+
+The next forced-TURN row used 60 ms fixed one-way latency and adaptive
+presentation. The user rated it pretty good: smooth movement, occasional
+whole-world hiccups, and only small/brief authoritative-center lead ahead of the
+hull. The controller eventually held 125 ms. The measured steady interval was
+normally 60 FPS, continuously interpolating, with about 30 pose batches/s, one
+total sequence gap, no recovery, and one-tick rollback in most windows. The
+small center lead is the expected consequence of buffering only the hull while
+the collision body and environment remain current; it was materially less
+objectionable here than in the earlier high-buffer runs.
+
+The 60 +/- 30 ms jitter row remained visually smooth, but the authoritative
+center led the hull more noticeably during forward acceleration and converged
+again when the drone slowed or stopped. Adaptive held around 125 ms while the
+browser remained near 60 FPS and continuously interpolated. The transport was
+genuinely adverse: accepted receiver windows often contained only 19-27 of the
+nominal 30 publications, with repeated stale/reordered batches and more than
+1,500 cumulative sequence gaps during the long run. No recovery was required
+and rollback stayed shallow. This demonstrates that G2 adaptive presentation
+successfully hides irregular delivery, but its smoothness is purchased with a
+speed-proportional visual/collision offset. Predictive presentation is the
+planned follow-up after the shaping matrix.
+
+The 60 ms + 0.5% loss row was again smooth, with occasional modest center lead.
+Adaptive saturated at 150 ms, the browser was normally 60 FPS, and it required
+no recovery. The user's collision-direction test made the correctness failure
+unambiguous: a head-on ram appears plausible because the player meets the
+leading authoritative collider, while a ram from behind can pass through the
+visible delayed hull because that hull's collider has already moved forward.
+Motion smoothness passes this row; collision readability fails it.
+
+At 120 ms fixed one-way latency, the hull was generally smooth but the user saw
+several whole-world teleports/hiccups and cases where the authoritative center
+stopped while the hull continued moving. Telemetry corroborates both failure
+classes. Adaptive saturated at 150 ms and repeatedly crossed between
+interpolation, extrapolation, and holds up to about 83 ms as headroom fell as
+low as roughly -130 ms. Separate bursts dropped FPS into the mid-40s/low-50s,
+raised RTT near 370 ms, replayed 21-22 ticks, and recorded a 32.99-unit worst
+local correction. The moving hull after the center stops is buffered or
+extrapolated stale motion; the whole-world teleports are local correction/frame
+bursts that remote-hull interpolation cannot hide.
+
+The final 120 +/- 40 ms plus 1% loss row was a clear failure. The user saw
+jerky motion, stuttering, and whole-world hiccups. Adaptive presentation was
+already saturated at 150 ms while delivery variation ranged roughly 100-166
+ms and accumulated more than 1,200 sequence gaps. Presentation holds ranged
+from about 100 to 527 ms, headroom fell below -200 ms, FPS fell as low as 33,
+RTT ranged roughly 340-590 ms, rollback bursts reached 40-46 ticks, and input
+backpressure discarded as many as 50 inputs in a one-second window. A delayed
+interpolation buffer cannot absorb this combined path; both remote delivery
+and local correction/frame work are failing at once.
+
+The completed matrix therefore selects adaptive buffering as the better
+delayed-presentation baseline, especially at 60 ms latency or jitter, but does
+not accept it as collision-readable. A separate `predictive` experiment keeps
+the server-authoritative sphere current and predicts only the Jeep hull from a
+correlated authoritative position, rotation, linear velocity, and angular
+velocity sample. New sample error is reconciled with frame-rate-independent
+visual smoothing; ordinary corrections are not hard-leashed, and true large
+teleports reset the visual pose.
+
+The first clean predictive human run was smooth overall but showed intermittent
+vibration while the drone was moving. The corresponding interval remained at
+about 60 FPS with 29-31 accepted pose batches/s, no recovery, no continuing
+sequence gaps, and usually one rollback tick. That isolates the vibration to
+the visual predictor's 30 Hz target correction rather than packet starvation,
+deep rollback, or a whole-world frame hitch. The next revision advances the
+visual pose continuously using the latest authoritative velocity and smooths
+only accumulated prediction error, instead of low-pass chasing the entire
+moving target.
+
+That feed-forward revision produced smooth movement, but the user could still
+see the center point behind the mesh at times. It therefore passed smoothness
+but overshot the gameplay collider, reversing rather than solving the
+collision-readability error. The next revision retains feed-forward motion but
+uses the live rollback collider/center-point transform as its reconciliation
+anchor. HUD telemetry now reports current/maximum visual offset and signed lead
+(positive means mesh ahead along travel, negative means behind).
+
+The clean collider-anchored run was rated "not bad": slight vibration remained
+during movement, but the center point stayed synchronized with the mesh. During
+settled portions the measured visual offset was about 0.03 units; during active
+changes the one-second peak samples seen in telemetry were roughly 0.2-0.5
+units and crossed both lead signs. This is the first predictive variant to pass
+the user's collision-alignment check, so it advances unchanged to shaped-path
+testing rather than being tuned further on clean traffic.
+
+At 60 ms fixed latency in each direction, the collider-anchored predictive
+version was rated "pretty good" and smooth, with the center point and mesh
+aligned and very few noticeable issues. The browser stayed near 60 FPS and
+accepted about 30 pose batches/s without recovery. Current visual offset was
+usually below roughly 0.15 units; brief one-second peaks reached about 0.4-0.6
+units around timing/correction changes and then settled. Unlike the matched
+adaptive row, the user did not see a persistent speed-dependent collider lead.
+
+Under 60 +/- 30 ms jitter, the collider-anchored predictive version was rated
+smooth and "not bad," with only occasional slight vibration. The browser held
+about 60 FPS while accepted pose windows varied around 22-28/s with repeated
+stale/reordered publications. Current visual offset was commonly about
+0.03-0.13 units with brief peaks around 0.35 units. No speed-dependent
+center/mesh separation was reported, making this stronger than the matched
+adaptive jitter result for collision readability.
+
+At 60 ms each direction plus 0.5% loss, the collider-anchored predictive run
+was rated "pretty good," with smooth movement and accurate collision. This is
+the decisive improvement over the matched adaptive row: rear and head-on
+interaction now agree with the visible Jeep because the hull reconciles to the
+same live sphere used by gameplay instead of a delayed presentation timeline.
+
+At 120 ms each direction, collider-anchored predictive presentation clearly
+failed: the user saw stop-and-go movement and teleporting. This reproduced
+after a restart. The browser still held about 60 FPS and the dedicated drone
+stream delivered about 30 clean batches/s, so remote packet starvation was not
+the cause. The state path repeatedly applied snapshots about 6-12 ticks old and
+replayed roughly 8-14 ticks in correction bursts; visual/collider offset spikes
+reached about 8-15 units before reconciliation. At this latency the live remote
+RigidBody collider itself is discontinuous. Following it exposes the teleport;
+buffering the hull hides the teleport only by making collision false. Further
+presentation-only tuning cannot satisfy both requirements. The next experiment
+must change the remote collision proxy/state model rather than add more visual
+delay, and a combined-impairment playtest is deferred until that source motion
+is improved.
+
+The first broad client-side proxy implementation was rejected before human
+playtesting. In the 120 ms two-client gate, independently predicted collision
+proxies changed player/player contact timing and caused 10.96-18.62 unit local
+corrections. The experiment is therefore restricted to the server-owned peer-1
+Jeep used by the Networking-1 fixture. Actual remote players retain the
+rollback collider; expanding proxy collision beyond the fixture requires a
+separate collision-authority design and acceptance gate.
+
+The fixture-only proxy at 120 ms made the server-driven Jeep smooth and kept
+its center marker aligned, but the original sphere left the long nose outside
+the readable contact volume. A drone-only horizontal capsule (1.05-unit radius,
+3.30-unit total length) fixed that geometry. The user rated front, rear, and
+Jeep-into-player contacts correct, and the translucent collider visualization
+confirmed the capsule's longitudinal orientation. Normal player colliders are
+still the original equal-mass spheres.
+
+That collision-shape success did not make the 120 ms proxy acceptable. During
+the same capsule run, the user repeatedly saw their own Jeep teleport. The
+transport remained healthy after startup (about 260-270 ms RTT, roughly 30
+remote pose batches/s, near-60 FPS, and only two cumulative pose-sequence gaps),
+but the client recorded a 206.88-unit worst local correction. The local proxy
+is an AnimatableBody driven by predicted server samples, while the server
+resolves contact against its delayed dynamic drone. Their contact outcomes
+therefore diverge and the eventual authoritative correction moves the local
+player. Conclusion: the capsule is accepted as the drone fixture's collision
+geometry, but predictive client collision at 120 ms is rejected; solving it
+requires collision prediction/reconciliation shared with the server, not
+another remote-presentation adjustment.
+
+A rollback-aware fixture proxy reduced but did not eliminate 120 ms local
+corrections. Human repeats rated capsule contact good and reported only a few
+short jumps, while recorded worst corrections varied from roughly 29-32 units;
+an earlier long run reached 102.73 units versus 206.88 for the first proxy.
+The revision switches from the predicted AnimatableBody to the rollback-restored
+server body only during replay, then restores the predicted proxy for live
+frames. This improves contact replay but remains experimental rather than an
+accepted 120 ms solution.
+
+The drone capsule was lengthened from 3.30 to 3.40 units after an all-vertex
+footprint check found the Jeep's extreme front corners exceeded the original
+rounded cap by 0.03 units. The revised capsule contains the complete measured
+Jeep footprint and the user reported improved nose contact.
+
+An opt-in synchronized player-capsule experiment felt better to the user, but
+the automated delayed-contact gate remained inconclusive and variable: the
+capsule passed clean at 0.005 units but produced 35.42 units at 60 ms and
+62.22-67.74 at 120 ms; a subsequent sphere control also failed once at 15.10
+units at 60 ms. A later 120 ms forced-TURN human repeat used capsules for both
+Jeeps and a slow, non-evasive server driver. The user rated collision good and
+accepted the shape for the Networking-1 harness. A global-default attempt was
+not retained: the longer footprint made elevated-road landing response
+intermittent, overlapped the sphere-era reverse fixture spawn, and changed
+projectile/shield pitch response through its greater rotational inertia.
+Speculative global handling compensations were removed. Ordinary gameplay
+therefore keeps its proven sphere while the WebRTC harness explicitly passes
+`--player-capsule` for both Jeeps. Full gameplay capsule integration is a
+separate follow-up with course, reverse, impact/shield, and complete-suite gates;
+the accepted capsule dimensions must not be retuned to make those gates pass.
+
+The first slow-lane run was discarded as a degraded network session rather
+than a collision result: RTT spiked to 572 ms, jitter to 312 ms, a browser
+processing pause reached 695 ms, applied state fell roughly 300 ticks behind,
+and local correction reached 28.9 units. After stale test tunnels and the old
+web server were cleared, the accepted repeat connected at about 263-271 ms RTT,
+60 FPS, 3-11 ms jitter, no state fast-forwards, and 7-8 ticks of applied-state
+age. This confirms the collision judgment came from the clean repeat.
+
+During the first all-capsule human run, the drone mesh disappeared while its
+cyan debug capsule appeared frozen. Telemetry showed the local player changed
+from map 0 to map 1 and same-map relevance correctly emitted one leave with
+zero active remote bodies. The actual proxy collider was disabled; only its
+debug MeshInstance failed to follow presentation visibility. The debug visual
+now hides and reappears with the hull.
+
+The detailed handoff for harness hardening, correction attribution, controlled
+reproduction, evidence-directed fixes, and the 120 ms acceptance gate is in
+`NETWORKING_1_NEXT_STEPS.md`. Treat it as the next-session execution order.

@@ -177,7 +177,10 @@ var _cad_relapses: Dictionary = {}     # peer -> consecutive unsustainable recov
 var _cad_debug := false
 
 func _ready() -> void:
-	NetworkRollback.after_record_tick.connect(_flush_tick)
+	# Recorders populate per-tick columns during rollback, including historical
+	# replay ticks. Publish only after the loop has reached its final settled tick;
+	# emitting from after_record_tick turns resimulation work into stale wire load.
+	NetworkRollback.after_loop.connect(_flush_settled_tick)
 	NetworkTime.before_tick_loop.connect(_drain_incoming)
 	# ⚠ CONNECTED UNCONDITIONALLY; the role is decided INSIDE _cadence_tick. Gating on is_server()
 	# here is the documented trap — with no peer assigned yet Godot's is_server() answers TRUE
@@ -690,8 +693,18 @@ func queue_state(peer: int, tick: int, sync_root: Node, kind: int, data: Variant
 	(columns[3] as Array).append(data)
 	return true
 
-## NetworkRollback emits this only after every on_record_tick subscriber returns, so entries for this tick are
-## complete. One peer can see a different entry set from another because existing visibility is preserved.
+## Publish only the final state produced by this rollback loop. All earlier
+## `_pending_by_tick` entries are replay intermediates and must never hit the
+## network. One peer can see a different entry set from another because existing
+## visibility is preserved.
+func _flush_settled_tick() -> void:
+	if not _enabled or _pending_by_tick.is_empty():
+		return
+	var settled_tick := NetworkTime.tick
+	if _pending_by_tick.has(settled_tick):
+		_flush_tick(settled_tick)
+	_pending_by_tick.clear()
+
 func _flush_tick(tick: int) -> void:
 	if not _enabled or not _pending_by_tick.has(tick):
 		return
@@ -1015,6 +1028,7 @@ func _apply_bundle(bundle: Dictionary) -> bool:
 	var kinds: PackedByteArray = bundle["kinds"]
 	var references: PackedInt32Array = bundle["references"]
 	var payloads: Array = bundle["payloads"]
+	var ack_routes := PackedInt64Array()
 	for i in payloads.size():
 		var route := int(routes[i])
 		if tick <= int(_newest_applied_by_route.get(route, -1)):
@@ -1030,9 +1044,35 @@ func _apply_bundle(bundle: Dictionary) -> bool:
 		if entry_ok:
 			_newest_applied_by_route[route] = tick
 			_newest_applied_source_tick = maxi(_newest_applied_source_tick, tick)
+			if int(kinds[i]) == FULL:
+				ack_routes.append(route)
 		else:
 			ok = false
+	if NetworkRollback.enable_diff_states and not ack_routes.is_empty() and sender > 0:
+		_ack_full_routes.rpc_id(sender, tick, ack_routes)
+		NetworkPerformance.record_app_message("out", "state_full_ack_bundle", [tick, ack_routes])
 	return ok
+
+@rpc("any_peer", "unreliable_ordered", "call_remote")
+func _ack_full_routes(tick: int, routes: PackedInt64Array) -> void:
+	if not multiplayer.is_server() or tick < 0 or routes.is_empty() \
+			or routes.size() > _routes.size():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender <= 0 or not multiplayer.get_peers().has(sender):
+		return
+	var seen := {}
+	for route_variant in routes:
+		var route := int(route_variant)
+		if seen.has(route):
+			continue
+		seen[route] = true
+		var transmitter: Node = _routes.get(route)
+		if transmitter == null or not is_instance_valid(transmitter) \
+				or not transmitter.is_inside_tree():
+			continue
+		transmitter.receive_bundled_full_ack(tick, sender)
+	NetworkPerformance.record_app_message("in", "state_full_ack_bundle", [tick, routes])
 
 func _apply_recovery_key(bundle: Dictionary) -> bool:
 	if not _is_complete_key(bundle):

@@ -8,6 +8,8 @@ const IMPACT := preload("res://player/impact_controller.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const REMOTE_POSITION_VALIDATION := preload("res://net/remote_position_validation.gd")
 const REMOTE_SNAPSHOT_INTERPOLATION := preload("res://net/remote_snapshot_interpolation.gd")
+const SERVER_DRIVER_COLLISION := preload("res://player/server_driver_collision.gd")
+const REMOTE_COLLISION_PHASE := preload("res://player/remote_collision_phase.gd")
 
 const DET_ZONE_RADIUS := 3.6
 const DET_GROW_TIME := 0.08
@@ -55,6 +57,7 @@ var area_gesture_start := Vector3.ZERO
 var area_gesture_end := Vector3.ZERO
 var area_strike_serial := 0
 var rc_pilot_active := false
+var disable_collision_escape := false
 
 @onready var _input := get_node("Input")
 @onready var _sync := get_node_or_null("RollbackSynchronizer")
@@ -77,13 +80,32 @@ var _remote_position_presented := true
 var _remote_state_last_tick := -1
 var _remote_state_min_tick := -1
 var _remote_samples := {}
+var _remote_rotation_samples := {}
+var _remote_latest_linear_velocity := Vector3.ZERO
+var _remote_latest_angular_velocity := Vector3.ZERO
 var _remote_render_tick := 0.0
 var _remote_render_tick_initialized := false
+var _remote_interp_last_desired_tick := 0.0
+var _remote_interp_clock_backsteps := 0
 var _remote_interp_warmup_samples := 0
 var _remote_visual_root: Node3D
 var _remote_visual_local_transform := Transform3D.IDENTITY
+var _remote_peer_marker: Node3D
+var _remote_peer_marker_local_transform := Transform3D.IDENTITY
+var _remote_peer_marker_allowed_visible := true
+var _remote_collision_proxy: AnimatableBody3D
+var _remote_collision_proxy_shape: CollisionShape3D
+var _remote_collision_debug: MeshInstance3D
+var _remote_source_collision: CollisionShape3D
+var _remote_collision_proxy_enabled := false
+var _remote_collision_proxy_in_rollback := false
+var _remote_collision_rollback_signals_connected := false
+var _remote_predictive_pose := Transform3D.IDENTITY
+var _remote_predictive_pose_initialized := false
 const REMOTE_INTERP_MS := 75.0
 const REMOTE_EXTRAPOLATE_MS := 50.0
+const REMOTE_INTERP_CLOCK_RESET_TICKS := 30.0
+const REMOTE_PREDICTION_TELEPORT_DISTANCE := 30.0
 
 func _ready() -> void:
 	add_to_group("pilotable")
@@ -264,7 +286,8 @@ func _physics_rollback_tick(delta: float, _tick: int) -> void:
 			wall_bump_count += 1
 			bump_started = true
 	var escape: Dictionary
-	if touching_static or not touching_player or (_input.reverse and not _input.editing):
+	if disable_collision_escape or touching_static or not touching_player \
+			or (_input.reverse and not _input.editing):
 		# Static contacts use Rapier plus the one-shot impulses above. The timed
 		# escape assist is reserved for cars wedged against other moving cars.
 		escape = {"stall_time": 0.0, "escape_time": 0.0, "escape_sign": 0.0,
@@ -503,6 +526,14 @@ func remote_position_transport_controlled() -> bool:
 	return not multiplayer.is_server() and not _is_local
 
 
+func _remote_collision_proxy_candidate() -> bool:
+	# Networking-1 uses the server-owned peer-1 Jeep as its controlled visual
+	# indicator. Do not generalize this experimental collision model to actual
+	# remote players: independently predicted player proxies changed collision
+	# timing and produced double-digit local corrections in the two-peer gate.
+	return remote_position_transport_controlled() and owner_id == 1
+
+
 func is_remote_position_relevant() -> bool:
 	return true if not remote_position_transport_controlled() else _remote_position_relevant
 
@@ -513,24 +544,36 @@ func set_remote_position_relevant(relevant: bool, tick: int) -> void:
 	_remote_position_relevant = relevant
 	_remote_position_presented = false
 	_remote_samples.clear()
+	_remote_rotation_samples.clear()
+	_remote_latest_linear_velocity = Vector3.ZERO
+	_remote_latest_angular_velocity = Vector3.ZERO
 	_remote_render_tick_initialized = false
+	_remote_predictive_pose_initialized = false
+	_remote_interp_last_desired_tick = 0.0
 	_remote_interp_warmup_samples = 0
 	_remote_state_min_tick = maxi(_remote_state_min_tick, tick if not relevant else tick - 1)
 	_ensure_remote_visual_roots()
 	_apply_remote_position_visibility()
 
 
-func receive_remote_position(generation: int, tick: int, position: Vector3) -> bool:
+func receive_remote_position(generation: int, tick: int, position: Vector3,
+		rotation: Quaternion = Quaternion.IDENTITY,
+		linear_velocity: Vector3 = Vector3.ZERO,
+		angular_velocity: Vector3 = Vector3.ZERO) -> bool:
 	if not REMOTE_POSITION_VALIDATION.accepts_body_sample(multiplayer.is_server(), _is_local,
 			remote_state_generation, _remote_state_last_tick, _remote_state_min_tick,
 			generation, tick):
 		return false
 	_remote_state_last_tick = tick
+	_remote_latest_linear_velocity = linear_velocity
+	_remote_latest_angular_velocity = angular_velocity
 	_remote_interp_warmup_samples += 1
 	var network_time := get_node_or_null("/root/NetworkTime")
 	var current_tick := tick if network_time == null else int(network_time.get("tick"))
 	REMOTE_SNAPSHOT_INTERPOLATION.insert_bounded(
 		_remote_samples, tick, position, maxi(current_tick, tick), 64)
+	REMOTE_SNAPSHOT_INTERPOLATION.insert_bounded(
+		_remote_rotation_samples, tick, rotation.normalized(), maxi(current_tick, tick), 64)
 	if not _remote_position_presented:
 		_remote_position_presented = true
 		_apply_remote_position_visibility()
@@ -556,12 +599,127 @@ func _ensure_remote_visual_roots() -> void:
 func _apply_remote_position_visibility() -> void:
 	if is_instance_valid(_remote_visual_root):
 		_remote_visual_root.visible = _remote_position_presented
+	if is_instance_valid(_remote_peer_marker):
+		_remote_peer_marker.visible = _remote_position_presented \
+			and _remote_peer_marker_allowed_visible
+	if is_instance_valid(_remote_collision_debug):
+		_remote_collision_debug.visible = _remote_position_presented
+	_apply_remote_collision_phase(_remote_collision_proxy_in_rollback, true)
+
+
+func _connect_remote_collision_rollback_signals() -> void:
+	if _remote_collision_rollback_signals_connected:
+		return
+	var rollback := get_node_or_null("/root/NetworkRollback")
+	if rollback == null:
+		return
+	rollback.before_loop.connect(_before_remote_collision_rollback)
+	rollback.after_loop.connect(_after_remote_collision_rollback)
+	_remote_collision_rollback_signals_connected = true
+
+
+func _before_remote_collision_rollback() -> void:
+	if not _remote_collision_proxy_enabled:
+		return
+	_remote_collision_proxy_in_rollback = true
+	# before_loop runs outside the physics step, so direct shape changes are safe
+	# and take effect before Rapier advances the first replay tick.
+	_apply_remote_collision_phase(true, false)
+
+
+func _after_remote_collision_rollback() -> void:
+	if not _remote_collision_proxy_enabled:
+		return
+	_remote_collision_proxy_in_rollback = false
+	_apply_remote_collision_phase(false, false)
+
+
+func _apply_remote_collision_phase(in_rollback: bool, deferred: bool) -> void:
+	var disabled := REMOTE_COLLISION_PHASE.disabled_states(
+		_remote_collision_proxy_enabled, in_rollback, _remote_position_presented)
+	if is_instance_valid(_remote_source_collision):
+		if deferred:
+			_remote_source_collision.set_deferred("disabled", bool(disabled["source"]))
+		else:
+			_remote_source_collision.disabled = bool(disabled["source"])
+	if is_instance_valid(_remote_collision_proxy_shape):
+		if deferred:
+			_remote_collision_proxy_shape.set_deferred("disabled", bool(disabled["proxy"]))
+		else:
+			_remote_collision_proxy_shape.disabled = bool(disabled["proxy"])
+
+
+func _set_remote_collision_proxy_enabled(enabled: bool) -> void:
+	if not remote_position_transport_controlled():
+		return
+	if enabled == _remote_collision_proxy_enabled:
+		return
+	_remote_collision_proxy_enabled = enabled
+	if _remote_source_collision == null:
+		_remote_source_collision = get_node_or_null("Collision") as CollisionShape3D
+	if enabled and _remote_collision_proxy == null:
+		_remote_collision_proxy = AnimatableBody3D.new()
+		_remote_collision_proxy.name = "RemoteCollisionProxy"
+		_remote_collision_proxy.sync_to_physics = true
+		_remote_collision_proxy.collision_layer = collision_layer
+		_remote_collision_proxy.collision_mask = collision_mask
+		add_child(_remote_collision_proxy)
+		_remote_collision_proxy.top_level = true
+		_remote_collision_proxy.global_transform = global_transform
+		_remote_collision_proxy_shape = CollisionShape3D.new()
+		_remote_collision_proxy_shape.name = "Collision"
+		if _remote_source_collision != null and _remote_source_collision.shape != null:
+			_remote_collision_proxy_shape.shape = _remote_source_collision.shape.duplicate()
+			_remote_collision_proxy_shape.transform = _remote_source_collision.transform
+		else:
+			SERVER_DRIVER_COLLISION.configure(_remote_collision_proxy_shape)
+		_remote_collision_proxy.add_child(_remote_collision_proxy_shape)
+		if _remote_collision_proxy_shape.shape is CapsuleShape3D:
+			_remote_collision_debug = MeshInstance3D.new()
+			_remote_collision_debug.name = "ServerDriverCollisionDebug"
+			_remote_collision_debug.mesh = SERVER_DRIVER_COLLISION.debug_mesh(
+				_remote_collision_proxy_shape.shape as CapsuleShape3D)
+			_remote_collision_debug.transform = _remote_collision_proxy_shape.transform
+			var debug_material := StandardMaterial3D.new()
+			debug_material.albedo_color = Color(0.10, 0.95, 1.0, 0.24)
+			debug_material.emission_enabled = true
+			debug_material.emission = Color(0.05, 0.65, 0.78)
+			debug_material.emission_energy_multiplier = 0.55
+			debug_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			debug_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			debug_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+			_remote_collision_debug.material_override = debug_material
+			_remote_collision_debug.cast_shadow = \
+				GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_remote_collision_proxy.add_child(_remote_collision_debug)
+		print("[remote-collision-proxy] enabled body=%d shape=%s source=disabled server_authority=preserved" % [
+			owner_id, _remote_collision_proxy_shape.shape.get_class()])
+	_connect_remote_collision_rollback_signals()
+	_apply_remote_collision_phase(false, true)
+	if enabled:
+		if _remote_peer_marker == null:
+			_remote_peer_marker = get_node_or_null("PeerMarker") as Node3D
+			if _remote_peer_marker != null:
+				_remote_peer_marker_allowed_visible = _remote_peer_marker.visible
+				_remote_peer_marker_local_transform = _remote_peer_marker.transform
+				var marker_world := _remote_peer_marker.global_transform
+				_remote_peer_marker.top_level = true
+				_remote_peer_marker.global_transform = marker_world
+	elif _remote_peer_marker != null and _remote_peer_marker.top_level:
+		_remote_peer_marker.top_level = false
+		_remote_peer_marker.transform = _remote_peer_marker_local_transform
 
 
 func _process_remote_position(delta: float) -> void:
-	if not is_inside_tree() or not remote_position_transport_controlled() \
-			or not _remote_position_relevant \
-			or _remote_samples.is_empty():
+	if not is_inside_tree() or not remote_position_transport_controlled():
+		return
+	var remote_transport := get_node_or_null("/root/RemotePositionTransport")
+	var presentation_mode := "fixed" if remote_transport == null \
+		else str(remote_transport.call("presentation_mode"))
+	var proxy_active := presentation_mode == "proxy" \
+		and _remote_collision_proxy_candidate()
+	_set_remote_collision_proxy_enabled(proxy_active)
+	if not _remote_position_relevant or _remote_samples.is_empty():
 		return
 	_ensure_remote_visual_roots()
 	var network_time := get_node_or_null("/root/NetworkTime")
@@ -569,37 +727,139 @@ func _process_remote_position(delta: float) -> void:
 		return
 	var rate := float(network_time.get("tickrate"))
 	var selected_delay_msec := REMOTE_INTERP_MS
-	var remote_transport := get_node_or_null("/root/RemotePositionTransport")
 	if remote_transport != null:
 		selected_delay_msec = float(remote_transport.call("presentation_delay_msec"))
-	var desired_tick := float(network_time.get("tick")) \
+	var current_tick := float(network_time.get("tick")) \
+		+ float(network_time.get("tick_factor"))
+	if presentation_mode == "proxy":
+		if proxy_active:
+			_process_proxy_presentation(delta, current_tick, rate, remote_transport)
+		else:
+			_process_predictive_presentation(delta, current_tick, rate)
+		return
+	if presentation_mode == "predictive":
+		_process_predictive_presentation(delta, current_tick, rate)
+		return
+	var desired_tick := current_tick \
 		- selected_delay_msec / 1000.0 * rate
+	var rebased_this_frame := false
 	if not _remote_render_tick_initialized:
 		_remote_render_tick = desired_tick
+		_remote_interp_last_desired_tick = desired_tick
 		_remote_render_tick_initialized = true
 	else:
-		_remote_render_tick = REMOTE_SNAPSHOT_INTERPOLATION.advance_cursor(
-			_remote_render_tick, desired_tick, delta, rate)
+		if desired_tick < _remote_interp_last_desired_tick:
+			_remote_interp_clock_backsteps += 1
+		_remote_interp_last_desired_tick = desired_tick
+		if absf(desired_tick - _remote_render_tick) > REMOTE_INTERP_CLOCK_RESET_TICKS:
+			# A resumed browser can resynchronize outside the retained history. Rebase once and
+			# require fresh publications before this body contributes adaptive pressure again.
+			_remote_render_tick = desired_tick
+			_remote_interp_warmup_samples = 0
+			rebased_this_frame = true
+		else:
+			_remote_render_tick = REMOTE_SNAPSHOT_INTERPOLATION.advance_cursor(
+				_remote_render_tick, desired_tick, delta, rate)
 	var sampled := REMOTE_SNAPSHOT_INTERPOLATION.sample(_remote_samples,
 		_remote_render_tick, REMOTE_EXTRAPOLATE_MS / 1000.0 * rate)
 	if sampled.is_empty():
 		return
 	if remote_transport != null \
-			and str(remote_transport.call("presentation_mode")) == "adaptive":
+			and (str(remote_transport.call("presentation_mode")) == "adaptive" \
+			or bool(remote_transport.call("presentation_trace_enabled"))):
 		var ticks: Array = _remote_samples.keys()
 		var oldest_tick := int(ticks.min())
 		var newest_tick := int(ticks.max())
-		var required_span := 150.0 / 1000.0 * rate
-		var established := _remote_interp_warmup_samples >= 6 \
+		var required_span := float(remote_transport.call("presentation_maximum_msec")) \
+			/ 1000.0 * rate
+		var established := not rebased_this_frame \
+			and _remote_interp_warmup_samples >= 6 \
 			and float(newest_tick - oldest_tick) >= required_span
 		remote_transport.call("observe_presentation_body", name, established,
 			not established, float(newest_tick - _remote_render_tick) * 1000.0 / rate,
-			(float(network_time.get("tick")) - _remote_render_tick) * 1000.0 / rate,
+			(current_tick - _remote_render_tick) * 1000.0 / rate,
 			_remote_render_tick, str(sampled["mode"]))
 	if is_instance_valid(_remote_visual_root) and _remote_visual_root.is_inside_tree():
-		var presentation_transform := Transform3D(global_basis, sampled["position"])
+		var sampled_rotation := REMOTE_SNAPSHOT_INTERPOLATION.sample_rotation(
+			_remote_rotation_samples, sampled, _remote_render_tick)
+		var presentation_transform := Transform3D(Basis(sampled_rotation), sampled["position"])
 		_remote_visual_root.global_transform = \
 			presentation_transform * _remote_visual_local_transform
+
+
+func _process_predictive_presentation(delta: float, _current_tick: float, _rate: float) -> void:
+	if not is_instance_valid(_remote_visual_root) or not _remote_visual_root.is_inside_tree():
+		return
+	# The rollback body is the actual gameplay collider and the center-point
+	# marker follows it. Anchor reconciliation there so smoothing cannot silently
+	# redefine where a hit should occur on this client.
+	var target := Transform3D(global_basis.orthonormalized(), global_position)
+	if not _remote_predictive_pose_initialized \
+			or _remote_predictive_pose.origin.distance_to(target.origin) \
+			> REMOTE_PREDICTION_TELEPORT_DISTANCE:
+		_remote_predictive_pose = target
+		_remote_predictive_pose_initialized = true
+	else:
+		# Carry the visual pose continuously with the authoritative velocity. If we
+		# only low-pass a moving target, each 30 Hz publication produces a visible
+		# chase/correct pulse and adds steady speed-proportional lag. Feed-forward
+		# leaves the smoother responsible only for accumulated prediction error.
+		_remote_predictive_pose = REMOTE_SNAPSHOT_INTERPOLATION.predict_pose(
+			_remote_predictive_pose.origin,
+			_remote_predictive_pose.basis.get_rotation_quaternion(),
+			_remote_latest_linear_velocity, _remote_latest_angular_velocity, delta)
+		_remote_predictive_pose = REMOTE_SNAPSHOT_INTERPOLATION.smooth_pose(
+			_remote_predictive_pose, target, delta, 0.080, 0.100)
+	var offset := _remote_predictive_pose.origin - target.origin
+	var lead := 0.0
+	if _remote_latest_linear_velocity.length_squared() > 0.0001:
+		lead = offset.dot(_remote_latest_linear_velocity.normalized())
+	var remote_transport := get_node_or_null("/root/RemotePositionTransport")
+	if remote_transport != null:
+		remote_transport.call("observe_predictive_alignment", offset.length(), lead)
+	_remote_visual_root.global_transform = \
+		_remote_predictive_pose * _remote_visual_local_transform
+
+
+func _process_proxy_presentation(delta: float, current_tick: float, rate: float,
+		remote_transport: Node) -> void:
+	if not is_instance_valid(_remote_visual_root) or not _remote_visual_root.is_inside_tree() \
+			or not is_instance_valid(_remote_collision_proxy):
+		return
+	var newest_tick := int(_remote_samples.keys().max())
+	var newest_position: Vector3 = _remote_samples[newest_tick]
+	var newest_rotation: Quaternion = _remote_rotation_samples.get(newest_tick,
+		Quaternion.IDENTITY)
+	var lead_seconds := clampf((current_tick - float(newest_tick)) / maxf(rate, 1.0),
+		0.0, 0.250)
+	var target := REMOTE_SNAPSHOT_INTERPOLATION.predict_pose(newest_position,
+		newest_rotation, _remote_latest_linear_velocity, _remote_latest_angular_velocity,
+		lead_seconds)
+	if not _remote_predictive_pose_initialized \
+			or _remote_predictive_pose.origin.distance_to(target.origin) \
+			> REMOTE_PREDICTION_TELEPORT_DISTANCE:
+		_remote_predictive_pose = target
+		_remote_predictive_pose_initialized = true
+	else:
+		_remote_predictive_pose = REMOTE_SNAPSHOT_INTERPOLATION.predict_pose(
+			_remote_predictive_pose.origin,
+			_remote_predictive_pose.basis.get_rotation_quaternion(),
+			_remote_latest_linear_velocity, _remote_latest_angular_velocity, delta)
+		_remote_predictive_pose = REMOTE_SNAPSHOT_INTERPOLATION.smooth_pose(
+			_remote_predictive_pose, target, delta, 0.080, 0.100)
+	_remote_collision_proxy.global_transform = _remote_predictive_pose
+	_remote_visual_root.global_transform = \
+		_remote_predictive_pose * _remote_visual_local_transform
+	if is_instance_valid(_remote_peer_marker):
+		_remote_peer_marker.global_transform = \
+			_remote_predictive_pose * _remote_peer_marker_local_transform
+	var authority_offset := _remote_predictive_pose.origin - global_position
+	var authority_lead := 0.0
+	if _remote_latest_linear_velocity.length_squared() > 0.0001:
+		authority_lead = authority_offset.dot(_remote_latest_linear_velocity.normalized())
+	if remote_transport != null:
+		remote_transport.call("observe_predictive_alignment", authority_offset.length(),
+			authority_lead)
 
 
 func _is_headless_presentation() -> bool:

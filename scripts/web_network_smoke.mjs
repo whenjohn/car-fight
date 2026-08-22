@@ -220,6 +220,9 @@ async function run() {
       .map(message => message.text),
     stale_rollback_warnings: consoleMessages
       .filter(message => message.text.includes("Skipping stale rollback origin")).length,
+    netapp_tail: consoleMessages
+      .filter(message => message.text.includes("NETAPP tick="))
+      .slice(-30).map(message => message.text),
     browser_performance_metrics: Object.fromEntries(
       performance.metrics.map(metric => [metric.name, metric.value])),
     errors,

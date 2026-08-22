@@ -117,6 +117,31 @@
 - Promoted the accepted mux server configuration to the isolated macai2 Car Fight service at the user's request. It preserves native ENet on UDP 10080 and adds WebRTC signaling on TCP 10181. The remote server has no `.git` checkout by design (deployment syncs source excluding `.git`), so deployment verification uses the running daemon and listener rather than a remote Git revision. Public browser play is still separate work: it needs HTTPS/WSS hosting and likely TURN before remote acceptance.
 - Changed normal native client launches to prefer macai2 over Tailscale, keeping server simulation off the local Intel Mac. `play.sh`, `join.sh`, direct client startup, and `play_monitored.sh` now default to `100.113.2.60`; `CAR_FIGHT_HOST` overrides it. Local development remains explicit through `play_local.sh`, `play_monitored.sh --local`, or a passed `127.0.0.1` host. Browser/local test helpers retain their isolated endpoints.
 
+## Networking-1 checkpoint (2026-08-22)
+
+- Completed the ENet-to-WebRTC presentation series through a forced-TURN 120 ms
+  collision-proxy checkpoint. Human testing accepted the 1.05-radius,
+  3.40-length horizontal capsule for both the server fixture and the player in
+  the Networking-1 harness. Ordinary gameplay retains its proven sphere.
+- Added a slow non-evasive left-lane server driver for repeatable collision
+  judgment, a rollback-aware fixture collision proxy, a synchronized cyan
+  collider visualization, proxy/authority telemetry, and map-relevance visual
+  cleanup. Detailed results remain in `NETWORK_SHAPING_FINDINGS.md`.
+- A global capsule-default attempt exposed separate handling integration work:
+  elevated-road touchdown became intermittent, the reverse fixture overlapped
+  the longer shape, and projectile/shield pitch response changed with rotational
+  inertia. Speculative compensations were removed. Add a dedicated gameplay
+  capsule workstream later; do not mix it into jump/teleport diagnosis.
+- Final validation passed every ordinary gameplay/network gate. One complete-suite
+  course run missed its timing-sensitive rebound sample; the immediate isolated
+  repeat passed at 1.366 units, followed by passing reverse, gate, combat, RC orb,
+  shield, and detonation gates. `git diff --check` is clean.
+- The next workstream is jumps/teleports, not shape tuning. Follow
+  `NETWORKING_1_NEXT_STEPS.md`: harden interrupted-run lifecycle and identity,
+  attribute every correction, reproduce no-contact and controlled impacts, then
+  choose stale-state recovery or shared rollback collision prediction from the
+  recorded evidence. Do not resume adaptive cadence or combined impairment first.
+
 ## Next
 
 - Treat the ENet human series as acceptance evidence for adaptive presentation, but keep fixed 75 ms as the ordinary default until WebRTC is compared and fixed-mode per-body I/E/H telemetry is added. The preferred observed adaptive tiers were 100 ms for clean/latency120/combined and 125 ms for jitter.

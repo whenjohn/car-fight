@@ -10,6 +10,7 @@ const ARENA_HALF := ARENA_CONFIG.HALF_EXTENT
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const FOLLOW := preload("res://player/follow_controller.gd")
 const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
+const SERVER_DRIVER_COLLISION := preload("res://player/server_driver_collision.gd")
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
@@ -79,6 +80,9 @@ const SERVER_DRIVER_ROUTE := [
 	Vector2(52.0, 55.0), Vector2(-52.0, 55.0),
 	Vector2(-58.0, 40.0), Vector2(-58.0, -45.0),
 ]
+const SERVER_DRIVER_LANE_SPAWN := Vector2(-38.0, -32.0)
+const SERVER_DRIVER_LANE_ROUTE := [Vector2(-38.0, -32.0), Vector2(-38.0, 32.0)]
+const SERVER_DRIVER_LANE_CURSOR_DISTANCE := 7.35
 const SERVER_DRIVER_WAYPOINT_RADIUS := 5.0
 const SERVER_DRIVER_PROGRESS_DISTANCE := 2.0
 const SERVER_DRIVER_STUCK_TICKS := 180
@@ -123,6 +127,8 @@ var _player_name := "driver"
 var _session_label := ""
 var _scripted := ""
 var _server_driver_enabled := false
+var _server_driver_lane := false
+var _player_capsule_enabled := false
 var _ramps_enabled := true
 var _server_driver_waypoint := 1
 var _server_driver_progress_tick := -1
@@ -422,7 +428,7 @@ func _parse_args() -> void:
 			if not remote_self_query.is_empty():
 				_remote_state_include_self = remote_self_query == "1"
 			var interp_mode_query := _web_query("remoteInterpMode")
-			if interp_mode_query in ["fixed", "adaptive"]:
+			if interp_mode_query in ["fixed", "adaptive", "predictive", "proxy"]:
 				_remote_interp_mode = interp_mode_query
 			var interp_query := _web_query("remoteInterpMs")
 			if interp_query.is_valid_float():
@@ -601,6 +607,13 @@ func _parse_args() -> void:
 			_force_presentation = true
 		elif arg == "--server-driver":
 			_server_driver_enabled = true
+		elif arg == "--server-driver-lane":
+			_server_driver_enabled = true
+			_server_driver_lane = true
+		elif arg == "--player-capsule":
+			_player_capsule_enabled = true
+		elif arg == "--no-player-capsule":
+			_player_capsule_enabled = false
 		elif arg == "--no-ramps":
 			_ramps_enabled = false
 		elif arg == "--course-test":
@@ -679,8 +692,8 @@ func _parse_args() -> void:
 
 
 func _configure_network_stack() -> void:
-	if _remote_interp_mode not in ["fixed", "adaptive"]:
-		push_error("--remote-interp-mode must be fixed or adaptive")
+	if _remote_interp_mode not in ["fixed", "adaptive", "predictive", "proxy"]:
+		push_error("--remote-interp-mode must be fixed, adaptive, predictive, or proxy")
 		_remote_interp_mode = "fixed"
 	NetworkPerformance.set_app_telemetry_enabled(_network_app_telemetry)
 	RemotePositionTransport.configure(_remote_state_push, _remote_state_transport,
@@ -898,10 +911,13 @@ func _on_peer_join(id: int) -> void:
 		# entering the tree, so native peers need the WebRTC recipient map now.
 		_broadcast_peer_transport_map()
 	var spawn_data := {"id": id, "slot": _next_spawn_slot,
-		"remote_generation": _allocate_remote_state_generation()}
+		"remote_generation": _allocate_remote_state_generation(),
+		"player_capsule": _player_capsule_enabled}
 	if _server_driver_enabled:
-		var observer_position := Vector3(SERVER_DRIVER_SPAWN.x + 8.0,
-			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y + 6.0)
+		var driver_spawn := SERVER_DRIVER_LANE_SPAWN if _server_driver_lane \
+			else SERVER_DRIVER_SPAWN
+		var observer_position := Vector3(driver_spawn.x + 8.0,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), driver_spawn.y + 6.0)
 		var driver := _players.get_node_or_null("1") as Node3D
 		if driver != null:
 			observer_position.x = clampf(driver.global_position.x - 8.0,
@@ -926,15 +942,20 @@ func _on_peer_join(id: int) -> void:
 func _spawn_server_driver() -> void:
 	if not multiplayer.is_server() or _players.get_node_or_null("1") != null:
 		return
-	_log("SERVER_DRIVER spawn id=1 slot=%d path=open-perimeter" % _next_spawn_slot)
+	var driver_spawn := SERVER_DRIVER_LANE_SPAWN if _server_driver_lane \
+		else SERVER_DRIVER_SPAWN
+	_log("SERVER_DRIVER spawn id=1 slot=%d path=%s" % [_next_spawn_slot,
+		"slow-left-lane" if _server_driver_lane else "open-perimeter"])
 	_spawner.spawn({"id": 1, "slot": _next_spawn_slot,
-		"position": Vector3(SERVER_DRIVER_SPAWN.x,
-			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y),
-		"yaw": -PI * 0.5,
+		"position": Vector3(driver_spawn.x,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), driver_spawn.y),
+		"yaw": PI,
+		"server_driver": true,
+		"disable_collision_escape": _server_driver_lane,
 		"remote_generation": _allocate_remote_state_generation()})
 	_server_driver_waypoint = 1
 	_server_driver_progress_tick = -1
-	_server_driver_progress_position = SERVER_DRIVER_SPAWN
+	_server_driver_progress_position = driver_spawn
 	_next_spawn_slot += 1
 
 func _on_peer_leave(id: int) -> void:
@@ -1067,6 +1088,7 @@ func _spawn_player(data: Variant) -> Node:
 	body.name = str(owner_id)
 	body.set("owner_id", owner_id)
 	body.set("spawn_slot", slot)
+	body.set("disable_collision_escape", bool(info.get("disable_collision_escape", false)))
 	body.set("remote_state_generation", int(info.get("remote_generation", 0)))
 	if not _coverage_configs.has(owner_id):
 		_coverage_configs[owner_id] = {
@@ -1094,15 +1116,18 @@ func _spawn_player(data: Variant) -> Node:
 	var physics_material := PhysicsMaterial.new()
 	physics_material.bounce = VEHICLE_CONFIG.BOUNCE
 	# Explicit drive owns planar motion; touchdown applies a separate one-shot
-	# physics impulse instead of continuous sphere friction.
+	# physics impulse instead of continuous collider friction.
 	physics_material.friction = VEHICLE_CONFIG.CONTACT_FRICTION
 	body.physics_material_override = physics_material
 
 	var collision := CollisionShape3D.new()
 	collision.name = "Collision"
-	var sphere := SphereShape3D.new()
-	sphere.radius = PLAYER_RADIUS
-	collision.shape = sphere
+	if bool(info.get("server_driver", false)) or bool(info.get("player_capsule", false)):
+		SERVER_DRIVER_COLLISION.configure(collision)
+	else:
+		var sphere := SphereShape3D.new()
+		sphere.radius = PLAYER_RADIUS
+		collision.shape = sphere
 	body.add_child(collision)
 
 	var input := Node.new()
@@ -1600,13 +1625,19 @@ func _update_network_hud(delta: float) -> void:
 	var interp_pct := int(round(float(presentation.get("interp_fraction", 0.0)) * 100.0))
 	var extra_pct := int(round(float(presentation.get("extrapolate_fraction", 0.0)) * 100.0))
 	var hold_pct := int(round(float(presentation.get("hold_fraction", 0.0)) * 100.0))
+	var predictive_offset := float(presentation.get("predictive_offset_units", 0.0))
+	var predictive_offset_max := float(presentation.get("predictive_offset_max_units", 0.0))
+	var predictive_lead := float(presentation.get("predictive_lead_units", 0.0))
 	var app: Dictionary = NetworkPerformance.get_app_telemetry_snapshot(NetworkTime.tick)
 	var recoveries := int(app.get("fresh_key_requests", 0))
-	var hud_text := "FPS %.0f  |  frame %.1f / %.1f ms\n%s %s  |  RTT %.0f ms ±%.0f\nPRES %s %.0f ms  |  headroom %.0f  |  I/E/H %d/%d/%d\nRB %.1f ms / %dt  |  correction %.2fu  |  recovery %d" % [
+	var alignment_label := "rawΔ" if str(presentation.get("mode", "")) == "proxy" \
+		else "offset"
+	var hud_text := "FPS %.0f  |  frame %.1f / %.1f ms\n%s %s  |  RTT %.0f ms ±%.0f\nPRES %s %.0f ms  |  %s %.2f/%.2fu  |  lead %+.2fu\nRB %.1f ms / %dt  |  correction %.2fu  |  recovery %d" % [
 		fps, frame_avg, _network_hud_frame_ms_max, _transport.to_upper(),
 		_network_profile, rtt_ms, jitter_ms,
-		str(presentation.get("mode", _remote_interp_mode)), target_ms, headroom_ms,
-		interp_pct, extra_pct, hold_pct, _network_hud_rb_ms_max,
+		str(presentation.get("mode", _remote_interp_mode)), target_ms,
+		alignment_label, predictive_offset, predictive_offset_max, predictive_lead,
+		_network_hud_rb_ms_max,
 		_network_hud_rb_ticks_max, _worst_correction_error, recoveries]
 	var unhealthy := fps < 30.0 or _network_hud_frame_ms_max >= 66.0 \
 		or _network_hud_rb_ms_max >= 16.7 or _network_hud_rb_ticks_max > 24 \
@@ -1666,23 +1697,30 @@ func _show_network_mode_notice(previous_mode: String, selected_mode: String,
 
 
 func _poll_presentation_control(delta: float) -> void:
-	if _presentation_control_path.is_empty():
+	var browser_control := OS.has_feature("web")
+	if not browser_control and _presentation_control_path.is_empty():
 		return
 	_presentation_control_elapsed += delta
 	if _presentation_control_elapsed < 0.25:
 		return
 	_presentation_control_elapsed = 0.0
-	if not FileAccess.file_exists(_presentation_control_path):
-		return
-	var file := FileAccess.open(_presentation_control_path, FileAccess.READ)
-	if file == null:
-		return
-	var command := file.get_as_text().strip_edges().to_lower()
-	file.close()
+	var command := ""
+	if browser_control:
+		command = str(JavaScriptBridge.eval(
+			"window.localStorage.getItem('carFightPresentationMode') || ''"
+		)).strip_edges().to_lower()
+	else:
+		if not FileAccess.file_exists(_presentation_control_path):
+			return
+		var file := FileAccess.open(_presentation_control_path, FileAccess.READ)
+		if file == null:
+			return
+		command = file.get_as_text().strip_edges().to_lower()
+		file.close()
 	if command.is_empty() or command == _presentation_control_last_command:
 		return
 	_presentation_control_last_command = command
-	if command not in ["fixed", "adaptive"]:
+	if command not in ["fixed", "adaptive", "predictive", "proxy"]:
 		push_warning("Ignoring presentation control command: %s" % command)
 		return
 	RemotePositionTransport.set_presentation_mode(command)
@@ -2042,11 +2080,14 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
 func _server_driver_input(body: Node3D) -> Dictionary:
-	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+	var route := SERVER_DRIVER_LANE_ROUTE if _server_driver_lane else SERVER_DRIVER_ROUTE
+	var waypoint: Vector2 = route[_server_driver_waypoint]
 	var delta := Vector2(waypoint.x - body.global_position.x,
 		waypoint.y - body.global_position.z)
-	return {"cursor_offset": delta.limit_length(
-		FOLLOW.MAX_DISTANCE), "burst": false, "editing": false}
+	var cursor_distance := SERVER_DRIVER_LANE_CURSOR_DISTANCE if _server_driver_lane \
+		else FOLLOW.MAX_DISTANCE
+	return {"cursor_offset": delta.limit_length(cursor_distance),
+		"burst": false, "editing": false}
 
 func _service_server_driver_route(tick: int) -> void:
 	if not _server_driver_enabled:
@@ -2059,22 +2100,25 @@ func _service_server_driver_route(tick: int) -> void:
 			or absf(body.global_position.z) > SERVER_DRIVER_ARENA_LIMIT:
 		_recover_server_driver(body, tick)
 	var position := Vector2(body.global_position.x, body.global_position.z)
-	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
-	if position.distance_to(waypoint) <= SERVER_DRIVER_WAYPOINT_RADIUS:
-		_server_driver_waypoint = (_server_driver_waypoint + 1) % SERVER_DRIVER_ROUTE.size()
+	var route := SERVER_DRIVER_LANE_ROUTE if _server_driver_lane else SERVER_DRIVER_ROUTE
+	var waypoint: Vector2 = route[_server_driver_waypoint]
+	var waypoint_radius := 3.0 if _server_driver_lane else SERVER_DRIVER_WAYPOINT_RADIUS
+	if position.distance_to(waypoint) <= waypoint_radius:
+		_server_driver_waypoint = (_server_driver_waypoint + 1) % route.size()
 		_server_driver_progress_tick = tick
 		_server_driver_progress_position = position
-		waypoint = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+		waypoint = route[_server_driver_waypoint]
 	elif _server_driver_progress_tick < 0 \
 			or position.distance_to(_server_driver_progress_position) \
 			>= SERVER_DRIVER_PROGRESS_DISTANCE:
 		_server_driver_progress_tick = tick
 		_server_driver_progress_position = position
-	elif tick - _server_driver_progress_tick >= SERVER_DRIVER_STUCK_TICKS:
-		_server_driver_waypoint = (_server_driver_waypoint + 1) % SERVER_DRIVER_ROUTE.size()
+	elif not _server_driver_lane \
+			and tick - _server_driver_progress_tick >= SERVER_DRIVER_STUCK_TICKS:
+		_server_driver_waypoint = (_server_driver_waypoint + 1) % route.size()
 		_server_driver_progress_tick = tick
 		_server_driver_progress_position = position
-		waypoint = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+		waypoint = route[_server_driver_waypoint]
 		_log("SERVER_DRIVER escape tick=%d next=%d" % [tick, _server_driver_waypoint])
 	if tick % 60 == 0:
 		_log("SERVER_DRIVER tick=%d waypoint=%d pos=(%.1f,%.1f) target=(%.1f,%.1f) speed=%.1f" % [
@@ -2082,18 +2126,20 @@ func _service_server_driver_route(tick: int) -> void:
 			waypoint.x, waypoint.y, body.linear_velocity.length()])
 
 func _recover_server_driver(body: RigidBody3D, tick: int) -> void:
+	var recovery_position := SERVER_DRIVER_LANE_SPAWN if _server_driver_lane \
+		else SERVER_DRIVER_SPAWN
 	body.set("map_id", MAP_LAYOUT.ARENA)
 	body.set("gate_cooldown", MAP_LAYOUT.GATE_COOLDOWN)
-	body.position = Vector3(SERVER_DRIVER_SPAWN.x,
-		ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y)
-	body.rotation = Vector3(0.0, -PI * 0.5, 0.0)
+	body.position = Vector3(recovery_position.x,
+		ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), recovery_position.y)
+	body.rotation = Vector3(0.0, PI if _server_driver_lane else -PI * 0.5, 0.0)
 	body.linear_velocity = Vector3.ZERO
 	body.angular_velocity = Vector3.ZERO
 	body.sleeping = false
 	body.reset_physics_interpolation()
 	_server_driver_waypoint = 1
 	_server_driver_progress_tick = tick
-	_server_driver_progress_position = SERVER_DRIVER_SPAWN
+	_server_driver_progress_position = recovery_position
 	_log("SERVER_DRIVER recovered tick=%d reason=left-arena" % tick)
 
 func local_player():

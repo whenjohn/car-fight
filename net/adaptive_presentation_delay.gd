@@ -11,17 +11,17 @@ const STATE_GROWING := "growing"
 const STATE_RECOVERY_WAIT := "recovery_wait"
 const STATE_SATURATED := "saturated"
 
-const PROFILE_VERSION := "car-fight-apd-v1"
+const PROFILE_VERSION := "apd-v1-experimental"
 const WINDOW_MSEC := 3000
 const WINDOW_SAMPLE_CAP := 180
 const MIN_BATCH_SAMPLES := 6
-const EPOCH_WARMUP_MSEC := 8000
+const EPOCH_WARMUP_MSEC := 1000
 const ARRIVAL_WARNING_P95_MSEC := 12.0
 const HEADROOM_CONFIRM_MSEC := 12.0
 const EXTRAPOLATE_CONFIRM_FRACTION := 0.20
 const CRITICAL_HOLD_MSEC := 50.0
 const PRESSURE_CONFIRM_MSEC := 100.0
-const UPWARD_DWELL_MSEC := 5000.0
+const UPWARD_DWELL_MSEC := 750.0
 const RECOVERY_HEALTHY_MSEC := 20000.0
 
 
@@ -189,7 +189,6 @@ static func _update_target(state: Dictionary, now_msec: int, delta_msec: float) 
 		state["recent_gap_samples"] = []
 		state["recent_sequence_gaps"] = 0
 		state["batch_samples"] = 0
-		state["last_raise_msec"] = now_msec
 		state["controller_state"] = STATE_WARMUP
 		state["pressure_reason"] = "post_epoch_samples"
 		return
@@ -238,9 +237,13 @@ static func _update_target(state: Dictionary, now_msec: int, delta_msec: float) 
 			state["pressure_age_msec"] = 0.0
 			state["controller_state"] = STATE_GROWING
 			return
-		state["controller_state"] = STATE_GROWING if current >= maximum \
-			and float(state.get("effective_msec", current)) < current - 2.0 \
-			else (STATE_SATURATED if current >= maximum else STATE_PRESSURE)
+		if current >= maximum \
+				and float(state.get("effective_msec", current)) < current - 2.0:
+			state["controller_state"] = STATE_GROWING
+			state["pressure_reason"] = "actuator_slew_under_pressure"
+		else:
+			state["controller_state"] = STATE_SATURATED if current >= maximum \
+				else STATE_PRESSURE
 		return
 
 	var minimum := float(state.get("minimum_msec", current))
@@ -248,7 +251,8 @@ static func _update_target(state: Dictionary, now_msec: int, delta_msec: float) 
 		if float(state.get("effective_msec", current)) < current - 2.0:
 			state["controller_state"] = STATE_GROWING
 			state["pressure_reason"] = "actuator_slew"
-		elif float(state.get("healthy_age_msec", 0.0)) >= RECOVERY_HEALTHY_MSEC:
+			return
+		if float(state.get("healthy_age_msec", 0.0)) >= RECOVERY_HEALTHY_MSEC:
 			state["target_msec"] = _next_lower_tier(state, current)
 			state["healthy_age_msec"] = 0.0
 			state["controller_state"] = STATE_STEADY

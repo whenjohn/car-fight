@@ -74,6 +74,10 @@ var _presentation_pending_batches: Array = []
 var _presentation_body_samples := {}
 var _presentation_hitch_settle_until_msec := 0
 var _presentation_sequence_gaps_total := 0
+var _presentation_report_msec := 0
+var _predictive_offset_units := 0.0
+var _predictive_offset_max_units := 0.0
+var _predictive_lead_units := 0.0
 const PRESENTATION_TRACE_RECORD_CAP := 30000
 const PRESENTATION_TRACE_CHUNK_BYTES := 24000
 var _presentation_trace_path := ""
@@ -112,17 +116,28 @@ func _process(delta: float) -> void:
 	var contaminated := now <= _presentation_hitch_settle_until_msec
 	for observation in _presentation_pending_batches:
 		observation["hitch_contaminated"] = contaminated
-		AdaptivePresentationDelay.observe_batch(_presentation_state,
-			int(observation["sequence"]), int(observation["tick"]),
-			int(observation["arrival_msec"]), contaminated)
+		if _presentation_mode == "adaptive":
+			AdaptivePresentationDelay.observe_batch(_presentation_state,
+				int(observation["sequence"]), int(observation["tick"]),
+				int(observation["arrival_msec"]), contaminated)
 		_trace_record(observation)
 	_presentation_pending_batches.clear()
 	var bodies: Array = _presentation_body_samples.values()
-	AdaptivePresentationDelay.observe_frame(_presentation_state, now, frame_msec, bodies)
-	_trace_record({"type": "frame", "at_msec": now, "delta_msec": frame_msec,
+	if _presentation_mode == "adaptive":
+		AdaptivePresentationDelay.observe_frame(_presentation_state, now, frame_msec, bodies)
+	_trace_record({
+		"type": "frame", "at_msec": now, "delta_msec": frame_msec,
 		"hitch": frame_msec > 50.0, "network_tick": NetworkTime.tick,
-		"target_msec": presentation_delay_msec(), "bodies": bodies})
+		"tick_factor": NetworkTime.tick_factor,
+		"target_msec": presentation_delay_msec(),
+		"controller_state": str(_presentation_state.get("controller_state", "fixed")),
+		"bodies": bodies,
+	})
 	_presentation_body_samples.clear()
+	if _presentation_mode == "adaptive" and _telemetry \
+			and now - _presentation_report_msec >= 1000:
+		_report_presentation()
+		_presentation_report_msec = now
 	if _trace_enabled() and _presentation_trace_started_msec > 0 \
 			and not _presentation_trace_flushed \
 			and now - _presentation_trace_started_msec >= _presentation_trace_duration_msec:
@@ -149,12 +164,17 @@ func configure(enabled: bool, mode: String, rate_hz: int, telemetry: bool,
 
 func configure_presentation(mode: String, minimum_msec: float,
 		maximum_msec: float, trace_path := "", trace_seconds := 0.0) -> void:
-	_presentation_mode = mode if mode in ["fixed", "adaptive"] else "fixed"
+	_presentation_mode = mode if mode in ["fixed", "adaptive", "predictive", "proxy"] else "fixed"
 	_presentation_min_msec = maxf(0.0, minimum_msec)
 	_presentation_max_msec = maxf(_presentation_min_msec, maximum_msec)
 	_presentation_pending_batches.clear()
 	_presentation_body_samples.clear()
+	_presentation_hitch_settle_until_msec = 0
+	_presentation_report_msec = Time.get_ticks_msec()
 	_presentation_sequence_gaps_total = 0
+	_predictive_offset_units = 0.0
+	_predictive_offset_max_units = 0.0
+	_predictive_lead_units = 0.0
 	_presentation_trace_path = trace_path
 	_presentation_trace_duration_msec = int(maxf(0.0, trace_seconds) * 1000.0)
 	_presentation_trace_started_msec = 0
@@ -173,7 +193,7 @@ func presentation_mode() -> String:
 
 
 func set_presentation_mode(mode: String) -> bool:
-	if mode not in ["fixed", "adaptive"] or mode == _presentation_mode:
+	if mode not in ["fixed", "adaptive", "predictive", "proxy"] or mode == _presentation_mode:
 		return false
 	_presentation_mode = mode
 	_presentation_pending_batches.clear()
@@ -185,8 +205,18 @@ func set_presentation_mode(mode: String) -> bool:
 
 
 func presentation_delay_msec() -> float:
+	if _presentation_mode in ["predictive", "proxy"]:
+		return 0.0
 	return AdaptivePresentationDelay.target_msec(_presentation_state) \
 		if _presentation_mode == "adaptive" else _presentation_min_msec
+
+
+func presentation_maximum_msec() -> float:
+	return _presentation_max_msec
+
+
+func presentation_trace_enabled() -> bool:
+	return _trace_enabled()
 
 
 func observe_presentation_body(body_id: String, eligible: bool, warming: bool,
@@ -202,8 +232,17 @@ func observe_presentation_body(body_id: String, eligible: bool, warming: bool,
 	}
 
 
+func observe_predictive_alignment(offset_units: float, lead_units: float) -> void:
+	if _presentation_mode not in ["predictive", "proxy"] or multiplayer.is_server():
+		return
+	_predictive_offset_units = maxf(0.0, offset_units)
+	_predictive_offset_max_units = maxf(_predictive_offset_max_units,
+		_predictive_offset_units)
+	_predictive_lead_units = lead_units
+
+
 func presentation_snapshot() -> Dictionary:
-	return {
+	var snapshot := {
 		"mode": _presentation_mode,
 		"selected_msec": presentation_delay_msec(),
 		"controller_state": str(_presentation_state.get("controller_state", "warmup")),
@@ -221,7 +260,29 @@ func presentation_snapshot() -> Dictionary:
 		"warming_bodies": int(_presentation_state.get("warming_bodies", 0)),
 		"sequence_gaps_total": _presentation_sequence_gaps_total,
 		"last_batch_tick": _last_batch_tick,
+		"predictive_offset_units": _predictive_offset_units,
+		"predictive_offset_max_units": _predictive_offset_max_units,
+		"predictive_lead_units": _predictive_lead_units,
 	}
+	_predictive_offset_max_units = _predictive_offset_units
+	return snapshot
+
+
+func _report_presentation() -> void:
+	var state := AdaptivePresentationDelay.snapshot(_presentation_state)
+	print("[presentation-buffer] mode=adaptive state=%s min_ms=%.0f target_ms=%.0f effective_ms=%.1f headroom_ms=min:%.1f,p10:%.1f,median:%.1f variation_ms=p50:%.1f,p95:%.1f,max:%.1f seq_gaps=%d/%d bodies=%d/%d modes=%.2f/%.2f/%.2f hold_run_ms=%.1f pressure=%s age_ms=%.0f healthy_ms=%.0f hitch_samples=%d cursor_spread_ticks=%.3f profile=%s" % [
+		str(state["controller_state"]), float(state["minimum_msec"]),
+		float(state["target_msec"]), float(state["effective_msec"]),
+		float(state["headroom_min_msec"]), float(state["headroom_p10_msec"]),
+		float(state["headroom_median_msec"]), float(state["variation_p50_msec"]),
+		float(state["variation_p95_msec"]), float(state["variation_max_msec"]),
+		int(state["sequence_gaps"]), int(state["recent_sequence_gaps"]),
+		int(state["eligible_bodies"]), int(state["warming_bodies"]),
+		float(state["interp_fraction"]), float(state["extrapolate_fraction"]),
+		float(state["hold_fraction"]), float(state["max_consecutive_hold_msec"]),
+		str(state["pressure_reason"]), float(state["pressure_age_msec"]),
+		float(state["healthy_age_msec"]), int(state["hitch_contaminated_samples"]),
+		float(state["cursor_spread_ticks"]), AdaptivePresentationDelay.PROFILE_VERSION])
 
 
 func _trace_enabled() -> bool:
@@ -372,6 +433,12 @@ func _sample_bodies() -> Array:
 			"generation": int(body.get("remote_state_generation")),
 			"map": int(body.get("map_id")),
 			"position": state[0] as Vector3,
+			"rotation": state[1] as Quaternion if state.size() > 1 and state[1] is Quaternion \
+				else body.global_basis.get_rotation_quaternion(),
+			"linear_velocity": state[2] as Vector3 if state.size() > 2 and state[2] is Vector3 \
+				else body.linear_velocity,
+			"angular_velocity": state[3] as Vector3 if state.size() > 3 and state[3] is Vector3 \
+				else body.angular_velocity,
 		})
 	_sampled += samples.size()
 	return samples
@@ -379,13 +446,15 @@ func _sample_bodies() -> Array:
 func _send_legacy(peer: int, publication: int, tick: int, samples: Array) -> void:
 	for sample in samples:
 		var payload := [publication, tick, int(sample["id"]), int(sample["generation"]),
-			sample["position"] as Vector3]
+			sample["position"] as Vector3, sample["rotation"] as Quaternion,
+			sample["linear_velocity"] as Vector3, sample["angular_velocity"] as Vector3]
 		_logical_bytes += var_to_bytes(payload).size()
 		_legacy_calls += 1
 		_serialized_entries += 1
 		NetworkPerformance.record_app_message("out", "remote_state_legacy", payload)
 		_push_legacy.rpc_id(peer, publication, tick, int(sample["id"]),
-			int(sample["generation"]), sample["position"])
+			int(sample["generation"]), sample["position"], sample["rotation"],
+			sample["linear_velocity"], sample["angular_velocity"])
 
 func _send_relevant_batch(peer: int, publication: int, tick: int,
 		samples: Array, buckets: Dictionary, samples_by_id: Dictionary) -> void:
@@ -426,11 +495,19 @@ func _send_batch(peer: int, sequence: int, publication: int, tick: int,
 	var ids := PackedInt64Array()
 	var generations := PackedInt32Array()
 	var positions := PackedVector3Array()
+	var rotations := PackedVector4Array()
+	var linear_velocities := PackedVector3Array()
+	var angular_velocities := PackedVector3Array()
 	for sample in samples:
 		ids.append(int(sample["id"]))
 		generations.append(int(sample["generation"]))
 		positions.append(sample["position"] as Vector3)
-	var payload := [sequence, publication, tick, recipient_map, ids, generations, positions]
+		var rotation: Quaternion = sample["rotation"]
+		rotations.append(Vector4(rotation.x, rotation.y, rotation.z, rotation.w))
+		linear_velocities.append(sample["linear_velocity"] as Vector3)
+		angular_velocities.append(sample["angular_velocity"] as Vector3)
+	var payload := [sequence, publication, tick, recipient_map, ids, generations, positions,
+		rotations, linear_velocities, angular_velocities]
 	var serialize_started := Time.get_ticks_usec() if _telemetry else 0
 	var payload_size := var_to_bytes(payload).size()
 	var serialize_elapsed := Time.get_ticks_usec() - serialize_started if _telemetry else 0
@@ -451,25 +528,31 @@ func _send_batch(peer: int, sequence: int, publication: int, tick: int,
 		stats["serialize_usec"] = int(stats["serialize_usec"]) + serialize_elapsed
 	NetworkPerformance.record_app_message("out", "remote_state_batch", payload)
 	_push_batch.rpc_id(peer, sequence, publication, tick, recipient_map,
-		ids, generations, positions)
+		ids, generations, positions, rotations, linear_velocities, angular_velocities)
 
 @rpc("authority", "unreliable", "call_remote", RPC_CHANNEL)
 func _push_legacy(publication: int, tick: int, body_id: int, generation: int,
-		position: Vector3) -> void:
-	var payload := [publication, tick, body_id, generation, position]
+		position: Vector3, rotation: Quaternion, linear_velocity: Vector3,
+		angular_velocity: Vector3) -> void:
+	var payload := [publication, tick, body_id, generation, position, rotation,
+		linear_velocity, angular_velocity]
 	NetworkPerformance.record_app_message("in", "remote_state_legacy", payload)
 	_prepare_legacy_body(body_id, generation, tick)
-	_deliver(body_id, generation, tick, position)
+	_deliver(body_id, generation, tick, position, rotation, linear_velocity, angular_velocity)
 
 @rpc("authority", "unreliable", "call_remote", RPC_CHANNEL)
 func _push_batch(sequence: int, publication: int, tick: int, recipient_map: int,
 		ids: PackedInt64Array, generations: PackedInt32Array,
-		positions: PackedVector3Array) -> void:
-	var payload := [sequence, publication, tick, recipient_map, ids, generations, positions]
+		positions: PackedVector3Array, rotations: PackedVector4Array,
+		linear_velocities: PackedVector3Array,
+		angular_velocities: PackedVector3Array) -> void:
+	var payload := [sequence, publication, tick, recipient_map, ids, generations, positions,
+		rotations, linear_velocities, angular_velocities]
 	NetworkPerformance.record_app_message("in", "remote_state_batch", payload)
 	var disposition := Validation.classify_batch(_last_batch_sequence,
 		_last_batch_publication, _last_batch_tick, sequence, publication, tick,
-		recipient_map, ids.size(), generations.size(), positions.size())
+		recipient_map, ids.size(), generations.size(), positions.size(), rotations.size(),
+		linear_velocities.size(), angular_velocities.size())
 	if disposition == "accept" and not _valid_recipient_map(recipient_map):
 		disposition = "malformed"
 	if disposition == "accept" \
@@ -500,8 +583,13 @@ func _push_batch(sequence: int, publication: int, tick: int, recipient_map: int,
 		_presentation_pending_batches.append({
 			"type": "batch",
 			"sequence": sequence,
+			"publication": publication,
 			"tick": tick,
 			"arrival_msec": presentation_arrival_msec,
+			"network_tick": NetworkTime.tick,
+			"tick_factor": NetworkTime.tick_factor,
+			"recipient_map": recipient_map,
+			"entries": ids.size(),
 		})
 
 	# The complete set becomes presentation membership only after the entire
@@ -550,7 +638,10 @@ func _push_batch(sequence: int, publication: int, tick: int, recipient_map: int,
 		var body_id := int(ids[i])
 		var generation := int(generations[i])
 		if desired.has(Relevance.membership_key(body_id, generation)):
-			_deliver(body_id, generation, tick, positions[i])
+			var packed_rotation := rotations[i]
+			_deliver(body_id, generation, tick, positions[i], Quaternion(packed_rotation.x,
+				packed_rotation.y, packed_rotation.z, packed_rotation.w).normalized(),
+				linear_velocities[i], angular_velocities[i])
 	_report_receiver_if_due()
 
 func _body_for_delivery(body_id: int) -> Node:
@@ -564,12 +655,14 @@ func _valid_recipient_map(recipient_map: int) -> bool:
 		or recipient_map in [MapLayout.ARENA, MapLayout.DRIVING_COURSE]
 
 func _deliver(body_id: int, generation: int, tick: int,
-		position: Vector3) -> bool:
+		position: Vector3, rotation: Quaternion, linear_velocity: Vector3,
+		angular_velocity: Vector3) -> bool:
 	var body := _body_for_delivery(body_id)
 	if body == null:
 		_unknown_bodies += 1
 		return false
-	return bool(body.receive_remote_position(generation, tick, position))
+	return bool(body.receive_remote_position(generation, tick, position, rotation,
+		linear_velocity, angular_velocity))
 
 func _prepare_legacy_body(body_id: int, generation: int, tick: int) -> void:
 	var body := _body_for_delivery(body_id)

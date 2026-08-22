@@ -16,8 +16,8 @@ presentation_mode="${2:-adaptive}"
 source "$project_root/scripts/network_profiles.sh"
 car_fight_network_profile "$profile"
 
-if [[ "$presentation_mode" != "fixed" && "$presentation_mode" != "adaptive" ]]; then
-	echo "presentation mode must be fixed or adaptive" >&2
+if [[ "$presentation_mode" != "fixed" && "$presentation_mode" != "adaptive" && "$presentation_mode" != "predictive" && "$presentation_mode" != "proxy" ]]; then
+	echo "presentation mode must be fixed, adaptive, predictive, or proxy" >&2
 	exit 2
 fi
 
