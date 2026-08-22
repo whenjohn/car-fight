@@ -30,7 +30,9 @@ var _fx_active := false
 func _ready() -> void:
 	if not _is_headless():
 		_build_render()
-	NetworkTime.on_tick.connect(_on_tick)
+	var network_time := get_node_or_null("/root/NetworkTime")
+	if network_time != null:
+		network_time.connect("on_tick", _on_tick)
 
 func generate() -> void:
 	if not multiplayer.is_server():
@@ -231,11 +233,18 @@ func _rebuild_field() -> void:
 	_mesh.clear_surfaces()
 	if _dots.is_empty():
 		return
+	var visible_ids := []
+	for id in _dots:
+		if not _hidden.has(id):
+			visible_ids.append(id)
+	# During prediction/rejoin every remaining dot can briefly be hidden. Do not
+	# ask ImmediateMesh to commit an empty surface; the next authoritative update
+	# marks the field dirty and rebuilds the visible set.
+	if visible_ids.is_empty():
+		return
 	_draw_to = _mesh
 	_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _material)
-	for id in _dots:
-		if _hidden.has(id):
-			continue
+	for id in visible_ids:
 		var point: Vector3 = _dots[id]
 		point.y = DOT_HEIGHT
 		_disc(point, DOT_RADIUS * 1.7, Color(1.0, 0.76, 0.18, 0.16))
@@ -245,22 +254,28 @@ func _rebuild_field() -> void:
 
 func _rebuild_fx() -> void:
 	_fx_mesh.clear_surfaces()
-	if _vacuum_tell <= 0.001 and _flyins.is_empty():
+	var now := float(Time.get_ticks_msec())
+	var active_flyins: Array[Dictionary] = []
+	for flyin in _flyins:
+		if (now - float(flyin["started"])) / FLYIN_MS < 1.0:
+			active_flyins.append(flyin)
+	_flyins = active_flyins
+	var me := _local_body()
+	var vacuum_visible := _vacuum_tell > 0.001 and me != null
+	if not vacuum_visible and _flyins.is_empty():
 		_fx_active = false
 		return
 	_fx_active = true
 	_draw_to = _fx_mesh
 	_fx_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _material)
-	var me := _local_body()
-	if _vacuum_tell > 0.001 and me != null:
+	if vacuum_visible:
 		var center := me.global_position
 		center.y = DOT_HEIGHT
 		_annulus(center, VACUUM_RADIUS, 0.07, Color(0.58, 0.86, 1.0, 0.14 * _vacuum_tell))
-	_draw_flyins()
+	_draw_flyins(now)
 	_fx_mesh.surface_end()
 
-func _draw_flyins() -> void:
-	var now := float(Time.get_ticks_msec())
+func _draw_flyins(now: float) -> void:
 	var keep: Array[Dictionary] = []
 	for flyin in _flyins:
 		var t := clampf((now - float(flyin["started"])) / FLYIN_MS, 0.0, 1.0)

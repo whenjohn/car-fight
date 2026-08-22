@@ -7,6 +7,7 @@
 - On affected macOS Intel systems, rendered play must use an ordinary decorated window inside the usable desktop area. Do not use native fullscreen, borderless fullscreen, or exact edge-to-edge/maximized presentation. This bounded compatibility limitation is accepted.
 - The full G2-derived transport is available as an explicit A/B profile on native ENet and browser WebRTC; ordinary game launches remain on legacy defaults. The forced-TURN path is operational and its fixed 120 ms Networking-1 jump/teleport gate is accepted. Preserve the earlier queue failures and 64 KiB ceiling as evidence; combined impairment remains a separate unaccepted experiment.
 - Networking 1 is implemented on `feature/networking-1` in `/Users/johnnguyen/Projects/car-fight-networking-1`. The fixed 120 ms forced-TURN jump/teleport investigation is complete: per-route settled-state starvation is fixed and human no-contact, rear/head-on/side-impact, and deterministic local-stall controls are accepted. Fixed 75 ms presentation remains the ordinary default; the accepted 1.05-radius/3.40-length capsule remains harness-only.
+- Networking 2 is active on `feature/networking-2` in `/Users/johnnguyen/Projects/car-fight-networking-2`, based on accepted commit `a535364`. Its first isolated step is complete: a 600-second fixed-configuration forced-TURN soak survived one browser leave/rejoin with zero recovery, 0.001-unit worst correction, zero movement, and zero browser errors. The next isolated step is two real player peers at the unchanged 120 ms condition; do not start it automatically.
 
 ## Completed
 
@@ -160,8 +161,37 @@
   120 ms native gate passes with a 0.302-unit worst correction. The complete
   `./scripts/test.sh` suite passes (`ALL_TESTS PASS`).
 
+## Networking-2 reconnect soak (2026-08-22)
+
+- Added an exact-resource 600-second forced-TURN soak with a stationary native
+  survivor, one browser leave/rejoin, forced relay proof, topology assertions,
+  correction/recovery/movement telemetry, and bounded queue/error checks.
+- The first long diagnostic exposed harness contamination: its mouse helper
+  continuously drove the replacement into arena geometry and produced a
+  4.845-unit correction. Canvas center was also not neutral under the isometric
+  camera, causing one 3.833-unit startup recovery. Long soaks now use the
+  harness-only `script=idle` input path; ordinary browser input and short
+  movement smokes are unchanged.
+- Run `20260822T222345Z-66042-30123` completed all 600 seconds with 607 shared
+  samples, zero recovery, 0.000887-unit worst correction, 0.00013-unit maximum
+  planar displacement, zero browser errors, a 3,558-byte peak browser queue,
+  and 194,333 TURN qdisc packets with zero drops. The final 30-second renderer
+  window held a 30 FPS minimum / 41.67 average; long unattended acceptance uses
+  30 / 40 while the short playable smoke retains 30 / 45.
+- Reconnect testing also found two presentation lifecycle defects unrelated to
+  transport: empty dot meshes after teardown and troop visuals assigned a
+  global transform before entering the scene tree. Both now have focused
+  regressions and no longer emit browser errors.
+- Focused import, syntax, dots, troop, explicit-idle, and unchanged-report
+  checks pass. The permission-correct complete `./scripts/test.sh` run passes
+  every gate (`ALL_TESTS PASS`); an earlier sandboxed attempt reached the
+  lifecycle listener with `listen EPERM` and is not a code failure.
+
 ## Next
 
+- Next, validate two real player peers at the unchanged forced-TURN 120 ms,
+  divisor-1, proxy, lane-fixture, and harness-capsule configuration. Keep this
+  separate from combined impairment and adaptive cadence.
 - Keep fixed 75 ms as the ordinary default and the accepted capsule dimensions
   confined to the Networking-1 harness. Capsule gameplay integration remains a
   separate handling/physics workstream.

@@ -27,7 +27,24 @@ remote_enet_port="${CAR_FIGHT_SHAPE_REMOTE_ENET_PORT:-12480}"
 remote_signal_port="${CAR_FIGHT_SHAPE_REMOTE_SIGNAL_PORT:-12481}"
 local_signal_port="${CAR_FIGHT_SHAPE_LOCAL_SIGNAL_PORT:-12581}"
 web_port="${CAR_FIGHT_SHAPE_WEB_PORT:-18189}"
-failsafe_seconds="${CAR_FIGHT_SHAPE_FAILSAFE_SECONDS:-300}"
+soak_seconds="${CAR_FIGHT_WEBRTC_SOAK_SECONDS:-0}"
+if [[ "$soak_seconds" != <-> ]]; then
+	echo "CAR_FIGHT_WEBRTC_SOAK_SECONDS must be a non-negative integer" >&2
+	exit 2
+fi
+failsafe_default=300
+if (( soak_seconds > 0 )); then
+	failsafe_default=$((soak_seconds + 300))
+fi
+failsafe_seconds="${CAR_FIGHT_SHAPE_FAILSAFE_SECONDS:-$failsafe_default}"
+server_ticks="${CAR_FIGHT_WEBRTC_SERVER_TICKS:-4200}"
+native_ticks="${CAR_FIGHT_WEBRTC_NATIVE_TICKS:-3900}"
+if (( soak_seconds > 0 )); then
+	[[ -n "${CAR_FIGHT_WEBRTC_SERVER_TICKS:-}" ]] \
+		|| server_ticks=$(((soak_seconds + 180) * 60))
+	[[ -n "${CAR_FIGHT_WEBRTC_NATIVE_TICKS:-}" ]] \
+		|| native_ticks=$(((soak_seconds + 150) * 60))
+fi
 interactive_browser="${CAR_FIGHT_INTERACTIVE_BROWSER:-0}"
 presentation_mode="${CAR_FIGHT_REMOTE_INTERP_MODE:-fixed}"
 presentation_min="${CAR_FIGHT_REMOTE_INTERP_MS:-75}"
@@ -183,6 +200,9 @@ trap 'handle_signal 143' TERM
 echo "WEBRTC_SHAPE profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms jitter=+/-${CAR_FIGHT_SHAPE_JITTER_MS}ms loss=${CAR_FIGHT_SHAPE_LOSS_PCT}%"
 echo "run_id: $run_id"
 echo "evidence: $run_dir"
+if (( soak_seconds > 0 )); then
+	echo "soak: ${soak_seconds}s with one browser leave/rejoin; server_ticks=$server_ticks native_ticks=$native_ticks"
+fi
 if [[ "$interactive_browser" == "1" ]]; then
 	echo "interactive browser: server-driven Jeep enabled; driver=$driver_mode; player_capsule=$player_capsule_enabled; close Chrome to stop"
 fi
@@ -210,7 +230,8 @@ if [[ -n "$remote_signal_owner" ]]; then
 	exit 1
 fi
 
-"$project_root/scripts/web_network_build.sh" release
+web_build_mode="${CAR_FIGHT_WEB_BUILD_MODE:-release}"
+"$project_root/scripts/web_network_build.sh" "$web_build_mode"
 
 # Sync only to the isolated harness checkout. The production car-fight checkout
 # and launchd service are never addressed by this script.
@@ -257,7 +278,7 @@ ssh "$turn_ssh" "pid=\$(docker inspect -f '{{.State.Pid}}' '$turn_container'); s
 
 # Ensure macai2 can reach the relay before starting ICE negotiation.
 ssh "$server_ssh" "ping -c 1 -W 1000 '$turn_ip' >/dev/null"
-server_ticks_arg="--ticks 4200"
+server_ticks_arg="--ticks $server_ticks"
 if [[ "$interactive_browser" == "1" ]]; then
 	server_ticks_arg=""
 fi
@@ -301,16 +322,26 @@ done
 curl -fs -o /dev/null "http://127.0.0.1:$web_port/"
 
 if [[ "$interactive_browser" != "1" ]]; then
+	native_script_args=(--script right)
+	if (( soak_seconds > 0 )); then
+		# The survivor proves mux topology only. Keep it in map 0 during a long
+		# soak instead of letting the scripted drive eventually enter a map gate.
+		native_script_args=()
+	fi
 	"${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}" --headless \
 		--path "$project_root" -- --client --transport enet --host "$server_ip" \
-		--port "$remote_enet_port" --name native-survivor --script right --ticks 3900 \
+		--port "$remote_enet_port" --name native-survivor "${native_script_args[@]}" --ticks "$native_ticks" \
 		"${native_stack_args[@]}" \
 		> "$run_dir/native.log" 2>&1 &
 	native_pid=$!
 	sleep 0.8
 fi
 
-browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&runId=$run_id&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1$browser_stack_query"
+browser_script_query=""
+if (( soak_seconds > 0 )); then
+	browser_script_query="&script=idle"
+fi
+browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&runId=$run_id&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1$browser_stack_query$browser_script_query"
 if [[ "$interactive_browser" == "1" ]]; then
 	chrome_bin="${CHROME_BIN:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 	echo "browser control: node scripts/set_networking1_browser_mode.mjs '$chrome_profile' fixed|adaptive|predictive|proxy"
@@ -352,7 +383,7 @@ fi
 set +e
 node "$project_root/scripts/web_network_smoke.mjs" "$browser_url" \
 	"$run_dir/browser-report.json" "$run_dir/browser.png" \
-	| tee "$run_dir/browser.log"
+	2>&1 | tee "$run_dir/browser.log"
 browser_status=${pipestatus[1]}
 set -e
 
@@ -360,6 +391,11 @@ ssh "$turn_ssh" "pid=\$(docker inspect -f '{{.State.Pid}}' '$turn_container'); s
 	> "$run_dir/netem-after.txt"
 ssh "$turn_ssh" "docker logs '$turn_container' 2>&1" > "$run_dir/turn.log"
 ssh "$server_ssh" "cat '$remote_log'" > "$run_dir/server.log"
+
+if [[ ! -s "$run_dir/browser-report.json" ]]; then
+	echo "browser monitor stopped before producing its report; evidence: $run_dir" >&2
+	exit "$((browser_status == 0 ? 1 : browser_status))"
+fi
 
 netem_packets="$(awk '/Sent [0-9]+ bytes [0-9]+ pkt/ { print $4; exit }' "$run_dir/netem-after.txt")"
 netem_drops="$(sed -n 's/.*(dropped \([0-9][0-9]*\),.*/\1/p' "$run_dir/netem-after.txt" | head -1)"
@@ -369,6 +405,10 @@ browser_queue_max="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.read
 browser_queue_final="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(r.webrtc_buffered_bytes?.final ?? -1))' "$run_dir/browser-report.json")"
 browser_fps_average="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(r.steady_fps?.average ?? 0))' "$run_dir/browser-report.json")"
 browser_errors="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(r.errors?.length ?? 0))' "$run_dir/browser-report.json")"
+browser_soak_observed="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(r.soak_seconds_observed ?? 0))' "$run_dir/browser-report.json")"
+browser_recoveries="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(r.network_health?.recoveries ?? -1))' "$run_dir/browser-report.json")"
+browser_worst_correction="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(r.network_health?.worst_correction ?? -1))' "$run_dir/browser-report.json")"
+browser_stale_warnings="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(r.stale_rollback_warnings ?? -1))' "$run_dir/browser-report.json")"
 server_queue_max="$(sed -n 's/.*label=ordered.*buffered_bytes=\([0-9][0-9]*\).*/\1/p' "$run_dir/server.log" | sort -n | tail -1)"
 server_queue_final="$(sed -n 's/.*label=ordered.*buffered_bytes=\([0-9][0-9]*\).*/\1/p' "$run_dir/server.log" | tail -1)"
 server_queue_max="${server_queue_max:-0}"
@@ -378,6 +418,8 @@ server_stale_warnings="$(rg -c 'Skipping stale rollback origin' "$run_dir/server
 	echo "run_id=$run_id"
 	echo "profile=$profile"
 	echo "stack=$stack_label"
+	echo "soak_seconds_requested=$soak_seconds"
+	echo "soak_seconds_observed=$browser_soak_observed"
 	echo "presentation_mode=$presentation_mode"
 	echo "presentation_min_ms=$presentation_min"
 	echo "presentation_max_ms=$presentation_max"
@@ -390,6 +432,9 @@ server_stale_warnings="$(rg -c 'Skipping stale rollback origin' "$run_dir/server
 	echo "browser_queue_final=$browser_queue_final"
 	echo "browser_fps_average=$browser_fps_average"
 	echo "browser_errors=$browser_errors"
+	echo "browser_recoveries=$browser_recoveries"
+	echo "browser_worst_correction=$browser_worst_correction"
+	echo "browser_stale_warnings=$browser_stale_warnings"
 	echo "server_ordered_queue_max=$server_queue_max"
 	echo "server_ordered_queue_final=$server_queue_final"
 	echo "server_stale_warnings=$server_stale_warnings"
@@ -410,8 +455,25 @@ if ! node -e 'const r=require(process.argv[1]); process.exit(r.network_configura
 	echo "browser did not prove forced TURN configuration" >&2
 	exit 1
 fi
-if ! rg -q 'CLIENT_TICK .*players=2 world=[^|]+\|[^ ]+' "$run_dir/native.log"; then
+shared_players=2
+alone_players=1
+if [[ -n "$server_driver_arg" ]]; then
+	shared_players=3
+	alone_players=2
+fi
+if ! rg -q "CLIENT_TICK .*players=$shared_players world=[^|]+\\|[^ ]+" "$run_dir/native.log"; then
 	echo "native ENet survivor did not share the mux world with the browser" >&2
+	exit 1
+fi
+first_shared_line="$(rg -n "CLIENT_TICK .*players=$shared_players world=[^|]+\\|[^ ]+" \
+	"$run_dir/native.log" | head -1 | cut -d: -f1 || true)"
+alone_line="$(rg -n "CLIENT_TICK .*players=$alone_players world=" "$run_dir/native.log" \
+	| cut -d: -f1 | awk -v after="${first_shared_line:-0}" '$1 > after {print; exit}' || true)"
+last_shared_line="$(rg -n "CLIENT_TICK .*players=$shared_players world=[^|]+\\|[^ ]+" \
+	"$run_dir/native.log" | tail -1 | cut -d: -f1 || true)"
+if [[ -z "$first_shared_line" || -z "$alone_line" || -z "$last_shared_line" ]] \
+		|| (( first_shared_line >= alone_line || alone_line >= last_shared_line )); then
+	echo "native ENet survivor did not observe browser leave/rejoin topology; see $run_dir" >&2
 	exit 1
 fi
 if (( server_queue_max > 65536 )); then
@@ -423,11 +485,28 @@ if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index|Node not found
 	echo "runtime error under WebRTC shaping; see $run_dir" >&2
 	exit 1
 fi
+if (( soak_seconds > 0 )); then
+	if ! awk -v observed="$browser_soak_observed" -v requested="$soak_seconds" \
+		'BEGIN { exit !(observed >= requested) }'; then
+		echo "browser soak ended early: observed=${browser_soak_observed}s requested=${soak_seconds}s" >&2
+		exit 1
+	fi
+	if (( browser_recoveries < 0 || browser_recoveries > 4 \
+			|| browser_stale_warnings < 0 || browser_stale_warnings > 4 )); then
+		echo "browser recovery was not bounded: recoveries=$browser_recoveries stale_warnings=$browser_stale_warnings" >&2
+		exit 1
+	fi
+	if ! awk -v correction="$browser_worst_correction" \
+		'BEGIN { exit !(correction >= 0 && correction <= 2.0) }'; then
+		echo "browser correction exceeded the existing 2-unit ceiling: $browser_worst_correction" >&2
+		exit 1
+	fi
+fi
 
 if (( browser_status != 0 )); then
 	echo "browser acceptance failed under '$profile'; evidence: $run_dir" >&2
 	exit "$browser_status"
 fi
 
-echo "WEBRTC_SHAPE PASS profile=$profile qdisc_packets=$netem_packets drops=$netem_drops"
+echo "WEBRTC_SHAPE PASS profile=$profile qdisc_packets=$netem_packets drops=$netem_drops soak=${browser_soak_observed}s"
 echo "evidence: $run_dir"

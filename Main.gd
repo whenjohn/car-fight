@@ -87,6 +87,7 @@ const SERVER_DRIVER_LANE_ROUTE := [Vector2(-38.0, -32.0), Vector2(-38.0, 32.0)]
 ## walls, and the arena jump gate so a no-contact/stall observation starts
 ## with no uncontrolled collision variable.
 const SERVER_DRIVER_LANE_OBSERVER_SPAWN := Vector2(32.0, 0.0)
+const SERVER_DRIVER_OBSERVER_SPACING := 12.0
 const SERVER_DRIVER_LANE_CURSOR_DISTANCE := 7.35
 const SERVER_DRIVER_WAYPOINT_RADIUS := 5.0
 const SERVER_DRIVER_PROGRESS_DISTANCE := 2.0
@@ -412,6 +413,9 @@ func _parse_args() -> void:
 			var browser_name := _web_query("name")
 			if not browser_name.is_empty():
 				_player_name = browser_name
+			var browser_script := _web_query("script")
+			if not browser_script.is_empty():
+				_scripted = browser_script
 			_run_id = _web_query("runId")
 			var join_stall_query := _web_query("joinStallMs")
 			if join_stall_query.is_valid_int():
@@ -952,6 +956,11 @@ func _on_peer_join(id: int) -> void:
 			else SERVER_DRIVER_SPAWN
 		var observer_spawn := SERVER_DRIVER_LANE_OBSERVER_SPAWN if _server_driver_lane \
 			else driver_spawn + Vector2(8.0, 6.0)
+		# The interactive Networking-1 observer retains its accepted spawn. Long
+		# mux soaks add a stationary native survivor first, so stagger later
+		# harness-only observers instead of stacking every peer at one position.
+		observer_spawn += Vector2(0.0,
+			float(maxi(0, _next_spawn_slot - 1)) * SERVER_DRIVER_OBSERVER_SPACING)
 		var observer_position := Vector3(observer_spawn.x,
 			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), observer_spawn.y)
 		spawn_data["position"] = observer_position
@@ -2050,6 +2059,10 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 	if _server_driver_enabled and multiplayer.is_server() and int(body.name) == 1:
 		return _server_driver_input(body)
 	match _scripted:
+		"idle":
+			# Automated network soaks must not inherit a browser pointer position.
+			# Explicit neutral intent keeps reconnect recovery separate from contact.
+			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 		"converge", "converge-burst":
 			# Fixed opposing headings make the network gate test collision rather
 			# than the far-distance FOLLOW turning radius around a moving target.

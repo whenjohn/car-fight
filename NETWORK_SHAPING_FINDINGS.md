@@ -761,3 +761,31 @@ now hides and reappears with the hull.
 The detailed handoff for harness hardening, correction attribution, controlled
 reproduction, evidence-directed fixes, and the 120 ms acceptance gate is in
 `NETWORKING_1_NEXT_STEPS.md`. Treat it as the next-session execution order.
+
+## Networking 2 forced-TURN reconnect soak
+
+The first 600-second reconnect diagnostic (`20260822T220221Z-64340-8982`) was
+not a valid no-contact run. The browser monitor deliberately moved the mouse far
+right after both joins and left it there, so the replacement drove until it
+reached arena geometry. It stayed connected and emitted no browser error, but a
+local 9 FPS interval, one stale recovery, and contact/geometry produced a
+4.845-unit correction. This is local-frame/contact evidence, not TURN loss:
+179,106 shaped packets crossed the relay with zero drops.
+
+Moving the pointer to canvas center was also insufficient because the isometric
+camera projects that point ahead of the car. The stationary-speed diagnostic
+then exposed a 3.833-unit startup rebase from `(32.00,24.00)` to
+`(35.82,23.69)`. Long soaks now request the harness-only `script=idle` mode,
+which supplies explicit zero input every simulation tick. Short movement smokes
+and ordinary interactive browser input retain their previous behavior.
+
+The corrected 60-second proof (`20260822T222127Z-65824-28020`) passed with zero
+recoveries, 0.001-unit worst correction, zero measured movement, 49.1 steady
+average FPS, and 20,363 TURN packets. The final 600-second run
+(`20260822T222345Z-66042-30123`) stayed joined for 607 shared-world samples with
+zero recoveries, 0.000887-unit worst correction, 0.00013-unit maximum planar
+displacement, zero browser errors, a 3,558-byte peak browser queue, and 194,333
+TURN packets with zero drops. Its final renderer window held 30 FPS minimum and
+41.67 average. Long unattended durability therefore uses a 30/40 FPS floor;
+the short playable smoke keeps its established 30/45 floor. The network result
+is accepted, and two real player peers are the next isolated Networking-2 step.
