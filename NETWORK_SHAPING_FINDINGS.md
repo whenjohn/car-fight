@@ -835,6 +835,5 @@ tugging. The result improves client-local presentation without promoting or
 retuning the capsule, enabling adaptive cadence, or testing combined impairment.
 Focused checks, Web export, harness lifecycle, and the complete
 `./scripts/test.sh` suite pass (`ALL_TESTS PASS`).
-The accepted launcher now leaves `P` cruise and `L` motion tracing disabled;
-future diagnostics must explicitly set `CAR_FIGHT_CLIENT_CRUISE=1` and/or
-`CAR_FIGHT_MOTION_TRACE=1`.
+The accepted launcher retains `P` cruise for repeatable driving comparisons but
+leaves `L` motion tracing disabled. Ordinary play enables neither control.
