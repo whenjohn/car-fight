@@ -52,6 +52,7 @@ const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
 const DOTS_SCRIPT := preload("res://world/dots.gd")
 const TROOP_DELIVERY_SCRIPT := preload("res://world/troop_delivery.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
+const MOTION_TRACE_SCRIPT := preload("res://diagnostics/motion_trace.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 const WEBRTC_TRANSPORT_SCRIPT := preload("res://net/webrtc_transport.gd")
@@ -88,11 +89,15 @@ const SERVER_DRIVER_LANE_ROUTE := [Vector2(-38.0, -32.0), Vector2(-38.0, 32.0)]
 ## with no uncontrolled collision variable.
 const SERVER_DRIVER_LANE_OBSERVER_SPAWN := Vector2(32.0, 0.0)
 const SERVER_DRIVER_OBSERVER_SPACING := 12.0
+## Networking-2 moving-observer lanes start near the enlarged west wall and
+## stay clear of the slow fixture, arena gate, obstacles, and outer targets.
+const NETWORK_TEST_OBSERVER_SPAWN := Vector2(-220.0, 40.0)
 const SERVER_DRIVER_LANE_CURSOR_DISTANCE := 7.35
 const SERVER_DRIVER_WAYPOINT_RADIUS := 5.0
 const SERVER_DRIVER_PROGRESS_DISTANCE := 2.0
 const SERVER_DRIVER_STUCK_TICKS := 180
 const SERVER_DRIVER_ARENA_LIMIT := ARENA_HALF + 4.0
+const NETWORK_TEST_ARENA_HALF := 240.0
 const CORRECTION_REPORT_FLOOR := 0.10
 
 var _role := "client"
@@ -138,6 +143,12 @@ var _server_driver_enabled := false
 var _server_driver_lane := false
 var _player_capsule_enabled := false
 var _ramps_enabled := true
+var _client_cruise_allowed := false
+var _client_cruise_active := false
+var _network_test_arena_enabled := false
+var _arena_half := ARENA_HALF
+var _motion_trace_enabled := false
+var _local_presentation_smoothing_enabled := false
 var _server_driver_waypoint := 1
 var _server_driver_progress_tick := -1
 var _server_driver_progress_position := Vector2.ZERO
@@ -227,6 +238,7 @@ var _network_hud_frame_ms_max := 0.0
 var _network_hud_rb_ms_max := 0.0
 var _network_hud_rb_ticks_max := 0
 var _network_tier_label: Label
+var _motion_trace: Node
 var _network_last_target_msec := -1.0
 var _network_last_mode := ""
 var _network_tier_notice_remaining := 0.0
@@ -336,8 +348,12 @@ func _process(_delta: float) -> void:
 	if _camera == null:
 		return
 	var local: Node3D = local_player()
+	var local_camera_position := Vector3.ZERO if local == null else local.global_position
+	if local != null and _local_presentation_smoothing_enabled \
+			and local.has_method("presented_position"):
+		local_camera_position = local.call("presented_position")
 	var target: Vector3 = Vector3.ZERO if local == null \
-		else ELEVATED_COURSE.camera_target(local.global_position)
+		else ELEVATED_COURSE.camera_target(local_camera_position)
 	# The RC orb is the player's active viewpoint. Its visual is fed by the
 	# authoritative lightweight projectile snapshots, so the camera follows the
 	# same state every observer sees and cleanly returns to the Jeep on the
@@ -385,6 +401,9 @@ func _process(_delta: float) -> void:
 			_status_label.text += "\n%s" % (
 				"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" \
 				if _combat_editor_active else "Mouse: drive  |  Stay in GREEN area to load troops  |  Hold F in RED area to deploy  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones")
+		if _client_cruise_allowed:
+			_status_label.text += "\nP: %s client cruise (full speed, no burst)" % [
+				"STOP" if _client_cruise_active else "START"]
 		if local != null and bool(local.get("area_weapon_armed")):
 			_status_label.text += "\nAREA WEAPON ARMED  ·  Hold and drag Left Mouse, then release to bomb  ·  3: stow"
 		if local == null and not _network_status.is_empty():
@@ -445,6 +464,13 @@ func _parse_args() -> void:
 			_network_app_telemetry = _web_query("netTelemetry") == "1"
 			_network_hud_enabled = _web_query("networkHud") == "1"
 			_hotkey_hints_visible = _web_query("hotkeyHints") != "0"
+			_client_cruise_allowed = _web_query("clientCruise") == "1"
+			_motion_trace_enabled = _web_query("motionTrace") == "1"
+			_local_presentation_smoothing_enabled = \
+				_web_query("localPresentationSmoothing") == "1"
+			_network_test_arena_enabled = _web_query("networkTestArena") == "1"
+			if _network_test_arena_enabled:
+				_arena_half = NETWORK_TEST_ARENA_HALF
 			var profile_query := _web_query("networkProfile")
 			if not profile_query.is_empty():
 				_network_profile = profile_query
@@ -649,6 +675,15 @@ func _parse_args() -> void:
 			_player_capsule_enabled = false
 		elif arg == "--no-ramps":
 			_ramps_enabled = false
+		elif arg == "--client-cruise":
+			_client_cruise_allowed = true
+		elif arg == "--network-test-arena":
+			_network_test_arena_enabled = true
+			_arena_half = NETWORK_TEST_ARENA_HALF
+		elif arg == "--motion-trace":
+			_motion_trace_enabled = true
+		elif arg == "--local-presentation-smoothing":
+			_local_presentation_smoothing_enabled = true
 		elif arg == "--course-test":
 			_course_test = true
 		elif arg == "--reverse-test":
@@ -954,8 +989,9 @@ func _on_peer_join(id: int) -> void:
 	if _server_driver_enabled:
 		var driver_spawn := SERVER_DRIVER_LANE_SPAWN if _server_driver_lane \
 			else SERVER_DRIVER_SPAWN
-		var observer_spawn := SERVER_DRIVER_LANE_OBSERVER_SPAWN if _server_driver_lane \
-			else driver_spawn + Vector2(8.0, 6.0)
+		var observer_spawn := NETWORK_TEST_OBSERVER_SPAWN if _network_test_arena_enabled \
+			else (SERVER_DRIVER_LANE_OBSERVER_SPAWN if _server_driver_lane \
+			else driver_spawn + Vector2(8.0, 6.0))
 		# The interactive Networking-1 observer retains its accepted spawn. Long
 		# mux soaks add a stationary native survivor first, so stagger later
 		# harness-only observers instead of stacking every peer at one position.
@@ -1117,6 +1153,12 @@ func _build_world() -> void:
 		_driving_course.call("build_presentation")
 		_jump_gates.call("build_presentation")
 		_build_presentation()
+		if _motion_trace_enabled:
+			_motion_trace = Node.new()
+			_motion_trace.name = "PresentedMotionTrace"
+			_motion_trace.set_script(MOTION_TRACE_SCRIPT)
+			add_child(_motion_trace)
+			_motion_trace.call("setup", self, _players, _camera)
 
 func _spawn_player(data: Variant) -> Node:
 	var info: Dictionary = data if data is Dictionary else {"id": int(data), "slot": 0}
@@ -1129,6 +1171,7 @@ func _spawn_player(data: Variant) -> Node:
 	body.set("spawn_slot", slot)
 	body.set("disable_collision_escape", bool(info.get("disable_collision_escape", false)))
 	body.set("remote_state_generation", int(info.get("remote_generation", 0)))
+	body.set("local_presentation_smoothing", _local_presentation_smoothing_enabled)
 	if not _coverage_configs.has(owner_id):
 		_coverage_configs[owner_id] = {
 			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths(),
@@ -1394,21 +1437,21 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	body.add_child(rope)
 
 func _build_arena() -> void:
-	_add_static_box("GroundCollision", Vector3(ARENA_HALF * 2.0, 1.0, ARENA_HALF * 2.0),
+	_add_static_box("GroundCollision", Vector3(_arena_half * 2.0, 1.0, _arena_half * 2.0),
 		Vector3(0.0, -0.5, 0.0), Color("202a2d"), 0.0, false)
 	if not _is_headless():
-		_build_shader_ground("ShaderGridGround", Vector3.ZERO, ARENA_HALF)
+		_build_shader_ground("ShaderGridGround", Vector3.ZERO, _arena_half)
 	var wall_height: float = ARENA_CONFIG.WALL_HEIGHT
 	var wall_thickness: float = ARENA_CONFIG.WALL_THICKNESS
 	var wall_y := wall_height * 0.5
-	_add_static_box("WallNorth", Vector3(ARENA_HALF * 2.0 + wall_thickness * 2.0,
-		wall_height, wall_thickness), Vector3(0.0, wall_y, -ARENA_HALF), Color("596674"))
-	_add_static_box("WallSouth", Vector3(ARENA_HALF * 2.0 + wall_thickness * 2.0,
-		wall_height, wall_thickness), Vector3(0.0, wall_y, ARENA_HALF), Color("596674"))
-	_add_static_box("WallWest", Vector3(wall_thickness, wall_height, ARENA_HALF * 2.0),
-		Vector3(-ARENA_HALF, wall_y, 0.0), Color("596674"))
-	_add_static_box("WallEast", Vector3(wall_thickness, wall_height, ARENA_HALF * 2.0),
-		Vector3(ARENA_HALF, wall_y, 0.0), Color("596674"))
+	_add_static_box("WallNorth", Vector3(_arena_half * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), Vector3(0.0, wall_y, -_arena_half), Color("596674"))
+	_add_static_box("WallSouth", Vector3(_arena_half * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), Vector3(0.0, wall_y, _arena_half), Color("596674"))
+	_add_static_box("WallWest", Vector3(wall_thickness, wall_height, _arena_half * 2.0),
+		Vector3(-_arena_half, wall_y, 0.0), Color("596674"))
+	_add_static_box("WallEast", Vector3(wall_thickness, wall_height, _arena_half * 2.0),
+		Vector3(_arena_half, wall_y, 0.0), Color("596674"))
 	for obstacle in ARENA_LAYOUT.collision_objects():
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
@@ -1659,6 +1702,9 @@ func _update_network_hud(delta: float) -> void:
 	var rtt_ms := NetworkTime.remote_rtt * 1000.0
 	var jitter_ms := NetworkTimeSynchronizer.rtt_jitter * 1000.0
 	var presentation: Dictionary = RemotePositionTransport.presentation_snapshot()
+	var local_body: Node3D = local_player()
+	if local_body != null and local_body.has_method("local_presentation_metrics"):
+		presentation["local_visual"] = local_body.call("local_presentation_metrics")
 	var target_ms := float(presentation.get("selected_msec", _remote_interp_ms))
 	var headroom_ms := float(presentation.get("headroom_min_msec", 0.0))
 	var interp_pct := int(round(float(presentation.get("interp_fraction", 0.0)) * 100.0))
@@ -1681,6 +1727,12 @@ func _update_network_hud(delta: float) -> void:
 		int(_correction_counts["corr"]), int(_correction_counts["stall"]),
 		int(_correction_counts["stale"]), int(_correction_counts["impact"]),
 		int(_correction_counts["unknown"])]
+	var local_visual: Dictionary = presentation.get("local_visual", {})
+	if bool(local_visual.get("enabled", false)):
+		hud_text += "\nLOCAL VIS %.3f/%.3fu  |  snaps %d" % [
+			float(local_visual.get("offset_units", 0.0)),
+			float(local_visual.get("offset_max_units", 0.0)),
+			int(local_visual.get("snaps", 0))]
 	var unhealthy := fps < 30.0 or _network_hud_frame_ms_max >= 66.0 \
 		or _network_hud_rb_ms_max >= 16.7 or _network_hud_rb_ticks_max > 24 \
 		or hold_pct >= 10 or _worst_correction_error > 2.0
@@ -1837,7 +1889,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _role not in ["client", "offline"] or not _scripted.is_empty():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ENTER and _combat_editor_active:
+		if event.keycode == KEY_L and _motion_trace_enabled \
+				and _motion_trace != null and not _combat_editor_active:
+			_motion_trace.call("toggle")
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_P and _client_cruise_allowed and not _combat_editor_active:
+			_client_cruise_active = not _client_cruise_active
+			_log("CLIENT_CRUISE active=%s source=local-input" % _client_cruise_active)
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_ENTER and _combat_editor_active:
 			_set_combat_editor_active(false)
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_E and not _combat_editor_active:
@@ -1867,6 +1927,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and not _coverage_drag.is_empty():
 		_drag_coverage(event.position)
 		get_viewport().set_input_as_handled()
+
+
+func client_cruise_active() -> bool:
+	return _client_cruise_allowed and _client_cruise_active
+
+
+func motion_trace_context() -> Dictionary:
+	var presentation: Dictionary = RemotePositionTransport.presentation_snapshot()
+	var app: Dictionary = NetworkPerformance.get_app_telemetry_snapshot(NetworkTime.tick)
+	return {
+		"run_id": _run_id,
+		"local_peer": multiplayer.get_unique_id(),
+		"transport": _transport,
+		"tick": NetworkTime.tick,
+		"fps": Engine.get_frames_per_second(),
+		"rtt_ms": NetworkTime.remote_rtt * 1000.0,
+		"presentation_ms": float(presentation.get("selected_msec", _remote_interp_ms)),
+		"headroom_ms": float(presentation.get("headroom_min_msec", 0.0)),
+		"interp": float(presentation.get("interp_fraction", 0.0)),
+		"extrapolate": float(presentation.get("extrapolate_fraction", 0.0)),
+		"hold": float(presentation.get("hold_fraction", 0.0)),
+		"correction": _worst_correction_error,
+		"recoveries": int(app.get("fresh_key_requests_total", 0)),
+		"rollback_ms": NetworkPerformance.get_rollback_loop_duration_ms(),
+		"rollback_ticks": NetworkPerformance.get_rollback_ticks(),
+	}
 
 func _set_combat_editor_active(enabled: bool) -> void:
 	_combat_editor_active = enabled
@@ -2142,9 +2228,11 @@ func _service_server_driver_route(tick: int) -> void:
 	var body := _players.get_node_or_null("1") as RigidBody3D
 	if body == null:
 		return
+	var arena_limit := _arena_half + 4.0 if _network_test_arena_enabled \
+		else SERVER_DRIVER_ARENA_LIMIT
 	if int(body.get("map_id")) != MAP_LAYOUT.ARENA \
-			or absf(body.global_position.x) > SERVER_DRIVER_ARENA_LIMIT \
-			or absf(body.global_position.z) > SERVER_DRIVER_ARENA_LIMIT:
+			or absf(body.global_position.x) > arena_limit \
+			or absf(body.global_position.z) > arena_limit:
 		_recover_server_driver(body, tick)
 	var position := Vector2(body.global_position.x, body.global_position.z)
 	var route := SERVER_DRIVER_LANE_ROUTE if _server_driver_lane else SERVER_DRIVER_ROUTE

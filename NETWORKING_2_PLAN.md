@@ -47,9 +47,32 @@ silently drove into arena geometry. Step 1 is accepted.
 Focused regressions and the complete permission-correct `./scripts/test.sh`
 suite pass (`ALL_TESTS PASS`).
 
+## Step 2: two real players and local presentation
+
+Completed with one direct native ENet player and one Chrome WebRTC player forced
+through TURN at the unchanged 120 ms one-way condition. A large harness arena,
+client-local cruise input, and timestamped presented-motion traces made moving
+observer comparisons repeatable without server-authored movement masquerading
+as human input.
+
+The traces found no stale recovery in clean runs. Residual tug was predominantly
+longitudinal and increased when observer frame cadence fell, especially in
+Chrome. An opt-in harness-only local hull/camera reconciler now feeds forward
+raw physics velocity and smooths only small render-pose corrections; physics,
+rollback, collision, and input are unchanged, and changes over 2 units snap.
+
+Human run `20260823T202607Z-81872-13577` passed in both directions: Chrome drove
+beside a cruising native Jeep, then native drove beside a cruising Chrome Jeep.
+Both were rated smooth with no visual issues. Recoveries remained zero; median
+FPS was 85 native and 42 Chrome. The accepted capsule remained radius 1.05 and
+total length 3.40 in the harness only.
+
+Focused checks, clean Web export, the hardened lifecycle gate, and the complete
+permission-correct `./scripts/test.sh` suite pass (`ALL_TESTS PASS`).
+
 ## Later steps
 
-After the soak passes, validate two real player peers at the unchanged 120 ms
-condition. Then test combined latency/jitter/loss with divisor 1 and fixed proxy
-presentation. Adaptive state cadence is a separate final A/B; never combine its
-first trial with a new impairment profile.
+Gameplay capsule integration is next in a separate branch/worktree and must not
+be combined with networking presentation work. Combined latency/jitter/loss and
+adaptive cadence remain separate unaccepted experiments; neither was used to
+accept Networking 2.

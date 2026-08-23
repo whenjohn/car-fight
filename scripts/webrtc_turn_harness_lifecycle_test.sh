@@ -43,6 +43,23 @@ for signal_name in INT TERM; do
 		echo "harness did not reach lifecycle-ready state for $signal_name" >&2
 		exit 1
 	fi
+	if [[ "$signal_name" == "INT" ]]; then
+		concurrent_log="$test_root/concurrent.log"
+		set +e
+		CAR_FIGHT_HARNESS_LIFECYCLE_TEST=1 \
+		CAR_FIGHT_SHAPE_LOCAL_SIGNAL_PORT="$signal_port" \
+		CAR_FIGHT_SHAPE_WEB_PORT="$web_port" \
+			"$project_root/scripts/webrtc_turn_shape_test.sh" latency120 \
+			> "$concurrent_log" 2>&1
+		concurrent_status=$?
+		set -e
+		if (( concurrent_status == 0 )) \
+				|| ! rg -q 'refusing concurrent launch' "$concurrent_log"; then
+			cat "$concurrent_log" >&2
+			echo "concurrent harness launch was not rejected by the run lock" >&2
+			exit 1
+		fi
+	fi
 	kill -s "$signal_name" "$harness_pid"
 	set +e
 	wait "$harness_pid"

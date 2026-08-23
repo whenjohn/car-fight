@@ -789,3 +789,49 @@ TURN packets with zero drops. Its final renderer window held 30 FPS minimum and
 41.67 average. Long unattended durability therefore uses a 30/40 FPS floor;
 the short playable smoke keeps its established 30/45 floor. The network result
 is accepted, and two real player peers are the next isolated Networking-2 step.
+
+## Networking 2 two-player moving-observer result
+
+The mixed harness now launches one native direct-ENet player and one Chrome
+forced-TURN WebRTC player against the same macai2 mux server. It retains the
+120 ms one-way profile, divisor 1, fixed proxy presentation at 75-150 ms, and
+the harness-only 1.05-radius/3.40-length capsule. A 480 x 480 harness arena gives
+both players long straightaways. Pressing `P` supplies full-speed, non-burst
+cruise through the client-local input path; pressing `L` starts/stops a bounded
+presented-motion trace whose samples carry monotonic/unix time, frame cadence,
+network presentation, correction, recovery, and rollback context.
+
+The diagnostic also closed a harness race. Interrupted run
+`20260823T192219Z-78896-3138` overlapped a retry before either launch owned its
+ports. Chrome ran about 109 ticks ahead and repeatedly performed 6-22-unit stale
+recoveries even though WebRTC remained open. An atomic per-port run lock now
+precedes build, sync, port checks, and remote mutation; the lifecycle test
+requires a concurrent launch to be rejected.
+
+Clean run `20260823T193206Z-79977-10265` contained no stale recovery. With native
+moving while observing Chrome cruise, the 21.2-second trace held 59 median FPS,
+0.0384-unit p95 residual, and four frame stalls. With Chrome moving while
+observing native cruise, the 21.6-second trace ran at 32 median FPS, measured a
+0.0578-unit p95 residual, and had three frame stalls. Lateral residual was tiny
+in both cases; variation was predominantly longitudinal and correlated with
+frame excess. This identifies local render cadence, not stale-state recovery or
+collision prediction disagreement, as the subtle moving-observer tug.
+
+The accepted fix is opt-in and presentation-only. The local rendered hull and
+camera anchor are detached from the raw rollback body, advanced by current raw
+linear/angular velocity, then reconciled with frame-rate-independent 50/60 ms
+position/rotation half-lives. A pose difference above 2 units snaps so a genuine
+teleport is not concealed. Input, physics, rollback, and collision continue to
+use the raw body. Ordinary gameplay does not enable this path.
+
+Human acceptance run `20260823T202607Z-81872-13577` kept that exact network
+configuration and enabled local presentation on both clients. Chrome driving
+beside the cruising native Jeep was smooth with no visual issues; after swapping
+roles, native driving beside the cruising Chrome Jeep was also smooth with no
+issues. Both clients recorded zero stale recoveries. Native median FPS was 85
+and Chrome median FPS was 42. Chrome continued to receive expected small,
+mostly 0.3-unit rollback corrections, but they no longer appeared as visual
+tugging. The result improves client-local presentation without promoting or
+retuning the capsule, enabling adaptive cadence, or testing combined impairment.
+Focused checks, Web export, harness lifecycle, and the complete
+`./scripts/test.sh` suite pass (`ALL_TESTS PASS`).

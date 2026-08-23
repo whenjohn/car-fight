@@ -7,7 +7,7 @@
 - On affected macOS Intel systems, rendered play must use an ordinary decorated window inside the usable desktop area. Do not use native fullscreen, borderless fullscreen, or exact edge-to-edge/maximized presentation. This bounded compatibility limitation is accepted.
 - The full G2-derived transport is available as an explicit A/B profile on native ENet and browser WebRTC; ordinary game launches remain on legacy defaults. The forced-TURN path is operational and its fixed 120 ms Networking-1 jump/teleport gate is accepted. Preserve the earlier queue failures and 64 KiB ceiling as evidence; combined impairment remains a separate unaccepted experiment.
 - Networking 1 is implemented on `feature/networking-1` in `/Users/johnnguyen/Projects/car-fight-networking-1`. The fixed 120 ms forced-TURN jump/teleport investigation is complete: per-route settled-state starvation is fixed and human no-contact, rear/head-on/side-impact, and deterministic local-stall controls are accepted. Fixed 75 ms presentation remains the ordinary default; the accepted 1.05-radius/3.40-length capsule remains harness-only.
-- Networking 2 is active on `feature/networking-2` in `/Users/johnnguyen/Projects/car-fight-networking-2`, based on accepted commit `a535364`. Its first isolated step is complete: a 600-second fixed-configuration forced-TURN soak survived one browser leave/rejoin with zero recovery, 0.001-unit worst correction, zero movement, and zero browser errors. The next isolated step is two real player peers at the unchanged 120 ms condition; do not start it automatically.
+- Networking 2 is complete on `feature/networking-2` in `/Users/johnnguyen/Projects/car-fight-networking-2`, based on accepted commit `a535364`. The 600-second reconnect soak and two-real-player forced-TURN checks pass. A harness-only local hull/camera reconciler removed the subtle moving-observer tug in both cross-platform directions without changing physics, rollback, collision, input, ordinary presentation defaults, or gameplay capsule defaults.
 
 ## Completed
 
@@ -187,11 +187,48 @@
   every gate (`ALL_TESTS PASS`); an earlier sandboxed attempt reached the
   lifecycle listener with `listen EPERM` and is not a code failure.
 
+## Networking-2 two-player presentation (2026-08-23)
+
+- Added a hardened mixed-client harness with one direct native ENet player and
+  one Chrome player forced through TURN at 120 ms one-way. An atomic per-port
+  run lock closes the preflight/build race that previously allowed overlapping
+  launches; the lifecycle regression also proves a concurrent launch is
+  rejected before either run can mutate shared resources.
+- Added a harness-only 480 x 480 arena, client-local `P` cruise input, and an
+  `L` presented-motion recorder/graph. Cruise enters through the same local
+  input path as human control. Each trace has monotonic/unix timestamps plus
+  frame, network, correction, recovery, and rollback context, and a new capture
+  archives the prior samples before clearing the visible line.
+- Moving-observer traces separated renderer cadence from transport recovery.
+  The native-observer trace held 59 median FPS with 0.038-unit p95 residual;
+  the Chrome-observer trace ran near 32 median FPS with 0.058-unit p95 residual.
+  Error was overwhelmingly longitudinal and correlated with uneven local frame
+  time; both had zero stale recovery. A discarded overlapping-launch run instead
+  showed a clock about 109 ticks ahead and repeated 6-22-unit stale snaps,
+  confirming why run identity/locking is required.
+- Added opt-in local presentation reconciliation for the detached local Jeep
+  hull and its camera anchor. It feeds forward the raw physics velocity and
+  applies frame-rate-independent half-life correction, snapping genuine pose
+  changes above 2 units. Physics, rollback, collision, and input remain raw;
+  ordinary launches leave the feature disabled.
+- Human run `20260823T202607Z-81872-13577` used direct native ENet plus Chrome
+  forced TURN, 120 ms one-way, divisor 1, fixed proxy 75-150 ms, the harness
+  capsule, and local presentation enabled. Chrome driving beside a cruising
+  native Jeep and native driving beside a cruising Chrome Jeep were both rated
+  smooth with no visual issues. Recoveries stayed at zero. Median FPS was 85
+  native and 42 Chrome; the browser's ordinary roughly 0.3-unit rollback
+  corrections were no longer visible as tugging.
+- Focused smoothing, cruise, motion-trace, remote-presentation, harness-lifecycle,
+  clean import, and Web export checks pass. The complete permission-correct
+  `./scripts/test.sh` suite passes (`ALL_TESTS PASS`).
+
 ## Next
 
-- Next, validate two real player peers at the unchanged forced-TURN 120 ms,
-  divisor-1, proxy, lane-fixture, and harness-capsule configuration. Keep this
-  separate from combined impairment and adaptive cadence.
+- Start gameplay capsule integration in a separate branch/worktree based on the
+  completed Networking-2 commit. Preserve radius 1.05 and total length 3.40;
+  validate course support/landings, reverse clearance, projectile/shield
+  response, ramps, gates, ball/tractor, player contact, and map transitions
+  before changing the ordinary sphere default.
 - Keep fixed 75 ms as the ordinary default and the accepted capsule dimensions
   confined to the Networking-1 harness. Capsule gameplay integration remains a
   separate handling/physics workstream.

@@ -10,6 +10,7 @@ const REMOTE_POSITION_VALIDATION := preload("res://net/remote_position_validatio
 const REMOTE_SNAPSHOT_INTERPOLATION := preload("res://net/remote_snapshot_interpolation.gd")
 const SERVER_DRIVER_COLLISION := preload("res://player/server_driver_collision.gd")
 const REMOTE_COLLISION_PHASE := preload("res://player/remote_collision_phase.gd")
+const LOCAL_PRESENTATION := preload("res://player/local_presentation.gd")
 
 const DET_ZONE_RADIUS := 3.6
 const DET_GROW_TIME := 0.08
@@ -58,6 +59,7 @@ var area_gesture_end := Vector3.ZERO
 var area_strike_serial := 0
 var rc_pilot_active := false
 var disable_collision_escape := false
+var local_presentation_smoothing := false
 
 @onready var _input := get_node("Input")
 @onready var _sync := get_node_or_null("RollbackSynchronizer")
@@ -104,6 +106,11 @@ var _last_server_driver_contact_tick := -1
 var _last_map_transition_tick := -1
 var _remote_predictive_pose := Transform3D.IDENTITY
 var _remote_predictive_pose_initialized := false
+var _local_presented_pose := Transform3D.IDENTITY
+var _local_presented_pose_initialized := false
+var _local_presentation_offset := 0.0
+var _local_presentation_offset_max := 0.0
+var _local_presentation_snaps := 0
 const REMOTE_INTERP_MS := 75.0
 const REMOTE_EXTRAPOLATE_MS := 50.0
 const REMOTE_INTERP_CLOCK_RESET_TICKS := 30.0
@@ -170,6 +177,10 @@ func _ready() -> void:
 		_sync.process_settings()
 
 	_is_local = owner_id == multiplayer.get_unique_id()
+	if _is_local and local_presentation_smoothing:
+		# Presentation must run before Main samples the local camera anchor.
+		process_priority = -10
+		_ensure_remote_visual_roots()
 	if _interpolator != null and not multiplayer.is_server() and not _is_local:
 		_interpolator.root = self
 		_interpolator.add_property(self, "global_transform")
@@ -900,6 +911,7 @@ func _is_headless_presentation() -> bool:
 	return DisplayServer.get_name() == "headless"
 
 func _process(_delta: float) -> void:
+	_process_local_presentation(_delta)
 	_process_remote_position(_delta)
 	_update_tractor_rope()
 	if _cursor_marker == null or _cursor_line == null:
@@ -957,3 +969,45 @@ func _update_tractor_rope() -> void:
 
 func speed() -> float:
 	return Vector2(linear_velocity.x, linear_velocity.z).length()
+
+
+func presented_position() -> Vector3:
+	# Diagnostics must sample the final client-local pose seen by the renderer,
+	# not the rollback collider that proxy/interpolated presentation follows.
+	if is_instance_valid(_remote_visual_root) and _remote_visual_root.is_inside_tree():
+		return (_remote_visual_root.global_transform \
+			* _remote_visual_local_transform.affine_inverse()).origin
+	return global_position
+
+
+func local_presentation_metrics() -> Dictionary:
+	return {
+		"enabled": _is_local and local_presentation_smoothing,
+		"offset_units": _local_presentation_offset,
+		"offset_max_units": _local_presentation_offset_max,
+		"snaps": _local_presentation_snaps,
+	}
+
+
+func _process_local_presentation(delta: float) -> void:
+	if not _is_local or not local_presentation_smoothing:
+		return
+	_ensure_remote_visual_roots()
+	if not is_instance_valid(_remote_visual_root) \
+			or not _remote_visual_root.is_inside_tree():
+		return
+	var target := Transform3D(global_basis.orthonormalized(), global_position)
+	if not _local_presented_pose_initialized:
+		_local_presented_pose = target
+		_local_presented_pose_initialized = true
+	else:
+		var result: Dictionary = LOCAL_PRESENTATION.advance(_local_presented_pose,
+			target, linear_velocity, angular_velocity, delta)
+		_local_presented_pose = result["pose"]
+		if bool(result["snapped"]):
+			_local_presentation_snaps += 1
+	_local_presentation_offset = _local_presented_pose.origin.distance_to(target.origin)
+	_local_presentation_offset_max = maxf(_local_presentation_offset_max,
+		_local_presentation_offset)
+	_remote_visual_root.global_transform = \
+		_local_presented_pose * _remote_visual_local_transform

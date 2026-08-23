@@ -46,6 +46,16 @@ if (( soak_seconds > 0 )); then
 		|| native_ticks=$(((soak_seconds + 150) * 60))
 fi
 interactive_browser="${CAR_FIGHT_INTERACTIVE_BROWSER:-0}"
+interactive_native="${CAR_FIGHT_INTERACTIVE_NATIVE:-0}"
+if [[ "$interactive_native" == "1" && "$interactive_browser" != "1" ]]; then
+	echo "CAR_FIGHT_INTERACTIVE_NATIVE requires CAR_FIGHT_INTERACTIVE_BROWSER=1" >&2
+	exit 2
+fi
+if [[ "$interactive_browser" == "1" && -z "${CAR_FIGHT_SHAPE_FAILSAFE_SECONDS:-}" ]]; then
+	# Human cross-play sessions routinely include several observation passes. Keep
+	# the remote cleanup guard, but do not tear TURN down during a careful test.
+	failsafe_seconds=7200
+fi
 presentation_mode="${CAR_FIGHT_REMOTE_INTERP_MODE:-fixed}"
 presentation_min="${CAR_FIGHT_REMOTE_INTERP_MS:-75}"
 presentation_max="${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}"
@@ -63,6 +73,27 @@ player_capsule_enabled="${CAR_FIGHT_PLAYER_CAPSULE:-1}"
 player_capsule_arg="--player-capsule"
 if [[ "$player_capsule_enabled" == "0" ]]; then
 	player_capsule_arg="--no-player-capsule"
+fi
+network_test_arena="${CAR_FIGHT_NETWORK_TEST_ARENA:-0}"
+server_arena_arg=""
+native_arena_args=()
+browser_arena_query=""
+if [[ "$network_test_arena" == "1" ]]; then
+	server_arena_arg="--network-test-arena"
+	native_arena_args=(--network-test-arena --client-cruise)
+	browser_arena_query="&networkTestArena=1&clientCruise=1"
+fi
+motion_trace_enabled="${CAR_FIGHT_MOTION_TRACE:-0}"
+native_motion_args=()
+browser_motion_query=""
+if [[ "$motion_trace_enabled" == "1" ]]; then
+	native_motion_args=(--motion-trace)
+	browser_motion_query="&motionTrace=1"
+fi
+local_presentation_enabled="${CAR_FIGHT_LOCAL_PRESENTATION_SMOOTHING:-0}"
+if [[ "$local_presentation_enabled" == "1" ]]; then
+	native_motion_args+=(--local-presentation-smoothing)
+	browser_motion_query+="&localPresentationSmoothing=1"
 fi
 stack_label="legacy"
 server_stack_args=""
@@ -90,6 +121,8 @@ fi
 native_stack_args+=(--remote-interp-mode "$presentation_mode" \
 	--remote-interp "$presentation_min" --remote-interp-max "$presentation_max")
 browser_stack_query+="&remoteInterpMode=$presentation_mode&remoteInterpMs=$presentation_min&remoteInterpMaxMs=$presentation_max&networkProfile=$profile"
+browser_stack_query+="$browser_arena_query"
+browser_stack_query+="$browser_motion_query"
 if [[ -n "${CAR_FIGHT_JOIN_STALL_MS:-}" ]]; then
 	browser_stack_query+="&joinStallMs=$CAR_FIGHT_JOIN_STALL_MS&joinStallAfterMs=${CAR_FIGHT_JOIN_STALL_AFTER_MS:-0}"
 fi
@@ -116,6 +149,43 @@ failsafe_pid=""
 server_started=0
 cleanup_started=0
 evidence_captured=0
+run_lock_dir="${TMPDIR:-/tmp}/car-fight-webrtc-turn-${local_signal_port}-${web_port}.lock"
+run_lock_owner="$run_lock_dir/owner"
+run_lock_acquired=0
+
+release_run_lock() {
+	if (( run_lock_acquired == 0 )); then
+		return
+	fi
+	unlink "$run_lock_owner" >/dev/null 2>&1 || true
+	rmdir "$run_lock_dir" >/dev/null 2>&1 || true
+	run_lock_acquired=0
+}
+
+acquire_run_lock() {
+	if mkdir "$run_lock_dir" 2>/dev/null; then
+		run_lock_acquired=1
+		print -r -- "pid=$$ run_id=$run_id project=$project_root" > "$run_lock_owner"
+		return
+	fi
+	local owner="$(command cat "$run_lock_owner" 2>/dev/null || true)"
+	local owner_pid="${${owner#pid=}%% *}"
+	if [[ "$owner_pid" == <-> ]] && kill -0 "$owner_pid" >/dev/null 2>&1; then
+		echo "another WebRTC TURN harness owns ports $local_signal_port/$web_port; refusing concurrent launch:" >&2
+		print -r -- "$owner" >&2
+		exit 1
+	fi
+	# A hard-killed shell cannot run its EXIT trap. Recover only this exact,
+	# ownerless lock; the later port and remote checks still reject live children.
+	unlink "$run_lock_owner" >/dev/null 2>&1 || true
+	rmdir "$run_lock_dir" >/dev/null 2>&1 || true
+	if ! mkdir "$run_lock_dir" 2>/dev/null; then
+		echo "WebRTC TURN harness lock changed during stale-lock recovery; refusing launch" >&2
+		exit 1
+	fi
+	run_lock_acquired=1
+	print -r -- "pid=$$ run_id=$run_id project=$project_root" > "$run_lock_owner"
+}
 
 port_owner() {
 	local port="$1"
@@ -132,6 +202,11 @@ preflight_local_port() {
 		exit 1
 	fi
 }
+
+# The lock must precede port checks: two launches can both pass read-only
+# preflight before either has opened a port or created TURN.
+trap release_run_lock EXIT
+acquire_run_lock
 
 # These checks must happen before a build, rsync, or remote/container mutation.
 preflight_local_port "signaling tunnel" "$local_signal_port"
@@ -183,6 +258,7 @@ cleanup() {
 	if (( turn_started == 1 )); then
 		ssh "$turn_ssh" "test -z '$failsafe_pid' || kill '$failsafe_pid' >/dev/null 2>&1 || true; docker rm -f '$turn_container' >/dev/null 2>&1 || true; docker network rm '$turn_network' >/dev/null 2>&1 || true" || true
 	fi
+	release_run_lock
 }
 
 handle_signal() {
@@ -204,7 +280,7 @@ if (( soak_seconds > 0 )); then
 	echo "soak: ${soak_seconds}s with one browser leave/rejoin; server_ticks=$server_ticks native_ticks=$native_ticks"
 fi
 if [[ "$interactive_browser" == "1" ]]; then
-	echo "interactive browser: server-driven Jeep enabled; driver=$driver_mode; player_capsule=$player_capsule_enabled; close Chrome to stop"
+	echo "interactive browser: server-driven Jeep enabled; driver=$driver_mode; player_capsule=$player_capsule_enabled; failsafe=${failsafe_seconds}s; close Chrome to stop"
 fi
 
 if [[ "${CAR_FIGHT_HARNESS_LIFECYCLE_TEST:-0}" == "1" ]]; then
@@ -282,7 +358,7 @@ server_ticks_arg="--ticks $server_ticks"
 if [[ "$interactive_browser" == "1" ]]; then
 	server_ticks_arg=""
 fi
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' --no-drone $server_driver_arg $player_capsule_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' --no-drone $server_driver_arg $player_capsule_arg $server_arena_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
@@ -321,7 +397,36 @@ for _attempt in {1..100}; do
 done
 curl -fs -o /dev/null "http://127.0.0.1:$web_port/"
 
-if [[ "$interactive_browser" != "1" ]]; then
+if [[ "$interactive_native" == "1" ]]; then
+	mkdir -p "$run_dir/native-client"
+	CAR_FIGHT_TELEMETRY_FILE="$run_dir/native-client/telemetry.jsonl" \
+	CAR_FIGHT_NO_DRONE=1 CAR_FIGHT_NETWORK_HUD=1 \
+		"${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}" \
+		--windowed --position 80,80 --path "$project_root" -- \
+		--client --transport enet --host "$server_ip" --port "$remote_enet_port" \
+		--name macos-enet --session-label networking2-mixed --run-id "$run_id" \
+		--network-hud --network-profile "$profile" --net-telemetry --hide-hotkey-hints \
+		"${native_stack_args[@]}" "${native_arena_args[@]}" "${native_motion_args[@]}" \
+		> "$run_dir/native.log" 2>&1 &
+	native_pid=$!
+	native_ready=0
+	for _attempt in {1..450}; do
+		if ! kill -0 "$native_pid" >/dev/null 2>&1; then
+			break
+		fi
+		if rg -q "RUN_ID id=$run_id role=client transport=enet" "$run_dir/native.log" \
+				&& rg -q 'CLIENT_READY id=' "$run_dir/native.log"; then
+			native_ready=1
+			break
+		fi
+		sleep 0.1
+	done
+	if (( native_ready == 0 )); then
+		echo "interactive native ENet client did not become ready; see $run_dir/native.log" >&2
+		exit 1
+	fi
+	sleep 0.5
+elif [[ "$interactive_browser" != "1" ]]; then
 	native_script_args=(--script right)
 	if (( soak_seconds > 0 )); then
 		# The survivor proves mux topology only. Keep it in map 0 during a long
@@ -349,7 +454,9 @@ if [[ "$interactive_browser" == "1" ]]; then
 		--no-first-run --no-default-browser-check --disable-extensions \
 		--disable-background-timer-throttling --disable-backgrounding-occluded-windows \
 		--disable-renderer-backgrounding --enable-logging=stderr \
-		--window-size=1280,815 --window-position=80,80 --new-window "$browser_url" \
+		--window-size=1280,815 \
+		--window-position=$((interactive_native == 1 ? 1360 : 80)),80 \
+		--new-window "$browser_url" \
 		>"$run_dir/browser.stdout.log" 2>"$run_dir/browser.stderr.log" &
 	chrome_pid=$!
 	interactive_ready=0
@@ -375,7 +482,11 @@ if [[ "$interactive_browser" == "1" ]]; then
 		echo "interactive readiness failed run_id=$run_id browser_identity=${browser_identity:-0} webrtc=${webrtc_ready:-0} first_state_batch=${state_ready:-0} nonzero_rtt=${rtt_ready:-0}" >&2
 		exit 1
 	fi
-	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1"
+	peer_mode="browser-only"
+	if [[ "$interactive_native" == "1" ]]; then
+		peer_mode="macos-enet-direct+browser-webrtc-turn"
+	fi
+	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 arena_half=$((network_test_arena == 1 ? 240 : 84)) client_cruise=$network_test_arena motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
 	echo "mode will remain $presentation_mode until you explicitly change it; close Chrome to stop"
 	wait "$chrome_pid"
 	exit $?
