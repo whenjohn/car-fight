@@ -241,10 +241,14 @@
   RC-orb, shield, detonation, and 120 ms two-player collision gates pass. The
   complete `./scripts/test.sh` suite passes (`ALL_TESTS PASS`). A monitored human
   handling pass remains before merging the gameplay capsule branch.
-- Added a bottom-left `Debug` menu with a `Show collision capsule` check item.
-  It draws a translucent cyan mesh from the local player's active collider and
-  exact transform without changing physics; the focused presentation/collider
-  contract passes. The complete suite reached the course gate, where three
+- Replaced the temporary in-game Debug button with G2's standard `MenuBar`
+  pattern (`prefer_global_menu = true`), giving macOS a native `Debug` menu and
+  a fallback menu bar elsewhere. `Show collision capsule` draws a translucent
+  cyan mesh from the local player's active collider and exact transform without
+  changing physics. `Show gameplay text` hides only status/help and coverage
+  editor labels; FPS, network diagnostics/notices, and pre-connection status
+  remain visible. The focused presentation/collider contract and clean import
+  pass. The complete suite reached the course gate, where three
   reruns hit its documented timing-sensitive landing sample (zero rebound twice,
   then 0.174-degree jostle); all preceding tests passed and the debug path is
   absent from headless physics runs. Human visual check is in progress.

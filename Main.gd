@@ -238,8 +238,12 @@ var _network_hud_frame_ms_max := 0.0
 var _network_hud_rb_ms_max := 0.0
 var _network_hud_rb_ticks_max := 0
 var _network_tier_label: Label
-var _debug_menu: MenuButton
+var _system_menu_bar: MenuBar
+var _debug_popup: PopupMenu
 var _gameplay_collision_debug_enabled := false
+var _gameplay_text_visible := true
+const DEBUG_COLLISION_MENU_ID := 1
+const DEBUG_GAMEPLAY_TEXT_MENU_ID := 2
 var _motion_trace: Node
 var _network_last_target_msec := -1.0
 var _network_last_mode := ""
@@ -379,6 +383,7 @@ func _process(_delta: float) -> void:
 		_shadow_light.global_position = target + Vector3(-32.0, 40.0, 34.0)
 		_shadow_light.look_at(target, Vector3.UP)
 	if _status_label != null:
+		_status_label.visible = _gameplay_text_visible or local == null
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
 		var mode := "COVERAGE EDITOR" if _combat_editor_active else "DRIVE + AUTO FIRE"
@@ -1619,6 +1624,24 @@ func _build_presentation() -> void:
 	hud.name = "HUD"
 	hud.layer = 10
 	add_child(hud)
+	_system_menu_bar = MenuBar.new()
+	_system_menu_bar.name = "SystemMenuBar"
+	_system_menu_bar.prefer_global_menu = true
+	_system_menu_bar.start_index = -1
+	_system_menu_bar.position = Vector2(10.0, 8.0)
+	_system_menu_bar.size = Vector2(210.0, 32.0)
+	hud.add_child(_system_menu_bar)
+	_debug_popup = PopupMenu.new()
+	_debug_popup.name = "Debug"
+	_debug_popup.title = "Debug"
+	_system_menu_bar.add_child(_debug_popup)
+	_debug_popup.add_check_item("Show collision capsule", DEBUG_COLLISION_MENU_ID)
+	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_COLLISION_MENU_ID),
+		_gameplay_collision_debug_enabled)
+	_debug_popup.add_check_item("Show gameplay text", DEBUG_GAMEPLAY_TEXT_MENU_ID)
+	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_GAMEPLAY_TEXT_MENU_ID),
+		_gameplay_text_visible)
+	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
 	_status_label = Label.new()
 	_status_label.position = Vector2(18.0, 16.0)
 	_status_label.add_theme_font_size_override("font_size", 18)
@@ -1671,29 +1694,21 @@ func _build_presentation() -> void:
 	_network_tier_label.add_theme_constant_override("shadow_offset_y", 2)
 	_network_tier_label.visible = false
 	hud.add_child(_network_tier_label)
-	_debug_menu = MenuButton.new()
-	_debug_menu.name = "DebugMenu"
-	_debug_menu.text = "Debug"
-	_debug_menu.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_debug_menu.offset_left = 18.0
-	_debug_menu.offset_top = -52.0
-	_debug_menu.offset_right = 128.0
-	_debug_menu.offset_bottom = -18.0
-	_debug_menu.add_theme_font_size_override("font_size", 16)
-	var debug_popup := _debug_menu.get_popup()
-	debug_popup.add_check_item("Show collision capsule", 1)
-	debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
-	hud.add_child(_debug_menu)
 
 func _on_debug_menu_item_pressed(id: int) -> void:
-	if id != 1:
-		return
-	_gameplay_collision_debug_enabled = not _gameplay_collision_debug_enabled
-	var popup := _debug_menu.get_popup()
-	popup.set_item_checked(popup.get_item_index(id), _gameplay_collision_debug_enabled)
-	var local: Node3D = local_player()
-	if local != null and local.has_method("set_gameplay_collision_debug_visible"):
-		local.call("set_gameplay_collision_debug_visible", _gameplay_collision_debug_enabled)
+	if id == DEBUG_COLLISION_MENU_ID:
+		_gameplay_collision_debug_enabled = not _gameplay_collision_debug_enabled
+		_debug_popup.set_item_checked(_debug_popup.get_item_index(id),
+			_gameplay_collision_debug_enabled)
+		var local: Node3D = local_player()
+		if local != null and local.has_method("set_gameplay_collision_debug_visible"):
+			local.call("set_gameplay_collision_debug_visible", _gameplay_collision_debug_enabled)
+	elif id == DEBUG_GAMEPLAY_TEXT_MENU_ID:
+		_gameplay_text_visible = not _gameplay_text_visible
+		_debug_popup.set_item_checked(_debug_popup.get_item_index(id), _gameplay_text_visible)
+		if _status_label != null:
+			_status_label.visible = _gameplay_text_visible or local_player() == null
+		_update_editor_label()
 
 
 func _update_network_hud(delta: float) -> void:
@@ -1901,7 +1916,8 @@ func _update_editor_presentation(local: Node3D) -> void:
 func _update_editor_label() -> void:
 	if _editor_label == null:
 		return
-	_editor_label.visible = _combat_editor_active and _hotkey_hints_visible
+	_editor_label.visible = _combat_editor_active and _hotkey_hints_visible \
+		and _gameplay_text_visible
 	if not _combat_editor_active:
 		return
 	var config := _configuration_for(multiplayer.get_unique_id())
