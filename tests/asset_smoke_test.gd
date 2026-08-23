@@ -38,9 +38,18 @@ func _init() -> void:
 	SERVER_DRIVER_COLLISION.configure(driver_collision)
 	var driver_capsule := driver_collision.shape as CapsuleShape3D
 	var capsule_axis := driver_collision.basis * Vector3.UP
+	if not VEHICLE_CONFIG.DEFAULT_CAPSULE_ENABLED:
+		push_error("PLAYER_COLLIDER_TEST FAIL: ordinary gameplay must default to the accepted capsule")
+		quit(1)
+		return
 	if driver_capsule == null \
 			or absf(absf(capsule_axis.normalized().dot(Vector3.FORWARD)) - 1.0) > 0.001:
 		push_error("SERVER_DRIVER_COLLIDER_TEST FAIL: capsule must run Jeep front-to-rear")
+		quit(1)
+		return
+	if absf(float(driver_capsule.radius) - VEHICLE_CONFIG.CAPSULE_RADIUS) > 0.001 \
+			or absf(float(driver_capsule.height) - VEHICLE_CONFIG.CAPSULE_HEIGHT) > 0.001:
+		push_error("PLAYER_COLLIDER_TEST FAIL: gameplay capsule dimensions changed")
 		quit(1)
 		return
 	if absf(driver_collision.position.y - SERVER_DRIVER_COLLISION.RADIUS \
@@ -173,7 +182,7 @@ func _init() -> void:
 		push_error("HOMING_VISUAL_TEST FAIL: missile presentation did not load")
 		quit(1)
 		return
-	if SHIELD_VISUAL.SHELL_RADIUS <= VEHICLE_CONFIG.COLLISION_RADIUS:
+	if SHIELD_VISUAL.SHELL_RADIUS <= VEHICLE_CONFIG.CAPSULE_HEIGHT * 0.5:
 		push_error("SHIELD_SHELL_TEST FAIL: shield must fully contain the gameplay collider")
 		quit(1)
 		return

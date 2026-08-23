@@ -141,7 +141,7 @@ var _run_id := ""
 var _scripted := ""
 var _server_driver_enabled := false
 var _server_driver_lane := false
-var _player_capsule_enabled := false
+var _player_capsule_enabled := VEHICLE_CONFIG.DEFAULT_CAPSULE_ENABLED
 var _ramps_enabled := true
 var _client_cruise_allowed := false
 var _client_cruise_active := false
@@ -1026,6 +1026,7 @@ func _spawn_server_driver() -> void:
 			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), driver_spawn.y),
 		"yaw": PI,
 		"server_driver": true,
+		"player_capsule": _player_capsule_enabled,
 		"disable_collision_escape": _server_driver_lane,
 		"remote_generation": _allocate_remote_state_generation()})
 	_server_driver_waypoint = 1
@@ -1204,7 +1205,7 @@ func _spawn_player(data: Variant) -> Node:
 
 	var collision := CollisionShape3D.new()
 	collision.name = "Collision"
-	if bool(info.get("server_driver", false)) or bool(info.get("player_capsule", false)):
+	if bool(info.get("player_capsule", _player_capsule_enabled)):
 		SERVER_DRIVER_COLLISION.configure(collision)
 	else:
 		var sphere := SphereShape3D.new()
@@ -1242,7 +1243,7 @@ func _spawn_transform(slot: int) -> Transform3D:
 			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), MAP_LAYOUT.ARENA_GATE.z))
 	if _reverse_test and slot == 0:
 		return Transform3D(Basis(Vector3.UP, -PI * 0.5),
-			Vector3(ARENA_HALF - 2.2, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0))
+			Vector3(ARENA_HALF - 2.4, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0))
 	if _course_test and slot == 0:
 		return Transform3D(Basis.IDENTITY,
 			Vector3(0.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 27.0))
@@ -2407,8 +2408,7 @@ func _service_rc_orbs(delta: float, tick: int) -> void:
 			var candidate := candidate_node as RigidBody3D
 			if candidate == null or candidate == pilot:
 				continue
-			if IMPACT_CONTROLLER.segment_sphere_entry(position, finish, candidate.global_position,
-					PLAYER_RADIUS + RC_ORB_RADIUS) <= 1.0:
+			if _segment_player_entry(position, finish, candidate, RC_ORB_RADIUS) <= 1.0:
 				hit_player = candidate
 				break
 		orb["position"] = finish
@@ -2459,10 +2459,10 @@ func _apply_rc_blast(pilot_id: int, position: Vector3) -> void:
 			continue
 		var away := target.global_position - position
 		away.y = 0.0
-		var distance := away.length()
-		if distance > RC_ORB_BLAST_RADIUS + PLAYER_RADIUS:
+		var distance := _planar_player_distance(position, target)
+		if distance > RC_ORB_BLAST_RADIUS:
 			continue
-		var strength := clampf(1.0 - distance / (RC_ORB_BLAST_RADIUS + PLAYER_RADIUS), 0.25, 1.0)
+		var strength := clampf(1.0 - distance / RC_ORB_BLAST_RADIUS, 0.25, 1.0)
 		var response := IMPACT_CONTROLLER.response(away.normalized(), bool(target.get("shield_up")))
 		target.call("apply_external_impact", (response["linear_impulse"] as Vector3) * strength,
 			(response["torque_impulse"] as Vector3) * strength, response["recovery_time"],
@@ -2577,7 +2577,7 @@ func _apply_area_targets(owner_id: int, position: Vector3, radius: float, tick: 
 		var player := player_node as RigidBody3D
 		if player == null or int(player.name) == owner_id:
 			continue
-		if _planar_distance(position, player.global_position) > radius + PLAYER_RADIUS:
+		if _planar_player_distance(position, player) > radius:
 			continue
 		var direction := player.global_position - position
 		direction.y = 0.0
@@ -2592,6 +2592,30 @@ func _apply_area_targets(owner_id: int, position: Vector3, radius: float, tick: 
 
 func _planar_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
+
+func _segment_player_entry(from: Vector3, to: Vector3, player: RigidBody3D,
+		sweep_radius: float = 0.0) -> float:
+	var collision := player.get_node_or_null("Collision") as CollisionShape3D
+	if collision != null and collision.shape is CapsuleShape3D:
+		var capsule := collision.shape as CapsuleShape3D
+		return IMPACT_CONTROLLER.segment_capsule_entry(from, to, collision.global_position,
+			collision.global_basis * Vector3.UP, capsule.radius + sweep_radius,
+			capsule.height + sweep_radius * 2.0)
+	var radius := PLAYER_RADIUS + sweep_radius
+	if collision != null and collision.shape is SphereShape3D:
+		radius = (collision.shape as SphereShape3D).radius + sweep_radius
+	return IMPACT_CONTROLLER.segment_sphere_entry(from, to, player.global_position, radius)
+
+func _planar_player_distance(point: Vector3, player: RigidBody3D) -> float:
+	var collision := player.get_node_or_null("Collision") as CollisionShape3D
+	if collision != null and collision.shape is CapsuleShape3D:
+		var capsule := collision.shape as CapsuleShape3D
+		return IMPACT_CONTROLLER.planar_capsule_distance(point, collision.global_position,
+			collision.global_basis * Vector3.UP, capsule.radius, capsule.height)
+	var radius := PLAYER_RADIUS
+	if collision != null and collision.shape is SphereShape3D:
+		radius = (collision.shape as SphereShape3D).radius
+	return maxf(_planar_distance(point, player.global_position) - radius, 0.0)
 
 func _service_homing_missiles(_tick: int) -> void:
 	for player_node in _players.get_children():
@@ -2831,8 +2855,7 @@ func _step_server_bolts(delta: float) -> void:
 				var input := player.get_node_or_null("Input")
 				if input != null and bool(input.get("editing")):
 					continue
-				var fraction := IMPACT_CONTROLLER.segment_sphere_entry(start, finish,
-					player.global_position, PLAYER_RADIUS)
+				var fraction := _segment_player_entry(start, finish, player)
 				if fraction < player_fraction:
 					player_fraction = fraction
 					player_hit = player

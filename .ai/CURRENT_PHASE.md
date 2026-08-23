@@ -227,14 +227,25 @@
 
 ## Next
 
-- Start gameplay capsule integration in a separate branch/worktree based on the
-  completed Networking-2 commit. Preserve radius 1.05 and total length 3.40;
-  validate course support/landings, reverse clearance, projectile/shield
-  response, ramps, gates, ball/tractor, player contact, and map transitions
-  before changing the ordinary sphere default.
-- Keep fixed 75 ms as the ordinary default and the accepted capsule dimensions
-  confined to the Networking-1 harness. Capsule gameplay integration remains a
-  separate handling/physics workstream.
+- Gameplay capsule integration is implemented on `feature/gameplay-capsule` in
+  `/Users/johnnguyen/Projects/car-fight-gameplay-capsule`. Ordinary gameplay now
+  defaults to the accepted horizontal capsule (radius 1.05, total length 3.40),
+  while `--player-capsule` and `--no-player-capsule` remain synchronized A/B
+  controls for player and server-driver bodies.
+- Gameplay projectile sweeps, RC-orb rams/blasts, area effects, and local impact
+  prediction now query the active capsule or sphere instead of assuming the old
+  1.55-radius sphere. Reverse-test wall clearance was corrected without changing
+  the capsule, and projectile torque was raised to preserve readable shielded
+  jostle under capsule inertia while retaining exact 15% shield passthrough.
+- Focused capsule geometry plus course, reverse, gate, ball, tractor, combat,
+  RC-orb, shield, detonation, and 120 ms two-player collision gates pass. The
+  complete `./scripts/test.sh` suite passes (`ALL_TESTS PASS`). A monitored human
+  handling pass remains before merging the gameplay capsule branch.
+
+- Run a monitored human handling pass in the gameplay-capsule worktree, covering
+  ordinary steering, wall backing, ramps/landings, player contact, ball/tractor,
+  projectile/shield response, and map transitions. If accepted, merge the branch
+  without changing the capsule dimensions or fixed 75 ms presentation default.
 - Combined impairment and adaptive cadence may resume only as a separate next
   experiment; neither was changed to accept the 120 ms forced-TURN result.
 
