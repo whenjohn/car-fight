@@ -239,8 +239,8 @@
   jostle under capsule inertia while retaining exact 15% shield passthrough.
 - Focused capsule geometry plus course, reverse, gate, ball, tractor, combat,
   RC-orb, shield, detonation, and 120 ms two-player collision gates pass. The
-  complete `./scripts/test.sh` suite passes (`ALL_TESTS PASS`). A monitored human
-  handling pass remains before merging the gameplay capsule branch.
+  complete `./scripts/test.sh` suite passes (`ALL_TESTS PASS`). Local human
+  handling and the final shaped-network collision pass are accepted.
 - Replaced the temporary in-game Debug button with G2's standard `MenuBar`
   pattern (`prefer_global_menu = true`), giving macOS a native `Debug` menu and
   a fallback menu bar elsewhere. `Show collision capsule` draws a translucent
@@ -251,11 +251,18 @@
   pass. The complete suite reached the course gate, where three
   reruns hit its documented timing-sensitive landing sample (zero rebound twice,
   then 0.174-degree jostle); all preceding tests passed and the debug path is
-  absent from headless physics runs. Human visual check is in progress.
+  absent from headless physics runs. The native menu and both toggles were
+  visually accepted.
+- Final human network run
+  `networking1-enet-latency120-proxy-20260823-173834` used this exact branch at
+  120 ms one-way against the remote server-driven capsule. Rear, head-on, side,
+  and sustained contacts felt good to the user. Evidence recorded six contact
+  samples, a 0.472-unit worst correction, zero recovery, no runtime/rollback
+  error, and a clean monitored exit. The earlier forced-TURN launch did not
+  reach gameplay because TURN allocation timed out; it is infrastructure
+  evidence, not a collision failure.
 
-- Run a monitored human handling pass in the gameplay-capsule worktree, covering
-  ordinary steering, wall backing, ramps/landings, player contact, ball/tractor,
-  projectile/shield response, and map transitions. If accepted, merge the branch
+- Gameplay capsule integration is accepted. Merge `feature/gameplay-capsule`
   without changing the capsule dimensions or fixed 75 ms presentation default.
 - Combined impairment and adaptive cadence may resume only as a separate next
   experiment; neither was changed to accept the 120 ms forced-TURN result.
