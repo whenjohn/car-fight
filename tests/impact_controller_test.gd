@@ -35,6 +35,22 @@ func _init() -> void:
 			Vector3(-2.0, 0.0, 2.0), Vector3.ZERO, 1.0) <= 1.0:
 		_fail("segment sweep must reject a miss")
 		return
+	var capsule_entry := IMPACT.segment_capsule_entry(Vector3(0.0, 0.0, -3.0),
+		Vector3(0.0, 0.0, 3.0), Vector3.ZERO, Vector3.FORWARD, 1.05, 3.40)
+	if absf(capsule_entry - (1.30 / 6.0)) > 0.0001:
+		_fail("segment sweep must enter the capsule at its rounded front tip")
+		return
+	if IMPACT.segment_capsule_entry(Vector3(1.06, 0.0, -3.0),
+			Vector3(1.06, 0.0, 3.0), Vector3.ZERO, Vector3.FORWARD, 1.05, 3.40) <= 1.0:
+		_fail("segment sweep must reject a path beyond the capsule side")
+		return
+	var side_distance := IMPACT.planar_capsule_distance(Vector3(2.05, 0.0, 0.0),
+		Vector3.ZERO, Vector3.FORWARD, 1.05, 3.40)
+	var tip_distance := IMPACT.planar_capsule_distance(Vector3(0.0, 0.0, 2.20),
+		Vector3.ZERO, Vector3.FORWARD, 1.05, 3.40)
+	if absf(side_distance - 1.0) > 0.0001 or absf(tip_distance - 0.5) > 0.0001:
+		_fail("area distance must follow the capsule side and rounded ends")
+		return
 
 	var body := PLAYER_BODY.new()
 	body.call("_service_shield_toggle", true)

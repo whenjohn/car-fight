@@ -141,7 +141,7 @@ var _run_id := ""
 var _scripted := ""
 var _server_driver_enabled := false
 var _server_driver_lane := false
-var _player_capsule_enabled := false
+var _player_capsule_enabled := VEHICLE_CONFIG.DEFAULT_CAPSULE_ENABLED
 var _ramps_enabled := true
 var _client_cruise_allowed := false
 var _client_cruise_active := false
@@ -238,6 +238,12 @@ var _network_hud_frame_ms_max := 0.0
 var _network_hud_rb_ms_max := 0.0
 var _network_hud_rb_ticks_max := 0
 var _network_tier_label: Label
+var _system_menu_bar: MenuBar
+var _debug_popup: PopupMenu
+var _gameplay_collision_debug_enabled := false
+var _gameplay_text_visible := true
+const DEBUG_COLLISION_MENU_ID := 1
+const DEBUG_GAMEPLAY_TEXT_MENU_ID := 2
 var _motion_trace: Node
 var _network_last_target_msec := -1.0
 var _network_last_mode := ""
@@ -348,6 +354,9 @@ func _process(_delta: float) -> void:
 	if _camera == null:
 		return
 	var local: Node3D = local_player()
+	if _gameplay_collision_debug_enabled and local != null \
+			and local.has_method("set_gameplay_collision_debug_visible"):
+		local.call("set_gameplay_collision_debug_visible", true)
 	var local_camera_position := Vector3.ZERO if local == null else local.global_position
 	if local != null and _local_presentation_smoothing_enabled \
 			and local.has_method("presented_position"):
@@ -374,6 +383,7 @@ func _process(_delta: float) -> void:
 		_shadow_light.global_position = target + Vector3(-32.0, 40.0, 34.0)
 		_shadow_light.look_at(target, Vector3.UP)
 	if _status_label != null:
+		_status_label.visible = _gameplay_text_visible or local == null
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
 		var mode := "COVERAGE EDITOR" if _combat_editor_active else "DRIVE + AUTO FIRE"
@@ -1026,6 +1036,7 @@ func _spawn_server_driver() -> void:
 			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), driver_spawn.y),
 		"yaw": PI,
 		"server_driver": true,
+		"player_capsule": _player_capsule_enabled,
 		"disable_collision_escape": _server_driver_lane,
 		"remote_generation": _allocate_remote_state_generation()})
 	_server_driver_waypoint = 1
@@ -1204,7 +1215,7 @@ func _spawn_player(data: Variant) -> Node:
 
 	var collision := CollisionShape3D.new()
 	collision.name = "Collision"
-	if bool(info.get("server_driver", false)) or bool(info.get("player_capsule", false)):
+	if bool(info.get("player_capsule", _player_capsule_enabled)):
 		SERVER_DRIVER_COLLISION.configure(collision)
 	else:
 		var sphere := SphereShape3D.new()
@@ -1242,7 +1253,7 @@ func _spawn_transform(slot: int) -> Transform3D:
 			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), MAP_LAYOUT.ARENA_GATE.z))
 	if _reverse_test and slot == 0:
 		return Transform3D(Basis(Vector3.UP, -PI * 0.5),
-			Vector3(ARENA_HALF - 2.2, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0))
+			Vector3(ARENA_HALF - 2.4, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 0.0))
 	if _course_test and slot == 0:
 		return Transform3D(Basis.IDENTITY,
 			Vector3(0.0, ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), 27.0))
@@ -1613,6 +1624,24 @@ func _build_presentation() -> void:
 	hud.name = "HUD"
 	hud.layer = 10
 	add_child(hud)
+	_system_menu_bar = MenuBar.new()
+	_system_menu_bar.name = "SystemMenuBar"
+	_system_menu_bar.prefer_global_menu = true
+	_system_menu_bar.start_index = -1
+	_system_menu_bar.position = Vector2(10.0, 8.0)
+	_system_menu_bar.size = Vector2(210.0, 32.0)
+	hud.add_child(_system_menu_bar)
+	_debug_popup = PopupMenu.new()
+	_debug_popup.name = "Debug"
+	_debug_popup.title = "Debug"
+	_system_menu_bar.add_child(_debug_popup)
+	_debug_popup.add_check_item("Show collision capsule", DEBUG_COLLISION_MENU_ID)
+	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_COLLISION_MENU_ID),
+		_gameplay_collision_debug_enabled)
+	_debug_popup.add_check_item("Show gameplay text", DEBUG_GAMEPLAY_TEXT_MENU_ID)
+	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_GAMEPLAY_TEXT_MENU_ID),
+		_gameplay_text_visible)
+	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
 	_status_label = Label.new()
 	_status_label.position = Vector2(18.0, 16.0)
 	_status_label.add_theme_font_size_override("font_size", 18)
@@ -1665,6 +1694,21 @@ func _build_presentation() -> void:
 	_network_tier_label.add_theme_constant_override("shadow_offset_y", 2)
 	_network_tier_label.visible = false
 	hud.add_child(_network_tier_label)
+
+func _on_debug_menu_item_pressed(id: int) -> void:
+	if id == DEBUG_COLLISION_MENU_ID:
+		_gameplay_collision_debug_enabled = not _gameplay_collision_debug_enabled
+		_debug_popup.set_item_checked(_debug_popup.get_item_index(id),
+			_gameplay_collision_debug_enabled)
+		var local: Node3D = local_player()
+		if local != null and local.has_method("set_gameplay_collision_debug_visible"):
+			local.call("set_gameplay_collision_debug_visible", _gameplay_collision_debug_enabled)
+	elif id == DEBUG_GAMEPLAY_TEXT_MENU_ID:
+		_gameplay_text_visible = not _gameplay_text_visible
+		_debug_popup.set_item_checked(_debug_popup.get_item_index(id), _gameplay_text_visible)
+		if _status_label != null:
+			_status_label.visible = _gameplay_text_visible or local_player() == null
+		_update_editor_label()
 
 
 func _update_network_hud(delta: float) -> void:
@@ -1872,7 +1916,8 @@ func _update_editor_presentation(local: Node3D) -> void:
 func _update_editor_label() -> void:
 	if _editor_label == null:
 		return
-	_editor_label.visible = _combat_editor_active and _hotkey_hints_visible
+	_editor_label.visible = _combat_editor_active and _hotkey_hints_visible \
+		and _gameplay_text_visible
 	if not _combat_editor_active:
 		return
 	var config := _configuration_for(multiplayer.get_unique_id())
@@ -2407,8 +2452,7 @@ func _service_rc_orbs(delta: float, tick: int) -> void:
 			var candidate := candidate_node as RigidBody3D
 			if candidate == null or candidate == pilot:
 				continue
-			if IMPACT_CONTROLLER.segment_sphere_entry(position, finish, candidate.global_position,
-					PLAYER_RADIUS + RC_ORB_RADIUS) <= 1.0:
+			if _segment_player_entry(position, finish, candidate, RC_ORB_RADIUS) <= 1.0:
 				hit_player = candidate
 				break
 		orb["position"] = finish
@@ -2459,10 +2503,10 @@ func _apply_rc_blast(pilot_id: int, position: Vector3) -> void:
 			continue
 		var away := target.global_position - position
 		away.y = 0.0
-		var distance := away.length()
-		if distance > RC_ORB_BLAST_RADIUS + PLAYER_RADIUS:
+		var distance := _planar_player_distance(position, target)
+		if distance > RC_ORB_BLAST_RADIUS:
 			continue
-		var strength := clampf(1.0 - distance / (RC_ORB_BLAST_RADIUS + PLAYER_RADIUS), 0.25, 1.0)
+		var strength := clampf(1.0 - distance / RC_ORB_BLAST_RADIUS, 0.25, 1.0)
 		var response := IMPACT_CONTROLLER.response(away.normalized(), bool(target.get("shield_up")))
 		target.call("apply_external_impact", (response["linear_impulse"] as Vector3) * strength,
 			(response["torque_impulse"] as Vector3) * strength, response["recovery_time"],
@@ -2577,7 +2621,7 @@ func _apply_area_targets(owner_id: int, position: Vector3, radius: float, tick: 
 		var player := player_node as RigidBody3D
 		if player == null or int(player.name) == owner_id:
 			continue
-		if _planar_distance(position, player.global_position) > radius + PLAYER_RADIUS:
+		if _planar_player_distance(position, player) > radius:
 			continue
 		var direction := player.global_position - position
 		direction.y = 0.0
@@ -2592,6 +2636,30 @@ func _apply_area_targets(owner_id: int, position: Vector3, radius: float, tick: 
 
 func _planar_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
+
+func _segment_player_entry(from: Vector3, to: Vector3, player: RigidBody3D,
+		sweep_radius: float = 0.0) -> float:
+	var collision := player.get_node_or_null("Collision") as CollisionShape3D
+	if collision != null and collision.shape is CapsuleShape3D:
+		var capsule := collision.shape as CapsuleShape3D
+		return IMPACT_CONTROLLER.segment_capsule_entry(from, to, collision.global_position,
+			collision.global_basis * Vector3.UP, capsule.radius + sweep_radius,
+			capsule.height + sweep_radius * 2.0)
+	var radius := PLAYER_RADIUS + sweep_radius
+	if collision != null and collision.shape is SphereShape3D:
+		radius = (collision.shape as SphereShape3D).radius + sweep_radius
+	return IMPACT_CONTROLLER.segment_sphere_entry(from, to, player.global_position, radius)
+
+func _planar_player_distance(point: Vector3, player: RigidBody3D) -> float:
+	var collision := player.get_node_or_null("Collision") as CollisionShape3D
+	if collision != null and collision.shape is CapsuleShape3D:
+		var capsule := collision.shape as CapsuleShape3D
+		return IMPACT_CONTROLLER.planar_capsule_distance(point, collision.global_position,
+			collision.global_basis * Vector3.UP, capsule.radius, capsule.height)
+	var radius := PLAYER_RADIUS
+	if collision != null and collision.shape is SphereShape3D:
+		radius = (collision.shape as SphereShape3D).radius
+	return maxf(_planar_distance(point, player.global_position) - radius, 0.0)
 
 func _service_homing_missiles(_tick: int) -> void:
 	for player_node in _players.get_children():
@@ -2831,8 +2899,7 @@ func _step_server_bolts(delta: float) -> void:
 				var input := player.get_node_or_null("Input")
 				if input != null and bool(input.get("editing")):
 					continue
-				var fraction := IMPACT_CONTROLLER.segment_sphere_entry(start, finish,
-					player.global_position, PLAYER_RADIUS)
+				var fraction := _segment_player_entry(start, finish, player)
 				if fraction < player_fraction:
 					player_fraction = fraction
 					player_hit = player

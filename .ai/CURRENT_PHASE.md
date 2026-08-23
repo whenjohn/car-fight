@@ -227,14 +227,43 @@
 
 ## Next
 
-- Start gameplay capsule integration in a separate branch/worktree based on the
-  completed Networking-2 commit. Preserve radius 1.05 and total length 3.40;
-  validate course support/landings, reverse clearance, projectile/shield
-  response, ramps, gates, ball/tractor, player contact, and map transitions
-  before changing the ordinary sphere default.
-- Keep fixed 75 ms as the ordinary default and the accepted capsule dimensions
-  confined to the Networking-1 harness. Capsule gameplay integration remains a
-  separate handling/physics workstream.
+- Gameplay capsule integration is implemented on `feature/gameplay-capsule` in
+  `/Users/johnnguyen/Projects/car-fight-gameplay-capsule`. Ordinary gameplay now
+  defaults to the accepted horizontal capsule (radius 1.05, total length 3.40),
+  while `--player-capsule` and `--no-player-capsule` remain synchronized A/B
+  controls for player and server-driver bodies.
+- Gameplay projectile sweeps, RC-orb rams/blasts, area effects, and local impact
+  prediction now query the active capsule or sphere instead of assuming the old
+  1.55-radius sphere. Reverse-test wall clearance was corrected without changing
+  the capsule, and projectile torque was raised to preserve readable shielded
+  jostle under capsule inertia while retaining exact 15% shield passthrough.
+- Focused capsule geometry plus course, reverse, gate, ball, tractor, combat,
+  RC-orb, shield, detonation, and 120 ms two-player collision gates pass. The
+  complete `./scripts/test.sh` suite passes (`ALL_TESTS PASS`). Local human
+  handling and the final shaped-network collision pass are accepted.
+- Replaced the temporary in-game Debug button with G2's standard `MenuBar`
+  pattern (`prefer_global_menu = true`), giving macOS a native `Debug` menu and
+  a fallback menu bar elsewhere. `Show collision capsule` draws a translucent
+  cyan mesh from the local player's active collider and exact transform without
+  changing physics. `Show gameplay text` hides only status/help and coverage
+  editor labels; FPS, network diagnostics/notices, and pre-connection status
+  remain visible. The focused presentation/collider contract and clean import
+  pass. The complete suite reached the course gate, where three
+  reruns hit its documented timing-sensitive landing sample (zero rebound twice,
+  then 0.174-degree jostle); all preceding tests passed and the debug path is
+  absent from headless physics runs. The native menu and both toggles were
+  visually accepted.
+- Final human network run
+  `networking1-enet-latency120-proxy-20260823-173834` used this exact branch at
+  120 ms one-way against the remote server-driven capsule. Rear, head-on, side,
+  and sustained contacts felt good to the user. Evidence recorded six contact
+  samples, a 0.472-unit worst correction, zero recovery, no runtime/rollback
+  error, and a clean monitored exit. The earlier forced-TURN launch did not
+  reach gameplay because TURN allocation timed out; it is infrastructure
+  evidence, not a collision failure.
+
+- Gameplay capsule integration is accepted. Merge `feature/gameplay-capsule`
+  without changing the capsule dimensions or fixed 75 ms presentation default.
 - Combined impairment and adaptive cadence may resume only as a separate next
   experiment; neither was changed to accept the 120 ms forced-TURN result.
 
