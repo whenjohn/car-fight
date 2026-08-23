@@ -227,9 +227,8 @@
 
 ## Next
 
-- Gameplay capsule integration is implemented on `feature/gameplay-capsule` in
-  `/Users/johnnguyen/Projects/car-fight-gameplay-capsule`. Ordinary gameplay now
-  defaults to the accepted horizontal capsule (radius 1.05, total length 3.40),
+- Gameplay capsule integration is merged to `master` at `372bffe`. Ordinary
+  gameplay now defaults to the accepted horizontal capsule (radius 1.05, total length 3.40),
   while `--player-capsule` and `--no-player-capsule` remain synchronized A/B
   controls for player and server-driver bodies.
 - Gameplay projectile sweeps, RC-orb rams/blasts, area effects, and local impact
@@ -262,8 +261,8 @@
   reach gameplay because TURN allocation timed out; it is infrastructure
   evidence, not a collision failure.
 
-- Gameplay capsule integration is accepted. Merge `feature/gameplay-capsule`
-  without changing the capsule dimensions or fixed 75 ms presentation default.
+- Gameplay capsule integration is accepted and merged. Preserve the capsule
+  dimensions and fixed 75 ms presentation default.
 - Combined impairment and adaptive cadence may resume only as a separate next
   experiment; neither was changed to accept the 120 ms forced-TURN result.
 
