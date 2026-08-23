@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource path="res://tools/vehicle_animation_lab.gd" type="Script" id="1_lab"]
+
+[node name="VehicleAnimationLab" type="Node3D"]
+script = ExtResource("1_lab")
+

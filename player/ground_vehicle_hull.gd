@@ -24,6 +24,10 @@ const BODY_BRAKE_PITCH_SPEED_REF := 12.0
 const BODY_BRAKE_PITCH_ONSET := 0.72
 const BODY_BRAKE_PITCH_FULL := 0.98
 const BODY_BRAKE_PITCH_RESPONSE := 4.5
+const BODY_ACCEL_PITCH_MAX := deg_to_rad(7.0)
+const BODY_DYNAMIC_ROLL_MAX := deg_to_rad(15.0)
+const BODY_SUSPENSION_TRAVEL := 0.055
+const LONGITUDINAL_LOAD_REFERENCE := 14.0
 const LOCKED_WHEEL_ROLL_SCALE := 0.0
 const BOOST_ECHO_COUNT := 4
 const BOOST_ECHO_INTERVAL := 0.075
@@ -38,8 +42,14 @@ var _body: Node3D
 var _chassis_lean: Node3D
 var _front_steer_nodes: Array[Node3D] = []
 var _wheel_spin_nodes: Array[Node3D] = []
+var _wheel_records: Array[Dictionary] = []
 var _wheel_spin_angle := 0.0
 var _wheel_radius := WHEEL_RADIUS
+var _vehicle_scale := JEEP_SCALE
+var _last_signed_speed := 0.0
+var _has_speed_sample := false
+var _smoothed_longitudinal_load := 0.0
+var _animation_preview_state := {}
 var _vehicle_index := 0
 var _visual_parts: Array[Node3D] = []
 var _boost_echoes: Array[Node3D] = []
@@ -67,25 +77,85 @@ func _process(delta: float) -> void:
 		return
 	var rigid := _body as RigidBody3D
 	if rigid != null and _chassis_lean != null:
-		var planar_speed := Vector2(rigid.linear_velocity.x, rigid.linear_velocity.z).length()
-		var brake_skid := float(_body.get("brake_skid_amount"))
-		var steer_fraction := clampf(rigid.angular_velocity.y / STEER_RATE_REFERENCE, -1.0, 1.0)
-		var target_roll := chassis_roll_target(rigid.angular_velocity.y, planar_speed)
+		var inputs := _animation_inputs(rigid, delta)
+		var planar_speed := float(inputs["speed"])
+		var signed_speed := float(inputs["signed_speed"])
+		var brake_skid := float(inputs["brake"])
+		var steer_fraction := float(inputs["steer"])
+		var drift_signed := float(inputs["drift"])
+		var target_roll := chassis_dynamic_roll_target(float(inputs["yaw_rate"]),
+			planar_speed, drift_signed)
 		_chassis_lean.rotation.z = lerp_angle(_chassis_lean.rotation.z, target_roll, 1.0 - exp(-9.0 * delta))
-		var target_pitch := chassis_brake_pitch_target(brake_skid, planar_speed)
+		var target_pitch := chassis_dynamic_pitch_target(brake_skid, planar_speed,
+			float(inputs["longitudinal_load"]), bool(inputs["boosting"]))
 		_chassis_lean.rotation.x = lerp_angle(_chassis_lean.rotation.x, target_pitch,
 			1.0 - exp(-BODY_BRAKE_PITCH_RESPONSE * delta))
-		var target_steer := steer_fraction * MAX_VISUAL_STEER
-		for steer_node in _front_steer_nodes:
-			steer_node.rotation.y = lerp_angle(steer_node.rotation.y, target_steer, 1.0 - exp(-12.0 * delta))
-		var forward := -rigid.global_basis.z
-		var signed_speed := rigid.linear_velocity.dot(forward)
+		_chassis_lean.position.y = lerpf(_chassis_lean.position.y,
+			chassis_heave_target(float(inputs["longitudinal_load"]), absf(drift_signed)),
+			1.0 - exp(-8.0 * delta))
+		_update_wheel_pose(steer_fraction, drift_signed,
+			float(inputs["longitudinal_load"]), target_roll, delta)
 		_wheel_spin_angle = fposmod(_wheel_spin_angle + signed_speed / _wheel_radius * delta \
 			* wheel_roll_scale(brake_skid), TAU)
 		for spin_node in _wheel_spin_nodes:
 			spin_node.rotation.x = _wheel_spin_angle
-		_update_boost_echoes(delta, bool(_body.get("boost_active")), planar_speed)
+		_update_boost_echoes(delta, bool(inputs["boosting"]), planar_speed)
 		_update_cloak(delta, rigid)
+
+## The standalone animation lab uses this seam to exercise presentation without
+## creating a fake gameplay/network state. An empty dictionary returns control
+## to the live rigid body.
+func set_animation_preview_state(state: Dictionary) -> void:
+	_animation_preview_state = state.duplicate()
+
+func _animation_inputs(rigid: RigidBody3D, delta: float) -> Dictionary:
+	if not _animation_preview_state.is_empty():
+		var speed := maxf(float(_animation_preview_state.get("speed", 0.0)), 0.0)
+		return {
+			"speed": speed,
+			"signed_speed": float(_animation_preview_state.get("signed_speed", speed)),
+			"brake": clampf(float(_animation_preview_state.get("brake", 0.0)), 0.0, 1.0),
+			"steer": clampf(float(_animation_preview_state.get("steer", 0.0)), -1.0, 1.0),
+			"yaw_rate": float(_animation_preview_state.get("yaw_rate",
+				float(_animation_preview_state.get("steer", 0.0)) * STEER_RATE_REFERENCE)),
+			"drift": clampf(float(_animation_preview_state.get("drift", 0.0)), -1.0, 1.0),
+			"longitudinal_load": clampf(float(_animation_preview_state.get(
+				"longitudinal_load", 0.0)), -1.0, 1.0),
+			"boosting": bool(_animation_preview_state.get("boosting", false)),
+		}
+	var velocity := rigid.linear_velocity
+	var planar_speed := Vector2(velocity.x, velocity.z).length()
+	var forward := -rigid.global_basis.z
+	var right := rigid.global_basis.x
+	var signed_speed := velocity.dot(forward)
+	var acceleration_load := 0.0
+	if _has_speed_sample and delta > 0.0001:
+		acceleration_load = clampf((signed_speed - _last_signed_speed) / delta \
+			/ LONGITUDINAL_LOAD_REFERENCE, -1.0, 1.0)
+	_last_signed_speed = signed_speed
+	_has_speed_sample = true
+	var brake := clampf(float(_body.get("brake_skid_amount")), 0.0, 1.0)
+	var boosting := bool(_body.get("boost_active"))
+	if brake > 0.0:
+		acceleration_load = minf(acceleration_load, -brake)
+	elif boosting:
+		acceleration_load = maxf(acceleration_load, 0.72)
+	_smoothed_longitudinal_load = lerpf(_smoothed_longitudinal_load,
+		acceleration_load, 1.0 - exp(-7.0 * delta))
+	var slip := 0.0 if planar_speed < 0.5 else clampf(velocity.dot(right) \
+		/ maxf(planar_speed * 0.55, 0.001), -1.0, 1.0)
+	var assist := clampf(float(_body.get("drift_assist_amount")), 0.0, 1.0)
+	var assist_side := signf(float(_body.get("drift_assist_side")))
+	return {
+		"speed": planar_speed,
+		"signed_speed": signed_speed,
+		"brake": brake,
+		"steer": clampf(rigid.angular_velocity.y / STEER_RATE_REFERENCE, -1.0, 1.0),
+		"yaw_rate": rigid.angular_velocity.y,
+		"drift": clampf(slip + assist * assist_side * 0.65, -1.0, 1.0),
+		"longitudinal_load": _smoothed_longitudinal_load,
+		"boosting": boosting,
+	}
 
 static func chassis_roll_target(yaw_rate: float, road_speed: float) -> float:
 	var steer_load := clampf(yaw_rate / STEER_RATE_REFERENCE, -1.0, 1.0)
@@ -99,6 +169,53 @@ static func chassis_brake_pitch_target(brake_skid: float, road_speed: float) -> 
 		clampf(brake_skid, 0.0, 1.0))
 	var speed_load := clampf(road_speed / BODY_BRAKE_PITCH_SPEED_REF, 0.0, 1.0)
 	return -skid_load * speed_load * BODY_BRAKE_PITCH_MAX
+
+static func chassis_dynamic_pitch_target(brake_skid: float, road_speed: float,
+		longitudinal_load: float, boosting: bool = false) -> float:
+	var brake_pitch := chassis_brake_pitch_target(brake_skid, road_speed)
+	if brake_pitch < 0.0:
+		return brake_pitch
+	var acceleration := maxf(longitudinal_load, 0.72 if boosting else 0.0)
+	var speed_read := clampf(road_speed / 5.0, 0.0, 1.0)
+	return clampf(acceleration, 0.0, 1.0) * speed_read * BODY_ACCEL_PITCH_MAX
+
+static func chassis_dynamic_roll_target(yaw_rate: float, road_speed: float,
+		drift_signed: float = 0.0) -> float:
+	var ordinary := chassis_roll_target(yaw_rate, road_speed)
+	var drift_load := -clampf(drift_signed, -1.0, 1.0) * BODY_DYNAMIC_ROLL_MAX
+	return clampf(ordinary + drift_load * 0.45, -BODY_DYNAMIC_ROLL_MAX,
+		BODY_DYNAMIC_ROLL_MAX)
+
+static func chassis_heave_target(longitudinal_load: float, drift_amount: float) -> float:
+	return -BODY_SUSPENSION_TRAVEL * (absf(longitudinal_load) * 0.34 \
+		+ clampf(drift_amount, 0.0, 1.0) * 0.18)
+
+static func wheel_steer_target(steer_fraction: float, side_sign: float,
+		drift_signed: float = 0.0) -> float:
+	var requested := clampf(steer_fraction - drift_signed * 0.32, -1.0, 1.0)
+	var inner_wheel := clampf(requested * side_sign, -1.0, 1.0)
+	var ackermann := lerpf(0.88, 1.12, (inner_wheel + 1.0) * 0.5)
+	return requested * MAX_VISUAL_STEER * ackermann
+
+static func wheel_suspension_target(front: bool, side_sign: float,
+		longitudinal_load: float, roll_target: float) -> float:
+	var axle_load := -longitudinal_load if front else longitudinal_load
+	var roll_fraction := clampf(roll_target / BODY_DYNAMIC_ROLL_MAX, -1.0, 1.0)
+	return BODY_SUSPENSION_TRAVEL * (axle_load * 0.48 + side_sign * roll_fraction * 0.34)
+
+func _update_wheel_pose(steer_fraction: float, drift_signed: float,
+		longitudinal_load: float, roll_target: float, delta: float) -> void:
+	var blend := 1.0 - exp(-12.0 * delta)
+	for record in _wheel_records:
+		var anchor := record["node"] as Node3D
+		if bool(record["front"]):
+			var steer_target := wheel_steer_target(steer_fraction,
+				float(record["side"]), drift_signed)
+			anchor.rotation.y = lerp_angle(anchor.rotation.y, steer_target, blend)
+		var suspension := wheel_suspension_target(bool(record["front"]),
+			float(record["side"]), longitudinal_load, roll_target) / _vehicle_scale
+		anchor.position.y = lerpf(anchor.position.y,
+			float(record["base_y"]) + suspension, blend)
 
 static func wheel_roll_scale(brake_skid: float) -> float:
 	return lerpf(1.0, LOCKED_WHEEL_ROLL_SCALE, clampf(brake_skid, 0.0, 1.0))
@@ -152,10 +269,12 @@ func _clear_vehicle_visuals() -> void:
 	_visual_parts.clear()
 	_front_steer_nodes.clear()
 	_wheel_spin_nodes.clear()
+	_wheel_records.clear()
 	_cloak_surfaces.clear()
 
 func _build_selected_vehicle() -> void:
 	var vehicle: Dictionary = VEHICLES[_vehicle_index]
+	_vehicle_scale = float(vehicle["scale"])
 	var source := (vehicle["scene"] as PackedScene).instantiate() as Node3D
 	var source_mesh_instance := source.find_child("*", true, false) as MeshInstance3D
 	var split: Dictionary = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
@@ -182,6 +301,12 @@ func _build_selected_vehicle() -> void:
 		wheel_model.add_child(steer_anchor)
 		if bool(wheel["front"]):
 			_front_steer_nodes.append(steer_anchor)
+		_wheel_records.append({
+			"node": steer_anchor,
+			"base_y": steer_anchor.position.y,
+			"front": bool(wheel["front"]),
+			"side": signf(float((wheel["center"] as Vector3).x)),
+		})
 		var spin_anchor := Node3D.new()
 		spin_anchor.name = "%sSpin" % str(wheel_name).to_pascal_case()
 		steer_anchor.add_child(spin_anchor)

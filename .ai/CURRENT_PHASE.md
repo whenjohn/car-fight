@@ -2,6 +2,11 @@
 
 ## Current decision
 
+- Vehicle animation iteration is isolated on `feature/vehicle-animation-lab` in
+  `/Users/johnnguyen/Projects/car-fight-vehicle-animation-lab`. Use the standalone
+  `./scripts/play_vehicle_animation_lab.sh` before tuning the live presentation;
+  the lab drives the real ground-vehicle hull without networking or gameplay
+  physics.
 - Active Car Fight development returned to this Godot repository on 2026-08-19. The prior Unity handoff is superseded; see `MIGRATION_TO_UNITY.md` and `~/Projects/car-fight-unity/docs/RETURN_TO_GODOT.md`.
 - Preserve the Unity repository at revision `e312c42` as an investigation. Carry its useful native multiplayer authority, prediction, lifecycle, impairment, telemetry, and launcher requirements back into Godot tests; do not port its scene, FishNet adapters, or browser transport fork.
 - On affected macOS Intel systems, rendered play must use an ordinary decorated window inside the usable desktop area. Do not use native fullscreen, borderless fullscreen, or exact edge-to-edge/maximized presentation. This bounded compatibility limitation is accepted.
@@ -11,6 +16,16 @@
 
 ## Completed
 
+- Added the standalone close-up vehicle animation lab with mouse orbit/zoom,
+  five selectable vehicle bodies, eight driving-condition presets, and live
+  road-speed, steering, brake/wheel-lock, longitudinal-load, signed-drift, and
+  boost controls. Extended the shared presentation-only hull with independent
+  Ackermann front steering, bounded drift countersteer, per-wheel suspension
+  travel, acceleration/boost squat, small load compression, and drift-aware
+  roll while preserving the existing peak-brake dive and wheel lock. The lab
+  boots both headlessly and in a safe 1100x720 decorated window. Focused tests,
+  existing asset/boost tests, and the permission-correct complete
+  `./scripts/test.sh` suite pass (`ALL_TESTS PASS`).
 - Ported G2's unmerged adaptive-presentation experiment as a pure, deterministic client-local estimator driven by batch arrival variation/gaps plus actual buffer headroom and interpolation/extrapolation/hold outcomes. Added bounded JSONL capture/replay, focused pressure/saturation/epoch tests, fixed-mode fast paths, and the same controls for ENet and WebRTC. Ordinary play remains fixed at 75 ms.
 - Added the opt-in four-line Networking 1 HUD and matching once-per-second `NETWORKHUD` JSON: FPS/frame average+maximum, transport/profile and RTT/jitter, presentation target/headroom/I-E-H shares, and rollback cost/depth plus correction/recovery. Added `scripts/play_networking1_enet.sh`, which uses a temporary server-driven Jeep on the isolated macai2 checkout/UDP 12680 and one local rendered observer through UDP 12681 without touching production.
 - Networking 1 visual runs now hide the general hotkey hint line and show a prominent three-second `FIXED/ADAPTIVE BUFFER` banner at startup and every presentation-tier change, after the first adaptive playtest made its 75→100→125→150 ms transitions too easy to miss.
@@ -227,6 +242,11 @@
 
 ## Next
 
+- Run `./scripts/play_vehicle_animation_lab.sh` and judge each preset from front,
+  rear, and three-quarter views. Tune only the presentation constants after a
+  human pass, then compare the accepted lab poses during normal cursor driving;
+  do not change FOLLOW handling or the rollback collider as part of animation
+  polish.
 - Start gameplay capsule integration in a separate branch/worktree based on the
   completed Networking-2 commit. Preserve radius 1.05 and total length 3.40;
   validate course support/landings, reverse clearance, projectile/shield
