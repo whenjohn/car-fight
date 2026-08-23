@@ -14,6 +14,7 @@ const SHIELD_DRONE := preload("res://combat/shield_drone.gd")
 const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
 const HOMING_VISUAL := preload("res://combat/homing_missile_visual.gd")
 const RC_ORB_VISUAL := preload("res://combat/rc_orb_visual.gd")
+const PLAYER_BODY := preload("res://player/player_body.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -70,6 +71,28 @@ func _init() -> void:
 		quit(1)
 		return
 	driver_collision.free()
+	var debug_body := PLAYER_BODY.new()
+	var debug_collision := CollisionShape3D.new()
+	debug_collision.name = "Collision"
+	SERVER_DRIVER_COLLISION.configure(debug_collision)
+	debug_body.add_child(debug_collision)
+	debug_body.call("set_gameplay_collision_debug_visible", true)
+	var gameplay_debug := debug_body.get_node_or_null("GameplayCollisionDebug") \
+		as MeshInstance3D
+	if gameplay_debug == null or not gameplay_debug.visible \
+			or not gameplay_debug.mesh is CapsuleMesh \
+			or not gameplay_debug.transform.is_equal_approx(debug_collision.transform):
+		debug_body.free()
+		push_error("PLAYER_COLLIDER_DEBUG_TEST FAIL: menu debug must match the gameplay capsule")
+		quit(1)
+		return
+	debug_body.call("set_gameplay_collision_debug_visible", false)
+	if gameplay_debug.visible:
+		debug_body.free()
+		push_error("PLAYER_COLLIDER_DEBUG_TEST FAIL: menu debug must hide without changing collision")
+		quit(1)
+		return
+	debug_body.free()
 	var live_proxy := REMOTE_COLLISION_PHASE.disabled_states(true, false, true)
 	var replay_proxy := REMOTE_COLLISION_PHASE.disabled_states(true, true, true)
 	if not bool(live_proxy["source"]) or bool(live_proxy["proxy"]) \

@@ -98,6 +98,7 @@ var _remote_peer_marker_allowed_visible := true
 var _remote_collision_proxy: AnimatableBody3D
 var _remote_collision_proxy_shape: CollisionShape3D
 var _remote_collision_debug: MeshInstance3D
+var _gameplay_collision_debug: MeshInstance3D
 var _remote_source_collision: CollisionShape3D
 var _remote_collision_proxy_enabled := false
 var _remote_collision_proxy_in_rollback := false
@@ -115,6 +116,42 @@ const REMOTE_INTERP_MS := 75.0
 const REMOTE_EXTRAPOLATE_MS := 50.0
 const REMOTE_INTERP_CLOCK_RESET_TICKS := 30.0
 const REMOTE_PREDICTION_TELEPORT_DISTANCE := 30.0
+
+func set_gameplay_collision_debug_visible(enabled: bool) -> void:
+	if enabled and not is_instance_valid(_gameplay_collision_debug):
+		var source := get_node_or_null("Collision") as CollisionShape3D
+		if source == null or source.shape == null:
+			return
+		_gameplay_collision_debug = MeshInstance3D.new()
+		_gameplay_collision_debug.name = "GameplayCollisionDebug"
+		_gameplay_collision_debug.transform = source.transform
+		if source.shape is CapsuleShape3D:
+			_gameplay_collision_debug.mesh = SERVER_DRIVER_COLLISION.debug_mesh(
+				source.shape as CapsuleShape3D)
+		elif source.shape is SphereShape3D:
+			var sphere := SphereMesh.new()
+			var shape := source.shape as SphereShape3D
+			sphere.radius = shape.radius
+			sphere.height = shape.radius * 2.0
+			sphere.radial_segments = 24
+			sphere.rings = 12
+			_gameplay_collision_debug.mesh = sphere
+		else:
+			_gameplay_collision_debug = null
+			return
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color(0.10, 0.95, 1.0, 0.24)
+		material.emission_enabled = true
+		material.emission = Color(0.05, 0.65, 0.78)
+		material.emission_energy_multiplier = 0.55
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_gameplay_collision_debug.material_override = material
+		_gameplay_collision_debug.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_gameplay_collision_debug)
+	if is_instance_valid(_gameplay_collision_debug):
+		_gameplay_collision_debug.visible = enabled
 
 func _ready() -> void:
 	add_to_group("pilotable")

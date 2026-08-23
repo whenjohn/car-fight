@@ -238,6 +238,8 @@ var _network_hud_frame_ms_max := 0.0
 var _network_hud_rb_ms_max := 0.0
 var _network_hud_rb_ticks_max := 0
 var _network_tier_label: Label
+var _debug_menu: MenuButton
+var _gameplay_collision_debug_enabled := false
 var _motion_trace: Node
 var _network_last_target_msec := -1.0
 var _network_last_mode := ""
@@ -348,6 +350,9 @@ func _process(_delta: float) -> void:
 	if _camera == null:
 		return
 	var local: Node3D = local_player()
+	if _gameplay_collision_debug_enabled and local != null \
+			and local.has_method("set_gameplay_collision_debug_visible"):
+		local.call("set_gameplay_collision_debug_visible", true)
 	var local_camera_position := Vector3.ZERO if local == null else local.global_position
 	if local != null and _local_presentation_smoothing_enabled \
 			and local.has_method("presented_position"):
@@ -1666,6 +1671,29 @@ func _build_presentation() -> void:
 	_network_tier_label.add_theme_constant_override("shadow_offset_y", 2)
 	_network_tier_label.visible = false
 	hud.add_child(_network_tier_label)
+	_debug_menu = MenuButton.new()
+	_debug_menu.name = "DebugMenu"
+	_debug_menu.text = "Debug"
+	_debug_menu.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_debug_menu.offset_left = 18.0
+	_debug_menu.offset_top = -52.0
+	_debug_menu.offset_right = 128.0
+	_debug_menu.offset_bottom = -18.0
+	_debug_menu.add_theme_font_size_override("font_size", 16)
+	var debug_popup := _debug_menu.get_popup()
+	debug_popup.add_check_item("Show collision capsule", 1)
+	debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
+	hud.add_child(_debug_menu)
+
+func _on_debug_menu_item_pressed(id: int) -> void:
+	if id != 1:
+		return
+	_gameplay_collision_debug_enabled = not _gameplay_collision_debug_enabled
+	var popup := _debug_menu.get_popup()
+	popup.set_item_checked(popup.get_item_index(id), _gameplay_collision_debug_enabled)
+	var local: Node3D = local_player()
+	if local != null and local.has_method("set_gameplay_collision_debug_visible"):
+		local.call("set_gameplay_collision_debug_visible", _gameplay_collision_debug_enabled)
 
 
 func _update_network_hud(delta: float) -> void:
