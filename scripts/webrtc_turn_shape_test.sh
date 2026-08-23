@@ -80,8 +80,13 @@ native_arena_args=()
 browser_arena_query=""
 if [[ "$network_test_arena" == "1" ]]; then
 	server_arena_arg="--network-test-arena"
-	native_arena_args=(--network-test-arena --client-cruise)
-	browser_arena_query="&networkTestArena=1&clientCruise=1"
+	native_arena_args=(--network-test-arena)
+	browser_arena_query="&networkTestArena=1"
+fi
+client_cruise_enabled="${CAR_FIGHT_CLIENT_CRUISE:-0}"
+if [[ "$client_cruise_enabled" == "1" ]]; then
+	native_arena_args+=(--client-cruise)
+	browser_arena_query+="&clientCruise=1"
 fi
 motion_trace_enabled="${CAR_FIGHT_MOTION_TRACE:-0}"
 native_motion_args=()
@@ -486,7 +491,7 @@ if [[ "$interactive_browser" == "1" ]]; then
 	if [[ "$interactive_native" == "1" ]]; then
 		peer_mode="macos-enet-direct+browser-webrtc-turn"
 	fi
-	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 arena_half=$((network_test_arena == 1 ? 240 : 84)) client_cruise=$network_test_arena motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
+	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 arena_half=$((network_test_arena == 1 ? 240 : 84)) client_cruise=$client_cruise_enabled motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
 	echo "mode will remain $presentation_mode until you explicitly change it; close Chrome to stop"
 	wait "$chrome_pid"
 	exit $?

@@ -69,6 +69,9 @@ total length 3.40 in the harness only.
 
 Focused checks, clean Web export, the hardened lifecycle gate, and the complete
 permission-correct `./scripts/test.sh` suite pass (`ALL_TESTS PASS`).
+After acceptance, the normal mixed launcher leaves diagnostic `P` cruise and
+`L` motion tracing disabled. They remain available only through explicit
+`CAR_FIGHT_CLIENT_CRUISE=1` and `CAR_FIGHT_MOTION_TRACE=1` opt-ins.
 
 ## Later steps
 

@@ -221,6 +221,10 @@
 - Focused smoothing, cruise, motion-trace, remote-presentation, harness-lifecycle,
   clean import, and Web export checks pass. The complete permission-correct
   `./scripts/test.sh` suite passes (`ALL_TESTS PASS`).
+- After acceptance, the normal Networking-2 launcher stopped opting into the
+  diagnostic `P` cruise and `L` motion-trace hotkeys. Their code remains behind
+  explicit environment flags for future diagnosis; ordinary play and the
+  accepted launcher leave both disabled.
 
 ## Next
 
