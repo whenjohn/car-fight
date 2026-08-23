@@ -7,11 +7,42 @@ const MODE_INTERPOLATE := "interp"
 const MODE_EXTRAPOLATE := "extra"
 const MODE_HOLD := "hold"
 
-## Advance a presentation timeline without ever reversing it. The synchronized network clock is allowed to
-## recalibrate; applying that correction directly to render_tick produces a one-frame forward/back hull pop.
-## Instead, advance at nominal real time and absorb clock error through a damped clock follower. The hard
-## ticks/second limit is only a safety rail for large synchronization jumps; applying it to every tiny error
-## creates a visible 57/60/63 Hz playback cadence at a 60 Hz tickrate.
+## Predict a pose from one correlated authoritative sample. Velocities use the
+## same units as RigidBody3D (world units/sec and radians/sec). The caller owns
+## the age bound so a stalled connection cannot extrapolate forever.
+static func predict_pose(position: Vector3, rotation: Quaternion,
+		linear_velocity: Vector3, angular_velocity: Vector3,
+		lead_seconds: float) -> Transform3D:
+	var lead := maxf(0.0, lead_seconds)
+	var predicted_rotation := rotation.normalized()
+	var angular_speed := angular_velocity.length()
+	if angular_speed > 0.0001 and lead > 0.0:
+		var delta_rotation := Quaternion(angular_velocity / angular_speed,
+			angular_speed * lead)
+		predicted_rotation = (delta_rotation * predicted_rotation).normalized()
+	return Transform3D(Basis(predicted_rotation), position + linear_velocity * lead)
+
+## Frame-rate-independent visual reconciliation. This smooths packet-to-packet
+## target changes without imposing a hard distance leash or changing physics.
+static func smooth_pose(current: Transform3D, target: Transform3D,
+		delta_seconds: float, position_half_life := 0.045,
+		rotation_half_life := 0.060) -> Transform3D:
+	if delta_seconds <= 0.0:
+		return current
+	var position_alpha := 1.0 - pow(0.5,
+		delta_seconds / maxf(position_half_life, 0.0001))
+	var rotation_alpha := 1.0 - pow(0.5,
+		delta_seconds / maxf(rotation_half_life, 0.0001))
+	var current_rotation := current.basis.get_rotation_quaternion().normalized()
+	var target_rotation := target.basis.get_rotation_quaternion().normalized()
+	return Transform3D(Basis(current_rotation.slerp(target_rotation,
+		rotation_alpha).normalized()), current.origin.lerp(target.origin, position_alpha))
+
+## Advance a presentation timeline without reversing it during ordinary clock discipline. The synchronized
+## network clock is allowed to recalibrate; applying every small correction directly to render_tick produces
+## a one-frame forward/back hull pop. Instead, advance at nominal real time and absorb ordinary clock error
+## through a damped follower. Epoch discontinuities are handled by the body that owns the history, because
+## rebasing also has to invalidate that body's warmup evidence.
 static func advance_cursor(current_tick: float, desired_tick: float, delta_seconds: float,
 		tickrate: float, correction_ticks_per_second := 3.0,
 		correction_time_seconds := 1.0) -> float:
@@ -26,9 +57,9 @@ static func advance_cursor(current_tick: float, desired_tick: float, delta_secon
 	var correction := clampf(damped_correction, -correction_limit, correction_limit)
 	return maxf(current_tick, candidate + correction)
 
-static func insert_bounded(history: Dictionary, tick: int, pos: Vector3, newest_tick: int,
+static func insert_bounded(history: Dictionary, tick: int, value: Variant, newest_tick: int,
 		retain_ticks := 64) -> void:
-	history[tick] = pos # Dictionary gives duplicate replacement and out-of-order insertion for free.
+	history[tick] = value # Dictionary gives duplicate replacement and out-of-order insertion for free.
 	var cutoff := newest_tick - retain_ticks
 	for old_tick in history.keys():
 		if int(old_tick) < cutoff:
@@ -80,6 +111,23 @@ static func sample(history: Dictionary, render_tick: float, max_extrapolation_ti
 	var mode := MODE_EXTRAPOLATE if requested_lead <= max_extrapolation_ticks else MODE_HOLD
 	return _result((history[newest_tick] as Vector3) + velocity * bounded_lead, mode,
 		previous_tick, newest_tick)
+
+## Sample orientation from the exact left/right ticks selected for position. Extrapolated position holds
+## the newest authoritative orientation instead of borrowing the body's live basis from another moment.
+static func sample_rotation(history: Dictionary, position_sample: Dictionary,
+		render_tick: float) -> Quaternion:
+	if history.is_empty() or position_sample.is_empty():
+		return Quaternion.IDENTITY
+	var left_tick := int(position_sample["left_tick"])
+	var right_tick := int(position_sample["right_tick"])
+	var fallback_tick := int(history.keys().max())
+	var left: Quaternion = history.get(left_tick, history[fallback_tick])
+	if right_tick <= left_tick or not history.has(right_tick):
+		return left.normalized()
+	var right: Quaternion = history[right_tick]
+	var alpha := clampf((render_tick - float(left_tick)) /
+		float(right_tick - left_tick), 0.0, 1.0)
+	return left.normalized().slerp(right.normalized(), alpha).normalized()
 
 static func _result(pos: Vector3, mode: String, left_tick: int, right_tick: int) -> Dictionary:
 	return {"position": pos, "mode": mode, "left_tick": left_tick, "right_tick": right_tick}

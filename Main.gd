@@ -10,6 +10,8 @@ const ARENA_HALF := ARENA_CONFIG.HALF_EXTENT
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const FOLLOW := preload("res://player/follow_controller.gd")
 const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
+const SERVER_DRIVER_COLLISION := preload("res://player/server_driver_collision.gd")
+const CORRECTION_CLASSIFIER := preload("res://player/correction_classifier.gd")
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
 const HULL_SCRIPT := preload("res://player/ground_vehicle_hull.gd")
@@ -50,6 +52,7 @@ const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
 const DOTS_SCRIPT := preload("res://world/dots.gd")
 const TROOP_DELIVERY_SCRIPT := preload("res://world/troop_delivery.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
+const MOTION_TRACE_SCRIPT := preload("res://diagnostics/motion_trace.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 const WEBRTC_TRANSPORT_SCRIPT := preload("res://net/webrtc_transport.gd")
@@ -79,10 +82,23 @@ const SERVER_DRIVER_ROUTE := [
 	Vector2(52.0, 55.0), Vector2(-52.0, 55.0),
 	Vector2(-58.0, 40.0), Vector2(-58.0, -45.0),
 ]
+const SERVER_DRIVER_LANE_SPAWN := Vector2(-38.0, -32.0)
+const SERVER_DRIVER_LANE_ROUTE := [Vector2(-38.0, -32.0), Vector2(-38.0, 32.0)]
+## Networking-1 interactive observer: clear of the slow lane, arena ball,
+## walls, and the arena jump gate so a no-contact/stall observation starts
+## with no uncontrolled collision variable.
+const SERVER_DRIVER_LANE_OBSERVER_SPAWN := Vector2(32.0, 0.0)
+const SERVER_DRIVER_OBSERVER_SPACING := 12.0
+## Networking-2 moving-observer lanes start near the enlarged west wall and
+## stay clear of the slow fixture, arena gate, obstacles, and outer targets.
+const NETWORK_TEST_OBSERVER_SPAWN := Vector2(-220.0, 40.0)
+const SERVER_DRIVER_LANE_CURSOR_DISTANCE := 7.35
 const SERVER_DRIVER_WAYPOINT_RADIUS := 5.0
 const SERVER_DRIVER_PROGRESS_DISTANCE := 2.0
 const SERVER_DRIVER_STUCK_TICKS := 180
 const SERVER_DRIVER_ARENA_LIMIT := ARENA_HALF + 4.0
+const NETWORK_TEST_ARENA_HALF := 240.0
+const CORRECTION_REPORT_FLOOR := 0.10
 
 var _role := "client"
 var _transport := "enet"
@@ -105,14 +121,34 @@ var _remote_state_transport := "legacy"
 var _remote_state_rate := 60
 var _remote_state_relevance := "all"
 var _remote_state_include_self := true
+var _remote_interp_mode := "fixed"
+var _remote_interp_ms := 75.0
+var _remote_interp_max_ms := 150.0
+var _presentation_trace_path := ""
+var _presentation_trace_seconds := 0.0
+var _presentation_control_path := ""
+var _presentation_control_elapsed := 0.0
+var _presentation_control_last_command := ""
+var _network_hud_enabled := false
+var _network_profile := "unshaped"
+var _hotkey_hints_visible := true
 var _resim_budget_ms := 0.0
 var _mux_collision_test := false
 var _mux_close_transport_test := ""
 var _player_name := "driver"
 var _session_label := ""
+var _run_id := ""
 var _scripted := ""
 var _server_driver_enabled := false
+var _server_driver_lane := false
+var _player_capsule_enabled := false
 var _ramps_enabled := true
+var _client_cruise_allowed := false
+var _client_cruise_active := false
+var _network_test_arena_enabled := false
+var _arena_half := ARENA_HALF
+var _motion_trace_enabled := false
+var _local_presentation_smoothing_enabled := false
 var _server_driver_waypoint := 1
 var _server_driver_progress_tick := -1
 var _server_driver_progress_position := Vector2.ZERO
@@ -136,6 +172,10 @@ var _contact_seen := false
 var _minimum_pair_distance := INF
 var _prediction_history := {}
 var _worst_correction_error := 0.0
+var _last_authority_probe_tick := -1
+var _correction_counts := {"corr": 0, "stall": 0, "stale": 0,
+	"impact": 0, "unknown": 0}
+var _frame_ms_current := 0.0
 var _ball_seeded := false
 var _maximum_ball_speed := 0.0
 var _maximum_player_y := 0.0
@@ -190,6 +230,18 @@ var _shadow_light: SpotLight3D
 var _status_label: Label
 var _editor_label: Label
 var _fps_label: Label
+var _network_hud_label: Label
+var _network_hud_elapsed := 0.0
+var _network_hud_frames := 0
+var _network_hud_frame_ms_sum := 0.0
+var _network_hud_frame_ms_max := 0.0
+var _network_hud_rb_ms_max := 0.0
+var _network_hud_rb_ticks_max := 0
+var _network_tier_label: Label
+var _motion_trace: Node
+var _network_last_target_msec := -1.0
+var _network_last_mode := ""
+var _network_tier_notice_remaining := 0.0
 var _shader_prewarm: Node3D
 var _driving_course: Node3D
 var _jump_gates: Node3D
@@ -198,9 +250,14 @@ var _troop_delivery: Node3D
 var _webrtc_transport: Node
 var _mux_peer
 var _network_status := ""
+var _join_stall_ms := 0
+var _join_stall_after_ms := 0
+var _join_stall_started := false
 
 func _ready() -> void:
 	_parse_args()
+	if not _run_id.is_empty():
+		_log("RUN_ID id=%s role=%s transport=%s" % [_run_id, _role, _transport])
 	_configure_network_stack()
 	_set_client_window_title()
 	_start_crash_telemetry()
@@ -214,6 +271,7 @@ func _ready() -> void:
 	_connect_network_events()
 	_build_world()
 	NetworkTime.on_tick.connect(_on_tick)
+	NetworkRollback.after_loop.connect(_send_settled_authority_probes)
 	NetworkTime.after_sync.connect(_inject_join_stall_for_test)
 	if _role == "server":
 		_start_server()
@@ -239,12 +297,13 @@ func _exit_tree() -> void:
 ## synchronizes. Headless gates use the otherwise-unset environment variables
 ## to reproduce that pause without changing ordinary client behavior.
 func _inject_join_stall_for_test() -> void:
-	if _role != "client":
+	if _role != "client" or _join_stall_started:
 		return
-	var stall_ms := int(OS.get_environment("CAR_FIGHT_JOIN_STALL_MS"))
+	var stall_ms := _join_stall_ms
 	if stall_ms <= 0:
 		return
-	var after_ms := int(OS.get_environment("CAR_FIGHT_JOIN_STALL_AFTER_MS"))
+	_join_stall_started = true
+	var after_ms := _join_stall_after_ms
 	if after_ms > 0:
 		await get_tree().create_timer(float(after_ms) / 1000.0).timeout
 	_log("JOINSTALL begin ms=%d tick=%d" % [stall_ms, NetworkTime.tick])
@@ -280,13 +339,21 @@ func _on_window_safety_enforced(event: String, details: Dictionary) -> void:
 		_crash_telemetry.call("record_event", event, details)
 
 func _process(_delta: float) -> void:
+	_frame_ms_current = _delta * 1000.0
+	_poll_presentation_control(_delta)
+	if _network_hud_enabled:
+		_update_network_hud(_delta)
 	if multiplayer.is_server():
 		_sample_impact_motion()
 	if _camera == null:
 		return
 	var local: Node3D = local_player()
+	var local_camera_position := Vector3.ZERO if local == null else local.global_position
+	if local != null and _local_presentation_smoothing_enabled \
+			and local.has_method("presented_position"):
+		local_camera_position = local.call("presented_position")
 	var target: Vector3 = Vector3.ZERO if local == null \
-		else ELEVATED_COURSE.camera_target(local.global_position)
+		else ELEVATED_COURSE.camera_target(local_camera_position)
 	# The RC orb is the player's active viewpoint. Its visual is fed by the
 	# authoritative lightweight projectile snapshots, so the camera follows the
 	# same state every observer sees and cleanly returns to the Jeep on the
@@ -328,10 +395,15 @@ func _process(_delta: float) -> void:
 		if _troop_delivery != null:
 			mode = "%s  ·  troops %d carried / %d delivered" % [mode,
 				int(_troop_delivery.call("carried_by", id)), int(_troop_delivery.call("delivered_by", id))]
-		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s\n%s" % [
-			mode, id, speed, location,
-			"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" if _combat_editor_active \
-			else "Mouse: drive  |  Stay in GREEN area to load troops  |  Hold F in RED area to deploy  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"]
+		_status_label.text = "CAR FIGHT  |  %s  |  peer %d  |  %.1f u/s\n%s" % [
+			mode, id, speed, location]
+		if _hotkey_hints_visible:
+			_status_label.text += "\n%s" % (
+				"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" \
+				if _combat_editor_active else "Mouse: drive  |  Stay in GREEN area to load troops  |  Hold F in RED area to deploy  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones")
+		if _client_cruise_allowed:
+			_status_label.text += "\nP: %s client cruise (full speed, no burst)" % [
+				"STOP" if _client_cruise_active else "START"]
 		if local != null and bool(local.get("area_weapon_armed")):
 			_status_label.text += "\nAREA WEAPON ARMED  ·  Hold and drag Left Mouse, then release to bomb  ·  3: stow"
 		if local == null and not _network_status.is_empty():
@@ -345,6 +417,9 @@ func _parse_args() -> void:
 	_ramps_enabled = OS.get_environment("CAR_FIGHT_NO_RAMPS") != "1"
 	_drone_enabled = OS.get_environment("CAR_FIGHT_NO_DRONE") != "1"
 	_ball_enabled = OS.get_environment("CAR_FIGHT_NO_BALL") != "1"
+	_join_stall_ms = maxi(0, int(OS.get_environment("CAR_FIGHT_JOIN_STALL_MS")))
+	_join_stall_after_ms = maxi(0,
+		int(OS.get_environment("CAR_FIGHT_JOIN_STALL_AFTER_MS")))
 	# Keep the accepted offline export unchanged. The separate Web Network
 	# preset opts into the browser WebRTC client with a custom feature.
 	if OS.has_feature("web"):
@@ -357,6 +432,16 @@ func _parse_args() -> void:
 			var browser_name := _web_query("name")
 			if not browser_name.is_empty():
 				_player_name = browser_name
+			var browser_script := _web_query("script")
+			if not browser_script.is_empty():
+				_scripted = browser_script
+			_run_id = _web_query("runId")
+			var join_stall_query := _web_query("joinStallMs")
+			if join_stall_query.is_valid_int():
+				_join_stall_ms = maxi(0, int(join_stall_query))
+			var join_stall_after_query := _web_query("joinStallAfterMs")
+			if join_stall_after_query.is_valid_int():
+				_join_stall_after_ms = maxi(0, int(join_stall_after_query))
 			_webrtc_channel_telemetry = _web_query("webrtcTelemetry") == "1"
 			var bundles_query := _web_query("stateBundles")
 			if not bundles_query.is_empty():
@@ -377,6 +462,18 @@ func _parse_args() -> void:
 			if not adaptive_rate_query.is_empty():
 				_adaptive_state_rate = adaptive_rate_query == "1"
 			_network_app_telemetry = _web_query("netTelemetry") == "1"
+			_network_hud_enabled = _web_query("networkHud") == "1"
+			_hotkey_hints_visible = _web_query("hotkeyHints") != "0"
+			_client_cruise_allowed = _web_query("clientCruise") == "1"
+			_motion_trace_enabled = _web_query("motionTrace") == "1"
+			_local_presentation_smoothing_enabled = \
+				_web_query("localPresentationSmoothing") == "1"
+			_network_test_arena_enabled = _web_query("networkTestArena") == "1"
+			if _network_test_arena_enabled:
+				_arena_half = NETWORK_TEST_ARENA_HALF
+			var profile_query := _web_query("networkProfile")
+			if not profile_query.is_empty():
+				_network_profile = profile_query
 			var remote_transport_query := _web_query("remoteStateTransport")
 			if remote_transport_query in ["legacy", "batch"]:
 				_remote_state_transport = remote_transport_query
@@ -389,6 +486,19 @@ func _parse_args() -> void:
 			var remote_self_query := _web_query("remoteStateIncludeSelf")
 			if not remote_self_query.is_empty():
 				_remote_state_include_self = remote_self_query == "1"
+			var interp_mode_query := _web_query("remoteInterpMode")
+			if interp_mode_query in ["fixed", "adaptive", "predictive", "proxy"]:
+				_remote_interp_mode = interp_mode_query
+			var interp_query := _web_query("remoteInterpMs")
+			if interp_query.is_valid_float():
+				_remote_interp_ms = maxf(0.0, float(interp_query))
+			var interp_max_query := _web_query("remoteInterpMaxMs")
+			if interp_max_query.is_valid_float():
+				_remote_interp_max_ms = maxf(_remote_interp_ms, float(interp_max_query))
+			var trace_seconds_query := _web_query("presentationTraceSeconds")
+			if trace_seconds_query.is_valid_float():
+				_presentation_trace_path = "console"
+				_presentation_trace_seconds = maxf(0.0, float(trace_seconds_query))
 			var resim_budget_query := _web_query("resimBudgetMs")
 			if resim_budget_query.is_valid_float():
 				_resim_budget_ms = maxf(0.0, float(resim_budget_query))
@@ -442,6 +552,15 @@ func _parse_args() -> void:
 			_webrtc_channel_telemetry = true
 		elif arg == "--net-telemetry":
 			_network_app_telemetry = true
+		elif arg == "--network-hud":
+			_network_hud_enabled = true
+		elif arg == "--hide-hotkey-hints":
+			_hotkey_hints_visible = false
+		elif arg.begins_with("--network-profile="):
+			_network_profile = arg.get_slice("=", 1)
+		elif arg == "--network-profile" and index + 1 < args.size():
+			index += 1
+			_network_profile = args[index]
 		elif arg.begins_with("--remote-state-transport="):
 			_remote_state_transport = arg.get_slice("=", 1).to_lower()
 		elif arg == "--remote-state-transport" and index + 1 < args.size():
@@ -462,6 +581,37 @@ func _parse_args() -> void:
 		elif arg == "--remote-state-include-self" and index + 1 < args.size():
 			index += 1
 			_remote_state_include_self = int(args[index]) != 0
+		elif arg.begins_with("--remote-interp-mode="):
+			_remote_interp_mode = arg.get_slice("=", 1).to_lower()
+		elif arg == "--remote-interp-mode" and index + 1 < args.size():
+			index += 1
+			_remote_interp_mode = args[index].to_lower()
+		elif arg.begins_with("--remote-interp="):
+			_remote_interp_ms = maxf(0.0, float(arg.get_slice("=", 1)))
+		elif arg == "--remote-interp" and index + 1 < args.size():
+			index += 1
+			_remote_interp_ms = maxf(0.0, float(args[index]))
+		elif arg.begins_with("--remote-interp-max="):
+			_remote_interp_max_ms = maxf(_remote_interp_ms,
+				float(arg.get_slice("=", 1)))
+		elif arg == "--remote-interp-max" and index + 1 < args.size():
+			index += 1
+			_remote_interp_max_ms = maxf(_remote_interp_ms, float(args[index]))
+		elif arg.begins_with("--presentation-trace="):
+			_presentation_trace_path = arg.get_slice("=", 1)
+		elif arg == "--presentation-trace" and index + 1 < args.size():
+			index += 1
+			_presentation_trace_path = args[index]
+		elif arg.begins_with("--presentation-trace-seconds="):
+			_presentation_trace_seconds = maxf(0.0, float(arg.get_slice("=", 1)))
+		elif arg == "--presentation-trace-seconds" and index + 1 < args.size():
+			index += 1
+			_presentation_trace_seconds = maxf(0.0, float(args[index]))
+		elif arg.begins_with("--presentation-control="):
+			_presentation_control_path = arg.get_slice("=", 1)
+		elif arg == "--presentation-control" and index + 1 < args.size():
+			index += 1
+			_presentation_control_path = args[index]
 		elif arg.begins_with("--resim-budget-ms="):
 			_resim_budget_ms = maxf(0.0, float(arg.get_slice("=", 1)))
 		elif arg == "--resim-budget-ms" and index + 1 < args.size():
@@ -516,8 +666,24 @@ func _parse_args() -> void:
 			_force_presentation = true
 		elif arg == "--server-driver":
 			_server_driver_enabled = true
+		elif arg == "--server-driver-lane":
+			_server_driver_enabled = true
+			_server_driver_lane = true
+		elif arg == "--player-capsule":
+			_player_capsule_enabled = true
+		elif arg == "--no-player-capsule":
+			_player_capsule_enabled = false
 		elif arg == "--no-ramps":
 			_ramps_enabled = false
+		elif arg == "--client-cruise":
+			_client_cruise_allowed = true
+		elif arg == "--network-test-arena":
+			_network_test_arena_enabled = true
+			_arena_half = NETWORK_TEST_ARENA_HALF
+		elif arg == "--motion-trace":
+			_motion_trace_enabled = true
+		elif arg == "--local-presentation-smoothing":
+			_local_presentation_smoothing_enabled = true
 		elif arg == "--course-test":
 			_course_test = true
 		elif arg == "--reverse-test":
@@ -555,6 +721,11 @@ func _parse_args() -> void:
 		elif arg == "--session-label" and index + 1 < args.size():
 			index += 1
 			_session_label = args[index]
+		elif arg.begins_with("--run-id="):
+			_run_id = arg.get_slice("=", 1)
+		elif arg == "--run-id" and index + 1 < args.size():
+			index += 1
+			_run_id = args[index]
 		elif arg.begins_with("--script="):
 			_scripted = arg.get_slice("=", 1)
 		elif arg == "--script" and index + 1 < args.size():
@@ -594,10 +765,16 @@ func _parse_args() -> void:
 
 
 func _configure_network_stack() -> void:
+	if _remote_interp_mode not in ["fixed", "adaptive", "predictive", "proxy"]:
+		push_error("--remote-interp-mode must be fixed, adaptive, predictive, or proxy")
+		_remote_interp_mode = "fixed"
 	NetworkPerformance.set_app_telemetry_enabled(_network_app_telemetry)
 	RemotePositionTransport.configure(_remote_state_push, _remote_state_transport,
 		_remote_state_rate, _network_app_telemetry, _remote_state_relevance,
 		_remote_state_include_self)
+	RemotePositionTransport.configure_presentation(_remote_interp_mode,
+		_remote_interp_ms, _remote_interp_max_ms, _presentation_trace_path,
+		_presentation_trace_seconds)
 	StateBundle.set_enabled(_state_bundles)
 	StateBundle.set_input_broadcast(_input_broadcast)
 	StateBundle.set_input_packing(_packed_input)
@@ -807,16 +984,21 @@ func _on_peer_join(id: int) -> void:
 		# entering the tree, so native peers need the WebRTC recipient map now.
 		_broadcast_peer_transport_map()
 	var spawn_data := {"id": id, "slot": _next_spawn_slot,
-		"remote_generation": _allocate_remote_state_generation()}
+		"remote_generation": _allocate_remote_state_generation(),
+		"player_capsule": _player_capsule_enabled}
 	if _server_driver_enabled:
-		var observer_position := Vector3(SERVER_DRIVER_SPAWN.x + 8.0,
-			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y + 6.0)
-		var driver := _players.get_node_or_null("1") as Node3D
-		if driver != null:
-			observer_position.x = clampf(driver.global_position.x - 8.0,
-				-ARENA_HALF + 3.0, ARENA_HALF - 3.0)
-			observer_position.z = clampf(driver.global_position.z + 6.0,
-				-ARENA_HALF + 3.0, ARENA_HALF - 3.0)
+		var driver_spawn := SERVER_DRIVER_LANE_SPAWN if _server_driver_lane \
+			else SERVER_DRIVER_SPAWN
+		var observer_spawn := NETWORK_TEST_OBSERVER_SPAWN if _network_test_arena_enabled \
+			else (SERVER_DRIVER_LANE_OBSERVER_SPAWN if _server_driver_lane \
+			else driver_spawn + Vector2(8.0, 6.0))
+		# The interactive Networking-1 observer retains its accepted spawn. Long
+		# mux soaks add a stationary native survivor first, so stagger later
+		# harness-only observers instead of stacking every peer at one position.
+		observer_spawn += Vector2(0.0,
+			float(maxi(0, _next_spawn_slot - 1)) * SERVER_DRIVER_OBSERVER_SPACING)
+		var observer_position := Vector3(observer_spawn.x,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), observer_spawn.y)
 		spawn_data["position"] = observer_position
 		spawn_data["yaw"] = -PI * 0.5
 	_spawner.spawn(spawn_data)
@@ -835,15 +1017,20 @@ func _on_peer_join(id: int) -> void:
 func _spawn_server_driver() -> void:
 	if not multiplayer.is_server() or _players.get_node_or_null("1") != null:
 		return
-	_log("SERVER_DRIVER spawn id=1 slot=%d path=open-perimeter" % _next_spawn_slot)
+	var driver_spawn := SERVER_DRIVER_LANE_SPAWN if _server_driver_lane \
+		else SERVER_DRIVER_SPAWN
+	_log("SERVER_DRIVER spawn id=1 slot=%d path=%s" % [_next_spawn_slot,
+		"slow-left-lane" if _server_driver_lane else "open-perimeter"])
 	_spawner.spawn({"id": 1, "slot": _next_spawn_slot,
-		"position": Vector3(SERVER_DRIVER_SPAWN.x,
-			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y),
-		"yaw": -PI * 0.5,
+		"position": Vector3(driver_spawn.x,
+			ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), driver_spawn.y),
+		"yaw": PI,
+		"server_driver": true,
+		"disable_collision_escape": _server_driver_lane,
 		"remote_generation": _allocate_remote_state_generation()})
 	_server_driver_waypoint = 1
 	_server_driver_progress_tick = -1
-	_server_driver_progress_position = SERVER_DRIVER_SPAWN
+	_server_driver_progress_position = driver_spawn
 	_next_spawn_slot += 1
 
 func _on_peer_leave(id: int) -> void:
@@ -966,6 +1153,12 @@ func _build_world() -> void:
 		_driving_course.call("build_presentation")
 		_jump_gates.call("build_presentation")
 		_build_presentation()
+		if _motion_trace_enabled:
+			_motion_trace = Node.new()
+			_motion_trace.name = "PresentedMotionTrace"
+			_motion_trace.set_script(MOTION_TRACE_SCRIPT)
+			add_child(_motion_trace)
+			_motion_trace.call("setup", self, _players, _camera)
 
 func _spawn_player(data: Variant) -> Node:
 	var info: Dictionary = data if data is Dictionary else {"id": int(data), "slot": 0}
@@ -976,7 +1169,9 @@ func _spawn_player(data: Variant) -> Node:
 	body.name = str(owner_id)
 	body.set("owner_id", owner_id)
 	body.set("spawn_slot", slot)
+	body.set("disable_collision_escape", bool(info.get("disable_collision_escape", false)))
 	body.set("remote_state_generation", int(info.get("remote_generation", 0)))
+	body.set("local_presentation_smoothing", _local_presentation_smoothing_enabled)
 	if not _coverage_configs.has(owner_id):
 		_coverage_configs[owner_id] = {
 			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths(),
@@ -1003,15 +1198,18 @@ func _spawn_player(data: Variant) -> Node:
 	var physics_material := PhysicsMaterial.new()
 	physics_material.bounce = VEHICLE_CONFIG.BOUNCE
 	# Explicit drive owns planar motion; touchdown applies a separate one-shot
-	# physics impulse instead of continuous sphere friction.
+	# physics impulse instead of continuous collider friction.
 	physics_material.friction = VEHICLE_CONFIG.CONTACT_FRICTION
 	body.physics_material_override = physics_material
 
 	var collision := CollisionShape3D.new()
 	collision.name = "Collision"
-	var sphere := SphereShape3D.new()
-	sphere.radius = PLAYER_RADIUS
-	collision.shape = sphere
+	if bool(info.get("server_driver", false)) or bool(info.get("player_capsule", false)):
+		SERVER_DRIVER_COLLISION.configure(collision)
+	else:
+		var sphere := SphereShape3D.new()
+		sphere.radius = PLAYER_RADIUS
+		collision.shape = sphere
 	body.add_child(collision)
 
 	var input := Node.new()
@@ -1239,21 +1437,21 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	body.add_child(rope)
 
 func _build_arena() -> void:
-	_add_static_box("GroundCollision", Vector3(ARENA_HALF * 2.0, 1.0, ARENA_HALF * 2.0),
+	_add_static_box("GroundCollision", Vector3(_arena_half * 2.0, 1.0, _arena_half * 2.0),
 		Vector3(0.0, -0.5, 0.0), Color("202a2d"), 0.0, false)
 	if not _is_headless():
-		_build_shader_ground("ShaderGridGround", Vector3.ZERO, ARENA_HALF)
+		_build_shader_ground("ShaderGridGround", Vector3.ZERO, _arena_half)
 	var wall_height: float = ARENA_CONFIG.WALL_HEIGHT
 	var wall_thickness: float = ARENA_CONFIG.WALL_THICKNESS
 	var wall_y := wall_height * 0.5
-	_add_static_box("WallNorth", Vector3(ARENA_HALF * 2.0 + wall_thickness * 2.0,
-		wall_height, wall_thickness), Vector3(0.0, wall_y, -ARENA_HALF), Color("596674"))
-	_add_static_box("WallSouth", Vector3(ARENA_HALF * 2.0 + wall_thickness * 2.0,
-		wall_height, wall_thickness), Vector3(0.0, wall_y, ARENA_HALF), Color("596674"))
-	_add_static_box("WallWest", Vector3(wall_thickness, wall_height, ARENA_HALF * 2.0),
-		Vector3(-ARENA_HALF, wall_y, 0.0), Color("596674"))
-	_add_static_box("WallEast", Vector3(wall_thickness, wall_height, ARENA_HALF * 2.0),
-		Vector3(ARENA_HALF, wall_y, 0.0), Color("596674"))
+	_add_static_box("WallNorth", Vector3(_arena_half * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), Vector3(0.0, wall_y, -_arena_half), Color("596674"))
+	_add_static_box("WallSouth", Vector3(_arena_half * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), Vector3(0.0, wall_y, _arena_half), Color("596674"))
+	_add_static_box("WallWest", Vector3(wall_thickness, wall_height, _arena_half * 2.0),
+		Vector3(-_arena_half, wall_y, 0.0), Color("596674"))
+	_add_static_box("WallEast", Vector3(wall_thickness, wall_height, _arena_half * 2.0),
+		Vector3(_arena_half, wall_y, 0.0), Color("596674"))
 	for obstacle in ARENA_LAYOUT.collision_objects():
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
@@ -1435,7 +1633,192 @@ func _build_presentation() -> void:
 	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_fps_label.add_theme_font_size_override("font_size", 16)
 	_fps_label.add_theme_color_override("font_color", Color("aebfc3"))
+	_fps_label.visible = not _network_hud_enabled
 	hud.add_child(_fps_label)
+	_network_hud_label = Label.new()
+	_network_hud_label.name = "NetworkDiagnostics"
+	_network_hud_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_network_hud_label.offset_left = -455.0
+	_network_hud_label.offset_top = 16.0
+	_network_hud_label.offset_right = -18.0
+	_network_hud_label.offset_bottom = 150.0
+	_network_hud_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_network_hud_label.add_theme_font_size_override("font_size", 16)
+	_network_hud_label.add_theme_color_override("font_color", Color("b8efcc"))
+	_network_hud_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
+	_network_hud_label.add_theme_constant_override("shadow_offset_x", 2)
+	_network_hud_label.add_theme_constant_override("shadow_offset_y", 2)
+	_network_hud_label.visible = _network_hud_enabled
+	hud.add_child(_network_hud_label)
+	_network_tier_label = Label.new()
+	_network_tier_label.name = "NetworkTierNotice"
+	_network_tier_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_network_tier_label.offset_left = -270.0
+	_network_tier_label.offset_top = 28.0
+	_network_tier_label.offset_right = 270.0
+	_network_tier_label.offset_bottom = 72.0
+	_network_tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_network_tier_label.add_theme_font_size_override("font_size", 24)
+	_network_tier_label.add_theme_color_override("font_color", Color("ffd166"))
+	_network_tier_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
+	_network_tier_label.add_theme_constant_override("shadow_offset_x", 2)
+	_network_tier_label.add_theme_constant_override("shadow_offset_y", 2)
+	_network_tier_label.visible = false
+	hud.add_child(_network_tier_label)
+
+
+func _update_network_hud(delta: float) -> void:
+	if not _network_hud_enabled:
+		return
+	var live_target_msec := RemotePositionTransport.presentation_delay_msec()
+	var live_mode := RemotePositionTransport.presentation_mode()
+	if _network_last_target_msec < 0.0:
+		_show_network_tier_notice(-1.0, live_target_msec)
+	elif live_mode != _network_last_mode:
+		_show_network_mode_notice(_network_last_mode, live_mode, live_target_msec)
+	elif not is_equal_approx(live_target_msec, _network_last_target_msec):
+		_show_network_tier_notice(_network_last_target_msec, live_target_msec)
+	_network_last_target_msec = live_target_msec
+	_network_last_mode = live_mode
+	if _network_tier_notice_remaining > 0.0:
+		_network_tier_notice_remaining = maxf(0.0,
+			_network_tier_notice_remaining - delta)
+		if _network_tier_notice_remaining <= 0.0 and _network_tier_label != null:
+			_network_tier_label.visible = false
+	_network_hud_elapsed += delta
+	_network_hud_frames += 1
+	var frame_ms := delta * 1000.0
+	_network_hud_frame_ms_sum += frame_ms
+	_network_hud_frame_ms_max = maxf(_network_hud_frame_ms_max, frame_ms)
+	_network_hud_rb_ms_max = maxf(_network_hud_rb_ms_max,
+		NetworkPerformance.get_rollback_loop_duration_ms())
+	_network_hud_rb_ticks_max = maxi(_network_hud_rb_ticks_max,
+		NetworkPerformance.get_rollback_ticks())
+	if _network_hud_elapsed < 1.0:
+		return
+	var elapsed := maxf(_network_hud_elapsed, 0.001)
+	var fps := float(_network_hud_frames) / elapsed
+	var frame_avg := _network_hud_frame_ms_sum / maxf(1.0, float(_network_hud_frames))
+	var rtt_ms := NetworkTime.remote_rtt * 1000.0
+	var jitter_ms := NetworkTimeSynchronizer.rtt_jitter * 1000.0
+	var presentation: Dictionary = RemotePositionTransport.presentation_snapshot()
+	var local_body: Node3D = local_player()
+	if local_body != null and local_body.has_method("local_presentation_metrics"):
+		presentation["local_visual"] = local_body.call("local_presentation_metrics")
+	var target_ms := float(presentation.get("selected_msec", _remote_interp_ms))
+	var headroom_ms := float(presentation.get("headroom_min_msec", 0.0))
+	var interp_pct := int(round(float(presentation.get("interp_fraction", 0.0)) * 100.0))
+	var extra_pct := int(round(float(presentation.get("extrapolate_fraction", 0.0)) * 100.0))
+	var hold_pct := int(round(float(presentation.get("hold_fraction", 0.0)) * 100.0))
+	var predictive_offset := float(presentation.get("predictive_offset_units", 0.0))
+	var predictive_offset_max := float(presentation.get("predictive_offset_max_units", 0.0))
+	var predictive_lead := float(presentation.get("predictive_lead_units", 0.0))
+	var app: Dictionary = NetworkPerformance.get_app_telemetry_snapshot(NetworkTime.tick)
+	var recoveries := int(app.get("fresh_key_requests_total", 0))
+	var alignment_label := "rawΔ" if str(presentation.get("mode", "")) == "proxy" \
+		else "offset"
+	var hud_text := "FPS %.0f  |  frame %.1f / %.1f ms\n%s %s  |  RTT %.0f ms ±%.0f\nPRES %s %.0f ms  |  %s %.2f/%.2fu  |  lead %+.2fu\nRB %.1f ms / %dt  |  correction %.2fu  |  recovery %d\ncorr %d  stall %d  stale %d  impact %d  unknown %d" % [
+		fps, frame_avg, _network_hud_frame_ms_max, _transport.to_upper(),
+		_network_profile, rtt_ms, jitter_ms,
+		str(presentation.get("mode", _remote_interp_mode)), target_ms,
+		alignment_label, predictive_offset, predictive_offset_max, predictive_lead,
+		_network_hud_rb_ms_max,
+		_network_hud_rb_ticks_max, _worst_correction_error, recoveries,
+		int(_correction_counts["corr"]), int(_correction_counts["stall"]),
+		int(_correction_counts["stale"]), int(_correction_counts["impact"]),
+		int(_correction_counts["unknown"])]
+	var local_visual: Dictionary = presentation.get("local_visual", {})
+	if bool(local_visual.get("enabled", false)):
+		hud_text += "\nLOCAL VIS %.3f/%.3fu  |  snaps %d" % [
+			float(local_visual.get("offset_units", 0.0)),
+			float(local_visual.get("offset_max_units", 0.0)),
+			int(local_visual.get("snaps", 0))]
+	var unhealthy := fps < 30.0 or _network_hud_frame_ms_max >= 66.0 \
+		or _network_hud_rb_ms_max >= 16.7 or _network_hud_rb_ticks_max > 24 \
+		or hold_pct >= 10 or _worst_correction_error > 2.0
+	var warning := fps < 50.0 or _network_hud_frame_ms_max >= 33.0 \
+		or _network_hud_rb_ms_max >= 8.0 or extra_pct >= 20 or recoveries > 0
+	if _network_hud_label != null:
+		_network_hud_label.text = hud_text
+		_network_hud_label.add_theme_color_override("font_color",
+			Color("ff6b66") if unhealthy else (Color("ffd166") if warning else Color("b8efcc")))
+	var snapshot := {
+		"profile": _network_profile, "transport": _transport, "fps": fps,
+		"frame_ms_avg": frame_avg, "frame_ms_max": _network_hud_frame_ms_max,
+		"rtt_ms": rtt_ms, "jitter_ms": jitter_ms,
+		"presentation": presentation,
+		"rollback_ms_max": _network_hud_rb_ms_max,
+		"rollback_ticks_max": _network_hud_rb_ticks_max,
+		"worst_correction": _worst_correction_error, "recoveries": recoveries,
+		"correction_counts": _correction_counts.duplicate(),
+	}
+	print("NETWORKHUD %s" % JSON.stringify(snapshot))
+	if _crash_telemetry != null:
+		_crash_telemetry.call("record_event", "network_hud", snapshot)
+	_network_hud_elapsed = 0.0
+	_network_hud_frames = 0
+	_network_hud_frame_ms_sum = 0.0
+	_network_hud_frame_ms_max = 0.0
+	_network_hud_rb_ms_max = 0.0
+	_network_hud_rb_ticks_max = 0
+
+
+func _show_network_tier_notice(previous_msec: float, selected_msec: float) -> void:
+	var mode := RemotePositionTransport.presentation_mode().to_upper()
+	var message := "%s BUFFER START  %.0f MS" % [mode, selected_msec] \
+		if previous_msec < 0.0 else "%s BUFFER  %.0f → %.0f MS" % [
+			mode, previous_msec, selected_msec]
+	_network_tier_notice_remaining = 3.0
+	if _network_tier_label != null:
+		_network_tier_label.text = message
+		_network_tier_label.add_theme_color_override("font_color",
+			Color("ffd166") if previous_msec < selected_msec else Color("b8efcc"))
+		_network_tier_label.visible = true
+	print("PRESENTATION_TIER_CHANGE mode=%s from_ms=%.0f to_ms=%.0f" % [
+		mode.to_lower(), previous_msec, selected_msec])
+
+
+func _show_network_mode_notice(previous_mode: String, selected_mode: String,
+		selected_msec: float) -> void:
+	var message := "%s → %s BUFFER  %.0f MS" % [previous_mode.to_upper(),
+		selected_mode.to_upper(), selected_msec]
+	_network_tier_notice_remaining = 3.0
+	if _network_tier_label != null:
+		_network_tier_label.text = message
+		_network_tier_label.add_theme_color_override("font_color", Color("ffd166"))
+		_network_tier_label.visible = true
+	print("PRESENTATION_MODE_CHANGE from=%s to=%s selected_ms=%.0f" % [
+		previous_mode, selected_mode, selected_msec])
+
+
+func _poll_presentation_control(delta: float) -> void:
+	var browser_control := OS.has_feature("web")
+	if not browser_control and _presentation_control_path.is_empty():
+		return
+	_presentation_control_elapsed += delta
+	if _presentation_control_elapsed < 0.25:
+		return
+	_presentation_control_elapsed = 0.0
+	var command := ""
+	if browser_control:
+		command = str(JavaScriptBridge.eval(
+			"window.localStorage.getItem('carFightPresentationMode') || ''"
+		)).strip_edges().to_lower()
+	else:
+		if not FileAccess.file_exists(_presentation_control_path):
+			return
+		var file := FileAccess.open(_presentation_control_path, FileAccess.READ)
+		if file == null:
+			return
+		command = file.get_as_text().strip_edges().to_lower()
+		file.close()
+	if command.is_empty() or command == _presentation_control_last_command:
+		return
+	_presentation_control_last_command = command
+	if command not in ["fixed", "adaptive", "predictive", "proxy"]:
+		push_warning("Ignoring presentation control command: %s" % command)
+		return
+	RemotePositionTransport.set_presentation_mode(command)
 
 func _build_shader_prewarm() -> void:
 	_shader_prewarm = Node3D.new()
@@ -1489,7 +1872,7 @@ func _update_editor_presentation(local: Node3D) -> void:
 func _update_editor_label() -> void:
 	if _editor_label == null:
 		return
-	_editor_label.visible = _combat_editor_active
+	_editor_label.visible = _combat_editor_active and _hotkey_hints_visible
 	if not _combat_editor_active:
 		return
 	var config := _configuration_for(multiplayer.get_unique_id())
@@ -1506,7 +1889,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _role not in ["client", "offline"] or not _scripted.is_empty():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ENTER and _combat_editor_active:
+		if event.keycode == KEY_L and _motion_trace_enabled \
+				and _motion_trace != null and not _combat_editor_active:
+			_motion_trace.call("toggle")
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_P and _client_cruise_allowed and not _combat_editor_active:
+			_client_cruise_active = not _client_cruise_active
+			_log("CLIENT_CRUISE active=%s source=local-input" % _client_cruise_active)
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_ENTER and _combat_editor_active:
 			_set_combat_editor_active(false)
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_E and not _combat_editor_active:
@@ -1536,6 +1927,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and not _coverage_drag.is_empty():
 		_drag_coverage(event.position)
 		get_viewport().set_input_as_handled()
+
+
+func client_cruise_active() -> bool:
+	return _client_cruise_allowed and _client_cruise_active
+
+
+func motion_trace_context() -> Dictionary:
+	var presentation: Dictionary = RemotePositionTransport.presentation_snapshot()
+	var app: Dictionary = NetworkPerformance.get_app_telemetry_snapshot(NetworkTime.tick)
+	return {
+		"run_id": _run_id,
+		"local_peer": multiplayer.get_unique_id(),
+		"transport": _transport,
+		"tick": NetworkTime.tick,
+		"fps": Engine.get_frames_per_second(),
+		"rtt_ms": NetworkTime.remote_rtt * 1000.0,
+		"presentation_ms": float(presentation.get("selected_msec", _remote_interp_ms)),
+		"headroom_ms": float(presentation.get("headroom_min_msec", 0.0)),
+		"interp": float(presentation.get("interp_fraction", 0.0)),
+		"extrapolate": float(presentation.get("extrapolate_fraction", 0.0)),
+		"hold": float(presentation.get("hold_fraction", 0.0)),
+		"correction": _worst_correction_error,
+		"recoveries": int(app.get("fresh_key_requests_total", 0)),
+		"rollback_ms": NetworkPerformance.get_rollback_loop_duration_ms(),
+		"rollback_ticks": NetworkPerformance.get_rollback_ticks(),
+	}
 
 func _set_combat_editor_active(enabled: bool) -> void:
 	_combat_editor_active = enabled
@@ -1728,6 +2145,10 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 	if _server_driver_enabled and multiplayer.is_server() and int(body.name) == 1:
 		return _server_driver_input(body)
 	match _scripted:
+		"idle":
+			# Automated network soaks must not inherit a browser pointer position.
+			# Explicit neutral intent keeps reconnect recovery separate from contact.
+			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 		"converge", "converge-burst":
 			# Fixed opposing headings make the network gate test collision rather
 			# than the far-distance FOLLOW turning radius around a moving target.
@@ -1792,11 +2213,14 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			return {"cursor_offset": Vector2.ZERO, "burst": false}
 
 func _server_driver_input(body: Node3D) -> Dictionary:
-	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+	var route := SERVER_DRIVER_LANE_ROUTE if _server_driver_lane else SERVER_DRIVER_ROUTE
+	var waypoint: Vector2 = route[_server_driver_waypoint]
 	var delta := Vector2(waypoint.x - body.global_position.x,
 		waypoint.y - body.global_position.z)
-	return {"cursor_offset": delta.limit_length(
-		FOLLOW.MAX_DISTANCE), "burst": false, "editing": false}
+	var cursor_distance := SERVER_DRIVER_LANE_CURSOR_DISTANCE if _server_driver_lane \
+		else FOLLOW.MAX_DISTANCE
+	return {"cursor_offset": delta.limit_length(cursor_distance),
+		"burst": false, "editing": false}
 
 func _service_server_driver_route(tick: int) -> void:
 	if not _server_driver_enabled:
@@ -1804,27 +2228,32 @@ func _service_server_driver_route(tick: int) -> void:
 	var body := _players.get_node_or_null("1") as RigidBody3D
 	if body == null:
 		return
+	var arena_limit := _arena_half + 4.0 if _network_test_arena_enabled \
+		else SERVER_DRIVER_ARENA_LIMIT
 	if int(body.get("map_id")) != MAP_LAYOUT.ARENA \
-			or absf(body.global_position.x) > SERVER_DRIVER_ARENA_LIMIT \
-			or absf(body.global_position.z) > SERVER_DRIVER_ARENA_LIMIT:
+			or absf(body.global_position.x) > arena_limit \
+			or absf(body.global_position.z) > arena_limit:
 		_recover_server_driver(body, tick)
 	var position := Vector2(body.global_position.x, body.global_position.z)
-	var waypoint: Vector2 = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
-	if position.distance_to(waypoint) <= SERVER_DRIVER_WAYPOINT_RADIUS:
-		_server_driver_waypoint = (_server_driver_waypoint + 1) % SERVER_DRIVER_ROUTE.size()
+	var route := SERVER_DRIVER_LANE_ROUTE if _server_driver_lane else SERVER_DRIVER_ROUTE
+	var waypoint: Vector2 = route[_server_driver_waypoint]
+	var waypoint_radius := 3.0 if _server_driver_lane else SERVER_DRIVER_WAYPOINT_RADIUS
+	if position.distance_to(waypoint) <= waypoint_radius:
+		_server_driver_waypoint = (_server_driver_waypoint + 1) % route.size()
 		_server_driver_progress_tick = tick
 		_server_driver_progress_position = position
-		waypoint = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+		waypoint = route[_server_driver_waypoint]
 	elif _server_driver_progress_tick < 0 \
 			or position.distance_to(_server_driver_progress_position) \
 			>= SERVER_DRIVER_PROGRESS_DISTANCE:
 		_server_driver_progress_tick = tick
 		_server_driver_progress_position = position
-	elif tick - _server_driver_progress_tick >= SERVER_DRIVER_STUCK_TICKS:
-		_server_driver_waypoint = (_server_driver_waypoint + 1) % SERVER_DRIVER_ROUTE.size()
+	elif not _server_driver_lane \
+			and tick - _server_driver_progress_tick >= SERVER_DRIVER_STUCK_TICKS:
+		_server_driver_waypoint = (_server_driver_waypoint + 1) % route.size()
 		_server_driver_progress_tick = tick
 		_server_driver_progress_position = position
-		waypoint = SERVER_DRIVER_ROUTE[_server_driver_waypoint]
+		waypoint = route[_server_driver_waypoint]
 		_log("SERVER_DRIVER escape tick=%d next=%d" % [tick, _server_driver_waypoint])
 	if tick % 60 == 0:
 		_log("SERVER_DRIVER tick=%d waypoint=%d pos=(%.1f,%.1f) target=(%.1f,%.1f) speed=%.1f" % [
@@ -1832,18 +2261,20 @@ func _service_server_driver_route(tick: int) -> void:
 			waypoint.x, waypoint.y, body.linear_velocity.length()])
 
 func _recover_server_driver(body: RigidBody3D, tick: int) -> void:
+	var recovery_position := SERVER_DRIVER_LANE_SPAWN if _server_driver_lane \
+		else SERVER_DRIVER_SPAWN
 	body.set("map_id", MAP_LAYOUT.ARENA)
 	body.set("gate_cooldown", MAP_LAYOUT.GATE_COOLDOWN)
-	body.position = Vector3(SERVER_DRIVER_SPAWN.x,
-		ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), SERVER_DRIVER_SPAWN.y)
-	body.rotation = Vector3(0.0, -PI * 0.5, 0.0)
+	body.position = Vector3(recovery_position.x,
+		ELEVATED_COURSE.ground_body_y(PLAYER_RADIUS), recovery_position.y)
+	body.rotation = Vector3(0.0, PI if _server_driver_lane else -PI * 0.5, 0.0)
 	body.linear_velocity = Vector3.ZERO
 	body.angular_velocity = Vector3.ZERO
 	body.sleeping = false
 	body.reset_physics_interpolation()
 	_server_driver_waypoint = 1
 	_server_driver_progress_tick = tick
-	_server_driver_progress_position = SERVER_DRIVER_SPAWN
+	_server_driver_progress_position = recovery_position
 	_log("SERVER_DRIVER recovered tick=%d reason=left-arena" % tick)
 
 func local_player():
@@ -1880,14 +2311,6 @@ func _on_tick(delta: float, tick: int) -> void:
 		_track_server_contacts()
 		_track_server_ball()
 		_track_server_course()
-		if elapsed % 30 == 0:
-			for child in _players.get_children():
-				var body := child as Node3D
-				var peer_id := 0 if body == null else int(body.name)
-				# queue_free keeps a departed peer's body visible until the end of the
-				# frame. Never target that stale body after ENet has removed its peer.
-				if body != null and multiplayer.get_peers().has(peer_id):
-					_receive_authority_probe.rpc_id(peer_id, tick, peer_id, body.position)
 		if elapsed % 60 == 0:
 			_log("SERVER_TICK tick=%d players=%d minpair=%.3f contact=%d" % [elapsed, _players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0])
 	else:
@@ -1903,6 +2326,23 @@ func _on_tick(delta: float, tick: int) -> void:
 		if multiplayer.is_server():
 			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d dets=%d impacthits=%d shieldhits=%d impactmax=%.3f rcshots=%d rcdets=%d rchits=%d coursemaps=%d courseoff=%d gatetransitions=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _det_nullification_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed, _rc_shot_count, _rc_detonation_count, _rc_hit_count, _server_course_map_count(), _server_course_off_count(), _server_gate_transition_count()])
 		get_tree().quit()
+
+
+func _send_settled_authority_probes() -> void:
+	if not multiplayer.is_server() or _start_tick < 0:
+		return
+	var tick := NetworkTime.tick
+	if tick == _last_authority_probe_tick or (tick - _start_tick) % 30 != 0:
+		return
+	_last_authority_probe_tick = tick
+	for child in _players.get_children():
+		var body := child as Node3D
+		var peer_id := 0 if body == null else int(body.name)
+		# after_loop is the settled post-replay seam used by StateBundle. Sampling
+		# in on_tick compared the client against a pre-rollback server pose and
+		# produced false corrections as large as an arena width under TURN latency.
+		if body != null and multiplayer.get_peers().has(peer_id):
+			_receive_authority_probe.rpc_id(peer_id, tick, peer_id, body.position)
 
 ## RC orbs are an event-driven, server-authored object family: only a small
 ## position/velocity record exists on the server, and presentation receives
@@ -2685,6 +3125,71 @@ func _receive_authority_probe(tick: int, owner_id: int, authoritative_position: 
 	var error := predicted_position.distance_to(authoritative_position)
 	_worst_correction_error = maxf(_worst_correction_error, error)
 	_log("CORRECTION tick=%d error=%.3f worst=%.3f" % [tick, error, _worst_correction_error])
+	if error < CORRECTION_REPORT_FLOOR:
+		return
+	var current_tick := NetworkTime.tick
+	var app: Dictionary = NetworkPerformance.get_app_telemetry_snapshot(current_tick)
+	var route_state: Dictionary = StateBundle.route_state_snapshot(owner_id, current_tick)
+	var local: Node3D = local_player()
+	var contact_age := -1
+	var map_transition_age := -1
+	var local_position := Vector3.ZERO
+	if local != null:
+		local_position = local.global_position
+		if local.has_method("correction_contact_age"):
+			contact_age = int(local.call("correction_contact_age", current_tick))
+		if local.has_method("correction_map_transition_age"):
+			map_transition_age = int(local.call("correction_map_transition_age", current_tick))
+	var presentation: Dictionary = RemotePositionTransport.presentation_snapshot()
+	var frame_max := maxf(_frame_ms_current, _network_hud_frame_ms_max)
+	var sample := {
+		"run_id": _run_id,
+		"distance": error,
+		"before_position": _vector3_values(predicted_position),
+		"after_position": _vector3_values(authoritative_position),
+		"local_position_now": _vector3_values(local_position),
+		"current_tick": current_tick,
+		"source_tick": tick,
+		"source_age_ticks": maxi(0, current_tick - tick),
+		"applied_state_tick": int(route_state.get("applied_tick",
+			app.get("state_newest_applied_tick", -1))),
+		"applied_state_age_ticks": int(route_state.get("applied_age_ticks",
+			app.get("state_applied_age_ticks", -1))),
+		"pending_age_ticks": int(app.get("pending_age_max", 0)),
+		"fresh_key_age_ticks": int(app.get("fresh_key_age_ticks", -1)),
+		"fast_forward_age_ticks": int(app.get("fast_forward_age_ticks", -1)),
+		"fresh_key_requests_total": int(app.get("fresh_key_requests_total", 0)),
+		"fast_forwards_total": int(app.get("fast_forwards_total", 0)),
+		"rollback_depth_ticks": maxi(0, current_tick - tick),
+		"rollback_ticks_last": NetworkPerformance.get_rollback_ticks(),
+		"rollback_ms_last": NetworkPerformance.get_rollback_loop_duration_ms(),
+		"resimulation_debt_ticks": NetworkRollback.last_resim_debt,
+		"history_start": NetworkRollback.history_start,
+		"frame_ms_current": _frame_ms_current,
+		"frame_ms_max": frame_max,
+		"process_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+		"contact_age_ticks": contact_age,
+		"proxy_authority_distance": float(presentation.get(
+			"predictive_offset_units", 0.0)),
+		"proxy_authority_distance_max": float(presentation.get(
+			"predictive_offset_max_units", 0.0)),
+		"proxy_authority_longitudinal_lead": float(presentation.get(
+			"predictive_lead_units", 0.0)),
+		"map_transition_age_ticks": map_transition_age,
+	}
+	var signals: Array[String] = CORRECTION_CLASSIFIER.signals(sample)
+	sample["signals"] = signals
+	_correction_counts["corr"] = int(_correction_counts["corr"]) + 1
+	for signal_name in signals:
+		if _correction_counts.has(signal_name):
+			_correction_counts[signal_name] = int(_correction_counts[signal_name]) + 1
+	_log("CORRECTION_CAUSE %s" % JSON.stringify(sample))
+	if _crash_telemetry != null:
+		_crash_telemetry.call("record_event", "correction_cause", sample)
+
+
+func _vector3_values(value: Vector3) -> Array:
+	return [value.x, value.y, value.z]
 
 func _track_server_contacts() -> void:
 	var bodies := _players.get_children()

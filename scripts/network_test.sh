@@ -35,6 +35,11 @@ fi
 if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
 	stack_args+=(--adaptive-state-rate 1)
 fi
+if [[ -n "${CAR_FIGHT_REMOTE_INTERP_MODE:-}" ]]; then
+	stack_args+=(--remote-interp-mode "$CAR_FIGHT_REMOTE_INTERP_MODE" \
+		--remote-interp "${CAR_FIGHT_REMOTE_INTERP_MS:-75}" \
+		--remote-interp-max "${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}")
+fi
 server_port="${CAR_FIGHT_TEST_PORT:-10380}"
 proxy_port=$((server_port + 1))
 server_ticks="${CAR_FIGHT_NETWORK_SERVER_TICKS:-480}"
@@ -103,6 +108,14 @@ if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.
 	echo "runtime script error; logs: $log_dir" >&2
 	rg 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.log >&2
 	exit 1
+fi
+if [[ -n "${CAR_FIGHT_REMOTE_INTERP_MODE:-}" ]]; then
+	for client_log in "$log_dir/client-a.log" "$log_dir/client-b.log"; do
+		if ! rg -q "\[presentation-buffer\] mode=${CAR_FIGHT_REMOTE_INTERP_MODE} min_ms=${CAR_FIGHT_REMOTE_INTERP_MS:-75} max_ms=${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}" "$client_log"; then
+			echo "client did not apply requested presentation mode; logs: $log_dir" >&2
+			exit 1
+		fi
+	done
 fi
 if rg -q 'Reference tick .* missing .* applying' "$log_dir"/client-*.log; then
 	echo "a client applied a diff without its reference snapshot; logs: $log_dir" >&2

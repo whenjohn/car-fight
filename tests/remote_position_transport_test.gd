@@ -28,11 +28,18 @@ func payload_for(body_count: int) -> Array:
 	var ids := PackedInt64Array()
 	var generations := PackedInt32Array()
 	var positions := PackedVector3Array()
+	var rotations := PackedVector4Array()
+	var linear_velocities := PackedVector3Array()
+	var angular_velocities := PackedVector3Array()
 	for i in body_count:
 		ids.append(1000 + i)
 		generations.append(i + 1)
 		positions.append(Vector3(i * 13.25, 0.0, i * -7.5))
-	return [77, 88, 12345, 0, ids, generations, positions]
+		rotations.append(Vector4(0.0, 0.0, 0.0, 1.0))
+		linear_velocities.append(Vector3(4.0, 0.0, -2.0))
+		angular_velocities.append(Vector3(0.0, 0.5, 0.0))
+	return [77, 88, 12345, 0, ids, generations, positions, rotations,
+		linear_velocities, angular_velocities]
 
 func relevance_samples() -> Array:
 	return [
@@ -119,6 +126,12 @@ func _initialize() -> void:
 		"mismatched generation array was accepted")
 	check(Validation.classify_batch(-1, -1, -1, 1, 1, 10, 0, 2, 2, 1) == "malformed",
 		"mismatched position array was accepted")
+	check(Validation.classify_batch(-1, -1, -1, 1, 1, 10, 0, 2, 2, 2, 1) == "malformed",
+		"mismatched rotation array was accepted")
+	check(Validation.classify_batch(-1, -1, -1, 1, 1, 10, 0, 2, 2, 2, 2, 1, 2) \
+		== "malformed", "mismatched linear velocity array was accepted")
+	check(Validation.classify_batch(-1, -1, -1, 1, 1, 10, 0, 2, 2, 2, 2, 2, 1) \
+		== "malformed", "mismatched angular velocity array was accepted")
 	check(Validation.classify_batch(-1, -1, -1, 1, 1, 10, 0,
 		Validation.MAX_BODIES + 1, Validation.MAX_BODIES + 1,
 		Validation.MAX_BODIES + 1) == "malformed",
@@ -183,6 +196,14 @@ func _initialize() -> void:
 	check(not Validation.accepts_body_sample(false, true, 7, 10, 20, 7, 31),
 		"local authoritative body accepted a remote sample")
 
+	# Ordinary clock discipline remains damped and monotonic. The body that owns
+	# presentation history handles epoch rebases and invalidates warmup evidence.
+	var ordinary_cursor := Interp.advance_cursor(100.0, 100.5, 1.0 / 60.0, 60.0)
+	check(ordinary_cursor > 100.0 and ordinary_cursor < 102.0,
+		"ordinary cursor correction was not damped")
+	check(Interp.advance_cursor(100.0, 800.0, 1.0 / 60.0, 60.0) < 102.0,
+		"cursor helper bypassed the body-owned epoch rebase")
+
 	# Correlated-loss model: every body loses the same publication. Constant
 	# velocity must remain continuous, and every affected history must enter the
 	# same explicit interpolate/extrapolate/hold mode rather than pop.
@@ -211,6 +232,25 @@ func _initialize() -> void:
 	check(held["mode"] == Interp.MODE_HOLD,
 		"two-loss underrun did not hold past its bound")
 
+	var rotations := {0: Quaternion.IDENTITY, 12: Quaternion(Vector3.UP, PI * 0.5)}
+	var rotation_sample := Interp.sample_rotation(rotations,
+		Interp.sample({0: Vector3.ZERO, 12: Vector3(12, 0, 0)}, 6.0, 3.0), 6.0)
+	check(rotation_sample.angle_to(Quaternion(Vector3.UP, PI * 0.25)) < 0.001,
+		"orientation did not slerp at the position sample's render tick")
+
+	var predicted := Interp.predict_pose(Vector3(1, 0, 2), Quaternion.IDENTITY,
+		Vector3(4, 0, -2), Vector3(0, 2, 0), 0.25)
+	check(predicted.origin.distance_to(Vector3(2, 0, 1.5)) < 0.0001,
+		"correlated velocity did not predict position to the current timeline")
+	check(predicted.basis.get_rotation_quaternion().angle_to(
+		Quaternion(Vector3.UP, 0.5)) < 0.001,
+		"angular velocity did not predict orientation")
+	var smoothed := Interp.smooth_pose(Transform3D.IDENTITY,
+		Transform3D(Basis(Quaternion(Vector3.UP, 1.0)), Vector3(10, 0, 0)), 0.045)
+	check(smoothed.origin.x > 4.9 and smoothed.origin.x < 5.1,
+		"predictive reconciliation is not frame-rate independent at one half-life")
+	check(smoothed.origin.x < 10.0,
+		"predictive reconciliation snapped an ordinary correction")
 	var sizes := {}
 	for count in [6, 8, 16, 32]:
 		sizes[count] = var_to_bytes(payload_for(count)).size()

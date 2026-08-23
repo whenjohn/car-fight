@@ -142,8 +142,8 @@ func _troop_spawn_local(troop_id: int, peer_id: int, deploying: bool, position: 
 		var visual := MeshInstance3D.new()
 		visual.mesh = _troop_mesh
 		visual.material_override = _troop_material
-		visual.global_position = position + Vector3.UP * TROOP_HEIGHT
 		add_child(visual)
+		visual.global_position = position + Vector3.UP * TROOP_HEIGHT
 		troop["visual"] = visual
 	_troops[troop_id] = troop
 

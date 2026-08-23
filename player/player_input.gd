@@ -3,6 +3,7 @@ extends "res://addons/netfox.extras/base-net-input.gd"
 
 const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
 const INPUT_CODEC := preload("res://net/input_codec.gd")
+const CLIENT_CRUISE := preload("res://player/client_cruise.gd")
 
 var cursor_offset := Vector2.ZERO
 var burst := false
@@ -50,6 +51,7 @@ func _finalize_input() -> void:
 	if state_bundle != null and bool(state_bundle.get("input_packing")):
 		INPUT_CODEC.quantize_input(self)
 
+
 func _gather() -> void:
 	var body := get_parent() as Node3D
 	var main := get_tree().current_scene
@@ -74,6 +76,14 @@ func _gather() -> void:
 		rc_detonate_held = bool(scripted.get("rc_detonate_held", false))
 		drop_troops = bool(scripted.get("drop_troops", false))
 		editing = bool(scripted.get("editing", false))
+		_finalize_input()
+		return
+	# Harness-only client cruise remains live after focus moves to the other
+	# window. Its values still originate here, enter the normal input timeline,
+	# and cross the network exactly like gathered mouse input.
+	if main.has_method("client_cruise_active") and main.client_cruise_active():
+		_clear_live_input()
+		cursor_offset = CLIENT_CRUISE.cursor_for(body.global_transform.basis)
 		_finalize_input()
 		return
 	# macOS continues updating an unfocused Godot window's mouse position from

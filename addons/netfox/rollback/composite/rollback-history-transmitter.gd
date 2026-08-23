@@ -165,13 +165,11 @@ func transmit_input(tick: int) -> void:
 					continue
 				var wire_data := StateBundle.pack_input(
 					input_data, _get_owned_input_props(), peer)
-				# VALVE PRIORITY: the copy to the state owner (the server) is the flow that keeps the
-				# server simulating this ship — starving it is the teleport. With packing on it is
-				# exempt from the valve (a 35B/tick flow cannot meaningfully bloat the queue); relayed
-				# broadcast copies to other peers stay droppable. With packing OFF behavior is exactly
-				# the pre-packing valve — the flag-off wire must stay byte-identical.
-				var protect := StateBundle.peer_uses_packed_input(peer) and peer == state_owning_peer
-				if not protect and StateBundle.peer_send_pressure(peer) > _input_backpressure_bytes(peer):
+				# Input packets carry recent history, so a congested send is replaceable by the next
+				# fresh packet after the queue drains. Never exempt the state-owner copy: the forced-TURN
+				# combined run proved that even 35B packed inputs can accumulate behind SCTP congestion,
+				# delivering seconds-old control and causing large authoritative corrections.
+				if StateBundle.peer_send_pressure(peer) > _input_backpressure_bytes(peer):
 					NetworkPerformance.note_app_input_backpressure_dropped(1)
 					continue
 				_submit_input.rpc_id(peer, input_tick, wire_data)
@@ -179,9 +177,8 @@ func transmit_input(tick: int) -> void:
 		elif state_owning_peer != multiplayer.get_unique_id():
 			var wire_data := StateBundle.pack_input(
 				input_data, _get_owned_input_props(), state_owning_peer)
-			if not StateBundle.peer_uses_packed_input(state_owning_peer) \
-					and StateBundle.peer_send_pressure(state_owning_peer) \
-						> _input_backpressure_bytes(state_owning_peer):
+			if StateBundle.peer_send_pressure(state_owning_peer) \
+					> _input_backpressure_bytes(state_owning_peer):
 				NetworkPerformance.note_app_input_backpressure_dropped(1)
 				return
 			_submit_input.rpc_id(state_owning_peer, input_tick, wire_data)
@@ -192,9 +189,15 @@ func transmit_state(tick: int) -> void:
 		# We don't own state, don't transmit anything
 		return
 
-	if _is_predicted_tick and not _input_property_config.get_properties().is_empty():
+	var is_coordinated_key := StateBundle.is_key_tick(tick)
+	if _is_predicted_tick and not _input_property_config.get_properties().is_empty() \
+			and not is_coordinated_key:
 		# Don't transmit anything if we're predicting
-		# EXCEPT when we're running inputless
+		# EXCEPT when we're running inputless. Bundled coordinated keys are the
+		# other exception: at real network latency the server's current tick is
+		# normally predicted for a remote-owned input stream, but the settled
+		# post-loop best authority still has to participate in a complete world
+		# key. Later arrived input corrects it through the ordinary history path.
 		return
 
 	# Include properties we own
@@ -207,7 +210,6 @@ func transmit_state(tick: int) -> void:
 	_on_transmit_state.emit(full_state, tick)
 
 	# No properties to send?
-	var is_coordinated_key := StateBundle.is_key_tick(tick)
 	if full_state.is_empty() and not is_coordinated_key:
 		return
 
@@ -338,9 +340,12 @@ func _submit_full_state(data: Array, tick: int) -> void:
 	_receive_full_state(data, tick, multiplayer.get_remote_sender_id(), true)
 
 func receive_bundled_full_state(data: Array, tick: int, sender: int) -> bool:
-	return _receive_full_state(data, tick, sender, false)
+	# StateBundle acknowledges every successfully applied full route in one RPC.
+	# Sending an RPC here would undo downlink coalescing with an uplink ack storm.
+	return _receive_full_state(data, tick, sender, false, false)
 
-func _receive_full_state(data: Array, tick: int, sender: int, count_wire_message: bool) -> bool:
+func _receive_full_state(data: Array, tick: int, sender: int, count_wire_message: bool,
+		send_ack: bool = true) -> bool:
 	if count_wire_message:
 		NetworkPerformance.record_app_message("in", "state_full", [data, tick])
 	NetworkPerformance.note_app_state_received(tick)
@@ -363,10 +368,14 @@ func _receive_full_state(data: Array, tick: int, sender: int, count_wire_message
 
 	_latest_state_tick = tick
 	NetworkPerformance.note_app_state_applied(tick)
-	if NetworkRollback.enable_diff_states:
+	if NetworkRollback.enable_diff_states and send_ack:
 		_ack_full_state.rpc_id(sender, tick)
 		NetworkPerformance.record_app_message("out", "state_full_ack", [tick])
 	return true
+
+func receive_bundled_full_ack(tick: int, sender_id: int) -> void:
+	_ackd_state[sender_id] = tick
+	_logger.trace("Peer %d ack'd bundled full state for tick %d", [sender_id, tick])
 
 # State is a serialized _PropertySnapshot (Dictionary[String, Variant])
 @rpc("any_peer", "unreliable_ordered", "call_remote")

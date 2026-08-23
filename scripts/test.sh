@@ -13,6 +13,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/follow_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/tractor_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/impact_controller_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/correction_classifier_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/asset_smoke_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/boost_afterimage_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/coverage_config_test.gd
@@ -22,14 +23,20 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/driving_course_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/crash_telemetry_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/input_codec_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/client_cruise_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/motion_trace_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/local_presentation_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://net/state_codec_selftest.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/state_bundle_coalescing_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/remote_position_transport_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/adaptive_presentation_delay_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/window_safety_policy_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/dots_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/troop_delivery_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/web_soak_input_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/elevated_course_test.gd
+"$project_root/scripts/webrtc_turn_harness_lifecycle_test.sh"
 "$project_root/scripts/offline_test.sh"
 "$project_root/scripts/network_test.sh"
 "$project_root/scripts/mixed_transport_test.sh"

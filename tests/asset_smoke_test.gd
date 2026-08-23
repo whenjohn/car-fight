@@ -4,6 +4,8 @@ const JEEP_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const JEEP_PRESENTATION := preload("res://player/ground_vehicle_hull.gd")
 const DRIFT_GUIDE := preload("res://player/drift_guide.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
+const SERVER_DRIVER_COLLISION := preload("res://player/server_driver_collision.gd")
+const REMOTE_COLLISION_PHASE := preload("res://player/remote_collision_phase.gd")
 const COVERAGE_VISUAL := preload("res://combat/coverage_visual.gd")
 const TARGET_DUMMY := preload("res://combat/target_dummy.gd")
 const BOLT_VISUAL := preload("res://combat/bolt_visual.gd")
@@ -30,6 +32,40 @@ func _init() -> void:
 	if VEHICLE_CONFIG.COLLISION_RADIUS + 0.001 < footprint_radius:
 		push_error("JEEP_COLLIDER_TEST FAIL: radius %.3f does not contain visual footprint %.3f" % [
 			VEHICLE_CONFIG.COLLISION_RADIUS, footprint_radius])
+		quit(1)
+		return
+	var driver_collision := CollisionShape3D.new()
+	SERVER_DRIVER_COLLISION.configure(driver_collision)
+	var driver_capsule := driver_collision.shape as CapsuleShape3D
+	var capsule_axis := driver_collision.basis * Vector3.UP
+	if driver_capsule == null \
+			or absf(absf(capsule_axis.normalized().dot(Vector3.FORWARD)) - 1.0) > 0.001:
+		push_error("SERVER_DRIVER_COLLIDER_TEST FAIL: capsule must run Jeep front-to-rear")
+		quit(1)
+		return
+	if absf(driver_collision.position.y - SERVER_DRIVER_COLLISION.RADIUS \
+			+ VEHICLE_CONFIG.COLLISION_RADIUS) > 0.001:
+		push_error("SERVER_DRIVER_COLLIDER_TEST FAIL: capsule bottom must retain ground height")
+		quit(1)
+		return
+	if SERVER_DRIVER_COLLISION.RADIUS < 0.87 \
+			or SERVER_DRIVER_COLLISION.HEIGHT * 0.5 < 1.30:
+		push_error("SERVER_DRIVER_COLLIDER_TEST FAIL: capsule must cover the Jeep footprint")
+		quit(1)
+		return
+	var capsule_excess := _capsule_footprint_excess(source_mesh.mesh, source_mesh.transform,
+		SERVER_DRIVER_COLLISION.RADIUS, SERVER_DRIVER_COLLISION.HEIGHT)
+	if capsule_excess > 0.001:
+		push_error("SERVER_DRIVER_COLLIDER_TEST FAIL: Jeep corners exceed capsule by %.3f" \
+			% capsule_excess)
+		quit(1)
+		return
+	driver_collision.free()
+	var live_proxy := REMOTE_COLLISION_PHASE.disabled_states(true, false, true)
+	var replay_proxy := REMOTE_COLLISION_PHASE.disabled_states(true, true, true)
+	if not bool(live_proxy["source"]) or bool(live_proxy["proxy"]) \
+			or bool(replay_proxy["source"]) or not bool(replay_proxy["proxy"]):
+		push_error("REMOTE_COLLISION_PHASE_TEST FAIL: replay must restore the server body")
 		quit(1)
 		return
 	var split: Dictionary = JEEP_SPLITTER.split(source_mesh.mesh, source_mesh.transform)
@@ -289,3 +325,21 @@ func _visual_footprint_radius(mesh: Mesh, source_transform: Transform3D,
 			var presented := model_basis * (source_transform * vertex) + model_offset
 			radius = maxf(radius, Vector2(presented.x, presented.z).length())
 	return radius
+
+
+func _capsule_footprint_excess(mesh: Mesh, source_transform: Transform3D,
+		radius: float, height: float) -> float:
+	var excess := 0.0
+	var segment_half := maxf(height * 0.5 - radius, 0.0)
+	var model_basis := Basis(Vector3.UP, PI).scaled(
+		Vector3.ONE * JEEP_PRESENTATION.JEEP_SCALE)
+	var model_offset := Vector3(0.0, 0.065, -0.05)
+	for surface in range(mesh.get_surface_count()):
+		var arrays := mesh.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for vertex in vertices:
+			var presented := model_basis * (source_transform * vertex) + model_offset
+			var cap_z := maxf(absf(presented.z) - segment_half, 0.0)
+			var distance := Vector2(presented.x, cap_z).length()
+			excess = maxf(excess, distance - radius)
+	return excess

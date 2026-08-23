@@ -14,6 +14,12 @@ native_pid=""
 stack_args=()
 browser_stack_query=""
 stack_label="legacy"
+server_fixture_args=()
+native_script_args=(--script right)
+if [[ "${CAR_FIGHT_SERVER_DRIVER_LANE:-0}" == "1" ]]; then
+	server_fixture_args=(--server-driver-lane --player-capsule)
+	native_script_args=()
+fi
 if [[ "${CAR_FIGHT_G2_STACK:-0}" == "1" ]]; then
 	state_rate_divisor="${CAR_FIGHT_STATE_RATE_DIVISOR:-3}"
 	stack_args=(--state-bundles --packed-input --packed-state --input-broadcast 0 \
@@ -29,6 +35,15 @@ fi
 if [[ "${CAR_FIGHT_ADAPTIVE_STATE_RATE:-0}" == "1" ]]; then
 	stack_args+=(--adaptive-state-rate 1)
 	browser_stack_query+="&adaptiveStateRate=1"
+fi
+presentation_mode="${CAR_FIGHT_REMOTE_INTERP_MODE:-fixed}"
+presentation_min="${CAR_FIGHT_REMOTE_INTERP_MS:-75}"
+presentation_max="${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}"
+stack_args+=(--remote-interp-mode "$presentation_mode" --remote-interp "$presentation_min" \
+	--remote-interp-max "$presentation_max")
+browser_stack_query+="&remoteInterpMode=$presentation_mode&remoteInterpMs=$presentation_min&remoteInterpMaxMs=$presentation_max&networkProfile=web-smoke"
+if [[ "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
+	browser_stack_query+="&networkHud=1&netTelemetry=1"
 fi
 
 cleanup() {
@@ -55,12 +70,13 @@ curl -fs -o /dev/null "http://127.0.0.1:$web_port/"
 
 "$godot_bin" --headless --path "$project_root" -- --server --transport mux \
 	--port "$enet_port" --signal-port "$signal_port" --no-drone \
+	"${server_fixture_args[@]}" \
 	"${stack_args[@]}" \
 	>"$log_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
 "$godot_bin" --headless --path "$project_root" -- --client --transport enet \
-	--host 127.0.0.1 --port "$enet_port" --name native-survivor --script right \
+	--host 127.0.0.1 --port "$enet_port" --name native-survivor "${native_script_args[@]}" \
 	"${stack_args[@]}" \
 	>"$log_dir/native.log" 2>&1 &
 native_pid=$!

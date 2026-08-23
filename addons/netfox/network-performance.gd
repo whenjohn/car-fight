@@ -49,6 +49,10 @@ var _app_inputs_backpressure_dropped := 0
 var _app_fast_forwards := 0
 var _app_fast_forward_ticks := 0
 var _app_fresh_key_requests := 0
+var _app_fast_forwards_total := 0
+var _app_fresh_key_requests_total := 0
+var _app_last_fast_forward_tick := -1
+var _app_last_fresh_key_request_tick := -1
 var _app_pending_age_max := 0
 var _app_state_oldest_received_tick := -1
 var _app_state_newest_received_tick := -1
@@ -57,6 +61,7 @@ var _app_state_rejected := 0
 var _app_rollback_ticks_sum := 0
 var _app_rollback_ticks_max := 0
 var _app_rollback_ticks_current := 0
+var _app_rollback_origin_depths: Dictionary = {}
 var _app_last_report_msec := 0
 
 static var _logger: NetfoxLogger = NetfoxLogger._for_netfox("NetworkPerformance")
@@ -193,11 +198,15 @@ func note_app_input_backpressure_dropped(count: int) -> void:
 		_app_inputs_backpressure_dropped += maxi(0, count)
 
 func note_app_fast_forward(skipped_ticks: int) -> void:
+	_app_fast_forwards_total += 1
+	_app_last_fast_forward_tick = NetworkTime.tick
 	if _app_telemetry_enabled:
 		_app_fast_forwards += 1
 		_app_fast_forward_ticks += maxi(0, skipped_ticks)
 
 func note_app_fresh_key_request() -> void:
+	_app_fresh_key_requests_total += 1
+	_app_last_fresh_key_request_tick = NetworkTime.tick
 	if _app_telemetry_enabled:
 		_app_fresh_key_requests += 1
 
@@ -223,6 +232,14 @@ func note_app_state_rejected() -> void:
 	if _app_telemetry_enabled:
 		_app_state_rejected += 1
 
+func note_app_rollback_origin(label: String, origin_tick: int) -> void:
+	if not _app_telemetry_enabled or origin_tick < 0:
+		return
+	var depth := maxi(0, NetworkTime.tick - origin_tick)
+	if depth >= 8:
+		_app_rollback_origin_depths[label] = maxi(depth,
+			int(_app_rollback_origin_depths.get(label, 0)))
+
 func get_broadcast_recipient_count() -> int:
 	return multiplayer.get_peers().size()
 
@@ -244,6 +261,14 @@ func get_app_telemetry_snapshot(now_tick: int) -> Dictionary:
 		"fast_forwards": _app_fast_forwards,
 		"fast_forward_ticks": _app_fast_forward_ticks,
 		"fresh_key_requests": _app_fresh_key_requests,
+		"fast_forwards_total": _app_fast_forwards_total,
+		"fresh_key_requests_total": _app_fresh_key_requests_total,
+		"last_fast_forward_tick": _app_last_fast_forward_tick,
+		"last_fresh_key_request_tick": _app_last_fresh_key_request_tick,
+		"fast_forward_age_ticks": -1 if _app_last_fast_forward_tick < 0 else maxi(0,
+			now_tick - _app_last_fast_forward_tick),
+		"fresh_key_age_ticks": -1 if _app_last_fresh_key_request_tick < 0 else maxi(0,
+			now_tick - _app_last_fresh_key_request_tick),
 		"pending_age_max": _app_pending_age_max,
 		"state_oldest_received_tick": _app_state_oldest_received_tick,
 		"state_newest_received_tick": _app_state_newest_received_tick,
@@ -254,6 +279,7 @@ func get_app_telemetry_snapshot(now_tick: int) -> Dictionary:
 		"state_rejected": _app_state_rejected,
 		"rollback_ticks_sum": _app_rollback_ticks_sum,
 		"rollback_ticks_max": _app_rollback_ticks_max,
+		"rollback_origin_depths": _app_rollback_origin_depths.duplicate(),
 	}
 
 ## Format the once-per-second line without mutating/resetting the current window. An empty string is the strict
@@ -262,7 +288,7 @@ func build_app_telemetry_report(tick: int) -> String:
 	if not _app_telemetry_enabled:
 		return ""
 	var snapshot := get_app_telemetry_snapshot(tick)
-	return "NETAPP tick=%d rates=%s bundles=%s skipped=%d bp_dropped=%d input_bp_dropped=%d fast_forwards=%d/%dt key_requests=%d pending_age_max=%d state_rx_ticks=%s..%s state_age_ticks=%s/%s applied_tick=%s applied_age_ticks=%s rejected=%d rollback_ticks_sum=%d rollback_ticks_max=%d" % [
+	return "NETAPP tick=%d rates=%s bundles=%s skipped=%d bp_dropped=%d input_bp_dropped=%d fast_forwards=%d/%dt key_requests=%d pending_age_max=%d state_rx_ticks=%s..%s state_age_ticks=%s/%s applied_tick=%s applied_age_ticks=%s rejected=%d rollback_ticks_sum=%d rollback_ticks_max=%d origins=%s" % [
 		tick, _format_app_rates(), _format_app_bundles(),
 		int(snapshot["bundles_skipped"]), int(snapshot["bundles_backpressure_dropped"]),
 		int(snapshot["inputs_backpressure_dropped"]),
@@ -275,7 +301,8 @@ func build_app_telemetry_report(tick: int) -> String:
 		_age_or_na(int(snapshot["state_newest_age_ticks"])),
 		_tick_or_na(int(snapshot["state_newest_applied_tick"])),
 		_age_or_na(int(snapshot["state_applied_age_ticks"])), int(snapshot["state_rejected"]),
-		int(snapshot["rollback_ticks_sum"]), int(snapshot["rollback_ticks_max"])]
+		int(snapshot["rollback_ticks_sum"]), int(snapshot["rollback_ticks_max"]),
+		_format_rollback_origins(snapshot["rollback_origin_depths"])]
 
 func _on_app_telemetry_tick(_dt: float, tick: int) -> void:
 	if not _app_telemetry_enabled:
@@ -318,6 +345,16 @@ func _format_app_bundles() -> String:
 			int(_app_bundle_entries[direction]), int(_app_bundle_bytes[direction])])
 	return ",".join(parts)
 
+func _format_rollback_origins(origins: Dictionary) -> String:
+	if origins.is_empty():
+		return "none"
+	var keys := origins.keys()
+	keys.sort()
+	var parts: PackedStringArray = []
+	for key in keys:
+		parts.append("%s:%d" % [str(key), int(origins[key])])
+	return ",".join(parts)
+
 func _tick_or_na(tick: int) -> String:
 	return "n/a" if tick < 0 else str(tick)
 
@@ -344,6 +381,7 @@ func _reset_app_telemetry_window() -> void:
 	_app_rollback_ticks_sum = 0
 	_app_rollback_ticks_max = 0
 	_app_rollback_ticks_current = 0
+	_app_rollback_origin_depths.clear()
 
 func _ready() -> void:
 	if not is_enabled():

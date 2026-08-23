@@ -22,6 +22,10 @@ class SignalPeer extends RefCounted:
 	var announced := false
 	var id_acked := false
 	var last_id_sent_msec := 0
+	var remote_candidates := 0
+	var local_candidates := 0
+	var remote_offer_received := false
+	var local_answer_sent := false
 	var ws := WebSocketPeer.new()
 
 	func _init(peer_id: int, stream: StreamPeer) -> void:
@@ -180,6 +184,16 @@ func _log_channel_telemetry() -> void:
 	_last_channel_telemetry_msec = now_msec
 	for peer_id: int in _rtc.get_peers():
 		var peer: Dictionary = _rtc.get_peer(peer_id)
+		var connection: WebRTCPeerConnection = peer.connection
+		var signal_peer: SignalPeer = _server_signal_peers.get(peer_id) \
+			if _mode == "server" else null
+		print("[webrtc-connection] mode=%s peer=%d connection=%d gathering=%d signaling=%d remote_candidates=%d local_candidates=%d remote_offer=%s local_answer=%s" % [
+			_mode, peer_id, connection.get_connection_state(), connection.get_gathering_state(),
+			connection.get_signaling_state(), signal_peer.remote_candidates if signal_peer else -1,
+			signal_peer.local_candidates if signal_peer else -1,
+			str(signal_peer.remote_offer_received) if signal_peer else "n/a",
+			str(signal_peer.local_answer_sent) if signal_peer else "n/a",
+		])
 		for channel: WebRTCDataChannel in peer.get("channels", []):
 			print("[webrtc-channel] mode=%s peer=%d label=%s state=%s buffered_bytes=%d selected_lifetime_ms=%s reported_lifetime_ms=%s" % [
 				_mode, peer_id, channel.get_label(), _channel_state_name(channel.get_ready_state()),
@@ -279,8 +293,10 @@ func _parse_server_message(signal_peer: SignalPeer, packet: PackedByteArray) -> 
 		return true
 	if kind == TYPE_OFFER and typeof(msg.get("sdp")) == TYPE_STRING:
 		signal_peer.id_acked = true
+		signal_peer.remote_offer_received = true
 		return _set_remote_description(signal_peer.id, "offer", msg.sdp)
 	if kind == TYPE_CANDIDATE:
+		signal_peer.remote_candidates += 1
 		return _add_candidate(signal_peer.id, msg)
 	return false
 
@@ -360,6 +376,8 @@ func _on_session_description(kind: String, sdp: String, peer_id: int) -> void:
 	if _mode == "server":
 		var signal_peer: SignalPeer = _server_signal_peers.get(peer_id)
 		if signal_peer:
+			if kind == "answer":
+				signal_peer.local_answer_sent = true
 			_send(signal_peer.ws, msg)
 	else:
 		_send(_client_signal, msg)
@@ -379,6 +397,7 @@ func _on_ice_candidate(mid: String, index: int, candidate: String, peer_id: int)
 	if _mode == "server":
 		var signal_peer: SignalPeer = _server_signal_peers.get(peer_id)
 		if signal_peer:
+			signal_peer.local_candidates += 1
 			_send(signal_peer.ws, msg)
 	else:
 		_send(_client_signal, msg)

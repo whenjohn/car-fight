@@ -185,6 +185,25 @@ if [[ "${CAR_FIGHT_SERVER_DRIVER:-0}" == "1" ]]; then
 	server_fixture_args=(--server-driver)
 fi
 client_user_args+=("${network_stack_args[@]}")
+if [[ "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
+	client_user_args+=(--network-hud --network-profile "${CAR_FIGHT_NETWORK_PROFILE:-unshaped}" \
+		--net-telemetry)
+fi
+if [[ "${CAR_FIGHT_HIDE_HOTKEY_HINTS:-0}" == "1" ]]; then
+	client_user_args+=(--hide-hotkey-hints)
+fi
+if [[ -n "${CAR_FIGHT_REMOTE_INTERP_MODE:-}" ]]; then
+	client_user_args+=(--remote-interp-mode "$CAR_FIGHT_REMOTE_INTERP_MODE" \
+		--remote-interp "${CAR_FIGHT_REMOTE_INTERP_MS:-75}" \
+		--remote-interp-max "${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}")
+fi
+if [[ "${CAR_FIGHT_PRESENTATION_TRACE_SECONDS:-0}" != "0" ]]; then
+	client_user_args+=(--presentation-trace "$run_dir/presentation-trace.jsonl" \
+		--presentation-trace-seconds "$CAR_FIGHT_PRESENTATION_TRACE_SECONDS")
+fi
+if [[ -n "${CAR_FIGHT_PRESENTATION_CONTROL_PATH:-}" ]]; then
+	client_user_args+=(--presentation-control "$CAR_FIGHT_PRESENTATION_CONTROL_PATH")
+fi
 if [[ -n "$rendering_driver" ]]; then
 	driver_args=(--rendering-driver "$rendering_driver")
 fi

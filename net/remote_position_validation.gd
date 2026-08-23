@@ -6,8 +6,14 @@ const MAX_BODIES := 64
 
 static func classify_batch(last_sequence: int, last_publication: int, last_tick: int,
 		sequence: int, publication: int, tick: int, recipient_map: int,
-		id_count: int, generation_count: int, position_count: int) -> String:
-	if id_count != generation_count or id_count != position_count or id_count > MAX_BODIES:
+		id_count: int, generation_count: int, position_count: int,
+		rotation_count: int = -1, linear_velocity_count: int = -1,
+		angular_velocity_count: int = -1) -> String:
+	if id_count != generation_count or id_count != position_count \
+			or (rotation_count >= 0 and id_count != rotation_count) \
+			or (linear_velocity_count >= 0 and id_count != linear_velocity_count) \
+			or (angular_velocity_count >= 0 and id_count != angular_velocity_count) \
+			or id_count > MAX_BODIES:
 		return "malformed"
 	if recipient_map < -1:
 		return "malformed"

@@ -177,7 +177,10 @@ var _cad_relapses: Dictionary = {}     # peer -> consecutive unsustainable recov
 var _cad_debug := false
 
 func _ready() -> void:
-	NetworkRollback.after_record_tick.connect(_flush_tick)
+	# Recorders populate per-tick columns during rollback, including historical
+	# replay ticks. Publish only after the loop has reached its final settled tick;
+	# emitting from after_record_tick turns resimulation work into stale wire load.
+	NetworkRollback.after_loop.connect(_flush_settled_tick)
 	NetworkTime.before_tick_loop.connect(_drain_incoming)
 	# ⚠ CONNECTED UNCONDITIONALLY; the role is decided INSIDE _cadence_tick. Gating on is_server()
 	# here is the documented trap — with no peer assigned yet Godot's is_server() answers TRUE
@@ -642,6 +645,14 @@ func is_enabled() -> bool:
 func is_key_tick(tick: int) -> bool:
 	return _enabled and (_force_next_key or tick % KEY_INTERVAL == 0)
 
+
+func route_state_snapshot(route: int, now_tick: int) -> Dictionary:
+	var applied_tick := int(_newest_applied_by_route.get(route, -1))
+	return {
+		"applied_tick": applied_tick,
+		"applied_age_ticks": -1 if applied_tick < 0 else maxi(0, now_tick - applied_tick),
+	}
+
 ## Register by a compact signed body id. MultiplayerSpawner gives every body a numeric name on every peer;
 ## players are positive and props are negated, so the namespaces cannot collide. There is exactly one
 ## RollbackSynchronizer per body in g2.
@@ -690,8 +701,71 @@ func queue_state(peer: int, tick: int, sync_root: Node, kind: int, data: Variant
 	(columns[3] as Array).append(data)
 	return true
 
-## NetworkRollback emits this only after every on_record_tick subscriber returns, so entries for this tick are
-## complete. One peer can see a different entry set from another because existing visibility is preserved.
+## Publish the newest settled state produced for each route by this rollback
+## loop. A remote-input route can settle only at its newest replayed source tick,
+## while an inputless route also emits at the current tick. Keep one of each;
+## older entries for the same route are replay intermediates. One peer can see a
+## different entry set from another because existing visibility is preserved.
+func _flush_settled_tick() -> void:
+	if not _enabled or _pending_by_tick.is_empty():
+		return
+	# A remote-input body is usually predicted at the server's current tick, so
+	# netfox records its newest authoritative state while replaying the input tick
+	# that just arrived. Flushing only the current tick starves exactly that route
+	# while inputless/server-owned bodies keep the aggregate stream looking
+	# healthy. Retain one newest post-replay entry per recipient and route, then
+	# publish those bounded sparse envelopes in source-tick order.
+	_retain_newest_settled_entry_per_route()
+	var ticks := _pending_by_tick.keys()
+	ticks.sort()
+	for tick_variant in ticks:
+		_flush_tick(int(tick_variant))
+	_pending_by_tick.clear()
+
+
+func _retain_newest_settled_entry_per_route() -> void:
+	var selected := {}
+	var seen := {} # peer -> route -> true
+	var ticks := _pending_by_tick.keys()
+	ticks.sort()
+	ticks.reverse()
+	for tick_variant in ticks:
+		var tick := int(tick_variant)
+		var by_peer: Dictionary = _pending_by_tick[tick_variant]
+		for peer_variant in by_peer:
+			var peer := int(peer_variant)
+			if not seen.has(peer):
+				seen[peer] = {}
+			var peer_seen: Dictionary = seen[peer]
+			var columns: Array = by_peer[peer_variant]
+			var routes: PackedInt64Array = columns[0]
+			var kinds: PackedByteArray = columns[1]
+			var references: PackedInt32Array = columns[2]
+			var payloads: Array = columns[3]
+			for index in payloads.size():
+				var route := int(routes[index])
+				if peer_seen.has(route):
+					continue
+				peer_seen[route] = true
+				if not selected.has(tick):
+					selected[tick] = {}
+				var selected_by_peer: Dictionary = selected[tick]
+				if not selected_by_peer.has(peer):
+					selected_by_peer[peer] = [PackedInt64Array(), PackedByteArray(),
+						PackedInt32Array(), []]
+				var selected_columns: Array = selected_by_peer[peer]
+				var selected_routes: PackedInt64Array = selected_columns[0]
+				var selected_kinds: PackedByteArray = selected_columns[1]
+				var selected_references: PackedInt32Array = selected_columns[2]
+				selected_routes.append(route)
+				selected_kinds.append(int(kinds[index]))
+				selected_references.append(int(references[index]))
+				(selected_columns[3] as Array).append(payloads[index])
+				selected_columns[0] = selected_routes
+				selected_columns[1] = selected_kinds
+				selected_columns[2] = selected_references
+	_pending_by_tick = selected
+
 func _flush_tick(tick: int) -> void:
 	if not _enabled or not _pending_by_tick.has(tick):
 		return
@@ -928,15 +1002,26 @@ func _drain_incoming() -> void:
 			_send_fresh_key_request()
 			NetworkPerformance.note_app_bundle_skipped(deltas.size())
 			return
-		_apply_bundle(key)
+		if not _apply_bundle(key):
+			# A single route can reject a coordinated key during a short
+			# registration/reference race. The legacy transmitter recovery is
+			# deliberately disabled while bundling, so the coordinator must own
+			# this failure or the bad route can remain frozen while other routes
+			# keep the aggregate applied-state telemetry looking healthy.
+			_waiting_for_fresh_key = true
+			_send_fresh_key_request()
+			NetworkPerformance.note_app_bundle_skipped(deltas.size())
+			return
 	var stale_route := false
+	var rejected_route := false
 	for delta in deltas:
 		if _bundle_age(delta) > NetworkRollback.history_limit:
 			NetworkPerformance.note_app_bundle_skipped(1)
 			stale_route = true
 			continue
-		_apply_bundle(delta)
-	if stale_route:
+		if not _apply_bundle(delta):
+			rejected_route = true
+	if stale_route or rejected_route:
 		_waiting_for_fresh_key = true
 		_send_fresh_key_request()
 	_update_pending_age()
@@ -1015,6 +1100,7 @@ func _apply_bundle(bundle: Dictionary) -> bool:
 	var kinds: PackedByteArray = bundle["kinds"]
 	var references: PackedInt32Array = bundle["references"]
 	var payloads: Array = bundle["payloads"]
+	var ack_routes := PackedInt64Array()
 	for i in payloads.size():
 		var route := int(routes[i])
 		if tick <= int(_newest_applied_by_route.get(route, -1)):
@@ -1030,9 +1116,35 @@ func _apply_bundle(bundle: Dictionary) -> bool:
 		if entry_ok:
 			_newest_applied_by_route[route] = tick
 			_newest_applied_source_tick = maxi(_newest_applied_source_tick, tick)
+			if int(kinds[i]) == FULL:
+				ack_routes.append(route)
 		else:
 			ok = false
+	if NetworkRollback.enable_diff_states and not ack_routes.is_empty() and sender > 0:
+		_ack_full_routes.rpc_id(sender, tick, ack_routes)
+		NetworkPerformance.record_app_message("out", "state_full_ack_bundle", [tick, ack_routes])
 	return ok
+
+@rpc("any_peer", "unreliable_ordered", "call_remote")
+func _ack_full_routes(tick: int, routes: PackedInt64Array) -> void:
+	if not multiplayer.is_server() or tick < 0 or routes.is_empty() \
+			or routes.size() > _routes.size():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender <= 0 or not multiplayer.get_peers().has(sender):
+		return
+	var seen := {}
+	for route_variant in routes:
+		var route := int(route_variant)
+		if seen.has(route):
+			continue
+		seen[route] = true
+		var transmitter: Node = _routes.get(route)
+		if transmitter == null or not is_instance_valid(transmitter) \
+				or not transmitter.is_inside_tree():
+			continue
+		transmitter.receive_bundled_full_ack(tick, sender)
+	NetworkPerformance.record_app_message("in", "state_full_ack_bundle", [tick, routes])
 
 func _apply_recovery_key(bundle: Dictionary) -> bool:
 	if not _is_complete_key(bundle):

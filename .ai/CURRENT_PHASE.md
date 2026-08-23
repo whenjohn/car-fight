@@ -5,9 +5,18 @@
 - Active Car Fight development returned to this Godot repository on 2026-08-19. The prior Unity handoff is superseded; see `MIGRATION_TO_UNITY.md` and `~/Projects/car-fight-unity/docs/RETURN_TO_GODOT.md`.
 - Preserve the Unity repository at revision `e312c42` as an investigation. Carry its useful native multiplayer authority, prediction, lifecycle, impairment, telemetry, and launcher requirements back into Godot tests; do not port its scene, FishNet adapters, or browser transport fork.
 - On affected macOS Intel systems, rendered play must use an ordinary decorated window inside the usable desktop area. Do not use native fullscreen, borderless fullscreen, or exact edge-to-edge/maximized presentation. This bounded compatibility limitation is accepted.
-- Network shaping is active in the isolated `feature/network-shaping` worktree. The full G2-derived transport is now available as an explicit A/B profile on native ENet and browser WebRTC; ordinary game launches remain on legacy defaults. Local browser backpressure is healthy with the full profile, while remote forced-TURN acceptance remains open because the latest latency retry stopped during ICE setup. Preserve the earlier queue failures and the 64 KiB ceiling as evidence.
+- The full G2-derived transport is available as an explicit A/B profile on native ENet and browser WebRTC; ordinary game launches remain on legacy defaults. The forced-TURN path is operational and its fixed 120 ms Networking-1 jump/teleport gate is accepted. Preserve the earlier queue failures and 64 KiB ceiling as evidence; combined impairment remains a separate unaccepted experiment.
+- Networking 1 is implemented on `feature/networking-1` in `/Users/johnnguyen/Projects/car-fight-networking-1`. The fixed 120 ms forced-TURN jump/teleport investigation is complete: per-route settled-state starvation is fixed and human no-contact, rear/head-on/side-impact, and deterministic local-stall controls are accepted. Fixed 75 ms presentation remains the ordinary default; the accepted 1.05-radius/3.40-length capsule remains harness-only.
+- Networking 2 is complete on `feature/networking-2` in `/Users/johnnguyen/Projects/car-fight-networking-2`, based on accepted commit `a535364`. The 600-second reconnect soak and two-real-player forced-TURN checks pass. A harness-only local hull/camera reconciler removed the subtle moving-observer tug in both cross-platform directions without changing physics, rollback, collision, input, ordinary presentation defaults, or gameplay capsule defaults.
 
 ## Completed
+
+- Ported G2's unmerged adaptive-presentation experiment as a pure, deterministic client-local estimator driven by batch arrival variation/gaps plus actual buffer headroom and interpolation/extrapolation/hold outcomes. Added bounded JSONL capture/replay, focused pressure/saturation/epoch tests, fixed-mode fast paths, and the same controls for ENet and WebRTC. Ordinary play remains fixed at 75 ms.
+- Added the opt-in four-line Networking 1 HUD and matching once-per-second `NETWORKHUD` JSON: FPS/frame average+maximum, transport/profile and RTT/jitter, presentation target/headroom/I-E-H shares, and rollback cost/depth plus correction/recovery. Added `scripts/play_networking1_enet.sh`, which uses a temporary server-driven Jeep on the isolated macai2 checkout/UDP 12680 and one local rendered observer through UDP 12681 without touching production.
+- Networking 1 visual runs now hide the general hotkey hint line and show a prominent three-second `FIXED/ADAPTIVE BUFFER` banner at startup and every presentation-tier change, after the first adaptive playtest made its 75→100→125→150 ms transitions too easy to miss.
+- Completed the human ENet fixed/adaptive series against the isolated macai2 server. Adaptive improved every matched comparison: clean selected 100 ms and reduced side-by-side vibration; latency120 selected 100 ms and softened mixed stutters; jitter selected 125 ms and replaced harsh jerk/grass separation with continuous but occasionally vibrating motion; combined selected 100 ms and was rated very playable and smooth. No adaptive phase produced a recovery pullback. The residual drawn-out combined stutters aligned with 35-39 FPS and 25-33 ms rollback loops while presentation remained 100% interpolated. Fixed-mode per-body I/E/H instrumentation is still missing, so its aggregate network counters must not be treated as direct motion-quality measurements.
+- The jitter comparison exposed a large-clock-correction startup defect: a monotonic presentation cursor could remain outside its retained history and hold an endpoint for seconds. Large corrections beyond the one-second history now establish a fresh cursor epoch while ordinary clock discipline remains damped; focused forward/backward rebase tests and clean import pass. Two permission-correct complete-suite confirmations passed all presentation/transport/network/lifecycle tests through reverse, then the pre-existing timing-sensitive jump-gate route completed only its outbound transition under cumulative suite load; its immediate isolated rerun passed both transitions. Do not attribute that unrelated gate flake to presentation work.
+- Validated Networking 1 with two short clean macai2 traces (both replayed at the 75 ms floor with 100% interpolation after warmup), the adaptive local ENet gate, the exported browser/native adaptive smoke (58 steady FPS, 3,896-byte peak/487-byte final queue, zero browser errors), clean Godot import, and the complete suite (`ALL_TESTS PASS`). Temporary rollback stage profiling found no proven safe 5% optimization, so no replay behavior or hot-loop profiler was retained.
 
 - Integrated the pickup/dropoff prototype into the network-shaping baseline: a
   green recruitment area streams troops into a nearby car, and holding `F` in
@@ -109,7 +118,122 @@
 - Promoted the accepted mux server configuration to the isolated macai2 Car Fight service at the user's request. It preserves native ENet on UDP 10080 and adds WebRTC signaling on TCP 10181. The remote server has no `.git` checkout by design (deployment syncs source excluding `.git`), so deployment verification uses the running daemon and listener rather than a remote Git revision. Public browser play is still separate work: it needs HTTPS/WSS hosting and likely TURN before remote acceptance.
 - Changed normal native client launches to prefer macai2 over Tailscale, keeping server simulation off the local Intel Mac. `play.sh`, `join.sh`, direct client startup, and `play_monitored.sh` now default to `100.113.2.60`; `CAR_FIGHT_HOST` overrides it. Local development remains explicit through `play_local.sh`, `play_monitored.sh --local`, or a passed `127.0.0.1` host. Browser/local test helpers retain their isolated endpoints.
 
+## Networking-1 checkpoint (2026-08-22)
+
+- Completed the ENet-to-WebRTC presentation series through a forced-TURN 120 ms
+  collision-proxy checkpoint. Human testing accepted the 1.05-radius,
+  3.40-length horizontal capsule for both the server fixture and the player in
+  the Networking-1 harness. Ordinary gameplay retains its proven sphere.
+- Added a slow non-evasive left-lane server driver for repeatable collision
+  judgment, a rollback-aware fixture collision proxy, a synchronized cyan
+  collider visualization, proxy/authority telemetry, and map-relevance visual
+  cleanup. Detailed results remain in `NETWORK_SHAPING_FINDINGS.md`.
+- A global capsule-default attempt exposed separate handling integration work:
+  elevated-road touchdown became intermittent, the reverse fixture overlapped
+  the longer shape, and projectile/shield pitch response changed with rotational
+  inertia. Speculative compensations were removed. Add a dedicated gameplay
+  capsule workstream later; do not mix it into jump/teleport diagnosis.
+- Final validation passed every ordinary gameplay/network gate. One complete-suite
+  course run missed its timing-sensitive rebound sample; the immediate isolated
+  repeat passed at 1.366 units, followed by passing reverse, gate, combat, RC orb,
+  shield, and detonation gates. `git diff --check` is clean.
+- Hardened the forced-TURN harness against stale processes and mismatched runs:
+  unique run identity spans browser/server/TURN/evidence, readiness verifies
+  connection/state/nonzero RTT, cleanup owns exact resources, and the lifecycle
+  regression passes both `INT` and `TERM` with successful port rebinding.
+- Added multi-signal correction telemetry and HUD counts for stall, stale,
+  impact, and unknown causes, including route-specific applied age, recovery,
+  rollback/history, frame/process, contact, proxy/authority, and map evidence.
+- Diagnosed the teleport as StateBundle route starvation. Remote-input authority
+  settled during historical replay, but the post-rollback flush discarded those
+  route entries while healthier server-owned routes masked the freeze. The
+  bundler now retains the newest settled entry per route, preserves its source
+  tick ordering, and explicitly requests a coordinated key after apply failure.
+- Human forced-TURN run `20260822T185708Z-56142-16179` was smooth without contact
+  and through accepted rear, head-on, and repeated side impacts. State age stayed
+  mostly 6-11 ticks with no stale recovery loop. Controlled impact corrections
+  remained about 0.176-0.561 units, so collision disagreement was not the jump.
+- Human stall-control run `20260822T191625Z-58196-23649` injected one 695 ms
+  main-thread pause. The world visibly slowed as FPS briefly reached 4, but no
+  network jump/teleport occurred; recoveries, key requests, rejected states, and
+  fast-forwards stayed at zero. The harness observer now starts clear of the lane.
+- Focused parser/classifier/coalescing/lifecycle checks pass. The G2 divisor-1
+  120 ms native gate passes with a 0.302-unit worst correction. The complete
+  `./scripts/test.sh` suite passes (`ALL_TESTS PASS`).
+
+## Networking-2 reconnect soak (2026-08-22)
+
+- Added an exact-resource 600-second forced-TURN soak with a stationary native
+  survivor, one browser leave/rejoin, forced relay proof, topology assertions,
+  correction/recovery/movement telemetry, and bounded queue/error checks.
+- The first long diagnostic exposed harness contamination: its mouse helper
+  continuously drove the replacement into arena geometry and produced a
+  4.845-unit correction. Canvas center was also not neutral under the isometric
+  camera, causing one 3.833-unit startup recovery. Long soaks now use the
+  harness-only `script=idle` input path; ordinary browser input and short
+  movement smokes are unchanged.
+- Run `20260822T222345Z-66042-30123` completed all 600 seconds with 607 shared
+  samples, zero recovery, 0.000887-unit worst correction, 0.00013-unit maximum
+  planar displacement, zero browser errors, a 3,558-byte peak browser queue,
+  and 194,333 TURN qdisc packets with zero drops. The final 30-second renderer
+  window held a 30 FPS minimum / 41.67 average; long unattended acceptance uses
+  30 / 40 while the short playable smoke retains 30 / 45.
+- Reconnect testing also found two presentation lifecycle defects unrelated to
+  transport: empty dot meshes after teardown and troop visuals assigned a
+  global transform before entering the scene tree. Both now have focused
+  regressions and no longer emit browser errors.
+- Focused import, syntax, dots, troop, explicit-idle, and unchanged-report
+  checks pass. The permission-correct complete `./scripts/test.sh` run passes
+  every gate (`ALL_TESTS PASS`); an earlier sandboxed attempt reached the
+  lifecycle listener with `listen EPERM` and is not a code failure.
+
+## Networking-2 two-player presentation (2026-08-23)
+
+- Added a hardened mixed-client harness with one direct native ENet player and
+  one Chrome player forced through TURN at 120 ms one-way. An atomic per-port
+  run lock closes the preflight/build race that previously allowed overlapping
+  launches; the lifecycle regression also proves a concurrent launch is
+  rejected before either run can mutate shared resources.
+- Added a harness-only 480 x 480 arena, client-local `P` cruise input, and an
+  `L` presented-motion recorder/graph. Cruise enters through the same local
+  input path as human control. Each trace has monotonic/unix timestamps plus
+  frame, network, correction, recovery, and rollback context, and a new capture
+  archives the prior samples before clearing the visible line.
+- Moving-observer traces separated renderer cadence from transport recovery.
+  The native-observer trace held 59 median FPS with 0.038-unit p95 residual;
+  the Chrome-observer trace ran near 32 median FPS with 0.058-unit p95 residual.
+  Error was overwhelmingly longitudinal and correlated with uneven local frame
+  time; both had zero stale recovery. A discarded overlapping-launch run instead
+  showed a clock about 109 ticks ahead and repeated 6-22-unit stale snaps,
+  confirming why run identity/locking is required.
+- Added opt-in local presentation reconciliation for the detached local Jeep
+  hull and its camera anchor. It feeds forward the raw physics velocity and
+  applies frame-rate-independent half-life correction, snapping genuine pose
+  changes above 2 units. Physics, rollback, collision, and input remain raw;
+  ordinary launches leave the feature disabled.
+- Human run `20260823T202607Z-81872-13577` used direct native ENet plus Chrome
+  forced TURN, 120 ms one-way, divisor 1, fixed proxy 75-150 ms, the harness
+  capsule, and local presentation enabled. Chrome driving beside a cruising
+  native Jeep and native driving beside a cruising Chrome Jeep were both rated
+  smooth with no visual issues. Recoveries stayed at zero. Median FPS was 85
+  native and 42 Chrome; the browser's ordinary roughly 0.3-unit rollback
+  corrections were no longer visible as tugging.
+- Focused smoothing, cruise, motion-trace, remote-presentation, harness-lifecycle,
+  clean import, and Web export checks pass. The complete permission-correct
+  `./scripts/test.sh` suite passes (`ALL_TESTS PASS`).
+
 ## Next
+
+- Start gameplay capsule integration in a separate branch/worktree based on the
+  completed Networking-2 commit. Preserve radius 1.05 and total length 3.40;
+  validate course support/landings, reverse clearance, projectile/shield
+  response, ramps, gates, ball/tractor, player contact, and map transitions
+  before changing the ordinary sphere default.
+- Keep fixed 75 ms as the ordinary default and the accepted capsule dimensions
+  confined to the Networking-1 harness. Capsule gameplay integration remains a
+  separate handling/physics workstream.
+- Combined impairment and adaptive cadence may resume only as a separate next
+  experiment; neither was changed to accept the 120 ms forced-TURN result.
 
 - Start the next session in `/Users/johnnguyen/Projects/car-fight-network` on `feature/network-shaping`, pull, then run `./scripts/play_shaped_local.sh latency120`. This is the accepted one-observer visual harness: the cursor line and interactive grass remain visible; ramps, the physical arena ball, the shield-test drone, and orange peer markers are intentionally absent. Do not revisit these fixture decisions unless runtime evidence contradicts them.
 - First judge remote motion on the long north/south straightaways rather than during cornering. Record whether stutter correlates with low FPS, whether the two Jeeps remain in one world, and the evidence directory printed by the launcher. Avoid changing route or presentation during the observation run.

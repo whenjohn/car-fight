@@ -87,6 +87,11 @@ var _last_simulated_tick: int
 var _has_input: bool
 var _input_tick: int
 var _is_predicted_tick: bool
+## Replay each new server correction once. Between corrections, a locally-owned predicted body can
+## continue from the last completed frontier instead of replaying the same growing history every frame.
+## _can_simulate remains unchanged so corrections from other colliding bodies still replay this body too.
+var _consumed_authority_tick := -1
+var _prediction_frontier_tick := -1
 
 static var _logger: NetfoxLogger = NetfoxLogger._for_netfox("RollbackSynchronizer")
 
@@ -118,6 +123,8 @@ func process_settings() -> void:
 	_history_transmitter.sync_settings(root, enable_input_broadcast, full_state_interval, diff_ack_interval)
 	_history_transmitter.configure(_states, _inputs, _state_property_config, _input_property_config, visibility_filter, _property_cache, _skipset)
 	_history_recorder.configure(_states, _inputs, _state_property_config, _input_property_config, _property_cache, _skipset)
+	_consumed_authority_tick = -1
+	_prediction_frontier_tick = NetworkTime.tick
 
 ## Process settings based on authority.
 ##
@@ -309,6 +316,9 @@ func _on_record_tick(tick: int) -> void:
 func _after_rollback_loop() -> void:
 	_history_recorder.apply_display_state()
 	_history_transmitter.conclude_tick_loop()
+	if not _get_owned_input_props().is_empty():
+		_consumed_authority_tick = _history_transmitter.get_latest_state_tick()
+		_prediction_frontier_tick = NetworkTime.tick
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_EDITOR_PRE_SAVE:
@@ -368,13 +378,19 @@ func _exit_tree() -> void:
 func _notify_resim() -> void:
 	if _get_owned_input_props().is_empty():
 		# We don't have any inputs we own, simulate from earliest we've received
-		NetworkRollback.notify_resimulation_start(_history_transmitter.get_earliest_input_tick())
+		var earliest_input := _history_transmitter.get_earliest_input_tick()
+		NetworkPerformance.note_app_rollback_origin(str(root.name), earliest_input)
+		NetworkRollback.notify_resimulation_start(earliest_input)
 	else:
-		# We own inputs, simulate from latest authorative state
+		# A new authoritative state is a correction origin. Once consumed, start from the
+		# completed prediction frontier and process only ticks that elapsed since that loop.
 		var latest_state := _history_transmitter.get_latest_state_tick()
+		var replay_origin := latest_state if latest_state != _consumed_authority_tick \
+			else maxi(latest_state, _prediction_frontier_tick)
+		NetworkPerformance.note_app_rollback_origin(str(root.name), replay_origin)
 		if latest_state < NetworkRollback.history_start:
 			_history_transmitter.request_full_state("stale_authority_tick")
-		NetworkRollback.notify_resimulation_start(latest_state)
+		NetworkRollback.notify_resimulation_start(replay_origin)
 
 func _prepare_tick_process(tick: int) -> void:
 	_history_recorder.set_latest_state_tick(_history_transmitter._latest_state_tick)
