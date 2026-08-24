@@ -7,6 +7,12 @@
   `./scripts/play_vehicle_animation_lab.sh` before tuning the live presentation;
   the lab drives the real ground-vehicle hull without networking or gameplay
   physics.
+- Retain the stable authoritative rigid body rather than introducing a physical
+  chassis and four wheel colliders. At the ordinary gameplay camera distance,
+  use tunable presentation for body/wheel response. Next prioritize airborne
+  wheel droop, landing compression/rebound, and subtle bump response. Add four
+  presentation-only ground probes only if normal-view testing proves independent
+  terrain following is visibly necessary.
 - Active Car Fight development returned to this Godot repository on 2026-08-19. The prior Unity handoff is superseded; see `MIGRATION_TO_UNITY.md` and `~/Projects/car-fight-unity/docs/RETURN_TO_GODOT.md`.
 - Preserve the Unity repository at revision `e312c42` as an investigation. Carry its useful native multiplayer authority, prediction, lifecycle, impairment, telemetry, and launcher requirements back into Godot tests; do not port its scene, FishNet adapters, or browser transport fork.
 - On affected macOS Intel systems, rendered play must use an ordinary decorated window inside the usable desktop area. Do not use native fullscreen, borderless fullscreen, or exact edge-to-edge/maximized presentation. This bounded compatibility limitation is accepted.
@@ -247,6 +253,11 @@
   human pass, then compare the accepted lab poses during normal cursor driving;
   do not change FOLLOW handling or the rollback collider as part of animation
   polish.
+- Extend the lab with repeatable airborne, ramp landing, and bump conditions.
+  Let authoritative physics own the actual trajectory/contact while the visual
+  rig adds wheel droop, impact compression, rebound, and settling. Do not add
+  physical wheel colliders; defer independent terrain probes until a normal
+  gameplay-view comparison shows that whole-car bump response is insufficient.
 - Start gameplay capsule integration in a separate branch/worktree based on the
   completed Networking-2 commit. Preserve radius 1.05 and total length 3.40;
   validate course support/landings, reverse clearance, projectile/shield
