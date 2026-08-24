@@ -1,10 +1,10 @@
 extends RefCounted
-## Experimental server-driven Jeep collider. This stays isolated from normal
-## rollback-controlled players while networking-1 evaluates collision readability.
+## Shared horizontal Jeep capsule, first accepted by the Networking-1 harness.
 
-const RADIUS := 1.05
-const HEIGHT := 3.40
-const CENTER_Y := -0.50
+const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
+const RADIUS := VEHICLE_CONFIG.CAPSULE_RADIUS
+const HEIGHT := VEHICLE_CONFIG.CAPSULE_HEIGHT
+const CENTER_Y := VEHICLE_CONFIG.CAPSULE_CENTER_Y
 
 
 static func configure(collision: CollisionShape3D) -> void:

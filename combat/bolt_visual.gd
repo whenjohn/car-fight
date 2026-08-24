@@ -36,8 +36,7 @@ func _process(delta: float) -> void:
 		var main := get_node_or_null("/root/Main")
 		var local: Node3D = main.call("local_player") if main != null else null
 		if local != null:
-			var fraction := IMPACT.segment_sphere_entry(start, finish,
-				local.global_position, PLAYER_RADIUS)
+			var fraction := _local_player_entry(start, finish, local)
 			if fraction <= 1.0:
 				_predicted_contact = true
 				main.call("predict_drone_impact_visual", bolt_id, int(local.name),
@@ -45,6 +44,14 @@ func _process(delta: float) -> void:
 	_age += delta
 	if _age > 1.2:
 		queue_free()
+
+func _local_player_entry(from: Vector3, to: Vector3, player: Node3D) -> float:
+	var collision := player.get_node_or_null("Collision") as CollisionShape3D
+	if collision != null and collision.shape is CapsuleShape3D:
+		var capsule := collision.shape as CapsuleShape3D
+		return IMPACT.segment_capsule_entry(from, to, collision.global_position,
+			collision.global_basis * Vector3.UP, capsule.radius, capsule.height)
+	return IMPACT.segment_sphere_entry(from, to, player.global_position, PLAYER_RADIUS)
 
 static func _bolt_mesh() -> SphereMesh:
 	if _shared_mesh == null:
