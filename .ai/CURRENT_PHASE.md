@@ -2,11 +2,12 @@
 
 ## Current decision
 
-- Vehicle animation iteration is isolated on `feature/vehicle-animation-lab` in
-  `/Users/johnnguyen/Projects/car-fight-vehicle-animation-lab`. Use the standalone
-  `./scripts/play_vehicle_animation_lab.sh` before tuning the live presentation;
-  the lab drives the real ground-vehicle hull without networking or gameplay
-  physics.
+- Vehicle animation lab and presentation refinements are merged to `master` at
+  `0b2c760`. The worktree remains at
+  `/Users/johnnguyen/Projects/car-fight-vehicle-animation-lab` for later airborne
+  and landing experiments. Use `./scripts/play_vehicle_animation_lab.sh` before
+  tuning the live presentation; the lab drives the real ground-vehicle hull
+  without networking or gameplay physics.
 - Retain the stable authoritative rigid body rather than introducing a physical
   chassis and four wheel colliders. At the ordinary gameplay camera distance,
   use tunable presentation for body/wheel response. Next prioritize airborne
@@ -32,6 +33,11 @@
   boots both headlessly and in a safe 1100x720 decorated window. Focused tests,
   existing asset/boost tests, and the permission-correct complete
   `./scripts/test.sh` suite pass (`ALL_TESTS PASS`).
+- Revalidated the animation branch after integrating the accepted gameplay
+  capsule changes from current `master`. The permission-correct suite passed
+  through reverse; its documented timing-sensitive jump-gate row completed only
+  the outbound transition. The immediate isolated gate retry passed both
+  transitions, and combat, RC-orb, shield, and detonation gates all passed.
 - Ported G2's unmerged adaptive-presentation experiment as a pure, deterministic client-local estimator driven by batch arrival variation/gaps plus actual buffer headroom and interpolation/extrapolation/hold outcomes. Added bounded JSONL capture/replay, focused pressure/saturation/epoch tests, fixed-mode fast paths, and the same controls for ENet and WebRTC. Ordinary play remains fixed at 75 ms.
 - Added the opt-in four-line Networking 1 HUD and matching once-per-second `NETWORKHUD` JSON: FPS/frame average+maximum, transport/profile and RTT/jitter, presentation target/headroom/I-E-H shares, and rollback cost/depth plus correction/recovery. Added `scripts/play_networking1_enet.sh`, which uses a temporary server-driven Jeep on the isolated macai2 checkout/UDP 12680 and one local rendered observer through UDP 12681 without touching production.
 - Networking 1 visual runs now hide the general hotkey hint line and show a prominent three-second `FIXED/ADAPTIVE BUFFER` banner at startup and every presentation-tier change, after the first adaptive playtest made its 75→100→125→150 ms transitions too easy to miss.
