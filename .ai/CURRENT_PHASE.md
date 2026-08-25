@@ -2,6 +2,13 @@
 
 ## Current decision
 
+- Off-screen awareness is now a client-local presentation layer: at most the
+  three nearest same-map opposing cars plus the arena ball can reach the rim,
+  within 150 units. Cars use their rendered trajectory for a screen-projected
+  triangle; the ball is a directionless distance-scaled diamond. Do not add
+  dots, troops, bolts, targets, or scenery without a new UX decision—the prior
+  all-objects approach made the feature useless. Focused coverage and the full
+  `./scripts/test.sh` suite pass (`ALL_TESTS PASS`).
 - Vehicle animation lab and presentation refinements are merged to `master` at
   `0b2c760`. Its merged feature worktree and branch were removed after acceptance;
   start any later airborne/landing experiment in a fresh worktree from current

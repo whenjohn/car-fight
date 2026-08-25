@@ -19,6 +19,7 @@ const DRIFT_GUIDE_SCRIPT := preload("res://player/drift_guide.gd")
 const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
+const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
@@ -1624,6 +1625,11 @@ func _build_presentation() -> void:
 	hud.name = "HUD"
 	hud.layer = 10
 	add_child(hud)
+	var indicators := Control.new()
+	indicators.name = "OffscreenIndicators"
+	indicators.set_script(OFFSCREEN_INDICATORS_SCRIPT)
+	hud.add_child(indicators)
+	indicators.call("setup", self, _camera)
 	_system_menu_bar = MenuBar.new()
 	_system_menu_bar.name = "SystemMenuBar"
 	_system_menu_bar.prefer_global_menu = true
