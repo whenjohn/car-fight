@@ -3,11 +3,11 @@
 ## Current decision
 
 - Vehicle animation lab and presentation refinements are merged to `master` at
-  `0b2c760`. The worktree remains at
-  `/Users/johnnguyen/Projects/car-fight-vehicle-animation-lab` for later airborne
-  and landing experiments. Use `./scripts/play_vehicle_animation_lab.sh` before
-  tuning the live presentation; the lab drives the real ground-vehicle hull
-  without networking or gameplay physics.
+  `0b2c760`. Its merged feature worktree and branch were removed after acceptance;
+  start any later airborne/landing experiment in a fresh worktree from current
+  `master`. Use `./scripts/play_vehicle_animation_lab.sh` before tuning the live
+  presentation; the lab drives the real ground-vehicle hull without networking
+  or gameplay physics.
 - Retain the stable authoritative rigid body rather than introducing a physical
   chassis and four wheel colliders. At the ordinary gameplay camera distance,
   use tunable presentation for body/wheel response. Next prioritize airborne
