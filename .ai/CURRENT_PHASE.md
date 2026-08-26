@@ -23,6 +23,15 @@
 
 ## Completed
 
+- Created `feature/occluded-silhouette` in
+  `/Users/johnnguyen/Projects/car-fight-occluded-silhouette` from current
+  `master`. Ported G2's selective Godot 4.7 stencil X-ray overlay to every
+  live vehicle mesh: a cyan silhouette now appears only behind walls or other
+  obscuring geometry, while the ground grid and interactive grass mask it at
+  the tires. Cloak ghosts and frozen boost echoes explicitly exclude the
+  overlay. The focused asset-smoke and boost-afterimage tests pass; a rendered
+  safe-window check remains required for final visual acceptance.
+
 - Added the standalone close-up vehicle animation lab with mouse orbit/zoom,
   five selectable vehicle bodies, eight driving-condition presets, and live
   road-speed, steering, brake/wheel-lock, longitudinal-load, signed-drift, and

@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
+stencil_mode write, compare_always, 1;
 
 uniform vec4 ground_color : source_color = vec4(0.180, 0.205, 0.210, 1.0);
 uniform vec4 fine_color : source_color = vec4(0.255, 0.285, 0.290, 1.0);

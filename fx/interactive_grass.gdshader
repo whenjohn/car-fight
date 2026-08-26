@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_disabled, world_vertex_coords, unshaded;
+stencil_mode write, compare_always, 1;
 
 uniform vec3 vehicle_positions[4];
 uniform vec3 vehicle_trail_positions[4];
