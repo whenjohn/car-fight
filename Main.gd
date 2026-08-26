@@ -19,6 +19,7 @@ const DRIFT_GUIDE_SCRIPT := preload("res://player/drift_guide.gd")
 const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
+const OCCLUDED_SUPPORT_HINTS_SCRIPT := preload("res://fx/occluded_support_hints.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
@@ -250,6 +251,7 @@ var _network_last_mode := ""
 var _network_tier_notice_remaining := 0.0
 var _shader_prewarm: Node3D
 var _driving_course: Node3D
+var _occluded_support_hints: Node3D
 var _jump_gates: Node3D
 var _dots: Node3D
 var _troop_delivery: Node3D
@@ -1509,6 +1511,12 @@ func _build_elevated_course() -> void:
 	for support in ELEVATED_COURSE.supports():
 		_add_static_box(str(support["name"]), support["size"], support["position"],
 			support["color"])
+	if not _is_headless():
+		_occluded_support_hints = Node3D.new()
+		_occluded_support_hints.name = "OccludedSupportHints"
+		_occluded_support_hints.set_script(OCCLUDED_SUPPORT_HINTS_SCRIPT)
+		_occluded_support_hints.call("setup", _players)
+		add_child(_occluded_support_hints)
 
 func _build_shader_ground(node_name: String, center: Vector3, half_extent: float) -> void:
 	var ground := MeshInstance3D.new()
