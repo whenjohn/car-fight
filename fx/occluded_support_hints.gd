@@ -15,7 +15,6 @@ const OUTLINE_PAD := 0.10
 const HINT_COLOR := Color(0.36, 0.84, 1.0, 0.90)
 
 var _players: Node3D
-var _material: StandardMaterial3D
 var _records: Array[Dictionary] = []
 
 func setup(players: Node3D) -> void:
@@ -27,7 +26,6 @@ func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		queue_free()
 		return
-	_material = _outline_material()
 	for support in ELEVATED_COURSE.supports():
 		_add_hint(support)
 
@@ -46,8 +44,9 @@ func _process(delta: float) -> void:
 		record["amount"] = amount
 		var root := record["root"] as Node3D
 		root.visible = amount > 0.001
-		for mesh in record["meshes"] as Array[MeshInstance3D]:
-			mesh.modulate.a = amount
+		var material := record["material"] as StandardMaterial3D
+		material.albedo_color = Color(HINT_COLOR.r, HINT_COLOR.g, HINT_COLOR.b,
+			HINT_COLOR.a * amount)
 
 ## A stopped Jeep gets a small proximity warning. While driving, the hint
 ## reaches farther only through the car's actual travel corridor, not merely
@@ -89,26 +88,28 @@ func _add_hint(support: Dictionary) -> void:
 	var size := support["size"] as Vector3
 	var half_x := size.x * 0.5 + OUTLINE_PAD
 	var half_z := size.z * 0.5 + OUTLINE_PAD
+	var material := _outline_material()
 	var meshes: Array[MeshInstance3D] = []
 	meshes.append(_outline_bar(root, Vector3(0.0, 0.0, -half_z),
-		Vector3(half_x * 2.0 + OUTLINE_THICKNESS, OUTLINE_THICKNESS, OUTLINE_THICKNESS)))
+		Vector3(half_x * 2.0 + OUTLINE_THICKNESS, OUTLINE_THICKNESS, OUTLINE_THICKNESS), material))
 	meshes.append(_outline_bar(root, Vector3(0.0, 0.0, half_z),
-		Vector3(half_x * 2.0 + OUTLINE_THICKNESS, OUTLINE_THICKNESS, OUTLINE_THICKNESS)))
+		Vector3(half_x * 2.0 + OUTLINE_THICKNESS, OUTLINE_THICKNESS, OUTLINE_THICKNESS), material))
 	meshes.append(_outline_bar(root, Vector3(-half_x, 0.0, 0.0),
-		Vector3(OUTLINE_THICKNESS, OUTLINE_THICKNESS, half_z * 2.0)))
+		Vector3(OUTLINE_THICKNESS, OUTLINE_THICKNESS, half_z * 2.0), material))
 	meshes.append(_outline_bar(root, Vector3(half_x, 0.0, 0.0),
-		Vector3(OUTLINE_THICKNESS, OUTLINE_THICKNESS, half_z * 2.0)))
+		Vector3(OUTLINE_THICKNESS, OUTLINE_THICKNESS, half_z * 2.0), material))
 	_records.append({"root": root, "meshes": meshes, "position": support["position"],
-		"size": size, "amount": 0.0})
+		"size": size, "material": material, "amount": 0.0})
 
-func _outline_bar(parent: Node3D, position: Vector3, size: Vector3) -> MeshInstance3D:
+func _outline_bar(parent: Node3D, position: Vector3, size: Vector3,
+		material: StandardMaterial3D) -> MeshInstance3D:
 
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var instance := MeshInstance3D.new()
 	instance.mesh = mesh
 	instance.position = position
-	instance.material_override = _material
+	instance.material_override = material
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(instance)
 	return instance
@@ -118,7 +119,7 @@ func _outline_material() -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.albedo_color = HINT_COLOR
+	material.albedo_color = Color(HINT_COLOR.r, HINT_COLOR.g, HINT_COLOR.b, 0.0)
 	material.emission_enabled = true
 	material.emission = HINT_COLOR
 	material.emission_energy_multiplier = 1.25
