@@ -178,6 +178,22 @@ func _init() -> void:
 		push_error("CLOAK_WIPE_TEST FAIL: cloak must cut front-to-back and return back-to-front")
 		quit(1)
 		return
+	var occlusion_material := JEEP_PRESENTATION.occlusion_material()
+	var xray_pass := occlusion_material.next_pass as BaseMaterial3D
+	if occlusion_material.stencil_mode != BaseMaterial3D.STENCIL_MODE_XRAY \
+			or xray_pass == null \
+			or not xray_pass.albedo_color.is_equal_approx(JEEP_PRESENTATION.OCCLUDED_SILHOUETTE_COLOR):
+		push_error("OCCLUDED_SILHOUETTE_TEST FAIL: vehicle overlay must use the cyan stencil X-ray pass")
+		quit(1)
+		return
+	var ground_shader := load("res://world/grid_ground.gdshader") as Shader
+	var grass_shader := load("res://fx/interactive_grass.gdshader") as Shader
+	if ground_shader == null or grass_shader == null \
+			or "stencil_mode write, compare_always, 1" not in ground_shader.code \
+			or "stencil_mode write, compare_always, 1" not in grass_shader.code:
+		push_error("OCCLUDED_SILHOUETTE_TEST FAIL: floor and grass must mask the X-ray pass")
+		quit(1)
+		return
 	var rc_orb := RC_ORB_VISUAL.new()
 	rc_orb.call("_ready")
 	if rc_orb.get_child_count() != 4:

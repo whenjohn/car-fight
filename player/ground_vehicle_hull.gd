@@ -8,6 +8,7 @@ const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const CLOAK_DUST_SCRIPT := preload("res://fx/vehicle_cloak_dust.gd")
 const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
+const OCCLUDED_SILHOUETTE_COLOR := Color(0.34, 0.76, 1.0, 1.0)
 const VEHICLES := [
 	{"name": "Jeep", "scene": preload("res://assets/ground_vehicle/Jeep.fbx"), "scale": 0.45},
 	{"name": "Pickup", "scene": preload("res://assets/ground_vehicle/Pickup.fbx"), "scale": 0.33},
@@ -63,11 +64,15 @@ var _cloak_override_active := false
 var _cloak_dust: Node3D
 var _cloak_ghost: Node3D
 var _cloak_ghost_material: ShaderMaterial
+var _occlusion_material: StandardMaterial3D
+var _occlusion_meshes: Array[MeshInstance3D] = []
+var _occlusion_enabled := true
 
 func _ready() -> void:
 	_body = get_parent() as Node3D
 	_build_selected_vehicle()
 	_prepare_cloak_meshes(self)
+	_prepare_occlusion_overlay(self)
 	_build_cloak_dust()
 	_build_cloak_ghost()
 	_build_boost_echoes()
@@ -246,6 +251,7 @@ func cycle_vehicle() -> void:
 	_clear_vehicle_visuals()
 	_build_selected_vehicle()
 	_prepare_cloak_meshes(self)
+	_prepare_occlusion_overlay(self)
 	_build_cloak_ghost()
 	_build_boost_echoes()
 	_cloak_override_active = false
@@ -271,6 +277,7 @@ func _clear_vehicle_visuals() -> void:
 	_wheel_spin_nodes.clear()
 	_wheel_records.clear()
 	_cloak_surfaces.clear()
+	_occlusion_meshes.clear()
 
 func _build_selected_vehicle() -> void:
 	var vehicle: Dictionary = VEHICLES[_vehicle_index]
@@ -360,6 +367,39 @@ func _prepare_cloak_meshes(node: Node) -> void:
 	for child in node.get_children():
 		_prepare_cloak_meshes(child)
 
+## The transparent stencil pass marks the visible vehicle without changing its
+## normal materials. Godot's X-ray next pass then draws the cyan silhouette
+## only where static walls or obstacles hide the vehicle from the camera.
+func _prepare_occlusion_overlay(node: Node) -> void:
+	if _occlusion_material == null:
+		_occlusion_material = occlusion_material()
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		if _occlusion_enabled:
+			mesh_instance.material_overlay = _occlusion_material
+		_occlusion_meshes.append(mesh_instance)
+	for child in node.get_children():
+		_prepare_occlusion_overlay(child)
+
+static func occlusion_material() -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(0.0, 0.0, 0.0, 0.0)
+	material.stencil_mode = BaseMaterial3D.STENCIL_MODE_XRAY
+	var xray_pass := material.next_pass as BaseMaterial3D
+	if xray_pass != null:
+		xray_pass.albedo_color = OCCLUDED_SILHOUETTE_COLOR
+	return material
+
+func _set_occlusion_enabled(enabled: bool) -> void:
+	if enabled == _occlusion_enabled:
+		return
+	_occlusion_enabled = enabled
+	for mesh_instance in _occlusion_meshes:
+		if is_instance_valid(mesh_instance):
+			mesh_instance.material_overlay = _occlusion_material if enabled else null
+
 func _cloak_material(source: Material) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = CLOAK_DISSOLVE_SHADER
@@ -405,6 +445,8 @@ func _update_cloak(delta: float, rigid: RigidBody3D) -> void:
 	var up := global_basis.y.normalized()
 	var cut := cloak_cut_position(_cloak_strength)
 	_set_cloak_override_active(_cloak_strength > 0.0001)
+	# An already dissolving vehicle must not leave a full X-ray duplicate behind.
+	_set_occlusion_enabled(_cloak_strength <= 0.0001)
 	for record in _cloak_surfaces:
 		var material := record["material"] as ShaderMaterial
 		material.set_shader_parameter("vehicle_origin", global_position)
@@ -441,6 +483,8 @@ func _apply_cloak_ghost_material(node: Node) -> void:
 	if node is GeometryInstance3D:
 		var geometry := node as GeometryInstance3D
 		geometry.material_override = _cloak_ghost_material
+		# The local cloak ghost is a separate refractive cue, never an obstacle X-ray target.
+		geometry.material_overlay = null
 		geometry.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for child in node.get_children():
 		_apply_cloak_ghost_material(child)
@@ -518,6 +562,8 @@ func _apply_echo_material(node: Node, material: StandardMaterial3D) -> void:
 	if node is GeometryInstance3D:
 		var geometry := node as GeometryInstance3D
 		geometry.material_override = material
+		# Frozen boost snapshots are trails, not live vehicles; do not duplicate their X-ray silhouette.
+		geometry.material_overlay = null
 		geometry.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for child in node.get_children():
 		_apply_echo_material(child, material)
