@@ -16,7 +16,10 @@ func _init() -> void:
 		"a nearby hidden support must show a stationary proximity warning")
 	_check(HINTS.visibility_strength(Vector3(-7.0, 1.0, 0.0), Vector3(14.0, 0.0, 0.0),
 		support, size, true) > 0.1,
-		"a support in the 0.6-second travel corridor must reveal early")
+		"a support in the travel corridor must reveal early")
+	_check(HINTS.visibility_strength(Vector3(-9.0, 1.0, 0.0), Vector3(14.0, 0.0, 0.0),
+		support, size, true) > 0.1,
+		"the extended 0.75-second travel corridor must reveal early")
 	_check(is_zero_approx(HINTS.visibility_strength(Vector3(-7.0, 1.0, 4.0),
 		Vector3(14.0, 0.0, 0.0), support, size, true)),
 		"a support outside the driving corridor must remain hidden")

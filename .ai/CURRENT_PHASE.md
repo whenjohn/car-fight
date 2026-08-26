@@ -25,8 +25,8 @@
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a
-  small projected deck-top outline fades in only within 3 m or when the
-  Jeep's current travel corridor reaches the support within 0.6 seconds; it
+  small projected deck-top outline fades in only within 3.75 m or when the
+  Jeep's current travel corridor reaches the support within 0.75 seconds; it
   otherwise stays absent. The focused hint and asset-smoke tests pass.
 
 - Created `feature/occluded-silhouette` in

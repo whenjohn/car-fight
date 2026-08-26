@@ -5,8 +5,8 @@ extends Node3D
 
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
-const CLOSE_RANGE := 3.0
-const REACTION_SECONDS := 0.60
+const CLOSE_RANGE := 3.75
+const REACTION_SECONDS := 0.75
 const REACTION_FADE_SECONDS := 0.12
 const MIN_PREDICTION_SPEED := 0.75
 const FADE_RATE := 12.0
