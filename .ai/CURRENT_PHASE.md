@@ -2,6 +2,15 @@
 
 ## Current decision
 
+- Dynamic tire skid marks are implemented on `codex/skid-marks` in
+  `/Users/johnnguyen/Projects/car-fight-skid-marks`. They are client-local,
+  presentation-only world-space ribbons sampled from all four animated tire
+  contact points. Hard braking marks all tires, drift/physical lateral scrub is
+  rear-biased, and oil residue marks every rolling tire. Marks curve with tire
+  steering, break across air/teleports, fade after 12 seconds, and retain a
+  bounded 1,200-segment budget per presented car. Physics, rollback, and wire
+  state are unchanged. The permission-correct full `./scripts/test.sh` suite
+  passes (`ALL_TESTS PASS`); ordinary rendered human acceptance remains next.
 - Oil slicks are merged to `master` at `5a2a919`. Three fixed, static/seeded
   arena puddles use presentation-only metallic decals and exact deterministic
   footprints. Road-speed contact engages instantly and leaves roughly four
@@ -46,6 +55,15 @@
 
 ## Completed
 
+- Created `codex/skid-marks` in
+  `/Users/johnnguyen/Projects/car-fight-skid-marks` from current `master`. Added
+  a compatibility-renderer tire shader with soft edges and broken tread, a
+  batched/fading world-space trail mesh, live integration with each separated
+  animated wheel, and focused coverage for skid-source thresholds, low-speed
+  suppression, continuous curves, generated geometry, and teleport breaks.
+  Clean second import, focused skid/vehicle/oil/asset checks, and the complete
+  permission-correct suite pass (`ALL_TESTS PASS`), including 0.300-unit worst
+  correction in the 120 ms network gate.
 - Merged `feature/oil-slick` into `master` as `5a2a919`. The permission-correct
   post-merge `./scripts/test.sh` run passed every focused, browser-lifecycle,
   offline, network, reconnect, course, reverse, jump-gate, combat, RC-orb,

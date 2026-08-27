@@ -18,6 +18,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/asset_smoke_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/boost_afterimage_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/vehicle_animation_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/tire_skid_trails_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/coverage_config_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/area_weapon_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/homing_missile_test.gd

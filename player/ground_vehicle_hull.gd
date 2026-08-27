@@ -6,6 +6,7 @@ const VEHICLE_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const CLOAK_DUST_SCRIPT := preload("res://fx/vehicle_cloak_dust.gd")
+const TIRE_SKID_TRAILS_SCRIPT := preload("res://player/tire_skid_trails.gd")
 const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
 const OCCLUDED_SILHOUETTE_COLOR := Color(0.34, 0.76, 1.0, 1.0)
@@ -75,6 +76,7 @@ var _oil_fx_amber: StandardMaterial3D
 var _oil_fx_magenta: StandardMaterial3D
 var _oil_fx_ring: StandardMaterial3D
 var _oil_fx_time := 0.0
+var _tire_skid_trails: Node3D
 
 func _ready() -> void:
 	_body = get_parent() as Node3D
@@ -85,6 +87,7 @@ func _ready() -> void:
 	_build_cloak_ghost()
 	_build_boost_echoes()
 	_build_oil_slip_fx()
+	_build_tire_skid_trails()
 
 func _process(delta: float) -> void:
 	if _body == null:
@@ -113,6 +116,7 @@ func _process(delta: float) -> void:
 			* wheel_roll_scale(brake_skid), TAU)
 		for spin_node in _wheel_spin_nodes:
 			spin_node.rotation.x = _wheel_spin_angle
+		_update_tire_skid_trails(inputs)
 		_update_boost_echoes(delta, bool(inputs["boosting"]), planar_speed)
 		_update_cloak(delta, rigid)
 	_update_oil_slip_fx(delta)
@@ -204,6 +208,34 @@ func _set_oil_fx_material(material: StandardMaterial3D, color: Color,
 	material.albedo_color = Color(color.r, color.g, color.b,
 		clampf(0.12 + intensity * 0.88, 0.0, 1.0))
 	material.emission_energy_multiplier = 1.5 + intensity * 7.5
+
+
+func _build_tire_skid_trails() -> void:
+	_tire_skid_trails = Node3D.new()
+	_tire_skid_trails.name = "TireSkidTrails"
+	_tire_skid_trails.set_script(TIRE_SKID_TRAILS_SCRIPT)
+	add_child(_tire_skid_trails)
+
+
+func _update_tire_skid_trails(inputs: Dictionary) -> void:
+	if _tire_skid_trails == null:
+		return
+	var grounded := true if not _animation_preview_state.is_empty() \
+		else bool(_body.get("was_supported"))
+	var brake := float(inputs["brake"])
+	var drift := float(inputs["drift"])
+	var oil := clampf(float(_body.get("oil_slick_amount")), 0.0, 1.0)
+	var speed := float(inputs["speed"])
+	var up := global_basis.y.normalized()
+	var half_width := maxf(0.075, _wheel_radius * 0.42)
+	for record in _wheel_records:
+		var anchor := record["node"] as Node3D
+		var front := bool(record["front"])
+		var strength := TIRE_SKID_TRAILS_SCRIPT.skid_strength(brake, drift, oil,
+			speed, front)
+		var contact := anchor.global_position - up * _wheel_radius + up * 0.024
+		_tire_skid_trails.call("sample_tire", str(record["key"]), contact,
+			anchor.global_basis.x.normalized(), half_width, strength, oil, grounded)
 
 ## The standalone animation lab uses this seam to exercise presentation without
 ## creating a fake gameplay/network state. An empty dictionary returns control
@@ -352,6 +384,8 @@ func cycle_vehicle() -> void:
 	_prepare_occlusion_overlay(self)
 	_build_cloak_ghost()
 	_build_boost_echoes()
+	if _tire_skid_trails != null:
+		_tire_skid_trails.call("break_emitters")
 	_cloak_override_active = false
 	_set_cloak_override_active(_cloak_strength > 0.0001)
 
@@ -407,6 +441,7 @@ func _build_selected_vehicle() -> void:
 		if bool(wheel["front"]):
 			_front_steer_nodes.append(steer_anchor)
 		_wheel_records.append({
+			"key": str(wheel_name),
 			"node": steer_anchor,
 			"base_y": steer_anchor.position.y,
 			"front": bool(wheel["front"]),
