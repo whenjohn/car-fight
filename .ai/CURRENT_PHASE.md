@@ -21,6 +21,13 @@
   is 5x, tail target is 3.2 rad/s, and peak oil yaw is 7 rad/s. While affected,
   the vehicle carries a presentation-only alternating amber/magenta four-corner
   beacon flash plus a pulsing orange underbody warning ring.
+  The fourth human pass rejected the phase-driven side-to-side wobble as feeling
+  like forced steering. That phase and direct oil yaw target are removed. Oil now
+  uses actual center/rear-contact lateral velocity: steering supplies front-end
+  torque, rear grip is nearly absent, road momentum remains in world space, and
+  weak rear restoring force plus angular inertia produce turn-induced step-out,
+  countersteer swing, sustained slides, and possible spins. A settled straight
+  crossing no longer invents a wobble.
   Dropping slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
@@ -86,6 +93,17 @@
   through reverse with a 0.300-unit worst correction; its timing-sensitive jump
   gate completed only the outbound transition, then passed immediately in
   isolation, followed by passing combat, RC-orb, shield, and detonation gates.
+- Fourth human feedback identified the extreme alternating yaw as artificial
+  side-to-side control instead of a rear-wheel fishtail. Replaced the scripted
+  rollback phase and forced yaw target with deterministic rear-axle slip dynamics
+  derived from the rigid body's real planar and angular velocities. Oil steering
+  now acts as torque, rear lateral grip is 0.18/s, drift-assist carve reaches zero
+  at full oil, and 3% navigation grip preserves world-space momentum while the
+  chassis rotates into a major slide. The focused oil regression covers stable
+  straight travel, turn breakaway, rear contact slip, sustained lateral velocity,
+  and inertia-respecting countersteer. Clean import and the permission-correct
+  complete `./scripts/test.sh` suite pass (`ALL_TESTS PASS`), including a
+  0.475-unit worst correction in the 120 ms two-player test.
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a

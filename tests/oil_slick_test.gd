@@ -48,23 +48,35 @@ func _init() -> void:
 	var parked := OIL.next_amount(0.0, 1.0, true, 0.0, 1.0)
 	_expect_close(parked, 0.0, 0.0001, "a parked car does not rotate on oil")
 
-	var dry := OIL.steering_response(-1.0, -0.5, 6.0, deg_to_rad(-75.0), 18.0, 0.0)
-	var oily := OIL.steering_response(-1.0, -0.5, 6.0, deg_to_rad(-75.0), 18.0,
-		1.0, PI * 1.5)
-	_check(absf(float(oily["yaw_rate"])) > absf(float(dry["yaw_rate"])) * 6.8,
-		"a committed oil turn materially over-rotates")
-	_check(float(oily["yaw_acceleration"]) > float(dry["yaw_acceleration"]),
-		"the visible fishtail builds quickly enough to read during one crossing")
-	_check(OIL.grip_scale(1.0) < 0.06,
+	var forward := Vector3.FORWARD
+	var road_velocity := forward * 18.0
+	var dry := OIL.axle_response(road_velocity, forward, -1.0, 0.0, 6.0,
+		18.0, 0.0, 0.25)
+	var oily := OIL.axle_response(road_velocity, forward, -1.0, 0.0, 6.0,
+		18.0, 1.0, 0.25)
+	_check(absf(float(oily["yaw_rate"])) > absf(float(dry["yaw_rate"])) * 2.0,
+		"turning on oil applies strong front steering torque and breaks the rear loose")
+	_check((Vector3(oily["planar_velocity"]) - road_velocity).length() < 0.05,
+		"turn-in preserves the old road momentum instead of steering velocity sideways")
+	_check(OIL.grip_scale(1.0) < 0.04,
 		"full oil keeps most road momentum instead of following the nose")
-	var phase := OIL.next_fishtail_phase(0.0, 1.0, 18.0, 0.15)
-	var straight := OIL.steering_response(0.0, 0.0, 6.0, 0.0, 18.0, 1.0, phase)
-	_check(absf(float(straight["yaw_rate"])) > 3.0,
-		"a straight road-speed crossing produces an unmistakable deterministic veer")
-	var opposite := OIL.steering_response(0.0, 0.0, 6.0, 0.0, 18.0, 1.0,
-		phase + PI)
-	_check(signf(float(straight["yaw_rate"])) != signf(float(opposite["yaw_rate"])),
-		"the next phase swings the rear back instead of applying a constant pull")
+	var straight := OIL.axle_response(road_velocity, forward, 0.0, 0.0, 6.0,
+		18.0, 1.0, 0.25)
+	_expect_close(float(straight["yaw_rate"]), 0.0, 0.0001,
+		"a settled straight crossing has no scripted side-to-side wobble")
+	var rotated_forward := forward.rotated(Vector3.UP, -0.55)
+	var sliding := OIL.axle_response(road_velocity, rotated_forward, -1.0, -2.0,
+		6.0, 18.0, 1.0, 0.10)
+	_check(absf(float(sliding["rear_contact_slip"])) > 6.0,
+		"rear-axle contact velocity detects the tail moving across the road momentum")
+	_check(absf(Vector3(sliding["planar_velocity"]).dot(
+		rotated_forward.cross(Vector3.UP).normalized())) > 5.0,
+		"weak rear grip sustains a major sideways slide")
+	var countersteer := OIL.axle_response(road_velocity, rotated_forward, 1.0, -2.0,
+		6.0, 18.0, 1.0, 0.10)
+	_check(float(countersteer["yaw_rate"]) > -2.0 \
+		and float(countersteer["yaw_rate"]) < 0.0,
+		"countersteer fights existing tail momentum instead of instantly reversing it")
 
 	var main_source := FileAccess.get_file_as_string("res://Main.gd")
 	var body_source := FileAccess.get_file_as_string("res://player/player_body.gd")
@@ -73,9 +85,11 @@ func _init() -> void:
 	_check("OIL_SLICKS_SCRIPT" in main_source,
 		"the arena builds the presentation-only decals")
 	_check("oil_slick_amount" in body_source \
-		and "_sync.add_state(self, \"oil_slick_amount\")" in body_source \
-		and "_sync.add_state(self, \"oil_fishtail_phase\")" in body_source,
-		"the per-car residue and fishtail phase participate in rollback")
+		and "_sync.add_state(self, \"oil_slick_amount\")" in body_source,
+		"the per-car residue participates in rollback")
+	_check("OIL_SLICK.axle_response" in body_source \
+		and "oil_fishtail_phase" not in body_source,
+		"the handling no longer injects a scripted alternating yaw phase")
 	_check("Area3D" not in visual_source and "CollisionShape3D" not in visual_source,
 		"oil decals never add trigger or collision bodies")
 	_check("METALLIC" in shader_source and "stencil_mode write" in shader_source,

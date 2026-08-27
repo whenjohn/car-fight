@@ -29,7 +29,6 @@ var drift_assist_hold := 0.0
 var drift_assist_latched := false
 var drift_assist_rearm_ready := true
 var oil_slick_amount := 0.0
-var oil_fishtail_phase := 0.0
 var is_cloaked := false
 var cloak_held_prev := false
 var shield_up := false
@@ -178,7 +177,6 @@ func _ready() -> void:
 		_sync.add_state(self, "drift_assist_latched")
 		_sync.add_state(self, "drift_assist_rearm_ready")
 		_sync.add_state(self, "oil_slick_amount")
-		_sync.add_state(self, "oil_fishtail_phase")
 		_sync.add_state(self, "is_cloaked")
 		_sync.add_state(self, "cloak_held_prev")
 		_sync.add_state(self, "shield_up")
@@ -284,8 +282,6 @@ func _physics_rollback_tick(delta: float, tick: int) -> void:
 		direct_state.transform.origin)
 	oil_slick_amount = OIL_SLICK.next_amount(oil_slick_amount, oil_footprint,
 		touching_support, planar_speed, delta)
-	oil_fishtail_phase = OIL_SLICK.next_fishtail_phase(oil_fishtail_phase,
-		oil_slick_amount, planar_speed, delta)
 	var landing_torque_impulse := Vector3.ZERO
 	if touching_support:
 		if not was_supported and landing_jostle_cooldown <= 0.0:
@@ -386,20 +382,22 @@ func _physics_rollback_tick(delta: float, tick: int) -> void:
 		drift_assist_charge, delta)
 	if bool(escape["started"]):
 		horizontal += drive_direction * FOLLOW.ESCAPE_SIDE_KICK
-	direct_state.linear_velocity = FOLLOW.compose_drive_velocity(horizontal, velocity.y)
 	var current_yaw_rate: float = direct_state.angular_velocity.y
 	var target_yaw_rate := collision_escape_sign * FOLLOW.ESCAPE_YAW_RATE \
 		if bool(escape["active"]) else float(command["yaw_rate"])
 	var yaw_acceleration := FOLLOW.ESCAPE_YAW_ACCEL \
 		if bool(escape["active"]) else float(command["yaw_acceleration"])
+	var yaw_rate: float
 	if not bool(escape["active"]):
-		var oil_steering := OIL_SLICK.steering_response(target_yaw_rate,
-			current_yaw_rate, yaw_acceleration, float(command["heading_error"]),
-			planar_speed, oil_slick_amount, oil_fishtail_phase)
-		target_yaw_rate = float(oil_steering["yaw_rate"])
-		yaw_acceleration = float(oil_steering["yaw_acceleration"])
-	var yaw_rate := move_toward(current_yaw_rate, target_yaw_rate,
-		yaw_acceleration * delta)
+		var oil_axle := OIL_SLICK.axle_response(horizontal, forward,
+			target_yaw_rate, current_yaw_rate, yaw_acceleration, planar_speed,
+			oil_slick_amount, delta)
+		horizontal = oil_axle["planar_velocity"]
+		yaw_rate = float(oil_axle["yaw_rate"])
+	else:
+		yaw_rate = move_toward(current_yaw_rate, target_yaw_rate,
+			yaw_acceleration * delta)
+	direct_state.linear_velocity = FOLLOW.compose_drive_velocity(horizontal, velocity.y)
 	direct_state.angular_velocity = FOLLOW.compose_drive_angular_velocity(
 		direct_state.angular_velocity, yaw_rate)
 	direct_state.apply_torque(FOLLOW.upright_torque(direct_state.transform.basis,
@@ -446,7 +444,6 @@ func _service_jump_gate(delta: float) -> bool:
 	drift_assist_latched = false
 	drift_assist_rearm_ready = true
 	oil_slick_amount = 0.0
-	oil_fishtail_phase = 0.0
 	collision_stall_time = 0.0
 	collision_escape_time = 0.0
 	wall_bump_cooldown = 0.0
