@@ -10,6 +10,11 @@ const MAX_CONNECT_DISTANCE := 2.4
 const MARK_LIFETIME := 12.0
 const MAX_SEGMENTS := 1200
 const FADE_REDRAW_INTERVAL := 0.10
+const PEEL_TRIGGER := 0.72
+const OIL_PEEL_TRIGGER := 0.28
+const PEEL_REARM := 0.38
+const REVERSE_BRAKE_MIN_FORWARD_SPEED := 7.0
+const REVERSE_BRAKE_FULL_FORWARD_SPEED := 15.0
 
 var _mesh_instance: MeshInstance3D
 var _material: ShaderMaterial
@@ -49,15 +54,43 @@ func _process(delta: float) -> void:
 
 ## Marks all ordinary causes of tire scrub. Actual lateral slip covers impacts
 ## and unassisted slides in addition to the named brake, drift, and oil cases.
+static func sustained_slide(measured_lateral_slip: float,
+		drift_assist_amount: float, drift_assist_charge: float,
+		drift_assist_latched: bool = false) -> float:
+	if drift_assist_latched:
+		return 1.0
+	return maxf(absf(measured_lateral_slip), maxf(
+		clampf(drift_assist_amount, 0.0, 1.0) * 0.92,
+		clampf(drift_assist_charge, 0.0, 1.0) * 0.78))
+
+
+static func should_start_peel(armed: bool, assist_just_latched: bool,
+		measured_slide: float, oil: float) -> bool:
+	if not armed:
+		return false
+	var trigger := lerpf(PEEL_TRIGGER, OIL_PEEL_TRIGGER,
+		clampf(oil, 0.0, 1.0))
+	return assist_just_latched or absf(measured_slide) >= trigger
+
+
+static func reverse_brake_strength(reverse_held: bool,
+		signed_forward_speed: float) -> float:
+	if not reverse_held:
+		return 0.0
+	return smoothstep(REVERSE_BRAKE_MIN_FORWARD_SPEED,
+		REVERSE_BRAKE_FULL_FORWARD_SPEED, signed_forward_speed)
+
+
 static func skid_strength(brake: float, lateral_slip: float, oil: float,
-		speed: float, front_tire: bool) -> float:
-	var speed_authority := smoothstep(2.5, 9.0, maxf(speed, 0.0))
+		speed: float, front_tire: bool, boost_pulse: float = 0.0) -> float:
+	var speed_authority := smoothstep(0.8, 6.5, maxf(speed, 0.0))
 	var brake_mark := smoothstep(0.42, 0.92, clampf(brake, 0.0, 1.0))
 	var slide_mark := smoothstep(0.16, 0.78, absf(lateral_slip))
-	var oil_mark := smoothstep(0.04, 0.62, clampf(oil, 0.0, 1.0))
-	var axle_strength := maxf(brake_mark, maxf(
-		slide_mark * (0.48 if front_tire else 1.0),
-		oil_mark * (0.68 if front_tire else 1.0)))
+	var boost_mark := clampf(boost_pulse, 0.0, 1.0)
+	# Keep the visual language simple: every event is represented by the driven
+	# rear pair. Front tires never emit presentation marks.
+	var axle_strength := 0.0 if front_tire \
+		else maxf(brake_mark, maxf(slide_mark, boost_mark))
 	return clampf(axle_strength * speed_authority, 0.0, 1.0)
 
 
@@ -69,7 +102,7 @@ static func can_connect(previous: Vector3, current: Vector3) -> bool:
 func sample_tire(key: String, contact: Vector3, width_axis: Vector3,
 		half_width: float, strength: float, oil: float, grounded: bool) -> void:
 	if not grounded or strength < MIN_STRENGTH or width_axis.is_zero_approx():
-		_emitters.erase(key)
+		_finish_emitter(key)
 		return
 	var width := width_axis.normalized() * half_width
 	var current := {
@@ -80,19 +113,24 @@ func sample_tire(key: String, contact: Vector3, width_axis: Vector3,
 		"oil": clampf(oil, 0.0, 1.0),
 	}
 	if not _emitters.has(key):
+		# The first connected quad ramps up from clear instead of appearing with
+		# a hard rectangular cap.
+		current["strength"] = 0.0
 		_emitters[key] = current
 		return
 	var previous: Dictionary = _emitters[key]
 	var previous_center: Vector3 = previous["center"]
 	var distance := previous_center.distance_to(contact)
 	if distance > MAX_CONNECT_DISTANCE:
+		_finish_emitter(key)
+		current["strength"] = 0.0
 		_emitters[key] = current
 		return
 	if distance < MIN_SAMPLE_DISTANCE:
 		return
 	var travelled := float(previous.get("travelled", 0.0)) + distance
 	current["travelled"] = travelled
-	_segments.append({
+	var segment := {
 		"previous_left": previous["left"],
 		"previous_right": previous["right"],
 		"current_left": current["left"],
@@ -103,7 +141,9 @@ func sample_tire(key: String, contact: Vector3, width_axis: Vector3,
 		"uv_start": float(previous.get("travelled", 0.0)),
 		"uv_end": travelled,
 		"born": _elapsed,
-	})
+	}
+	_segments.append(segment)
+	current["last_segment"] = segment
 	_emitters[key] = current
 	while _segments.size() > MAX_SEGMENTS:
 		_segments.pop_front()
@@ -111,7 +151,21 @@ func sample_tire(key: String, contact: Vector3, width_axis: Vector3,
 
 
 func break_emitters() -> void:
-	_emitters.clear()
+	for key in _emitters.keys():
+		_finish_emitter(str(key))
+
+
+func _finish_emitter(key: String) -> void:
+	if not _emitters.has(key):
+		return
+	var emitter: Dictionary = _emitters[key]
+	var last_segment: Variant = emitter.get("last_segment")
+	if last_segment is Dictionary:
+		# Rebuild the final quad as a taper. The dictionary is shared with the
+		# segment array, so this changes only this stroke's trailing endpoint.
+		(last_segment as Dictionary)["strength"] = 0.0
+		_mesh_dirty = true
+	_emitters.erase(key)
 
 
 func segment_count() -> int:

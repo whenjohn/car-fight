@@ -42,6 +42,9 @@ const CLOAK_CUT_BACK := -2.10
 const OIL_FX_FLASH_SPEED := 16.0
 const OIL_FX_AMBER := Color(1.0, 0.27, 0.015, 1.0)
 const OIL_FX_MAGENTA := Color(1.0, 0.02, 0.34, 1.0)
+const BOOST_SKID_PULSE_TIME := 0.24
+const BOOST_RELEASE_NO_SKID_TIME := 0.55
+const DRIFT_SKID_PULSE_TIME := 0.44
 
 var _body: Node3D
 var _chassis_lean: Node3D
@@ -77,6 +80,12 @@ var _oil_fx_magenta: StandardMaterial3D
 var _oil_fx_ring: StandardMaterial3D
 var _oil_fx_time := 0.0
 var _tire_skid_trails: Node3D
+var _boost_skid_pulse := 0.0
+var _boost_was_active := false
+var _boost_release_no_skid := 0.0
+var _drift_skid_pulse := 0.0
+var _drift_peel_armed := true
+var _drift_assist_was_latched := false
 
 func _ready() -> void:
 	_body = get_parent() as Node3D
@@ -116,7 +125,7 @@ func _process(delta: float) -> void:
 			* wheel_roll_scale(brake_skid), TAU)
 		for spin_node in _wheel_spin_nodes:
 			spin_node.rotation.x = _wheel_spin_angle
-		_update_tire_skid_trails(inputs)
+		_update_tire_skid_trails(inputs, delta)
 		_update_boost_echoes(delta, bool(inputs["boosting"]), planar_speed)
 		_update_cloak(delta, rigid)
 	_update_oil_slip_fx(delta)
@@ -217,25 +226,86 @@ func _build_tire_skid_trails() -> void:
 	add_child(_tire_skid_trails)
 
 
-func _update_tire_skid_trails(inputs: Dictionary) -> void:
+func _update_tire_skid_trails(inputs: Dictionary, delta: float) -> void:
 	if _tire_skid_trails == null:
 		return
-	var grounded := true if not _animation_preview_state.is_empty() \
-		else bool(_body.get("was_supported"))
 	var brake := float(inputs["brake"])
-	var drift := float(inputs["drift"])
+	var player_input := _body.get_node_or_null("Input")
+	var reverse_held := player_input != null and bool(player_input.get("reverse"))
+	brake = maxf(brake, TIRE_SKID_TRAILS_SCRIPT.reverse_brake_strength(
+		reverse_held, float(inputs["signed_speed"])))
+	var measured_slide := TIRE_SKID_TRAILS_SCRIPT.sustained_slide(
+		float(inputs["drift"]),
+		float(_body.get("drift_assist_amount")),
+		float(_body.get("drift_assist_charge")))
 	var oil := clampf(float(_body.get("oil_slick_amount")), 0.0, 1.0)
-	var speed := float(inputs["speed"])
-	var up := global_basis.y.normalized()
+	var boosting := bool(inputs["boosting"])
+	if boosting and not _boost_was_active:
+		_boost_skid_pulse = BOOST_SKID_PULSE_TIME
+	elif not boosting and _boost_was_active:
+		# Returning from burst speed makes the FOLLOW controller report hard
+		# automatic braking. That is speed normalization, not a tire-lock event.
+		_boost_skid_pulse = 0.0
+		_drift_skid_pulse = 0.0
+		_boost_release_no_skid = BOOST_RELEASE_NO_SKID_TIME
+	_boost_was_active = boosting
+	var suppress_release_mark := _boost_release_no_skid > 0.0
+	if suppress_release_mark:
+		brake = 0.0
+	var boost_pulse := clampf(_boost_skid_pulse / BOOST_SKID_PULSE_TIME, 0.0, 1.0)
+	var assist_latched := bool(_body.get("drift_assist_latched"))
+	var assist_just_latched := assist_latched and not _drift_assist_was_latched
+	if not assist_latched and measured_slide < TIRE_SKID_TRAILS_SCRIPT.PEEL_REARM:
+		_drift_peel_armed = true
+	if not suppress_release_mark \
+			and TIRE_SKID_TRAILS_SCRIPT.should_start_peel(_drift_peel_armed,
+			assist_just_latched, measured_slide, oil):
+		_drift_skid_pulse = DRIFT_SKID_PULSE_TIME
+		_drift_peel_armed = false
+	_drift_assist_was_latched = assist_latched
+	var drift_peel := measured_slide \
+		if _drift_skid_pulse > 0.0 and not suppress_release_mark else 0.0
+	# A tight donut has substantial velocity at each tire even when the body's
+	# center travels slowly. Include that rotational contact speed.
+	var speed := maxf(float(inputs["speed"]), absf(float(inputs["yaw_rate"])) * 1.8)
 	var half_width := maxf(0.075, _wheel_radius * 0.42)
 	for record in _wheel_records:
 		var anchor := record["node"] as Node3D
 		var front := bool(record["front"])
-		var strength := TIRE_SKID_TRAILS_SCRIPT.skid_strength(brake, drift, oil,
-			speed, front)
-		var contact := anchor.global_position - up * _wheel_radius + up * 0.024
-		_tire_skid_trails.call("sample_tire", str(record["key"]), contact,
-			anchor.global_basis.x.normalized(), half_width, strength, oil, grounded)
+		var strength := TIRE_SKID_TRAILS_SCRIPT.skid_strength(brake, drift_peel, oil,
+			speed, front, boost_pulse)
+		var contact := _tire_ground_contact(anchor) \
+			if strength >= TIRE_SKID_TRAILS_SCRIPT.MIN_STRENGTH else {}
+		if contact.is_empty():
+			_tire_skid_trails.call("sample_tire", str(record["key"]), Vector3.ZERO,
+				Vector3.RIGHT, half_width, strength, oil, false)
+			continue
+		var normal: Vector3 = contact["normal"]
+		var width_axis := anchor.global_basis.x.slide(normal).normalized()
+		_tire_skid_trails.call("sample_tire", str(record["key"]), contact["point"],
+			width_axis, half_width, strength, oil, true)
+	_boost_skid_pulse = maxf(_boost_skid_pulse - delta, 0.0)
+	_drift_skid_pulse = maxf(_drift_skid_pulse - delta, 0.0)
+	_boost_release_no_skid = maxf(_boost_release_no_skid - delta, 0.0)
+
+
+func _tire_ground_contact(anchor: Node3D) -> Dictionary:
+	var world := get_world_3d()
+	if world == null:
+		return {}
+	var origin := anchor.global_position
+	var query := PhysicsRayQueryParameters3D.create(origin + Vector3.UP * 0.65,
+		origin + Vector3.DOWN * 1.35)
+	query.collide_with_areas = false
+	var collision_body := _body as CollisionObject3D
+	if collision_body != null:
+		query.exclude = [collision_body.get_rid()]
+	var hit := world.direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return {}
+	var normal: Vector3 = hit["normal"]
+	return {"point": (hit["position"] as Vector3) + normal * 0.026,
+		"normal": normal.normalized()}
 
 ## The standalone animation lab uses this seam to exercise presentation without
 ## creating a fake gameplay/network state. An empty dictionary returns control

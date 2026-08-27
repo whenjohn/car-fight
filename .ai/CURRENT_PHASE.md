@@ -10,7 +10,32 @@
   steering, break across air/teleports, fade after 12 seconds, and retain a
   bounded 1,200-segment budget per presented car. Physics, rollback, and wire
   state are unchanged. The permission-correct full `./scripts/test.sh` suite
-  passes (`ALL_TESTS PASS`); ordinary rendered human acceptance remains next.
+  passes (`ALL_TESTS PASS`). First rendered feedback confirmed marks appear but
+  found later assisted drifts could stop painting and the tread breakup looked
+  too fragmented. The follow-up uses sustained assist charge/amount through
+  brief velocity alignment and renders a denser, darker, nearly solid ribbon;
+  the next rendered check found a tight drift-assist circle still produced no
+  visible marks and requested boost marks. The current follow-up treats a
+  latched assist as definite scrub, includes rotational tire speed, paints rear
+  tires during boost, and raycasts each actively marking tire onto the real
+  surface so body roll cannot bury the ribbon. The next feedback clarified that
+  active effects must not paint continuously: boost should mark only its launch,
+  drift should mark only peak peel-out, and most events should produce a rear
+  pair even though true hard wheel lock can still make four. Emission now uses
+  short, armed boost/drift traction-break pulses with oil lowering the real-slip
+  trigger. Final direction is simpler: every skid case emits only the two driven
+  rear-wheel marks; front tires never paint. Testing then found boost release
+  created an unwanted pair because FOLLOW reports hard braking while normalizing
+  from burst speed. Boost exit now cancels residual pulses and suppresses marks
+  during that brief speed normalization. Reverse is also an intentional hard
+  brake: while held above seven units/s of forward travel it now paints the rear
+  pair, reaching full strength by 15 units/s, but ordinary backward travel does
+  not paint. Latest visual direction lowers the rubber ribbon to 62% peak alpha
+  and tapers every individual stroke from transparent at its first quad back to
+  transparent at its final quad, removing hard rectangular start/end caps.
+  Human testing accepted this state as good for now. The final permission-correct
+  `./scripts/test.sh` suite passes (`ALL_TESTS PASS`), including 0.698-unit worst
+  correction in the 120 ms network gate; merge to `master` is approved.
 - Oil slicks are merged to `master` at `5a2a919`. Three fixed, static/seeded
   arena puddles use presentation-only metallic decals and exact deterministic
   footprints. Road-speed contact engages instantly and leaves roughly four
