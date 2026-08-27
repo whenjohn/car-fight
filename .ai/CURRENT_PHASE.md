@@ -16,6 +16,11 @@
   The second human pass accepted the direction but asked for a longer, stronger
   hazard: residue now decays over roughly 1.6 seconds, peak turn amplification
   is 3.4x, yaw carry is stronger, and the tail target reaches 2.1 rad/s.
+  The third pass requested an intentionally extreme calibration: residue now
+  lasts roughly four seconds from full, grip drops to 5%, peak turn amplification
+  is 5x, tail target is 3.2 rad/s, and peak oil yaw is 7 rad/s. While affected,
+  the vehicle carries a presentation-only alternating amber/magenta four-corner
+  beacon flash plus a pulsing orange underbody warning ring.
   Dropping slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
@@ -72,6 +77,15 @@
   0.68, tail target to 2.1 rad/s, and peak oil yaw to 5.2 rad/s. The final
   permission-correct `./scripts/test.sh` run passes every gate (`ALL_TESTS PASS`),
   including a 0.300-unit worst correction in the 120 ms two-player test.
+- Third human feedback requested an unmistakable extreme calibration and a
+  visible affected-car cue. Residue now releases at 0.25 per second (roughly four
+  seconds from full), minimum grip is 5%, peak turn amplification is 5x, and oil
+  yaw can reach 7 rad/s. Added presentation-only alternating amber/magenta corner
+  flashes and a pulsing orange underbody ring. The focused oil, vehicle-animation,
+  and presentation tests pass. The permission-correct complete suite passed
+  through reverse with a 0.300-unit worst correction; its timing-sensitive jump
+  gate completed only the outbound transition, then passed immediately in
+  isolation, followed by passing combat, RC-orb, shield, and detonation gates.
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a

@@ -26,6 +26,13 @@ func _init() -> void:
 		"braking loads the front suspension")
 	_check(HULL.wheel_suspension_target(false, 1.0, 1.0, 0.0) > 0.0,
 		"acceleration loads the rear suspension")
+	var oil_dry := HULL.oil_fx_flash_state(0.0, 0.0)
+	var oil_flash := HULL.oil_fx_flash_state(1.0,
+		PI * 0.5 / HULL.OIL_FX_FLASH_SPEED)
+	_check(not bool(oil_dry["active"]), "oil warning FX stays absent while dry")
+	_check(bool(oil_flash["active"]) and float(oil_flash["amber"]) > 0.99 \
+		and float(oil_flash["magenta"]) < 0.13,
+		"oil warning FX flashes strongly between alternating hazard colors")
 	var scene := load("res://tools/VehicleAnimationLab.tscn") as PackedScene
 	_check(scene != null, "animation lab scene loads")
 
@@ -40,4 +47,3 @@ func _init() -> void:
 func _check(condition: bool, message: String) -> void:
 	if not condition:
 		_failures.append(message)
-
