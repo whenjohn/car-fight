@@ -2,6 +2,15 @@
 
 ## Current decision
 
+- Oil slicks are implemented on `feature/oil-slick` in
+  `/Users/johnnguyen/Projects/car-fight-oil-slick` as fixed, static/seeded arena
+  data. Three presentation-only metallic ground decals share exact elliptical
+  footprints with deterministic rollback handling. At road speed, oil reduces
+  velocity grip and drift-assist carve, amplifies turn demand, and preserves yaw
+  momentum long enough to veer, fishtail, over-turn, or spin. No slick is a
+  physics body, collider, trigger, replicated object, or rollback object family;
+  only one per-car residue float was added to existing rollback state. Dropping
+  slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
   within 150 units. Cars use their rendered trajectory for a screen-projected
@@ -29,6 +38,20 @@
 - Networking 2 is complete on `feature/networking-2` in `/Users/johnnguyen/Projects/car-fight-networking-2`, based on accepted commit `a535364`. The 600-second reconnect soak and two-real-player forced-TURN checks pass. A harness-only local hull/camera reconciler removed the subtle moving-observer tug in both cross-platform directions without changing physics, rollback, collision, input, ordinary presentation defaults, or gameplay capsule defaults.
 
 ## Completed
+
+- Created `feature/oil-slick` in
+  `/Users/johnnguyen/Projects/car-fight-oil-slick` from current `master`. Added
+  three large world-placed oil patches in open arena lanes, irregular dark/oily
+  compatibility-renderer decals with subtle iridescent sheen, shared footprint
+  math, and speed/turn-dependent deterministic loss of grip and yaw stability.
+  Added a focused layout/handling/rollback/presentation regression to the full
+  suite. Project import, focused FOLLOW/oil checks, the 120 ms network gate,
+  mixed transport, lifecycle, reconnect, course, reverse, jump gate, combat,
+  RC-orb, shield, and detonation gates pass. The complete suite twice reached
+  later gates; its first stop was the RC gate's four-tick timing window and its
+  second was the documented zero-rebound course sample. Unchanged `master`
+  reproduced that course miss; the isolated feature retry passed at 1.571 units,
+  and every remaining gate passed afterward.
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a
@@ -276,6 +299,17 @@
 
 ## Next
 
+- Run the oil branch through `./scripts/play_local.sh` in the safe decorated
+  window. Drive across the west (-48, 0), east (47, 23), and south (14, 50)
+  patches at speed; judge straight-line veer, correction fishtail, sharp-turn
+  over-rotation/spin frequency, decal readability, and whether the short residue
+  feels fair. Tune only the constants in `world/oil_slick.gd` and the decal
+  shader after this human pass.
+- Keep defensive oil drops out of this checkpoint. If world slicks are accepted,
+  design dropped slicks separately as a bounded server-authored event-driven
+  object family with lifetime/count limits and a representative multiplayer
+  load gate; reuse the same footprint and handling response rather than adding
+  physics bodies or per-slick rollback history.
 - Run `./scripts/play_vehicle_animation_lab.sh` and judge each preset from front,
   rear, and three-quarter views. Tune only the presentation constants after a
   human pass, then compare the accepted lab poses during normal cursor driving;

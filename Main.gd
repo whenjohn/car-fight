@@ -53,6 +53,7 @@ const DRIVING_COURSE_SCRIPT := preload("res://world/driving_course.gd")
 const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
 const DOTS_SCRIPT := preload("res://world/dots.gd")
 const TROOP_DELIVERY_SCRIPT := preload("res://world/troop_delivery.gd")
+const OIL_SLICKS_SCRIPT := preload("res://world/oil_slicks.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
 const MOTION_TRACE_SCRIPT := preload("res://diagnostics/motion_trace.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
@@ -1154,6 +1155,13 @@ func _build_world() -> void:
 	add_child(_troop_delivery)
 	_build_combat_targets()
 	if not _is_headless():
+		# Oil gameplay is fixed shared data; these compatibility-friendly ground
+		# decals are presentation-only and never add collision or rollback bodies.
+		var oil_slicks := Node3D.new()
+		oil_slicks.name = "OilSlicks"
+		oil_slicks.set_script(OIL_SLICKS_SCRIPT)
+		oil_slicks.call("setup", _players)
+		add_child(oil_slicks)
 		# Grass is intentionally presentation-only. The existing GroundCollision
 		# remains the sole static collider on server and predicting clients.
 		var grass := Node3D.new()
