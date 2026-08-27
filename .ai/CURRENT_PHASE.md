@@ -27,7 +27,9 @@
   torque, rear grip is nearly absent, road momentum remains in world space, and
   weak rear restoring force plus angular inertia produce turn-induced step-out,
   countersteer swing, sustained slides, and possible spins. A settled straight
-  crossing no longer invents a wobble.
+  crossing no longer invents a wobble. The fifth feedback pass made entry
+  instantaneous: the first grounded road-speed tick snaps directly to the
+  footprint's full strength, while exit still releases over roughly four seconds.
   Dropping slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
@@ -104,6 +106,13 @@
   and inertia-respecting countersteer. Clean import and the permission-correct
   complete `./scripts/test.sh` suite pass (`ALL_TESTS PASS`), including a
   0.475-unit worst correction in the 120 ms two-player test.
+- Fifth human feedback requested the extreme response at initial contact rather
+  than after even a short buildup. Oil amount now snaps upward to the exact
+  speed/footprint target on the first physics tick and retains the existing slow
+  0.25/s release. Focused coverage asserts both full-center and feathered-edge
+  one-tick engagement. Clean import and the permission-correct complete
+  `./scripts/test.sh` suite pass (`ALL_TESTS PASS`), including a 0.300-unit worst
+  correction in the 120 ms two-player test.
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a

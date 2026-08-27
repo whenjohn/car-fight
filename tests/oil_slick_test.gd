@@ -33,10 +33,11 @@ func _init() -> void:
 	_expect_close(OIL.footprint_strength(MAP_LAYOUT.ARENA,
 		center + Vector3.UP * 5.0), 0.0, 0.0001, "an elevated road stays above ground oil")
 
-	var amount := 0.0
-	for step in range(8):
-		amount = OIL.next_amount(amount, 1.0, true, 18.0, 1.0 / 60.0)
-	_check(amount > 0.99, "road-speed contact engages oil quickly")
+	var amount := OIL.next_amount(0.0, 1.0, true, 18.0, 1.0 / 60.0)
+	_check(amount > 0.99, "the first road-speed contact tick applies full oil")
+	var edge_amount := OIL.next_amount(0.0, 0.45, true, 18.0, 1.0 / 60.0)
+	_expect_close(edge_amount, 0.45, 0.0001,
+		"the feathered edge also engages at its exact strength without ramping")
 	var residue := OIL.next_amount(amount, 0.0, true, 18.0, 0.25)
 	_check(residue > 0.80, "oil residue stays strong immediately after the puddle")
 	var long_residue := OIL.next_amount(amount, 0.0, true, 18.0, 1.0)

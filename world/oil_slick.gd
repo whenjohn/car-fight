@@ -7,7 +7,6 @@ const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const RADIUS := 4.8
 const EDGE_FEATHER := 1.15
 const MAX_GROUND_BODY_Y := 2.2
-const ENGAGE_SPEED := 9.0
 const RELEASE_SPEED := 0.25
 const MIN_ROAD_SPEED := 3.0
 const FULL_ROAD_SPEED := 15.0
@@ -55,8 +54,10 @@ static func next_amount(current: float, footprint: float, grounded: bool,
 		road_speed: float, delta: float) -> float:
 	var speed_authority := smoothstep(MIN_ROAD_SPEED, FULL_ROAD_SPEED, road_speed)
 	var target := clampf(footprint, 0.0, 1.0) * speed_authority if grounded else 0.0
-	var rate := ENGAGE_SPEED if target > current else RELEASE_SPEED
-	return move_toward(clampf(current, 0.0, 1.0), target, rate * delta)
+	var clamped_current := clampf(current, 0.0, 1.0)
+	if target > clamped_current:
+		return target
+	return move_toward(clamped_current, target, RELEASE_SPEED * delta)
 
 
 static func grip_scale(amount: float) -> float:
