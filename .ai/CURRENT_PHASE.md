@@ -2,6 +2,45 @@
 
 ## Current decision
 
+- Oil slicks are implemented on `feature/oil-slick` in
+  `/Users/johnnguyen/Projects/car-fight-oil-slick` as fixed, static/seeded arena
+  data. Three presentation-only metallic ground decals share exact elliptical
+  footprints with deterministic rollback handling. At road speed, oil reduces
+  velocity grip and drift-assist carve, amplifies turn demand, and preserves yaw
+  momentum long enough to veer, fishtail, over-turn, or spin. No slick is a
+  physics body, collider, trigger, replicated object, or rollback object family;
+  only two small per-car scalars (residue and deterministic fishtail phase) were
+  added to existing rollback state. After the first human pass found straight
+  crossings too subtle, the response was tuned to guarantee an alternating
+  road-speed rear swing and raise sharp-turn amplification from 2.1x to 2.8x.
+  The second human pass accepted the direction but asked for a longer, stronger
+  hazard: residue now decays over roughly 1.6 seconds, peak turn amplification
+  is 3.4x, yaw carry is stronger, and the tail target reaches 2.1 rad/s.
+  The third pass requested an intentionally extreme calibration: residue now
+  lasts roughly four seconds from full, grip drops to 5%, peak turn amplification
+  is 5x, tail target is 3.2 rad/s, and peak oil yaw is 7 rad/s. While affected,
+  the vehicle carries a presentation-only alternating amber/magenta four-corner
+  beacon flash plus a pulsing orange underbody warning ring.
+  The fourth human pass rejected the phase-driven side-to-side wobble as feeling
+  like forced steering. That phase and direct oil yaw target are removed. Oil now
+  uses actual center/rear-contact lateral velocity: steering supplies front-end
+  torque, rear grip is nearly absent, road momentum remains in world space, and
+  weak rear restoring force plus angular inertia produce turn-induced step-out,
+  countersteer swing, sustained slides, and possible spins. A settled straight
+  crossing no longer invents a wobble. The fifth feedback pass made entry
+  instantaneous: the first grounded road-speed tick snaps directly to the
+  footprint's full strength, while exit still releases over roughly four seconds.
+  The native macOS system menu now has an `Oil Slick` dropdown beside `Debug`.
+  It exposes instant entry and radio-value submenus for duration, road grip,
+  drift assist, rear lateral/yaw grip, steering torque, spin damping, and maximum
+  spin, plus reset. Client edits are authority-validated and rebroadcast by the
+  server so prediction and authoritative simulation use the same live values.
+  Rendered native client/offline changes autosave to
+  `user://oil_slick_tuning.cfg`. A client loads that sanitized snapshot before
+  presentation, then resubmits it after the server's initial join snapshot so
+  the saved local tuning wins without allowing prediction/authority divergence.
+  Headless tests and dedicated servers intentionally retain checked-in defaults.
+  Dropping slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
   within 150 units. Cars use their rendered trajectory for a screen-projected
@@ -29,6 +68,88 @@
 - Networking 2 is complete on `feature/networking-2` in `/Users/johnnguyen/Projects/car-fight-networking-2`, based on accepted commit `a535364`. The 600-second reconnect soak and two-real-player forced-TURN checks pass. A harness-only local hull/camera reconciler removed the subtle moving-observer tug in both cross-platform directions without changing physics, rollback, collision, input, ordinary presentation defaults, or gameplay capsule defaults.
 
 ## Completed
+
+- Created `feature/oil-slick` in
+  `/Users/johnnguyen/Projects/car-fight-oil-slick` from current `master`. Added
+  three large world-placed oil patches in open arena lanes, irregular dark/oily
+  compatibility-renderer decals with subtle iridescent sheen, shared footprint
+  math, and speed/turn-dependent deterministic loss of grip and yaw stability.
+  Added a focused layout/handling/rollback/presentation regression to the full
+  suite. Project import, focused FOLLOW/oil checks, the 120 ms network gate,
+  mixed transport, lifecycle, reconnect, course, reverse, jump gate, combat,
+  RC-orb, shield, and detonation gates pass. The complete suite twice reached
+  later gates; its first stop was the RC gate's four-tick timing window and its
+  second was the documented zero-rebound course sample. Unchanged `master`
+  reproduced that course miss; the isolated feature retry passed at 1.571 units,
+  and every remaining gate passed afterward.
+- First human handling feedback found the original oil response visually readable
+  but mechanically too subtle. Added a rollback-synchronized alternating phase,
+  1.55 rad/s straight-crossing fishtail target, faster oil yaw response, and
+  2.8x peak turn amplification. Focused oil/FOLLOW/import checks and the 120 ms
+  network gate pass (0.311-unit worst correction in the complete run). The
+  complete suite passed through course and then missed the timing-sensitive gate
+  round trip during a stale-history recovery; its immediate isolated retry and
+  all remaining combat/RC-orb/shield/detonation gates pass.
+- Second human feedback asked for more duration and intensity. Slowed residue
+  release from 1.35 to 0.62 per second (about 1.6 seconds from full), reduced
+  minimum grip to 16%, raised peak turn amplification to 3.4x, yaw momentum to
+  0.68, tail target to 2.1 rad/s, and peak oil yaw to 5.2 rad/s. The final
+  permission-correct `./scripts/test.sh` run passes every gate (`ALL_TESTS PASS`),
+  including a 0.300-unit worst correction in the 120 ms two-player test.
+- Third human feedback requested an unmistakable extreme calibration and a
+  visible affected-car cue. Residue now releases at 0.25 per second (roughly four
+  seconds from full), minimum grip is 5%, peak turn amplification is 5x, and oil
+  yaw can reach 7 rad/s. Added presentation-only alternating amber/magenta corner
+  flashes and a pulsing orange underbody ring. The focused oil, vehicle-animation,
+  and presentation tests pass. The permission-correct complete suite passed
+  through reverse with a 0.300-unit worst correction; its timing-sensitive jump
+  gate completed only the outbound transition, then passed immediately in
+  isolation, followed by passing combat, RC-orb, shield, and detonation gates.
+- Fourth human feedback identified the extreme alternating yaw as artificial
+  side-to-side control instead of a rear-wheel fishtail. Replaced the scripted
+  rollback phase and forced yaw target with deterministic rear-axle slip dynamics
+  derived from the rigid body's real planar and angular velocities. Oil steering
+  now acts as torque, rear lateral grip is 0.18/s, drift-assist carve reaches zero
+  at full oil, and 3% navigation grip preserves world-space momentum while the
+  chassis rotates into a major slide. The focused oil regression covers stable
+  straight travel, turn breakaway, rear contact slip, sustained lateral velocity,
+  and inertia-respecting countersteer. Clean import and the permission-correct
+  complete `./scripts/test.sh` suite pass (`ALL_TESTS PASS`), including a
+  0.475-unit worst correction in the 120 ms two-player test.
+- Fifth human feedback requested the extreme response at initial contact rather
+  than after even a short buildup. Oil amount now snaps upward to the exact
+  speed/footprint target on the first physics tick and retains the existing slow
+  0.25/s release. Focused coverage asserts both full-center and feathered-edge
+  one-tick engagement. Clean import and the permission-correct complete
+  `./scripts/test.sh` suite pass (`ALL_TESTS PASS`), including a 0.300-unit worst
+  correction in the 120 ms two-player test.
+- Added an `Oil Slick` dropdown to the existing native/global system menu bar.
+  Every gameplay-facing oil parameter is selectable at runtime through nested
+  radio menus, instant entry is toggleable, and one action restores the accepted
+  extreme defaults. The server validates known keys/ranges, applies the change,
+  broadcasts the complete snapshot to every peer, and seeds joining clients with
+  the current snapshot. Focused coverage verifies live duration/grip changes,
+  default restoration, unknown-key rejection, and the menu/RPC wiring. Clean
+  import, focused oil, offline, 120 ms network, mixed-transport, lifecycle,
+  reconnect, ball, and tractor checks pass. The complete suite reached the known
+  nondeterministic course landing fixture; two samples recorded the landing but
+  missed its rebound/tilt instant, then the next isolated run passed at 1.571
+  rebound/1.043 degrees. Reverse, jump gate, combat, RC-orb, shield, and
+  detonation gates pass afterward (RC-orb passed its isolated retry after a
+  parallel six-gate batch missed the short scripted action window).
+- Added automatic native persistence for the Oil Slick system menu. Every
+  accepted menu change and reset rewrites the project-scoped ConfigFile, and the
+  menu explicitly reports that changes autosave. Startup sanitizes saved keys
+  through the same bounded tuning API. A joining client waits for the server's
+  initial snapshot, submits its saved full snapshot through a separately
+  validated RPC, and persists the authoritative broadcast; offline play saves
+  directly. Web, headless tests, proxy, and dedicated-server processes do not
+  read or write the developer preference file. Clean import and focused oil,
+  offline, 120 ms network, mixed-transport, lifecycle, reconnect, ball, and
+  tractor checks pass. The complete suite again hit only the known zero-rebound
+  course sample; its immediate isolated retry passed at 1.571 rebound/1.044
+  degrees, followed by passing reverse, jump-gate, combat, RC-orb, shield, and
+  detonation gates.
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a
@@ -276,6 +397,17 @@
 
 ## Next
 
+- Run the oil branch through `./scripts/play_local.sh` in the safe decorated
+  window. Drive across the west (-48, 0), east (47, 23), and south (14, 50)
+  patches at speed; judge straight-line veer, correction fishtail, sharp-turn
+  over-rotation/spin frequency, decal readability, and whether the short residue
+  feels fair. Tune only the constants in `world/oil_slick.gd` and the decal
+  shader after this human pass.
+- Keep defensive oil drops out of this checkpoint. If world slicks are accepted,
+  design dropped slicks separately as a bounded server-authored event-driven
+  object family with lifetime/count limits and a representative multiplayer
+  load gate; reuse the same footprint and handling response rather than adding
+  physics bodies or per-slick rollback history.
 - Run `./scripts/play_vehicle_animation_lab.sh` and judge each preset from front,
   rear, and three-quarter views. Tune only the presentation constants after a
   human pass, then compare the accepted lab poses during normal cursor driving;

@@ -38,6 +38,9 @@ const BOOST_ECHO_COLOR := Color(1.0, 0.38, 0.08, 0.28)
 const CLOAK_FADE_TIME := 0.38
 const CLOAK_CUT_FRONT := 2.10
 const CLOAK_CUT_BACK := -2.10
+const OIL_FX_FLASH_SPEED := 16.0
+const OIL_FX_AMBER := Color(1.0, 0.27, 0.015, 1.0)
+const OIL_FX_MAGENTA := Color(1.0, 0.02, 0.34, 1.0)
 
 var _body: Node3D
 var _chassis_lean: Node3D
@@ -67,6 +70,11 @@ var _cloak_ghost_material: ShaderMaterial
 var _occlusion_material: StandardMaterial3D
 var _occlusion_meshes: Array[MeshInstance3D] = []
 var _occlusion_enabled := true
+var _oil_fx_root: Node3D
+var _oil_fx_amber: StandardMaterial3D
+var _oil_fx_magenta: StandardMaterial3D
+var _oil_fx_ring: StandardMaterial3D
+var _oil_fx_time := 0.0
 
 func _ready() -> void:
 	_body = get_parent() as Node3D
@@ -76,6 +84,7 @@ func _ready() -> void:
 	_build_cloak_dust()
 	_build_cloak_ghost()
 	_build_boost_echoes()
+	_build_oil_slip_fx()
 
 func _process(delta: float) -> void:
 	if _body == null:
@@ -106,6 +115,95 @@ func _process(delta: float) -> void:
 			spin_node.rotation.x = _wheel_spin_angle
 		_update_boost_echoes(delta, bool(inputs["boosting"]), planar_speed)
 		_update_cloak(delta, rigid)
+	_update_oil_slip_fx(delta)
+
+
+## Presentation-only hazard flash. The effect reads synchronized oil amount but
+## owns no gameplay state, collision, light, or network object.
+static func oil_fx_flash_state(amount: float, elapsed: float) -> Dictionary:
+	var strength := clampf(amount, 0.0, 1.0)
+	var wave := 0.5 + 0.5 * sin(elapsed * OIL_FX_FLASH_SPEED)
+	return {
+		"active": strength > 0.01,
+		"amber": strength * (0.12 + 0.88 * wave),
+		"magenta": strength * (0.12 + 0.88 * (1.0 - wave)),
+		"ring": strength * (0.34 + 0.66 * absf(wave * 2.0 - 1.0)),
+	}
+
+
+func _build_oil_slip_fx() -> void:
+	_oil_fx_root = Node3D.new()
+	_oil_fx_root.name = "OilSlipFX"
+	_oil_fx_root.visible = false
+	add_child(_oil_fx_root)
+	_oil_fx_amber = _oil_fx_material(OIL_FX_AMBER)
+	_oil_fx_magenta = _oil_fx_material(OIL_FX_MAGENTA)
+	_oil_fx_ring = _oil_fx_material(Color(1.0, 0.12, 0.025, 1.0))
+	var ring := MeshInstance3D.new()
+	ring.name = "SlipWarningRing"
+	var torus := TorusMesh.new()
+	torus.inner_radius = 1.72
+	torus.outer_radius = 1.92
+	torus.rings = 32
+	torus.ring_segments = 6
+	ring.mesh = torus
+	ring.position.y = -1.42
+	ring.material_override = _oil_fx_ring
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_oil_fx_root.add_child(ring)
+	var beacon_mesh := SphereMesh.new()
+	beacon_mesh.radius = 0.14
+	beacon_mesh.height = 0.28
+	beacon_mesh.radial_segments = 10
+	beacon_mesh.rings = 5
+	var positions := [
+		Vector3(-1.18, 0.82, -0.78), Vector3(1.18, 0.82, -0.78),
+		Vector3(-1.18, 0.82, 0.78), Vector3(1.18, 0.82, 0.78),
+	]
+	for index in range(positions.size()):
+		var beacon := MeshInstance3D.new()
+		beacon.name = "SlipBeacon%d" % index
+		beacon.mesh = beacon_mesh
+		beacon.position = positions[index]
+		beacon.material_override = _oil_fx_amber if index % 2 == 0 else _oil_fx_magenta
+		beacon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_oil_fx_root.add_child(beacon)
+
+
+func _oil_fx_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = Color(color.r, color.g, color.b)
+	material.emission_energy_multiplier = 5.0
+	material.no_depth_test = false
+	material.render_priority = 2
+	return material
+
+
+func _update_oil_slip_fx(delta: float) -> void:
+	if _oil_fx_root == null:
+		return
+	var amount := clampf(float(_body.get("oil_slick_amount")), 0.0, 1.0)
+	_oil_fx_time += delta
+	var flash := oil_fx_flash_state(amount, _oil_fx_time)
+	_oil_fx_root.visible = bool(flash["active"])
+	if not _oil_fx_root.visible:
+		return
+	_set_oil_fx_material(_oil_fx_amber, OIL_FX_AMBER, float(flash["amber"]))
+	_set_oil_fx_material(_oil_fx_magenta, OIL_FX_MAGENTA, float(flash["magenta"]))
+	_set_oil_fx_material(_oil_fx_ring, Color(1.0, 0.12, 0.025, 1.0),
+		float(flash["ring"]))
+	_oil_fx_root.scale = Vector3.ONE * (1.0 + float(flash["ring"]) * 0.10)
+
+
+func _set_oil_fx_material(material: StandardMaterial3D, color: Color,
+		intensity: float) -> void:
+	material.albedo_color = Color(color.r, color.g, color.b,
+		clampf(0.12 + intensity * 0.88, 0.0, 1.0))
+	material.emission_energy_multiplier = 1.5 + intensity * 7.5
 
 ## The standalone animation lab uses this seam to exercise presentation without
 ## creating a fake gameplay/network state. An empty dictionary returns control

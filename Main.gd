@@ -53,6 +53,8 @@ const DRIVING_COURSE_SCRIPT := preload("res://world/driving_course.gd")
 const JUMP_GATES_SCRIPT := preload("res://world/jump_gates.gd")
 const DOTS_SCRIPT := preload("res://world/dots.gd")
 const TROOP_DELIVERY_SCRIPT := preload("res://world/troop_delivery.gd")
+const OIL_SLICK := preload("res://world/oil_slick.gd")
+const OIL_SLICKS_SCRIPT := preload("res://world/oil_slicks.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
 const MOTION_TRACE_SCRIPT := preload("res://diagnostics/motion_trace.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
@@ -242,10 +244,32 @@ var _network_hud_rb_ticks_max := 0
 var _network_tier_label: Label
 var _system_menu_bar: MenuBar
 var _debug_popup: PopupMenu
+var _oil_popup: PopupMenu
+var _oil_submenus := {}
 var _gameplay_collision_debug_enabled := false
 var _gameplay_text_visible := true
 const DEBUG_COLLISION_MENU_ID := 1
 const DEBUG_GAMEPLAY_TEXT_MENU_ID := 2
+const OIL_INSTANT_MENU_ID := 1001
+const OIL_RESET_MENU_ID := 1002
+const OIL_AUTOSAVE_INFO_MENU_ID := 1003
+const OIL_TUNING_PATH := "user://oil_slick_tuning.cfg"
+const OIL_TUNING_SECTION := "oil_slick"
+const OIL_MENU_ORDER := [
+	"duration", "min_grip_scale", "min_drift_assist_scale",
+	"rear_lateral_grip", "rear_yaw_grip", "front_steer_torque",
+	"yaw_damping", "max_yaw_rate",
+]
+const OIL_MENU_OPTIONS := {
+	"duration": {"label": "Duration", "values": [1.0, 2.0, 4.0, 6.0, 8.0, 12.0]},
+	"min_grip_scale": {"label": "Road grip", "values": [0.0, 0.03, 0.08, 0.15, 0.30, 0.50]},
+	"min_drift_assist_scale": {"label": "Drift assist", "values": [0.0, 0.10, 0.25, 0.50, 0.75, 1.0]},
+	"rear_lateral_grip": {"label": "Rear lateral grip", "values": [0.05, 0.10, 0.18, 0.35, 0.70, 1.50]},
+	"rear_yaw_grip": {"label": "Rear yaw recovery", "values": [0.0, 0.08, 0.16, 0.30, 0.60, 1.20]},
+	"front_steer_torque": {"label": "Steering torque", "values": [2.5, 5.0, 8.5, 12.0, 16.0, 22.0]},
+	"yaw_damping": {"label": "Spin damping", "values": [0.0, 0.05, 0.10, 0.25, 0.50, 1.0]},
+	"max_yaw_rate": {"label": "Maximum spin", "values": [2.5, 4.0, 6.0, 8.0, 10.0, 12.0]},
+}
 var _motion_trace: Node
 var _network_last_target_msec := -1.0
 var _network_last_mode := ""
@@ -262,9 +286,12 @@ var _network_status := ""
 var _join_stall_ms := 0
 var _join_stall_after_ms := 0
 var _join_stall_started := false
+var _persisted_oil_tuning := {}
+var _persisted_oil_tuning_pending := false
 
 func _ready() -> void:
 	_parse_args()
+	_load_persisted_oil_tuning()
 	if not _run_id.is_empty():
 		_log("RUN_ID id=%s role=%s transport=%s" % [_run_id, _role, _transport])
 	_configure_network_stack()
@@ -1017,6 +1044,7 @@ func _on_peer_join(id: int) -> void:
 	_spawner.spawn(spawn_data)
 	var config := _configuration_for(id)
 	_apply_coverage_config.rpc(id, config["ranges"], config["widths"], config["tips_outward"])
+	_apply_oil_tuning_snapshot.rpc_id(id, OIL_SLICK.tuning_snapshot())
 	var target_counts := PackedInt32Array()
 	for target in _targets.get_children():
 		target_counts.append(int(target.get("hit_count")))
@@ -1154,6 +1182,13 @@ func _build_world() -> void:
 	add_child(_troop_delivery)
 	_build_combat_targets()
 	if not _is_headless():
+		# Oil gameplay is fixed shared data; these compatibility-friendly ground
+		# decals are presentation-only and never add collision or rollback bodies.
+		var oil_slicks := Node3D.new()
+		oil_slicks.name = "OilSlicks"
+		oil_slicks.set_script(OIL_SLICKS_SCRIPT)
+		oil_slicks.call("setup", _players)
+		add_child(oil_slicks)
 		# Grass is intentionally presentation-only. The existing GroundCollision
 		# remains the sole static collider on server and predicting clients.
 		var grass := Node3D.new()
@@ -1656,6 +1691,7 @@ func _build_presentation() -> void:
 	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_GAMEPLAY_TEXT_MENU_ID),
 		_gameplay_text_visible)
 	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
+	_build_oil_tuning_menu()
 	_status_label = Label.new()
 	_status_label.position = Vector2(18.0, 16.0)
 	_status_label.add_theme_font_size_override("font_size", 18)
@@ -1723,6 +1759,181 @@ func _on_debug_menu_item_pressed(id: int) -> void:
 		if _status_label != null:
 			_status_label.visible = _gameplay_text_visible or local_player() == null
 		_update_editor_label()
+
+
+func _build_oil_tuning_menu() -> void:
+	_oil_popup = PopupMenu.new()
+	_oil_popup.name = "OilSlick"
+	_oil_popup.title = "Oil Slick"
+	_system_menu_bar.add_child(_oil_popup)
+	_oil_popup.add_check_item("Instant entry", OIL_INSTANT_MENU_ID)
+	_oil_popup.add_separator()
+	for key_variant in OIL_MENU_ORDER:
+		var key := str(key_variant)
+		var option: Dictionary = OIL_MENU_OPTIONS[key]
+		var submenu := PopupMenu.new()
+		submenu.name = "Oil%s" % key.to_pascal_case()
+		_oil_popup.add_child(submenu)
+		_oil_popup.add_submenu_item(str(option["label"]), submenu.name)
+		var values: Array = option["values"]
+		for index in range(values.size()):
+			submenu.add_radio_check_item(_oil_tuning_value_label(key,
+				float(values[index])), index)
+		submenu.id_pressed.connect(_on_oil_tuning_option_pressed.bind(key))
+		_oil_submenus[key] = submenu
+	_oil_popup.add_separator()
+	_oil_popup.add_item("Reset extreme defaults", OIL_RESET_MENU_ID)
+	_oil_popup.add_separator()
+	_oil_popup.add_item("Changes autosave for next launch", OIL_AUTOSAVE_INFO_MENU_ID)
+	_oil_popup.set_item_disabled(
+		_oil_popup.get_item_index(OIL_AUTOSAVE_INFO_MENU_ID), true)
+	_oil_popup.id_pressed.connect(_on_oil_tuning_menu_pressed)
+	_refresh_oil_tuning_menu()
+
+
+func _oil_tuning_value_label(key: String, value: float) -> String:
+	match key:
+		"duration":
+			return "%.1f seconds" % value
+		"min_grip_scale", "min_drift_assist_scale":
+			return "%.0f%%" % (value * 100.0)
+		"rear_lateral_grip", "rear_yaw_grip", "yaw_damping":
+			return "%.2f / second" % value
+		"front_steer_torque":
+			return "%.1f rad/s²" % value
+		"max_yaw_rate":
+			return "%.1f rad/s" % value
+	return "%.2f" % value
+
+
+func _refresh_oil_tuning_menu() -> void:
+	if _oil_popup == null:
+		return
+	var snapshot := OIL_SLICK.tuning_snapshot()
+	_oil_popup.set_item_checked(_oil_popup.get_item_index(OIL_INSTANT_MENU_ID),
+		bool(snapshot["instant_entry"]))
+	for key_variant in OIL_MENU_ORDER:
+		var key := str(key_variant)
+		var submenu := _oil_submenus.get(key) as PopupMenu
+		if submenu == null:
+			continue
+		var values: Array = OIL_MENU_OPTIONS[key]["values"]
+		for index in range(values.size()):
+			submenu.set_item_checked(submenu.get_item_index(index),
+				is_equal_approx(float(snapshot[key]), float(values[index])))
+
+
+func _persistence_available_for_oil_tuning() -> bool:
+	return _role in ["client", "offline"] and DisplayServer.get_name() != "headless" \
+		and not OS.has_feature("web")
+
+
+func _load_persisted_oil_tuning() -> void:
+	if not _persistence_available_for_oil_tuning():
+		return
+	var config := ConfigFile.new()
+	if config.load(OIL_TUNING_PATH) != OK:
+		return
+	var snapshot := {}
+	for key_variant in OIL_SLICK.tuning_snapshot():
+		var key := str(key_variant)
+		if config.has_section_key(OIL_TUNING_SECTION, key):
+			snapshot[key] = config.get_value(OIL_TUNING_SECTION, key)
+	OIL_SLICK.apply_tuning_snapshot(snapshot)
+	_persisted_oil_tuning = OIL_SLICK.tuning_snapshot()
+	_persisted_oil_tuning_pending = _role == "client"
+
+
+func _save_persisted_oil_tuning() -> void:
+	if not _persistence_available_for_oil_tuning():
+		return
+	var snapshot := OIL_SLICK.tuning_snapshot()
+	var config := ConfigFile.new()
+	for key_variant in snapshot:
+		var key := str(key_variant)
+		config.set_value(OIL_TUNING_SECTION, key, snapshot[key])
+	var error := config.save(OIL_TUNING_PATH)
+	if error != OK:
+		push_warning("Could not autosave oil tuning: %s" % error_string(error))
+		return
+	_persisted_oil_tuning = snapshot
+
+
+func _on_oil_tuning_menu_pressed(id: int) -> void:
+	if id == OIL_INSTANT_MENU_ID:
+		_submit_oil_tuning_change("instant_entry", not OIL_SLICK.instant_entry)
+	elif id == OIL_RESET_MENU_ID:
+		_submit_oil_tuning_change("reset", true)
+
+
+func _on_oil_tuning_option_pressed(id: int, key: String) -> void:
+	var values: Array = OIL_MENU_OPTIONS[key]["values"]
+	if id < 0 or id >= values.size():
+		return
+	_submit_oil_tuning_change(key, values[id])
+
+
+func _submit_oil_tuning_change(key: String, value: Variant) -> void:
+	if _role == "offline" or multiplayer.multiplayer_peer == null \
+			or (_role == "client" and local_player() == null):
+		_apply_local_oil_tuning_change(key, value)
+		_persisted_oil_tuning_pending = _role == "client"
+	elif multiplayer.is_server():
+		_accept_oil_tuning_change(key, value)
+	else:
+		_request_oil_tuning_change.rpc_id(1, key, value)
+
+
+func _apply_local_oil_tuning_change(key: String, value: Variant) -> void:
+	if key == "reset":
+		OIL_SLICK.reset_tuning()
+	else:
+		OIL_SLICK.set_tuning_value(key, value)
+	_refresh_oil_tuning_menu()
+	_save_persisted_oil_tuning()
+
+
+func _accept_oil_tuning_change(key: String, value: Variant) -> void:
+	if key == "reset":
+		OIL_SLICK.reset_tuning()
+	elif not OIL_SLICK.set_tuning_value(key, value):
+		return
+	_apply_oil_tuning_snapshot.rpc(OIL_SLICK.tuning_snapshot())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_oil_tuning_change(key: String, value: Variant) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender <= 1 or _players == null \
+			or _players.get_node_or_null(str(sender)) == null:
+		return
+	_accept_oil_tuning_change(key, value)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_oil_tuning_snapshot(snapshot: Dictionary) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender <= 1 or sender not in multiplayer.get_peers():
+		return
+	OIL_SLICK.apply_tuning_snapshot(snapshot)
+	_apply_oil_tuning_snapshot.rpc(OIL_SLICK.tuning_snapshot())
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_oil_tuning_snapshot(snapshot: Dictionary) -> void:
+	OIL_SLICK.apply_tuning_snapshot(snapshot)
+	_refresh_oil_tuning_menu()
+	_log("OIL_TUNING %s" % JSON.stringify(OIL_SLICK.tuning_snapshot()))
+	if _role == "client" and _persisted_oil_tuning_pending \
+			and multiplayer.multiplayer_peer != null:
+		_persisted_oil_tuning_pending = false
+		_request_oil_tuning_snapshot.rpc_id(1, _persisted_oil_tuning)
+	elif _role in ["client", "offline"]:
+		_save_persisted_oil_tuning()
 
 
 func _update_network_hud(delta: float) -> void:

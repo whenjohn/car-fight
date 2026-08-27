@@ -6,6 +6,7 @@ const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const TRACTOR := preload("res://player/tractor_controller.gd")
 const IMPACT := preload("res://player/impact_controller.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
+const OIL_SLICK := preload("res://world/oil_slick.gd")
 const REMOTE_POSITION_VALIDATION := preload("res://net/remote_position_validation.gd")
 const REMOTE_SNAPSHOT_INTERPOLATION := preload("res://net/remote_snapshot_interpolation.gd")
 const SERVER_DRIVER_COLLISION := preload("res://player/server_driver_collision.gd")
@@ -27,6 +28,7 @@ var drift_assist_side := 0.0
 var drift_assist_hold := 0.0
 var drift_assist_latched := false
 var drift_assist_rearm_ready := true
+var oil_slick_amount := 0.0
 var is_cloaked := false
 var cloak_held_prev := false
 var shield_up := false
@@ -174,6 +176,7 @@ func _ready() -> void:
 		_sync.add_state(self, "drift_assist_hold")
 		_sync.add_state(self, "drift_assist_latched")
 		_sync.add_state(self, "drift_assist_rearm_ready")
+		_sync.add_state(self, "oil_slick_amount")
 		_sync.add_state(self, "is_cloaked")
 		_sync.add_state(self, "cloak_held_prev")
 		_sync.add_state(self, "shield_up")
@@ -275,6 +278,10 @@ func _physics_rollback_tick(delta: float, tick: int) -> void:
 	landing_jostle_cooldown = maxf(landing_jostle_cooldown - delta, 0.0)
 	var support_normal := _static_support_normal()
 	var touching_support := not support_normal.is_zero_approx()
+	var oil_footprint := OIL_SLICK.footprint_strength(map_id,
+		direct_state.transform.origin)
+	oil_slick_amount = OIL_SLICK.next_amount(oil_slick_amount, oil_footprint,
+		touching_support, planar_speed, delta)
 	var landing_torque_impulse := Vector3.ZERO
 	if touching_support:
 		if not was_supported and landing_jostle_cooldown <= 0.0:
@@ -368,18 +375,29 @@ func _physics_rollback_tick(delta: float, tick: int) -> void:
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	var impact_acceleration_scale := IMPACT.acceleration_scale(impact_recovery_time)
 	horizontal = horizontal.move_toward(target_velocity,
-		float(command["acceleration"]) * impact_acceleration_scale * delta)
+		float(command["acceleration"]) * impact_acceleration_scale \
+		* OIL_SLICK.grip_scale(oil_slick_amount) * delta)
 	horizontal = FOLLOW.drift_carve_velocity(horizontal, drift_assist_side,
-		drift_assist_amount, drift_assist_charge, delta)
+		drift_assist_amount * OIL_SLICK.drift_assist_scale(oil_slick_amount),
+		drift_assist_charge, delta)
 	if bool(escape["started"]):
 		horizontal += drive_direction * FOLLOW.ESCAPE_SIDE_KICK
-	direct_state.linear_velocity = FOLLOW.compose_drive_velocity(horizontal, velocity.y)
 	var current_yaw_rate: float = direct_state.angular_velocity.y
 	var target_yaw_rate := collision_escape_sign * FOLLOW.ESCAPE_YAW_RATE \
 		if bool(escape["active"]) else float(command["yaw_rate"])
 	var yaw_acceleration := FOLLOW.ESCAPE_YAW_ACCEL \
 		if bool(escape["active"]) else float(command["yaw_acceleration"])
-	var yaw_rate := move_toward(current_yaw_rate, target_yaw_rate, yaw_acceleration * delta)
+	var yaw_rate: float
+	if not bool(escape["active"]):
+		var oil_axle := OIL_SLICK.axle_response(horizontal, forward,
+			target_yaw_rate, current_yaw_rate, yaw_acceleration, planar_speed,
+			oil_slick_amount, delta)
+		horizontal = oil_axle["planar_velocity"]
+		yaw_rate = float(oil_axle["yaw_rate"])
+	else:
+		yaw_rate = move_toward(current_yaw_rate, target_yaw_rate,
+			yaw_acceleration * delta)
+	direct_state.linear_velocity = FOLLOW.compose_drive_velocity(horizontal, velocity.y)
 	direct_state.angular_velocity = FOLLOW.compose_drive_angular_velocity(
 		direct_state.angular_velocity, yaw_rate)
 	direct_state.apply_torque(FOLLOW.upright_torque(direct_state.transform.basis,
@@ -425,6 +443,7 @@ func _service_jump_gate(delta: float) -> bool:
 	drift_assist_hold = 0.0
 	drift_assist_latched = false
 	drift_assist_rearm_ready = true
+	oil_slick_amount = 0.0
 	collision_stall_time = 0.0
 	collision_escape_time = 0.0
 	wall_bump_cooldown = 0.0
