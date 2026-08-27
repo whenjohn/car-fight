@@ -35,6 +35,11 @@
   drift assist, rear lateral/yaw grip, steering torque, spin damping, and maximum
   spin, plus reset. Client edits are authority-validated and rebroadcast by the
   server so prediction and authoritative simulation use the same live values.
+  Rendered native client/offline changes autosave to
+  `user://oil_slick_tuning.cfg`. A client loads that sanitized snapshot before
+  presentation, then resubmits it after the server's initial join snapshot so
+  the saved local tuning wins without allowing prediction/authority divergence.
+  Headless tests and dedicated servers intentionally retain checked-in defaults.
   Dropping slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
@@ -132,6 +137,19 @@
   rebound/1.043 degrees. Reverse, jump gate, combat, RC-orb, shield, and
   detonation gates pass afterward (RC-orb passed its isolated retry after a
   parallel six-gate batch missed the short scripted action window).
+- Added automatic native persistence for the Oil Slick system menu. Every
+  accepted menu change and reset rewrites the project-scoped ConfigFile, and the
+  menu explicitly reports that changes autosave. Startup sanitizes saved keys
+  through the same bounded tuning API. A joining client waits for the server's
+  initial snapshot, submits its saved full snapshot through a separately
+  validated RPC, and persists the authoritative broadcast; offline play saves
+  directly. Web, headless tests, proxy, and dedicated-server processes do not
+  read or write the developer preference file. Clean import and focused oil,
+  offline, 120 ms network, mixed-transport, lifecycle, reconnect, ball, and
+  tractor checks pass. The complete suite again hit only the known zero-rebound
+  course sample; its immediate isolated retry passed at 1.571 rebound/1.044
+  degrees, followed by passing reverse, jump-gate, combat, RC-orb, shield, and
+  detonation gates.
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a

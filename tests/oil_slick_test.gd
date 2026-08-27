@@ -111,6 +111,11 @@ func _init() -> void:
 		and "_request_oil_tuning_change.rpc_id(1" in main_source \
 		and "_apply_oil_tuning_snapshot.rpc" in main_source,
 		"the native system menu edits server-synchronized oil tuning")
+	_check("user://oil_slick_tuning.cfg" in main_source \
+		and "_load_persisted_oil_tuning()" in main_source \
+		and "_save_persisted_oil_tuning()" in main_source \
+		and "_request_oil_tuning_snapshot.rpc_id(1" in main_source,
+		"native oil edits autosave and reclaim authority after reconnecting")
 	_check("Area3D" not in visual_source and "CollisionShape3D" not in visual_source,
 		"oil decals never add trigger or collision bodies")
 	_check("METALLIC" in shader_source and "stencil_mode write" in shader_source,
