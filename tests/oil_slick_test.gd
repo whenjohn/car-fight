@@ -38,22 +38,25 @@ func _init() -> void:
 		amount = OIL.next_amount(amount, 1.0, true, 18.0, 1.0 / 60.0)
 	_check(amount > 0.99, "road-speed contact engages oil quickly")
 	var residue := OIL.next_amount(amount, 0.0, true, 18.0, 0.25)
-	_check(residue > 0.60, "oil residue survives long enough for a fishtail")
+	_check(residue > 0.80, "oil residue stays strong immediately after the puddle")
+	var long_residue := OIL.next_amount(amount, 0.0, true, 18.0, 1.0)
+	_check(long_residue > 0.35,
+		"oil remains active for multiple tail swings after a road-speed crossing")
 	var parked := OIL.next_amount(0.0, 1.0, true, 0.0, 1.0)
 	_expect_close(parked, 0.0, 0.0001, "a parked car does not rotate on oil")
 
 	var dry := OIL.steering_response(-1.0, -0.5, 6.0, deg_to_rad(-75.0), 18.0, 0.0)
 	var oily := OIL.steering_response(-1.0, -0.5, 6.0, deg_to_rad(-75.0), 18.0,
 		1.0, PI * 1.5)
-	_check(absf(float(oily["yaw_rate"])) > absf(float(dry["yaw_rate"])) * 2.8,
+	_check(absf(float(oily["yaw_rate"])) > absf(float(dry["yaw_rate"])) * 4.8,
 		"a committed oil turn materially over-rotates")
 	_check(float(oily["yaw_acceleration"]) > float(dry["yaw_acceleration"]),
 		"the visible fishtail builds quickly enough to read during one crossing")
-	_check(OIL.grip_scale(1.0) < 0.25,
+	_check(OIL.grip_scale(1.0) < 0.18,
 		"full oil keeps most road momentum instead of following the nose")
 	var phase := OIL.next_fishtail_phase(0.0, 1.0, 18.0, 0.15)
 	var straight := OIL.steering_response(0.0, 0.0, 6.0, 0.0, 18.0, 1.0, phase)
-	_check(absf(float(straight["yaw_rate"])) > 1.4,
+	_check(absf(float(straight["yaw_rate"])) > 1.9,
 		"a straight road-speed crossing produces an unmistakable deterministic veer")
 	var opposite := OIL.steering_response(0.0, 0.0, 6.0, 0.0, 18.0, 1.0,
 		phase + PI)

@@ -8,20 +8,20 @@ const RADIUS := 4.8
 const EDGE_FEATHER := 1.15
 const MAX_GROUND_BODY_Y := 2.2
 const ENGAGE_SPEED := 9.0
-const RELEASE_SPEED := 1.35
+const RELEASE_SPEED := 0.62
 const MIN_ROAD_SPEED := 3.0
 const FULL_ROAD_SPEED := 15.0
 const MIN_TURN_ANGLE := deg_to_rad(8.0)
 const FULL_TURN_ANGLE := deg_to_rad(62.0)
-const MIN_GRIP_SCALE := 0.22
+const MIN_GRIP_SCALE := 0.16
 const MIN_DRIFT_ASSIST_SCALE := 0.28
-const TURN_MULTIPLIER := 2.8
-const YAW_MOMENTUM := 0.55
-const YAW_ACCELERATION_SCALE := 1.15
-const FISHTAIL_YAW_RATE := 1.55
+const TURN_MULTIPLIER := 3.4
+const YAW_MOMENTUM := 0.68
+const YAW_ACCELERATION_SCALE := 1.30
+const FISHTAIL_YAW_RATE := 2.10
 const FISHTAIL_FREQUENCY_MIN := 7.5
-const FISHTAIL_FREQUENCY_MAX := 10.5
-const MAX_YAW_RATE := 4.5
+const FISHTAIL_FREQUENCY_MAX := 11.0
+const MAX_YAW_RATE := 5.2
 
 
 static func slicks() -> Array[Dictionary]:

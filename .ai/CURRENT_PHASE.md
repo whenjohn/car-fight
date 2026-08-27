@@ -13,6 +13,9 @@
   added to existing rollback state. After the first human pass found straight
   crossings too subtle, the response was tuned to guarantee an alternating
   road-speed rear swing and raise sharp-turn amplification from 2.1x to 2.8x.
+  The second human pass accepted the direction but asked for a longer, stronger
+  hazard: residue now decays over roughly 1.6 seconds, peak turn amplification
+  is 3.4x, yaw carry is stronger, and the tail target reaches 2.1 rad/s.
   Dropping slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
@@ -63,6 +66,12 @@
   complete suite passed through course and then missed the timing-sensitive gate
   round trip during a stale-history recovery; its immediate isolated retry and
   all remaining combat/RC-orb/shield/detonation gates pass.
+- Second human feedback asked for more duration and intensity. Slowed residue
+  release from 1.35 to 0.62 per second (about 1.6 seconds from full), reduced
+  minimum grip to 16%, raised peak turn amplification to 3.4x, yaw momentum to
+  0.68, tail target to 2.1 rad/s, and peak oil yaw to 5.2 rad/s. The final
+  permission-correct `./scripts/test.sh` run passes every gate (`ALL_TESTS PASS`),
+  including a 0.300-unit worst correction in the 120 ms two-player test.
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a
