@@ -2,45 +2,22 @@
 
 ## Current decision
 
-- Oil slicks are implemented on `feature/oil-slick` in
-  `/Users/johnnguyen/Projects/car-fight-oil-slick` as fixed, static/seeded arena
-  data. Three presentation-only metallic ground decals share exact elliptical
-  footprints with deterministic rollback handling. At road speed, oil reduces
-  velocity grip and drift-assist carve, amplifies turn demand, and preserves yaw
-  momentum long enough to veer, fishtail, over-turn, or spin. No slick is a
-  physics body, collider, trigger, replicated object, or rollback object family;
-  only two small per-car scalars (residue and deterministic fishtail phase) were
-  added to existing rollback state. After the first human pass found straight
-  crossings too subtle, the response was tuned to guarantee an alternating
-  road-speed rear swing and raise sharp-turn amplification from 2.1x to 2.8x.
-  The second human pass accepted the direction but asked for a longer, stronger
-  hazard: residue now decays over roughly 1.6 seconds, peak turn amplification
-  is 3.4x, yaw carry is stronger, and the tail target reaches 2.1 rad/s.
-  The third pass requested an intentionally extreme calibration: residue now
-  lasts roughly four seconds from full, grip drops to 5%, peak turn amplification
-  is 5x, tail target is 3.2 rad/s, and peak oil yaw is 7 rad/s. While affected,
-  the vehicle carries a presentation-only alternating amber/magenta four-corner
-  beacon flash plus a pulsing orange underbody warning ring.
-  The fourth human pass rejected the phase-driven side-to-side wobble as feeling
-  like forced steering. That phase and direct oil yaw target are removed. Oil now
-  uses actual center/rear-contact lateral velocity: steering supplies front-end
-  torque, rear grip is nearly absent, road momentum remains in world space, and
-  weak rear restoring force plus angular inertia produce turn-induced step-out,
-  countersteer swing, sustained slides, and possible spins. A settled straight
-  crossing no longer invents a wobble. The fifth feedback pass made entry
-  instantaneous: the first grounded road-speed tick snaps directly to the
-  footprint's full strength, while exit still releases over roughly four seconds.
-  The native macOS system menu now has an `Oil Slick` dropdown beside `Debug`.
-  It exposes instant entry and radio-value submenus for duration, road grip,
-  drift assist, rear lateral/yaw grip, steering torque, spin damping, and maximum
-  spin, plus reset. Client edits are authority-validated and rebroadcast by the
-  server so prediction and authoritative simulation use the same live values.
-  Rendered native client/offline changes autosave to
-  `user://oil_slick_tuning.cfg`. A client loads that sanitized snapshot before
-  presentation, then resubmits it after the server's initial join snapshot so
-  the saved local tuning wins without allowing prediction/authority divergence.
-  Headless tests and dedicated servers intentionally retain checked-in defaults.
-  Dropping slicks as a defensive weapon remains explicitly deferred.
+- Oil slicks are merged to `master` at `5a2a919`. Three fixed, static/seeded
+  arena puddles use presentation-only metallic decals and exact deterministic
+  footprints. Road-speed contact engages instantly and leaves roughly four
+  seconds of rollback-synchronized residue. The handling uses actual center and
+  rear-contact lateral velocity: steering supplies front-end torque, rear grip
+  nearly disappears, world-space momentum carries on, and weak restoring force
+  plus angular inertia produce turn-induced step-out, countersteer swing,
+  sustained slides, and spins without scripted side-to-side wobble. Affected
+  vehicles flash amber/magenta over a pulsing orange underbody ring. Slicks add
+  no body, collider, trigger, replicated object family, or phase state; only the
+  per-car residue scalar joins existing rollback state. The native macOS `Oil
+  Slick` system menu exposes the full handling calibration, reset, and automatic
+  project-scoped persistence. Client edits are validated and rebroadcast by the
+  server so prediction and authority remain matched; headless tests and dedicated
+  servers retain checked-in defaults. Dropping slicks as a defensive weapon is
+  explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
   within 150 units. Cars use their rendered trajectory for a screen-projected
@@ -69,6 +46,11 @@
 
 ## Completed
 
+- Merged `feature/oil-slick` into `master` as `5a2a919`. The permission-correct
+  post-merge `./scripts/test.sh` run passed every focused, browser-lifecycle,
+  offline, network, reconnect, course, reverse, jump-gate, combat, RC-orb,
+  shield, and detonation gate (`ALL_TESTS PASS`); the 120 ms two-player row had a
+  0.316-unit worst correction.
 - Created `feature/oil-slick` in
   `/Users/johnnguyen/Projects/car-fight-oil-slick` from current `master`. Added
   three large world-placed oil patches in open arena lanes, irregular dark/oily
