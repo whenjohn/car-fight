@@ -78,6 +78,21 @@ func _init() -> void:
 	_check(float(countersteer["yaw_rate"]) > -2.0 \
 		and float(countersteer["yaw_rate"]) < 0.0,
 		"countersteer fights existing tail momentum instead of instantly reversing it")
+	var default_tuning := OIL.tuning_snapshot()
+	_check(OIL.set_tuning_value("duration", 8.0) \
+		and OIL.set_tuning_value("min_grip_scale", 0.15),
+		"live menu values are accepted by the shared oil model")
+	_expect_close(OIL.next_amount(1.0, 0.0, true, 18.0, 1.0), 0.875, 0.0001,
+		"edited duration immediately controls residue release")
+	_expect_close(OIL.grip_scale(1.0), 0.15, 0.0001,
+		"edited road grip immediately controls full-oil traction")
+	_check(not OIL.set_tuning_value("not_an_oil_setting", 1.0),
+		"unknown network tuning keys are rejected")
+	_check(not OIL.set_tuning_value("duration", {"bad": "type"}),
+		"invalid network tuning value types are rejected")
+	OIL.apply_tuning_snapshot(default_tuning)
+	_expect_close(OIL.duration, OIL.DEFAULT_DURATION, 0.0001,
+		"tests restore the extreme defaults after live tuning")
 
 	var main_source := FileAccess.get_file_as_string("res://Main.gd")
 	var body_source := FileAccess.get_file_as_string("res://player/player_body.gd")
@@ -91,6 +106,11 @@ func _init() -> void:
 	_check("OIL_SLICK.axle_response" in body_source \
 		and "oil_fishtail_phase" not in body_source,
 		"the handling no longer injects a scripted alternating yaw phase")
+	_check("_build_oil_tuning_menu" in main_source \
+		and "prefer_global_menu = true" in main_source \
+		and "_request_oil_tuning_change.rpc_id(1" in main_source \
+		and "_apply_oil_tuning_snapshot.rpc" in main_source,
+		"the native system menu edits server-synchronized oil tuning")
 	_check("Area3D" not in visual_source and "CollisionShape3D" not in visual_source,
 		"oil decals never add trigger or collision bodies")
 	_check("METALLIC" in shader_source and "stencil_mode write" in shader_source,

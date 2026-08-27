@@ -30,6 +30,11 @@
   crossing no longer invents a wobble. The fifth feedback pass made entry
   instantaneous: the first grounded road-speed tick snaps directly to the
   footprint's full strength, while exit still releases over roughly four seconds.
+  The native macOS system menu now has an `Oil Slick` dropdown beside `Debug`.
+  It exposes instant entry and radio-value submenus for duration, road grip,
+  drift assist, rear lateral/yaw grip, steering torque, spin damping, and maximum
+  spin, plus reset. Client edits are authority-validated and rebroadcast by the
+  server so prediction and authoritative simulation use the same live values.
   Dropping slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
@@ -113,6 +118,20 @@
   one-tick engagement. Clean import and the permission-correct complete
   `./scripts/test.sh` suite pass (`ALL_TESTS PASS`), including a 0.300-unit worst
   correction in the 120 ms two-player test.
+- Added an `Oil Slick` dropdown to the existing native/global system menu bar.
+  Every gameplay-facing oil parameter is selectable at runtime through nested
+  radio menus, instant entry is toggleable, and one action restores the accepted
+  extreme defaults. The server validates known keys/ranges, applies the change,
+  broadcasts the complete snapshot to every peer, and seeds joining clients with
+  the current snapshot. Focused coverage verifies live duration/grip changes,
+  default restoration, unknown-key rejection, and the menu/RPC wiring. Clean
+  import, focused oil, offline, 120 ms network, mixed-transport, lifecycle,
+  reconnect, ball, and tractor checks pass. The complete suite reached the known
+  nondeterministic course landing fixture; two samples recorded the landing but
+  missed its rebound/tilt instant, then the next isolated run passed at 1.571
+  rebound/1.043 degrees. Reverse, jump gate, combat, RC-orb, shield, and
+  detonation gates pass afterward (RC-orb passed its isolated retry after a
+  parallel six-gate batch missed the short scripted action window).
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a
