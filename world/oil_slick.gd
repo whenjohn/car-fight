@@ -15,9 +15,12 @@ const MIN_TURN_ANGLE := deg_to_rad(8.0)
 const FULL_TURN_ANGLE := deg_to_rad(62.0)
 const MIN_GRIP_SCALE := 0.22
 const MIN_DRIFT_ASSIST_SCALE := 0.28
-const TURN_MULTIPLIER := 2.1
-const YAW_MOMENTUM := 0.42
-const YAW_ACCELERATION_SCALE := 0.43
+const TURN_MULTIPLIER := 2.8
+const YAW_MOMENTUM := 0.55
+const YAW_ACCELERATION_SCALE := 1.15
+const FISHTAIL_YAW_RATE := 1.55
+const FISHTAIL_FREQUENCY_MIN := 7.5
+const FISHTAIL_FREQUENCY_MAX := 10.5
 const MAX_YAW_RATE := 4.5
 
 
@@ -67,12 +70,26 @@ static func drift_assist_scale(amount: float) -> float:
 	return lerpf(1.0, MIN_DRIFT_ASSIST_SCALE, clampf(amount, 0.0, 1.0))
 
 
+## The phase is explicit rollback state instead of wall-clock animation. A fast
+## crossing gets roughly one full rear swing while the residue supplies the
+## correction swing after the car leaves the visible puddle.
+static func next_fishtail_phase(current: float, amount: float, road_speed: float,
+		delta: float) -> float:
+	if amount <= 0.001:
+		return 0.0
+	var speed_authority := smoothstep(MIN_ROAD_SPEED, FULL_ROAD_SPEED, road_speed)
+	var frequency := lerpf(FISHTAIL_FREQUENCY_MIN, FISHTAIL_FREQUENCY_MAX,
+		speed_authority)
+	return fposmod(current + frequency * delta, TAU)
+
+
 ## Oil increases requested rotation on a real turn, then feeds some current yaw
 ## back into the target. Correcting the wheel therefore has to overcome the old
-## rear swing, producing a deterministic fishtail; a hard fast turn can spin.
+## rear swing. The rollback phase adds an unmistakable alternating rear step-out
+## even on a straight crossing; a hard fast turn can spin.
 static func steering_response(requested_yaw_rate: float, current_yaw_rate: float,
 		yaw_acceleration: float, heading_error: float, road_speed: float,
-		amount: float) -> Dictionary:
+		amount: float, fishtail_phase: float = 0.0) -> Dictionary:
 	var effect := clampf(amount, 0.0, 1.0) \
 		* smoothstep(MIN_ROAD_SPEED, FULL_ROAD_SPEED, road_speed)
 	var turn_demand := smoothstep(MIN_TURN_ANGLE, FULL_TURN_ANGLE,
@@ -80,6 +97,8 @@ static func steering_response(requested_yaw_rate: float, current_yaw_rate: float
 	var turn_scale := lerpf(1.0, TURN_MULTIPLIER, effect * turn_demand)
 	var target := requested_yaw_rate * turn_scale
 	target += current_yaw_rate * YAW_MOMENTUM * effect
+	var fishtail := sin(fishtail_phase) * FISHTAIL_YAW_RATE * effect
+	target += fishtail
 	target = clampf(target, -MAX_YAW_RATE, MAX_YAW_RATE)
 	return {
 		"yaw_rate": target,
@@ -87,4 +106,5 @@ static func steering_response(requested_yaw_rate: float, current_yaw_rate: float
 			* lerpf(1.0, YAW_ACCELERATION_SCALE, effect),
 		"effect": effect,
 		"turn_demand": turn_demand,
+		"fishtail": fishtail,
 	}

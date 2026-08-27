@@ -9,8 +9,11 @@
   velocity grip and drift-assist carve, amplifies turn demand, and preserves yaw
   momentum long enough to veer, fishtail, over-turn, or spin. No slick is a
   physics body, collider, trigger, replicated object, or rollback object family;
-  only one per-car residue float was added to existing rollback state. Dropping
-  slicks as a defensive weapon remains explicitly deferred.
+  only two small per-car scalars (residue and deterministic fishtail phase) were
+  added to existing rollback state. After the first human pass found straight
+  crossings too subtle, the response was tuned to guarantee an alternating
+  road-speed rear swing and raise sharp-turn amplification from 2.1x to 2.8x.
+  Dropping slicks as a defensive weapon remains explicitly deferred.
 - Off-screen awareness is now a client-local presentation layer: at most the
   three nearest same-map opposing cars plus the arena ball can reach the rim,
   within 150 units. Cars use their rendered trajectory for a screen-projected
@@ -52,6 +55,14 @@
   second was the documented zero-rebound course sample. Unchanged `master`
   reproduced that course miss; the isolated feature retry passed at 1.571 units,
   and every remaining gate passed afterward.
+- First human handling feedback found the original oil response visually readable
+  but mechanically too subtle. Added a rollback-synchronized alternating phase,
+  1.55 rad/s straight-crossing fishtail target, faster oil yaw response, and
+  2.8x peak turn amplification. Focused oil/FOLLOW/import checks and the 120 ms
+  network gate pass (0.311-unit worst correction in the complete run). The
+  complete suite passed through course and then missed the timing-sensitive gate
+  round trip during a stale-history recovery; its immediate isolated retry and
+  all remaining combat/RC-orb/shield/detonation gates pass.
 
 - Extended the occluded-silhouette worktree with a presentation-only hint for
   the solid ramp supports hidden beneath the upper road. At ground level, a
