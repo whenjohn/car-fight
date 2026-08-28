@@ -2,6 +2,20 @@
 
 ## Current decision
 
+- The Humvee worktree now has a native `Vehicle Model` system menu beside
+  `Oil Slick`. It applies a client-local, presentation-only 100%, 110%, 125%,
+  150%, 175%, or 200% multiplier to the currently selected vehicle and keeps
+  that multiplier while cycling with `V`. Chassis, separated animated wheels,
+  wheel-roll radius, weapon-mount height, boost echoes, cloak wipe, X-ray, and
+  skid contact presentation rebuild together; gameplay collision, shield size,
+  physics, rollback, and network state do not change. Reset returns to 100%,
+  and native client/offline changes autosave to the project-scoped
+  `user://vehicle_model_debug.cfg`. Clean import, focused vehicle-animation and
+  asset tests pass. The permission-correct full suite passed through tractor,
+  including 0.300-unit worst correction in the 120 ms network gate, then hit
+  the documented timing-sensitive course sample with zero rebound. Its
+  immediate isolated retry passed at 1.570 rebound/1.042 degrees, followed by
+  passing reverse, jump-gate, combat, RC-orb, shield, and detonation gates.
 - Humvee M242 vehicle import is complete on `codex/more-vehicles` in
   `/Users/johnnguyen/Projects/car-fight-more-vehicles`. The matching FBX and
   1024x1024 texture from the two owner-supplied RAR archives are stored together

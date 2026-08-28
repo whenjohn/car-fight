@@ -9,6 +9,8 @@ const CLOAK_DUST_SCRIPT := preload("res://fx/vehicle_cloak_dust.gd")
 const TIRE_SKID_TRAILS_SCRIPT := preload("res://player/tire_skid_trails.gd")
 const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
+const MODEL_SCALE_MIN := 1.0
+const MODEL_SCALE_MAX := 2.0
 const OCCLUDED_SILHOUETTE_COLOR := Color(0.34, 0.76, 1.0, 1.0)
 const VEHICLES := [
 	{"name": "Jeep", "scene": preload("res://assets/ground_vehicle/Jeep.fbx"), "scale": 0.45},
@@ -56,6 +58,7 @@ var _wheel_records: Array[Dictionary] = []
 var _wheel_spin_angle := 0.0
 var _wheel_radius := WHEEL_RADIUS
 var _vehicle_scale := JEEP_SCALE
+var _model_scale_multiplier := 1.0
 var _last_signed_speed := 0.0
 var _has_speed_sample := false
 var _smoothed_longitudinal_load := 0.0
@@ -448,8 +451,27 @@ func _mesh_node(node_name: String, mesh: Mesh, position: Vector3, material: Mate
 func vehicle_name() -> String:
 	return str((VEHICLES[_vehicle_index] as Dictionary)["name"])
 
+static func sanitized_model_scale(value: Variant) -> float:
+	if value is not float and value is not int:
+		return 1.0
+	return clampf(float(value), MODEL_SCALE_MIN, MODEL_SCALE_MAX)
+
+func model_scale_multiplier() -> float:
+	return _model_scale_multiplier
+
+func set_model_scale_multiplier(value: Variant) -> void:
+	var next_scale := sanitized_model_scale(value)
+	if is_equal_approx(next_scale, _model_scale_multiplier):
+		return
+	_model_scale_multiplier = next_scale
+	if _chassis_lean != null:
+		_rebuild_selected_vehicle()
+
 func cycle_vehicle() -> void:
 	_vehicle_index = (_vehicle_index + 1) % VEHICLES.size()
+	_rebuild_selected_vehicle()
+
+func _rebuild_selected_vehicle() -> void:
 	_clear_vehicle_visuals()
 	_build_selected_vehicle()
 	_prepare_cloak_meshes(self)
@@ -485,7 +507,8 @@ func _clear_vehicle_visuals() -> void:
 
 func _build_selected_vehicle() -> void:
 	var vehicle: Dictionary = VEHICLES[_vehicle_index]
-	_vehicle_scale = float(vehicle["scale"])
+	var scale_amount := float(vehicle["scale"]) * _model_scale_multiplier
+	_vehicle_scale = scale_amount
 	var source := (vehicle["scene"] as PackedScene).instantiate() as Node3D
 	var split: Dictionary
 	if bool(vehicle.get("separated_meshes", false)):
@@ -495,18 +518,18 @@ func _build_selected_vehicle() -> void:
 		split = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
 	source.free()
 	_wheel_radius = float(split.get("wheel_radius", WHEEL_RADIUS / JEEP_SCALE)) \
-		* float(vehicle["scale"])
+		* scale_amount
 
 	_chassis_lean = Node3D.new()
 	_chassis_lean.name = "ChassisLean"
 	add_child(_chassis_lean)
-	var chassis_model := _model_root("ChassisModel", _chassis_lean, float(vehicle["scale"]))
+	var chassis_model := _model_root("ChassisModel", _chassis_lean, scale_amount)
 	var chassis := MeshInstance3D.new()
 	chassis.name = "SeparatedChassis"
 	chassis.mesh = split["chassis"]
 	chassis_model.add_child(chassis)
 
-	var wheel_model := _model_root("WheelModel", self, float(vehicle["scale"]))
+	var wheel_model := _model_root("WheelModel", self, scale_amount)
 	_visual_parts = [_chassis_lean, wheel_model]
 	var wheels: Dictionary = split["wheels"]
 	for wheel_name in wheels.keys():
@@ -548,7 +571,7 @@ func _build_weapon_mounts(dark_material: Material, body_material: Material) -> v
 	for index in range(4):
 		var mount := Node3D.new()
 		mount.name = "%sWeaponMount" % ["Front", "Right", "Rear", "Left"][index]
-		mount.position = Vector3(0.0, 1.30, -0.04)
+		mount.position = Vector3(0.0, 1.30 * _model_scale_multiplier, -0.04)
 		mount.rotation.y = [0.0, -PI * 0.5, PI, PI * 0.5][index]
 		_chassis_lean.add_child(mount)
 		mount.add_child(_mesh_node("Mount", ring_mesh, Vector3.ZERO, dark_material))
@@ -621,7 +644,7 @@ func _cloak_material(source: Material) -> ShaderMaterial:
 		if base.albedo_texture != null:
 			material.set_shader_parameter("albedo_texture", base.albedo_texture)
 			material.set_shader_parameter("use_albedo_texture", true)
-	material.set_shader_parameter("cut_position", CLOAK_CUT_FRONT)
+	material.set_shader_parameter("cut_position", CLOAK_CUT_FRONT * _model_scale_multiplier)
 	return material
 
 func _build_cloak_dust() -> void:
@@ -653,7 +676,7 @@ func _update_cloak(delta: float, rigid: RigidBody3D) -> void:
 	var forward := -global_basis.z.normalized()
 	var right := global_basis.x.normalized()
 	var up := global_basis.y.normalized()
-	var cut := cloak_cut_position(_cloak_strength)
+	var cut := cloak_cut_position(_cloak_strength) * _model_scale_multiplier
 	_set_cloak_override_active(_cloak_strength > 0.0001)
 	# An already dissolving vehicle must not leave a full X-ray duplicate behind.
 	_set_occlusion_enabled(_cloak_strength <= 0.0001)

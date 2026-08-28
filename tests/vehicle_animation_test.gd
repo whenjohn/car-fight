@@ -35,6 +35,33 @@ func _init() -> void:
 		"oil warning FX flashes strongly between alternating hazard colors")
 	var scene := load("res://tools/VehicleAnimationLab.tscn") as PackedScene
 	_check(scene != null, "animation lab scene loads")
+	_check(is_equal_approx(HULL.sanitized_model_scale(0.5), 1.0) \
+		and is_equal_approx(HULL.sanitized_model_scale(3.0), 2.0) \
+		and is_equal_approx(HULL.sanitized_model_scale({"bad": true}), 1.0),
+		"debug model scale rejects invalid values and stays within 100–200%")
+	var scale_parent := Node3D.new()
+	var scale_rig := HULL.new()
+	scale_parent.add_child(scale_rig)
+	scale_rig.call("set_model_scale_multiplier", 1.5)
+	scale_rig.call("_build_selected_vehicle")
+	var chassis_model := scale_rig.get_node_or_null(
+		"ChassisLean/ChassisModel") as Node3D
+	_check(chassis_model != null and is_equal_approx(chassis_model.scale.x,
+		HULL.JEEP_SCALE * 1.5), "persisted scale applies before the first model build")
+	scale_rig.call("set_model_scale_multiplier", 2.0)
+	chassis_model = scale_rig.get_node_or_null("ChassisLean/ChassisModel") as Node3D
+	var wheel_model := scale_rig.get_node_or_null("WheelModel") as Node3D
+	_check(chassis_model != null and wheel_model != null \
+		and is_equal_approx(chassis_model.scale.x, HULL.JEEP_SCALE * 2.0) \
+		and is_equal_approx(wheel_model.scale.x, HULL.JEEP_SCALE * 2.0),
+		"live scale rebuilds the chassis and animated wheels together")
+	scale_parent.free()
+	var main_source := FileAccess.get_file_as_string("res://Main.gd")
+	_check("_build_vehicle_model_menu" in main_source \
+		and "user://vehicle_model_debug.cfg" in main_source \
+		and "Visual only — collider unchanged" in main_source \
+		and "set_model_scale_multiplier" in main_source,
+		"native Vehicle Model menu autosaves a local presentation-only scale")
 
 	if _failures.is_empty():
 		print("VEHICLE_ANIMATION_TEST PASS")
