@@ -10,7 +10,7 @@ const TIRE_SKID_TRAILS_SCRIPT := preload("res://player/tire_skid_trails.gd")
 const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
 const MODEL_SCALE_MIN := 1.0
-const MODEL_SCALE_MAX := 2.0
+const MODEL_SCALE_MAX := 5.0
 const OCCLUDED_SILHOUETTE_COLOR := Color(0.34, 0.76, 1.0, 1.0)
 const VEHICLES := [
 	{"name": "Jeep", "scene": preload("res://assets/ground_vehicle/Jeep.fbx"), "scale": 0.45},

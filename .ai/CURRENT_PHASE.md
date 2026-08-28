@@ -2,6 +2,21 @@
 
 ## Current decision
 
+- The native `Vehicle Model` menu now stores an independent presentation scale
+  for each of the eight vehicle names instead of one shared multiplier. Its
+  disabled status row identifies the currently selected vehicle, `V` restores
+  that next vehicle's own saved value, reset affects only the current vehicle,
+  and the available presets now extend from 100% through 500% with finer steps
+  above the old 200% ceiling. Existing single-value config files migrate that
+  value to all vehicles on first load; subsequent saves use the per-vehicle
+  dictionary. Chassis, wheels, weapon mounts, cloak, boost echoes, and skid
+  contacts still rebuild together while collision, physics, rollback, and wire
+  state remain unchanged. Clean parse and focused scale/animation coverage pass.
+  The permission-correct full suite passed all focused/offline checks, then its
+  timing-sensitive 120 ms network gate missed one same-tick probe sample. The
+  immediate isolated retry passed at 0.662-unit worst correction; mixed
+  transport, join recovery, reconnect, ball, tractor, course, reverse, jump
+  gate, combat, RC-orb, shield, and detonation gates all pass afterward.
 - Apocalypse Bus is imported as the eighth local presentation model on
   `codex/more-vehicles`. The owner-supplied RAR contained one FBX and four
   numbered PBR texture sets but no author, source URL, readme, or license, so

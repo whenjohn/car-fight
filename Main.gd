@@ -247,7 +247,7 @@ var _debug_popup: PopupMenu
 var _oil_popup: PopupMenu
 var _oil_submenus := {}
 var _vehicle_model_popup: PopupMenu
-var _vehicle_model_scale := 1.0
+var _vehicle_model_scales := {}
 var _gameplay_collision_debug_enabled := false
 var _gameplay_text_visible := true
 const DEBUG_COLLISION_MENU_ID := 1
@@ -261,7 +261,11 @@ const VEHICLE_MODEL_SCALE_MENU_ID_BASE := 2000
 const VEHICLE_MODEL_RESET_MENU_ID := 2100
 const VEHICLE_MODEL_AUTOSAVE_INFO_MENU_ID := 2101
 const VEHICLE_MODEL_COLLIDER_INFO_MENU_ID := 2102
-const VEHICLE_MODEL_SCALE_OPTIONS := [1.0, 1.1, 1.25, 1.5, 1.75, 2.0]
+const VEHICLE_MODEL_CURRENT_INFO_MENU_ID := 2103
+const VEHICLE_MODEL_SCALE_OPTIONS := [
+	1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0,
+	3.5, 4.0, 4.5, 5.0,
+]
 const VEHICLE_MODEL_SCALE_PATH := "user://vehicle_model_debug.cfg"
 const VEHICLE_MODEL_SCALE_SECTION := "vehicle_model"
 const OIL_MENU_ORDER := [
@@ -1381,7 +1385,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	hull.name = "GroundVehicleHull"
 	hull.set_script(HULL_SCRIPT)
 	if owner_id == multiplayer.get_unique_id():
-		hull.call("set_model_scale_multiplier", _vehicle_model_scale)
+		hull.call("set_model_scale_multiplier", _vehicle_model_scale_for("Jeep"))
 	hull.position.y = -PLAYER_RADIUS
 	body.add_child(hull)
 	var shield_visual := Node3D.new()
@@ -1779,6 +1783,10 @@ func _build_vehicle_model_menu() -> void:
 	_vehicle_model_popup.name = "VehicleModel"
 	_vehicle_model_popup.title = "Vehicle Model"
 	_system_menu_bar.add_child(_vehicle_model_popup)
+	_vehicle_model_popup.add_item("Current vehicle: Jeep", VEHICLE_MODEL_CURRENT_INFO_MENU_ID)
+	_vehicle_model_popup.set_item_disabled(_vehicle_model_popup.get_item_index(
+		VEHICLE_MODEL_CURRENT_INFO_MENU_ID), true)
+	_vehicle_model_popup.add_separator()
 	for index in range(VEHICLE_MODEL_SCALE_OPTIONS.size()):
 		var scale_amount := float(VEHICLE_MODEL_SCALE_OPTIONS[index])
 		_vehicle_model_popup.add_radio_check_item("%.0f%%" % (scale_amount * 100.0),
@@ -1790,7 +1798,7 @@ func _build_vehicle_model_menu() -> void:
 		VEHICLE_MODEL_COLLIDER_INFO_MENU_ID)
 	_vehicle_model_popup.set_item_disabled(_vehicle_model_popup.get_item_index(
 		VEHICLE_MODEL_COLLIDER_INFO_MENU_ID), true)
-	_vehicle_model_popup.add_item("Changes autosave for next launch",
+	_vehicle_model_popup.add_item("Each vehicle saves its own size",
 		VEHICLE_MODEL_AUTOSAVE_INFO_MENU_ID)
 	_vehicle_model_popup.set_item_disabled(_vehicle_model_popup.get_item_index(
 		VEHICLE_MODEL_AUTOSAVE_INFO_MENU_ID), true)
@@ -1801,10 +1809,14 @@ func _build_vehicle_model_menu() -> void:
 func _refresh_vehicle_model_menu() -> void:
 	if _vehicle_model_popup == null:
 		return
+	var vehicle_name := _current_vehicle_model_name()
+	var current_scale := _vehicle_model_scale_for(vehicle_name)
+	_vehicle_model_popup.set_item_text(_vehicle_model_popup.get_item_index(
+		VEHICLE_MODEL_CURRENT_INFO_MENU_ID), "Current vehicle: %s" % vehicle_name)
 	for index in range(VEHICLE_MODEL_SCALE_OPTIONS.size()):
 		_vehicle_model_popup.set_item_checked(_vehicle_model_popup.get_item_index(
 			VEHICLE_MODEL_SCALE_MENU_ID_BASE + index), is_equal_approx(
-			_vehicle_model_scale, float(VEHICLE_MODEL_SCALE_OPTIONS[index])))
+			current_scale, float(VEHICLE_MODEL_SCALE_OPTIONS[index])))
 
 
 func _on_vehicle_model_menu_pressed(id: int) -> void:
@@ -1818,14 +1830,29 @@ func _on_vehicle_model_menu_pressed(id: int) -> void:
 
 
 func _apply_vehicle_model_scale(value: Variant) -> void:
-	_vehicle_model_scale = HULL_SCRIPT.sanitized_model_scale(value)
+	var vehicle_name := _current_vehicle_model_name()
+	var model_scale := HULL_SCRIPT.sanitized_model_scale(value)
+	_vehicle_model_scales[vehicle_name] = model_scale
 	var local: Node3D = local_player()
 	if local != null:
 		var hull: Node = local.get_node_or_null("GroundVehicleHull")
 		if hull != null and hull.has_method("set_model_scale_multiplier"):
-			hull.call("set_model_scale_multiplier", _vehicle_model_scale)
+			hull.call("set_model_scale_multiplier", model_scale)
 	_refresh_vehicle_model_menu()
 	_save_persisted_vehicle_model_scale()
+
+
+func _current_vehicle_model_name() -> String:
+	var local: Node3D = local_player()
+	if local != null:
+		var hull: Node = local.get_node_or_null("GroundVehicleHull")
+		if hull != null and hull.has_method("vehicle_name"):
+			return str(hull.call("vehicle_name"))
+	return "Jeep"
+
+
+func _vehicle_model_scale_for(vehicle_name: String) -> float:
+	return HULL_SCRIPT.sanitized_model_scale(_vehicle_model_scales.get(vehicle_name, 1.0))
 
 
 func _persistence_available_for_vehicle_model_scale() -> bool:
@@ -1839,16 +1866,26 @@ func _load_persisted_vehicle_model_scale() -> void:
 	var config := ConfigFile.new()
 	if config.load(VEHICLE_MODEL_SCALE_PATH) != OK:
 		return
-	if config.has_section_key(VEHICLE_MODEL_SCALE_SECTION, "scale"):
-		_vehicle_model_scale = HULL_SCRIPT.sanitized_model_scale(config.get_value(
+	if config.has_section_key(VEHICLE_MODEL_SCALE_SECTION, "scales"):
+		var saved_scales: Variant = config.get_value(VEHICLE_MODEL_SCALE_SECTION, "scales")
+		if saved_scales is Dictionary:
+			for vehicle_name_variant in saved_scales:
+				var vehicle_name := str(vehicle_name_variant)
+				_vehicle_model_scales[vehicle_name] = HULL_SCRIPT.sanitized_model_scale(
+					saved_scales[vehicle_name_variant])
+	elif config.has_section_key(VEHICLE_MODEL_SCALE_SECTION, "scale"):
+		var legacy_scale := HULL_SCRIPT.sanitized_model_scale(config.get_value(
 			VEHICLE_MODEL_SCALE_SECTION, "scale"))
+		for vehicle_variant in HULL_SCRIPT.VEHICLES:
+			var vehicle: Dictionary = vehicle_variant
+			_vehicle_model_scales[str(vehicle["name"])] = legacy_scale
 
 
 func _save_persisted_vehicle_model_scale() -> void:
 	if not _persistence_available_for_vehicle_model_scale():
 		return
 	var config := ConfigFile.new()
-	config.set_value(VEHICLE_MODEL_SCALE_SECTION, "scale", _vehicle_model_scale)
+	config.set_value(VEHICLE_MODEL_SCALE_SECTION, "scales", _vehicle_model_scales)
 	var error := config.save(VEHICLE_MODEL_SCALE_PATH)
 	if error != OK:
 		push_warning("Could not autosave vehicle model scale: %s" % error_string(error))
@@ -2331,6 +2368,10 @@ func _cycle_local_vehicle() -> void:
 	var hull: Node = local.get_node_or_null("GroundVehicleHull")
 	if hull != null and hull.has_method("cycle_vehicle"):
 		hull.call("cycle_vehicle")
+		if hull.has_method("set_model_scale_multiplier") and hull.has_method("vehicle_name"):
+			hull.call("set_model_scale_multiplier",
+				_vehicle_model_scale_for(str(hull.call("vehicle_name"))))
+		_refresh_vehicle_model_menu()
 
 func _flip_selected_cone() -> void:
 	var id := multiplayer.get_unique_id()
