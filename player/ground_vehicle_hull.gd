@@ -104,7 +104,7 @@ const VEHICLES := [
 	{"name": "Survival Vehicle",
 		"scene": "res://assets/ground_vehicle/survival_vehicle/SurvivalVehicle.fbx",
 		"scale": 2.0, "bounded_wheels": true, "wheel_surfaces": 1,
-		"wheel_count": 6, "source_yaw": -PI * 0.75,
+		"wheel_count": 6, "source_yaw": PI * 0.25,
 		"wheel_boxes": {
 			"rear_positive_x": AABB(Vector3(-0.435, 0.0, 0.065), Vector3(0.17, 0.205, 0.19)),
 			"rear_negative_x": AABB(Vector3(-0.135, 0.0, 0.255), Vector3(0.17, 0.205, 0.19)),

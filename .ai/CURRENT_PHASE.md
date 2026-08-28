@@ -10,8 +10,10 @@
   in one mesh, so six tight bounds extract all three axles into independent
   animation pivots, with the front pair steering and all six wheels spinning
   and feeding skid presentation. A rendered vehicle-lab capture confirmed the
-  armored body, cargo, full PBR texture assignment, orientation, scale, and
-  intact six-wheel layout. Gameplay collision, physics, rollback, and network
+  armored body, cargo, full PBR texture assignment, scale, and intact six-wheel
+  layout. Player verification caught the FBX facing backward; its presentation
+  yaw is corrected by 180 degrees and focused asset/animation checks pass.
+  Gameplay collision, physics, rollback, and network
   state remain unchanged. Clean import, ten-vehicle asset coverage, animation
   coverage, and the complete offline suite pass. The subsequent timing-sensitive
   network gate produced inconsistent pre-existing authority/escape-assist
