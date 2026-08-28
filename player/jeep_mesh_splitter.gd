@@ -2,7 +2,7 @@ extends RefCounted
 ## Derives a chassis mesh and four independently pivotable wheel meshes from
 ## each combined CC0 vehicle-pack FBX. Source assets remain untouched.
 
-const WHEEL_MATERIALS := ["Tires", "Wheel"]
+const WHEEL_MATERIALS := ["Tires", "Wheel", "tire"]
 
 static func split(source_mesh: Mesh, source_transform: Transform3D) -> Dictionary:
 	var chassis := ArrayMesh.new()
@@ -107,6 +107,148 @@ static func split_separated(source: Node3D) -> Dictionary:
 		"wheels": wheels,
 		"wheel_radius": wheel_radius,
 	}
+
+
+## Normalizes a scene whose body and one combined four-wheel mesh are separate
+## nodes. Wheel triangles are clustered around the axle midpoint after each
+## node transform is applied, retaining the source material on every part.
+static func split_multi_mesh(source: Node3D) -> Dictionary:
+	var chassis_sources: Array[MeshInstance3D] = []
+	var wheel_sources: Array[MeshInstance3D] = []
+	for candidate in source.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := candidate as MeshInstance3D
+		var is_wheel_source := false
+		for surface in range(mesh_instance.mesh.get_surface_count()):
+			var material := mesh_instance.mesh.surface_get_material(surface)
+			if material != null and material.resource_name in WHEEL_MATERIALS:
+				is_wheel_source = true
+				break
+		if is_wheel_source:
+			wheel_sources.append(mesh_instance)
+		else:
+			chassis_sources.append(mesh_instance)
+
+	var wheel_center := Vector3.ZERO
+	var wheel_vertex_count := 0
+	var ground_y := INF
+	for wheel_source in wheel_sources:
+		var wheel_transform := _transform_relative_to(wheel_source, source)
+		for surface in range(wheel_source.mesh.get_surface_count()):
+			var arrays := wheel_source.mesh.surface_get_arrays(surface)
+			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			for vertex in vertices:
+				var transformed := wheel_transform * vertex
+				wheel_center += transformed
+				wheel_vertex_count += 1
+				ground_y = minf(ground_y, transformed.y)
+	if wheel_vertex_count > 0:
+		wheel_center /= float(wheel_vertex_count)
+	var model_offset := Vector3(-wheel_center.x, -ground_y, -wheel_center.z)
+
+	var chassis := ArrayMesh.new()
+	for chassis_source in chassis_sources:
+		var chassis_transform := _transform_relative_to(chassis_source, source)
+		for surface in range(chassis_source.mesh.get_surface_count()):
+			_append_surface(chassis_source.mesh, surface, chassis_transform,
+				-model_offset, "", chassis)
+
+	var wheel_bounds := {}
+	for wheel_source in wheel_sources:
+		var wheel_transform := _transform_relative_to(wheel_source, source)
+		for surface in range(wheel_source.mesh.get_surface_count()):
+			var arrays := wheel_source.mesh.surface_get_arrays(surface)
+			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+			for triangle in range(_triangle_count(vertices, indices)):
+				var centroid := wheel_transform * _triangle_centroid(
+					vertices, indices, triangle)
+				var key := _model_wheel_key(centroid, wheel_center)
+				for corner in range(3):
+					var source_index := _vertex_index(indices, triangle, corner)
+					var transformed := wheel_transform * vertices[source_index]
+					if not wheel_bounds.has(key):
+						wheel_bounds[key] = AABB(transformed, Vector3.ZERO)
+					else:
+						var bounds: AABB = wheel_bounds[key]
+						wheel_bounds[key] = bounds.expand(transformed)
+
+	var wheels := {}
+	var wheel_radius := 0.0
+	for key_variant in wheel_bounds:
+		var key := str(key_variant)
+		var bounds: AABB = wheel_bounds[key]
+		var source_center := bounds.get_center()
+		var wheel_mesh := ArrayMesh.new()
+		for wheel_source in wheel_sources:
+			var wheel_transform := _transform_relative_to(wheel_source, source)
+			for surface in range(wheel_source.mesh.get_surface_count()):
+				_append_model_wheel_surface(wheel_source.mesh, surface,
+					wheel_transform, source_center, key, wheel_center, wheel_mesh)
+		wheels[key] = {
+			"mesh": wheel_mesh,
+			"center": source_center + model_offset,
+			"front": key.begins_with("front"),
+		}
+		wheel_radius += maxf(bounds.size.y, bounds.size.z) * 0.5
+	if not wheels.is_empty():
+		wheel_radius /= float(wheels.size())
+
+	return {
+		"chassis": chassis,
+		"wheels": wheels,
+		"wheel_radius": wheel_radius,
+	}
+
+
+static func _append_model_wheel_surface(source_mesh: Mesh, surface: int,
+		source_transform: Transform3D, center: Vector3, wheel_filter: String,
+		wheel_center: Vector3, target: ArrayMesh) -> void:
+	var arrays := source_mesh.surface_get_arrays(surface)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var normals: PackedVector3Array = PackedVector3Array() \
+		if arrays[Mesh.ARRAY_NORMAL] == null else arrays[Mesh.ARRAY_NORMAL]
+	var colors: PackedColorArray = PackedColorArray() \
+		if arrays[Mesh.ARRAY_COLOR] == null else arrays[Mesh.ARRAY_COLOR]
+	var uvs: PackedVector2Array = PackedVector2Array() \
+		if arrays[Mesh.ARRAY_TEX_UV] == null else arrays[Mesh.ARRAY_TEX_UV]
+	var normal_transform := source_transform.basis.inverse().transposed()
+	var builder := SurfaceTool.new()
+	builder.begin(Mesh.PRIMITIVE_TRIANGLES)
+	builder.set_material(source_mesh.surface_get_material(surface))
+	var added := 0
+	for triangle in range(_triangle_count(vertices, indices)):
+		var centroid := source_transform * _triangle_centroid(vertices, indices, triangle)
+		if _model_wheel_key(centroid, wheel_center) != wheel_filter:
+			continue
+		for corner in range(3):
+			var source_index := _vertex_index(indices, triangle, corner)
+			if normals.size() > source_index:
+				builder.set_normal((normal_transform * normals[source_index]).normalized())
+			if colors.size() > source_index:
+				builder.set_color(colors[source_index])
+			if uvs.size() > source_index:
+				builder.set_uv(uvs[source_index])
+			builder.add_vertex(source_transform * vertices[source_index] - center)
+			added += 1
+	if added > 0:
+		builder.commit(target)
+
+
+static func _model_wheel_key(centroid: Vector3, center: Vector3) -> String:
+	var axle := "front" if centroid.z >= center.z else "rear"
+	var side := "positive_x" if centroid.x >= center.x else "negative_x"
+	return "%s_%s" % [axle, side]
+
+
+static func _transform_relative_to(node: Node3D, root: Node3D) -> Transform3D:
+	var result := node.transform
+	var parent := node.get_parent()
+	while parent != null and parent != root:
+		if parent is Node3D:
+			result = (parent as Node3D).transform * result
+		parent = parent.get_parent()
+	return result
 
 static func _append_surface(source_mesh: Mesh, surface: int, source_transform: Transform3D,
 		center: Vector3, wheel_filter: String, target: ArrayMesh) -> void:

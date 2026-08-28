@@ -2,6 +2,20 @@
 
 ## Current decision
 
+- Combat Vehicle Ver 1.02 is imported as the seventh local presentation model
+  on `codex/more-vehicles`. The free-use Yoon's GameART source license is
+  preserved beside the assets. The supplied FBX was converted to a clean GLB;
+  its dark X-cam body albedo, normal, metallic, and occlusion maps and tire
+  albedo/normal maps are applied explicitly. The presentation splitter now also
+  handles a separate chassis plus one combined four-wheel mesh, clustering that
+  mesh into four independently animated wheels. Scale, placement, texture, and
+  wheel separation were confirmed in a rendered vehicle-lab capture. Gameplay
+  collision, physics, rollback, and network state remain unchanged. Clean
+  import, focused asset/animation checks, and all full-suite gates pass. The
+  complete run reached the RC-orb gate after a 0.300-unit worst correction in
+  the 120 ms network test; that timing-sensitive gate missed once, then passed
+  immediately in isolation along with the remaining shield and detonation
+  gates.
 - The Humvee worktree now has a native `Vehicle Model` system menu beside
   `Oil Slick`. It applies a client-local, presentation-only 100%, 110%, 125%,
   150%, 175%, or 200% multiplier to the currently selected vehicle and keeps

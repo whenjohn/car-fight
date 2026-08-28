@@ -20,6 +20,21 @@ const VEHICLES := [
 	{"name": "Bus", "scene": preload("res://assets/ground_vehicle/Bus.fbx"), "scale": 0.175},
 	{"name": "Humvee M242", "scene": preload("res://assets/ground_vehicle/humvee_m242/HumveeM242.fbx"),
 		"scale": 0.53, "separated_meshes": true, "wheel_surfaces": 1},
+	{"name": "Combat Vehicle", "scene": preload("res://assets/ground_vehicle/combat_vehicle/CombatVehicle.glb"),
+		"scale": 0.0094, "multi_mesh": true, "wheel_surfaces": 1, "materials": {
+			"V_body": {
+				"albedo": preload("res://assets/ground_vehicle/combat_vehicle/body_albedo.png"),
+				"normal": preload("res://assets/ground_vehicle/combat_vehicle/body_normal.png"),
+				"metallic": preload("res://assets/ground_vehicle/combat_vehicle/body_metallic.png"),
+				"ao": preload("res://assets/ground_vehicle/combat_vehicle/body_occlusion.png"),
+				"roughness": 0.58,
+			},
+			"tire": {
+				"albedo": preload("res://assets/ground_vehicle/combat_vehicle/Materials/tire.png"),
+				"normal": preload("res://assets/ground_vehicle/combat_vehicle/tire_normal.png"),
+				"roughness": 0.82,
+			},
+		}},
 ]
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
@@ -510,9 +525,12 @@ func _build_selected_vehicle() -> void:
 	var scale_amount := float(vehicle["scale"]) * _model_scale_multiplier
 	_vehicle_scale = scale_amount
 	var source := (vehicle["scene"] as PackedScene).instantiate() as Node3D
+	_apply_vehicle_materials(source, vehicle.get("materials", {}) as Dictionary)
 	var split: Dictionary
 	if bool(vehicle.get("separated_meshes", false)):
 		split = VEHICLE_SPLITTER.split_separated(source)
+	elif bool(vehicle.get("multi_mesh", false)):
+		split = VEHICLE_SPLITTER.split_multi_mesh(source)
 	else:
 		var source_mesh_instance := source.find_child("*", true, false) as MeshInstance3D
 		split = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
@@ -559,6 +577,39 @@ func _build_selected_vehicle() -> void:
 	var dark_mat := _material(Color(0.055, 0.075, 0.095), 0.3)
 	var body_mat := _material(Color(0.18, 0.48, 0.22), 0.12)
 	_build_weapon_mounts(dark_mat, body_mat)
+
+func _apply_vehicle_materials(source: Node3D, overrides: Dictionary) -> void:
+	if overrides.is_empty():
+		return
+	for candidate in source.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := candidate as MeshInstance3D
+		var mesh_copy := mesh_instance.mesh.duplicate() as Mesh
+		for surface in range(mesh_copy.get_surface_count()):
+			var imported := mesh_copy.surface_get_material(surface)
+			var material_name := "" if imported == null else imported.resource_name
+			if not overrides.has(material_name):
+				continue
+			var config: Dictionary = overrides[material_name]
+			var material := StandardMaterial3D.new()
+			material.resource_name = material_name
+			material.albedo_texture = config.get("albedo") as Texture2D
+			material.roughness = float(config.get("roughness", 0.62))
+			var normal_texture := config.get("normal") as Texture2D
+			if normal_texture != null:
+				material.normal_enabled = true
+				material.normal_texture = normal_texture
+			var metallic_texture := config.get("metallic") as Texture2D
+			if metallic_texture != null:
+				material.metallic = 1.0
+				material.metallic_texture = metallic_texture
+				material.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+			var ao_texture := config.get("ao") as Texture2D
+			if ao_texture != null:
+				material.ao_enabled = true
+				material.ao_texture = ao_texture
+				material.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+			mesh_copy.surface_set_material(surface, material)
+		mesh_instance.mesh = mesh_copy
 
 func _build_weapon_mounts(dark_material: Material, body_material: Material) -> void:
 	var ring_mesh := CylinderMesh.new()

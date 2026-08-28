@@ -96,7 +96,8 @@ Controls:
 - Four triangular cones are preset at the Jeep's front, right, rear, and left. Their combined area cannot exceed the four default 90° cones at range 8. Narrowing or disabling one cone frees area for longer or wider coverage elsewhere.
 - Press `F` to flip the selected cone. A vehicle-pointing cone starts precise and widens with distance; an outward-pointing cone starts wide beside the Jeep and narrows toward its far tip.
 - Move the mouse around the vehicle to steer toward it. Press `V` to cycle
-  your local presentation through the Jeep, Pickup, Sedan, Wagon, Bus, and Humvee M242.
+  your local presentation through the Jeep, Pickup, Sedan, Wagon, Bus, Humvee M242,
+  and Combat Vehicle.
 - The native `Vehicle Model` system menu scales your selected local vehicle from
   100% to 200% and autosaves the choice. This is a presentation debug control;
   the authoritative gameplay collider remains unchanged.

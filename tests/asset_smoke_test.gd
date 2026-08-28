@@ -130,8 +130,14 @@ func _init() -> void:
 			quit(1)
 			return
 		var separate_meshes := bool(vehicle_config.get("separated_meshes", false))
-		var vehicle_split: Dictionary = JEEP_SPLITTER.split_separated(vehicle_instance) \
-			if separate_meshes else JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
+		var multi_mesh := bool(vehicle_config.get("multi_mesh", false))
+		var vehicle_split: Dictionary
+		if separate_meshes:
+			vehicle_split = JEEP_SPLITTER.split_separated(vehicle_instance)
+		elif multi_mesh:
+			vehicle_split = JEEP_SPLITTER.split_multi_mesh(vehicle_instance)
+		else:
+			vehicle_split = JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
 		var vehicle_wheels: Dictionary = vehicle_split["wheels"]
 		if (vehicle_split["chassis"] as ArrayMesh).get_surface_count() < 1 or vehicle_wheels.size() != 4:
 			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs a chassis and four wheels" % vehicle_config["name"])
@@ -159,15 +165,16 @@ func _init() -> void:
 			quit(1)
 			return
 		vehicle_instance.free()
-	if JEEP_PRESENTATION.VEHICLES.size() != 6 \
-			or str(JEEP_PRESENTATION.VEHICLES[-1]["name"]) != "Humvee M242":
-		push_error("HUMVEE_ASSET_TEST FAIL: Humvee M242 must be the sixth vehicle")
+	if JEEP_PRESENTATION.VEHICLES.size() != 7 \
+			or str(JEEP_PRESENTATION.VEHICLES[5]["name"]) != "Humvee M242" \
+			or str(JEEP_PRESENTATION.VEHICLES[6]["name"]) != "Combat Vehicle":
+		push_error("VEHICLE_ASSET_TEST FAIL: Humvee and Combat Vehicle must be sixth and seventh")
 		quit(1)
 		return
 	var humvee_rig := JEEP_PRESENTATION.new()
 	var humvee_parent := Node3D.new()
 	humvee_parent.add_child(humvee_rig)
-	humvee_rig.set("_vehicle_index", JEEP_PRESENTATION.VEHICLES.size() - 1)
+	humvee_rig.set("_vehicle_index", 5)
 	humvee_rig.call("_build_selected_vehicle")
 	var humvee_chassis := humvee_rig.get_node_or_null(
 		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
@@ -183,6 +190,38 @@ func _init() -> void:
 		quit(1)
 		return
 	humvee_parent.free()
+	var combat_rig := JEEP_PRESENTATION.new()
+	var combat_parent := Node3D.new()
+	combat_parent.add_child(combat_rig)
+	combat_rig.set("_vehicle_index", 6)
+	combat_rig.call("_build_selected_vehicle")
+	var combat_chassis := combat_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var combat_wheels := combat_rig.find_children("*Spin", "Node3D", true, false)
+	var combat_body_material := combat_chassis.mesh.surface_get_material(0) \
+		as StandardMaterial3D if combat_chassis != null else null
+	var combat_wheel_mesh := combat_rig.find_child("Front*Mesh", true, false) as MeshInstance3D
+	var combat_wheel_material := combat_wheel_mesh.mesh.surface_get_material(0) \
+		as StandardMaterial3D if combat_wheel_mesh != null else null
+	if combat_chassis == null or combat_wheels.size() != 4 \
+			or combat_body_material == null or combat_body_material.albedo_texture == null \
+			or combat_body_material.albedo_texture.resource_path != \
+				"res://assets/ground_vehicle/combat_vehicle/body_albedo.png" \
+			or not combat_body_material.normal_enabled \
+			or combat_body_material.normal_texture == null \
+			or combat_body_material.metallic_texture == null \
+			or not combat_body_material.ao_enabled \
+			or combat_body_material.ao_texture == null \
+			or combat_wheel_material == null or combat_wheel_material.albedo_texture == null \
+			or combat_wheel_material.albedo_texture.resource_path != \
+				"res://assets/ground_vehicle/combat_vehicle/Materials/tire.png" \
+			or not combat_wheel_material.normal_enabled \
+			or combat_wheel_material.normal_texture == null:
+		combat_parent.free()
+		push_error("COMBAT_VEHICLE_ASSET_TEST FAIL: rig must retain four wheels and PBR textures")
+		quit(1)
+		return
+	combat_parent.free()
 	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
 	if grid_shader == null or grid_shader.code.is_empty():
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")
