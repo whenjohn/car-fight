@@ -12,6 +12,7 @@ const WHEEL_RADIUS := 0.31
 const MODEL_SCALE_MIN := 1.0
 const MODEL_SCALE_MAX := 5.0
 const OCCLUDED_SILHOUETTE_COLOR := Color(0.34, 0.76, 1.0, 1.0)
+const LOW_POLY_CARS_SCENE := "res://assets/ground_vehicle/low_poly_cars_01/LowPoly_Cars_01.fbx"
 const VEHICLES := [
 	{"name": "Jeep", "scene": "res://assets/ground_vehicle/Jeep.fbx", "scale": 0.45},
 	{"name": "Pickup", "scene": "res://assets/ground_vehicle/Pickup.fbx", "scale": 0.33},
@@ -121,6 +122,66 @@ const VEHICLES := [
 				"roughness_texture": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/survival_vehicle_3d_model_roughness.JPEG",
 			},
 		}},
+	{"name": "LP Car A03-1", "scene": LOW_POLY_CARS_SCENE, "scale": 0.30,
+		"static_subtree": "car_a03_001", "wheel_count": 0},
+	{"name": "LP Car A01-2", "scene": LOW_POLY_CARS_SCENE, "scale": 0.51,
+		"static_subtree": "car_a01_002", "wheel_count": 0},
+	{"name": "LP Car A02-2", "scene": LOW_POLY_CARS_SCENE, "scale": 0.51,
+		"static_subtree": "car_a02_002", "wheel_count": 0},
+	{"name": "LP Truck A02", "scene": LOW_POLY_CARS_SCENE, "scale": 0.23,
+		"static_subtree": "truck_a02_001", "source_yaw": -PI * 0.5, "wheel_count": 0},
+	{"name": "LP Truck A01", "scene": LOW_POLY_CARS_SCENE, "scale": 0.19,
+		"static_subtree": "truck_a01_001", "source_yaw": -PI * 0.5, "wheel_count": 0},
+	{"name": "LP Truck A03", "scene": LOW_POLY_CARS_SCENE, "scale": 0.23,
+		"static_subtree": "truck_a03_001", "wheel_count": 0},
+	{"name": "LP Truck A04", "scene": LOW_POLY_CARS_SCENE, "scale": 0.23,
+		"static_subtree": "truck_a04_001", "wheel_count": 0},
+	{"name": "LP Tractor A01", "scene": LOW_POLY_CARS_SCENE, "scale": 0.48,
+		"static_subtree": "tractor_a01_001", "wheel_count": 0},
+	{"name": "LP Tractor A02", "scene": LOW_POLY_CARS_SCENE, "scale": 0.42,
+		"static_subtree": "tractor_a02_001", "wheel_count": 0},
+	{"name": "LP Tractor A03", "scene": LOW_POLY_CARS_SCENE, "scale": 0.26,
+		"static_subtree": "tractor_a03_001", "wheel_count": 0},
+	{"name": "LP Car B01", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object545", "wheel_count": 0},
+	{"name": "LP Car B02", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object546", "wheel_count": 0},
+	{"name": "LP Car B03", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object547", "wheel_count": 0},
+	{"name": "LP Car B04", "scene": LOW_POLY_CARS_SCENE, "scale": 0.53,
+		"static_subtree": "Object548", "wheel_count": 0},
+	{"name": "LP Car B05", "scene": LOW_POLY_CARS_SCENE, "scale": 0.53,
+		"static_subtree": "Object549", "wheel_count": 0},
+	{"name": "LP Car B06", "scene": LOW_POLY_CARS_SCENE, "scale": 0.53,
+		"static_subtree": "Object550", "wheel_count": 0},
+	{"name": "LP Car B07", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object551", "wheel_count": 0},
+	{"name": "LP Car B08", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object552", "wheel_count": 0},
+	{"name": "LP Car C01", "scene": LOW_POLY_CARS_SCENE, "scale": 0.54,
+		"static_subtree": "Object554", "wheel_count": 0},
+	{"name": "LP Car C02", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object557", "wheel_count": 0},
+	{"name": "LP Car C03", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object563", "wheel_count": 0},
+	{"name": "LP Car C04", "scene": LOW_POLY_CARS_SCENE, "scale": 0.54,
+		"static_subtree": "Object564", "wheel_count": 0},
+	{"name": "LP Car C05", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object565", "wheel_count": 0},
+	{"name": "LP Car C06", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object566", "wheel_count": 0},
+	{"name": "LP Car C07", "scene": LOW_POLY_CARS_SCENE, "scale": 0.54,
+		"static_subtree": "Object567", "wheel_count": 0},
+	{"name": "LP Car C08", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object568", "wheel_count": 0},
+	{"name": "LP Car C09", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object569", "wheel_count": 0},
+	{"name": "LP Car C10", "scene": LOW_POLY_CARS_SCENE, "scale": 0.54,
+		"static_subtree": "Object570", "wheel_count": 0},
+	{"name": "LP Car A01-3", "scene": LOW_POLY_CARS_SCENE, "scale": 0.51,
+		"static_subtree": "car_a01_003", "wheel_count": 0},
+	{"name": "LP Car A02-3", "scene": LOW_POLY_CARS_SCENE, "scale": 0.51,
+		"static_subtree": "car_a02_003", "wheel_count": 0},
 ]
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
@@ -622,7 +683,10 @@ func _build_selected_vehicle() -> void:
 	var source := packed_scene.instantiate() as Node3D
 	_apply_vehicle_materials(source, vehicle.get("materials", {}) as Dictionary)
 	var split: Dictionary
-	if bool(vehicle.get("separated_meshes", false)):
+	if vehicle.has("static_subtree"):
+		split = VEHICLE_SPLITTER.split_static_subtree(source,
+			str(vehicle["static_subtree"]), float(vehicle.get("source_yaw", 0.0)))
+	elif bool(vehicle.get("separated_meshes", false)):
 		split = VEHICLE_SPLITTER.split_separated(source)
 	elif bool(vehicle.get("multi_mesh", false)):
 		split = VEHICLE_SPLITTER.split_multi_mesh(source)

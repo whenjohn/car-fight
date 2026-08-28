@@ -4,6 +4,44 @@ extends RefCounted
 
 const WHEEL_MATERIALS := ["Tires", "Wheel", "tire"]
 
+
+## Extracts one intact display model from a multi-vehicle source scene. Some
+## packs bake each complete car into one mesh, so its wheels remain part of the
+## chassis instead of being destructively guessed from atlas geometry.
+static func split_static_subtree(source: Node3D, subtree_name: String,
+		source_yaw: float = 0.0) -> Dictionary:
+	var target := source.find_child(subtree_name, true, false) as Node3D
+	if target == null:
+		return {"chassis": ArrayMesh.new(), "wheels": {}}
+	var mesh_sources: Array[MeshInstance3D] = []
+	if target is MeshInstance3D:
+		mesh_sources.append(target as MeshInstance3D)
+	for candidate in target.find_children("*", "MeshInstance3D", true, false):
+		mesh_sources.append(candidate as MeshInstance3D)
+	var orientation := Transform3D(Basis(Vector3.UP, source_yaw), Vector3.ZERO)
+	var bounds := AABB()
+	var has_bounds := false
+	for mesh_source in mesh_sources:
+		if mesh_source.mesh == null:
+			continue
+		var transformed := orientation * _transform_relative_to(mesh_source, source) \
+			* mesh_source.mesh.get_aabb()
+		if has_bounds:
+			bounds = bounds.merge(transformed)
+		else:
+			bounds = transformed
+			has_bounds = true
+	var origin := Vector3(bounds.get_center().x, bounds.position.y,
+		bounds.get_center().z) if has_bounds else Vector3.ZERO
+	var chassis := ArrayMesh.new()
+	for mesh_source in mesh_sources:
+		if mesh_source.mesh == null:
+			continue
+		var combined := orientation * _transform_relative_to(mesh_source, source)
+		for surface in range(mesh_source.mesh.get_surface_count()):
+			_append_surface(mesh_source.mesh, surface, combined, origin, "", chassis)
+	return {"chassis": chassis, "wheels": {}}
+
 static func split(source_mesh: Mesh, source_transform: Transform3D) -> Dictionary:
 	var chassis := ArrayMesh.new()
 	var wheel_surfaces := []

@@ -133,7 +133,11 @@ func _init() -> void:
 		var multi_mesh := bool(vehicle_config.get("multi_mesh", false))
 		var bounded_wheels := bool(vehicle_config.get("bounded_wheels", false))
 		var vehicle_split: Dictionary
-		if separate_meshes:
+		if vehicle_config.has("static_subtree"):
+			vehicle_split = JEEP_SPLITTER.split_static_subtree(vehicle_instance,
+				str(vehicle_config["static_subtree"]),
+				float(vehicle_config.get("source_yaw", 0.0)))
+		elif separate_meshes:
 			vehicle_split = JEEP_SPLITTER.split_separated(vehicle_instance)
 		elif multi_mesh:
 			vehicle_split = JEEP_SPLITTER.split_multi_mesh(vehicle_instance)
@@ -162,7 +166,7 @@ func _init() -> void:
 				return
 			if bool(vehicle_wheel["front"]):
 				vehicle_front_wheels += 1
-		if vehicle_front_wheels != 2:
+		if expected_wheel_count > 0 and vehicle_front_wheels != 2:
 			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs two steerable front wheels" % vehicle_config["name"])
 			quit(1)
 			return
@@ -174,12 +178,14 @@ func _init() -> void:
 			quit(1)
 			return
 		vehicle_instance.free()
-	if JEEP_PRESENTATION.VEHICLES.size() != 10 \
+	if JEEP_PRESENTATION.VEHICLES.size() != 40 \
 			or str(JEEP_PRESENTATION.VEHICLES[5]["name"]) != "Humvee M242" \
 			or str(JEEP_PRESENTATION.VEHICLES[6]["name"]) != "Combat Vehicle" \
 			or str(JEEP_PRESENTATION.VEHICLES[7]["name"]) != "Apocalypse Bus" \
 			or str(JEEP_PRESENTATION.VEHICLES[8]["name"]) != "Post-Apocalyptic UAZ" \
-			or str(JEEP_PRESENTATION.VEHICLES[9]["name"]) != "Survival Vehicle":
+			or str(JEEP_PRESENTATION.VEHICLES[9]["name"]) != "Survival Vehicle" \
+			or str(JEEP_PRESENTATION.VEHICLES[10]["name"]) != "LP Car A03-1" \
+			or str(JEEP_PRESENTATION.VEHICLES[39]["name"]) != "LP Car A02-3":
 		push_error("VEHICLE_ASSET_TEST FAIL: imported vehicles must retain cycle order")
 		quit(1)
 		return
@@ -308,6 +314,24 @@ func _init() -> void:
 		quit(1)
 		return
 	survival_parent.free()
+	var low_poly_rig := JEEP_PRESENTATION.new()
+	var low_poly_parent := Node3D.new()
+	low_poly_parent.add_child(low_poly_rig)
+	low_poly_rig.set("_vehicle_index", 20)
+	low_poly_rig.call("_build_selected_vehicle")
+	var low_poly_chassis := low_poly_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var low_poly_wheels := low_poly_rig.find_children("*Spin", "Node3D", true, false)
+	var low_poly_material := low_poly_chassis.mesh.surface_get_material(0) \
+		as StandardMaterial3D if low_poly_chassis != null else null
+	if low_poly_chassis == null or low_poly_chassis.mesh.get_surface_count() != 1 \
+			or not low_poly_wheels.is_empty() or low_poly_material == null \
+			or low_poly_material.albedo_texture == null:
+		low_poly_parent.free()
+		push_error("LOW_POLY_PACK_TEST FAIL: selected car must retain its intact atlas mesh")
+		quit(1)
+		return
+	low_poly_parent.free()
 	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
 	if grid_shader == null or grid_shader.code.is_empty():
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")

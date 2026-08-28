@@ -2,6 +2,27 @@
 
 ## Current decision
 
+- LowPoly Cars 01 is imported as 30 additional local presentation choices,
+  bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
+  four trucks, three tractors/construction vehicles, 11 loose wheel samples,
+  and two empty helpers; only the 30 intact vehicles are exposed. They share
+  the supplied 1024px color atlas, while redundant 128/256/512/2048 copies are
+  omitted. The source includes no author, URL, readme, or license metadata, so
+  the asset note records that absence without making a license claim. A static
+  subtree extractor recenters each selected display model and preserves its
+  complete atlas mesh; most models bake wheels into that mesh, so those wheels
+  remain visually intact rather than risking body damage from guessed cuts.
+  The two sideways semis are normalized separately. A 30-model overview plus
+  representative car/truck lab renders confirmed texture mapping, complete
+  geometry, scale, and forward axes against the player-corrected Survival
+  Vehicle reference. Every model has a collider-safe default scale and retains
+  its own 100–500% debug scale setting. Clean import, 40-vehicle asset coverage,
+  live atlas-model construction, animation/scale coverage, offline, 0.300-unit
+  network, join, reconnect, ball, tractor, reverse, jump-gate, combat, shield,
+  and detonation gates pass. Mixed transport, course rebound, and RC-orb each
+  missed one timing sample, then passed immediately in isolation (mixed also at
+  0.300 units). Gameplay collision, physics, rollback, and network state remain
+  unchanged.
 - Survival Vehicle is imported as the tenth local presentation model on
   `codex/more-vehicles`. The owner-supplied zip contains one FBX and albedo,
   normal, metallic, and roughness maps, but no author, source URL, readme, or
