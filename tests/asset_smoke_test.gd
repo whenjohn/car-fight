@@ -121,7 +121,7 @@ func _init() -> void:
 		return
 	for vehicle in JEEP_PRESENTATION.VEHICLES:
 		var vehicle_config: Dictionary = vehicle
-		var vehicle_scene := vehicle_config["scene"] as PackedScene
+		var vehicle_scene := JEEP_PRESENTATION.vehicle_scene(vehicle_config)
 		var vehicle_instance := vehicle_scene.instantiate()
 		var vehicle_meshes := vehicle_instance.find_children("*", "MeshInstance3D", true, false)
 		var vehicle_mesh := vehicle_meshes[0] as MeshInstance3D if not vehicle_meshes.is_empty() else null
@@ -171,10 +171,11 @@ func _init() -> void:
 			quit(1)
 			return
 		vehicle_instance.free()
-	if JEEP_PRESENTATION.VEHICLES.size() != 8 \
+	if JEEP_PRESENTATION.VEHICLES.size() != 9 \
 			or str(JEEP_PRESENTATION.VEHICLES[5]["name"]) != "Humvee M242" \
 			or str(JEEP_PRESENTATION.VEHICLES[6]["name"]) != "Combat Vehicle" \
-			or str(JEEP_PRESENTATION.VEHICLES[7]["name"]) != "Apocalypse Bus":
+			or str(JEEP_PRESENTATION.VEHICLES[7]["name"]) != "Apocalypse Bus" \
+			or str(JEEP_PRESENTATION.VEHICLES[8]["name"]) != "Post-Apocalyptic UAZ":
 		push_error("VEHICLE_ASSET_TEST FAIL: imported vehicles must retain cycle order")
 		quit(1)
 		return
@@ -250,6 +251,38 @@ func _init() -> void:
 		quit(1)
 		return
 	apocalypse_parent.free()
+	var uaz_rig := JEEP_PRESENTATION.new()
+	var uaz_parent := Node3D.new()
+	uaz_parent.add_child(uaz_rig)
+	uaz_rig.set("_vehicle_index", 8)
+	uaz_rig.call("_build_selected_vehicle")
+	var uaz_chassis := uaz_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var uaz_wheels := uaz_rig.find_children("*Spin", "Node3D", true, false)
+	var uaz_body_material: StandardMaterial3D
+	if uaz_chassis != null:
+		for surface in range(uaz_chassis.mesh.get_surface_count()):
+			var candidate_material := uaz_chassis.mesh.surface_get_material(surface) \
+				as StandardMaterial3D
+			if candidate_material != null and candidate_material.resource_name == "_body_source":
+				uaz_body_material = candidate_material
+				break
+	var uaz_wheel_mesh := uaz_rig.find_child("Front*Mesh", true, false) as MeshInstance3D
+	var uaz_wheel_material := uaz_wheel_mesh.mesh.surface_get_material(0) \
+		as StandardMaterial3D if uaz_wheel_mesh != null else null
+	if uaz_chassis == null or uaz_chassis.mesh.get_surface_count() != 4 \
+			or uaz_wheels.size() != 4 or uaz_body_material == null \
+			or uaz_body_material.albedo_texture == null \
+			or uaz_body_material.normal_texture == null \
+			or uaz_body_material.metallic_texture == null \
+			or uaz_body_material.roughness_texture == null \
+			or uaz_wheel_material == null or uaz_wheel_material.albedo_texture == null \
+			or uaz_wheel_material.normal_texture == null:
+		uaz_parent.free()
+		push_error("POST_APOCALYPTIC_UAZ_ASSET_TEST FAIL: rig must retain four wheels and PBR materials")
+		quit(1)
+		return
+	uaz_parent.free()
 	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
 	if grid_shader == null or grid_shader.code.is_empty():
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")

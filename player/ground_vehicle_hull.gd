@@ -13,29 +13,29 @@ const MODEL_SCALE_MIN := 1.0
 const MODEL_SCALE_MAX := 5.0
 const OCCLUDED_SILHOUETTE_COLOR := Color(0.34, 0.76, 1.0, 1.0)
 const VEHICLES := [
-	{"name": "Jeep", "scene": preload("res://assets/ground_vehicle/Jeep.fbx"), "scale": 0.45},
-	{"name": "Pickup", "scene": preload("res://assets/ground_vehicle/Pickup.fbx"), "scale": 0.33},
-	{"name": "Sedan", "scene": preload("res://assets/ground_vehicle/Sedan.fbx"), "scale": 0.33},
-	{"name": "Wagon", "scene": preload("res://assets/ground_vehicle/Wagon.fbx"), "scale": 0.33},
-	{"name": "Bus", "scene": preload("res://assets/ground_vehicle/Bus.fbx"), "scale": 0.175},
-	{"name": "Humvee M242", "scene": preload("res://assets/ground_vehicle/humvee_m242/HumveeM242.fbx"),
+	{"name": "Jeep", "scene": "res://assets/ground_vehicle/Jeep.fbx", "scale": 0.45},
+	{"name": "Pickup", "scene": "res://assets/ground_vehicle/Pickup.fbx", "scale": 0.33},
+	{"name": "Sedan", "scene": "res://assets/ground_vehicle/Sedan.fbx", "scale": 0.33},
+	{"name": "Wagon", "scene": "res://assets/ground_vehicle/Wagon.fbx", "scale": 0.33},
+	{"name": "Bus", "scene": "res://assets/ground_vehicle/Bus.fbx", "scale": 0.175},
+	{"name": "Humvee M242", "scene": "res://assets/ground_vehicle/humvee_m242/HumveeM242.fbx",
 		"scale": 0.53, "separated_meshes": true, "wheel_surfaces": 1},
-	{"name": "Combat Vehicle", "scene": preload("res://assets/ground_vehicle/combat_vehicle/CombatVehicle.glb"),
+	{"name": "Combat Vehicle", "scene": "res://assets/ground_vehicle/combat_vehicle/CombatVehicle.glb",
 		"scale": 0.0094, "multi_mesh": true, "wheel_surfaces": 1, "materials": {
 			"V_body": {
-				"albedo": preload("res://assets/ground_vehicle/combat_vehicle/body_albedo.png"),
-				"normal": preload("res://assets/ground_vehicle/combat_vehicle/body_normal.png"),
-				"metallic": preload("res://assets/ground_vehicle/combat_vehicle/body_metallic.png"),
-				"ao": preload("res://assets/ground_vehicle/combat_vehicle/body_occlusion.png"),
+				"albedo": "res://assets/ground_vehicle/combat_vehicle/body_albedo.png",
+				"normal": "res://assets/ground_vehicle/combat_vehicle/body_normal.png",
+				"metallic": "res://assets/ground_vehicle/combat_vehicle/body_metallic.png",
+				"ao": "res://assets/ground_vehicle/combat_vehicle/body_occlusion.png",
 				"roughness": 0.58,
 			},
 			"tire": {
-				"albedo": preload("res://assets/ground_vehicle/combat_vehicle/Materials/tire.png"),
-				"normal": preload("res://assets/ground_vehicle/combat_vehicle/tire_normal.png"),
+				"albedo": "res://assets/ground_vehicle/combat_vehicle/Materials/tire.png",
+				"normal": "res://assets/ground_vehicle/combat_vehicle/tire_normal.png",
 				"roughness": 0.82,
 			},
 		}},
-	{"name": "Apocalypse Bus", "scene": preload("res://assets/ground_vehicle/apocalypse_bus/ApocalypseBus.glb"),
+	{"name": "Apocalypse Bus", "scene": "res://assets/ground_vehicle/apocalypse_bus/ApocalypseBus.glb",
 		"scale": 0.0039, "bounded_wheels": true, "wheel_surfaces": 1,
 		"wheel_materials": ["3"],
 		"source_yaw": -PI * 0.5,
@@ -47,28 +47,58 @@ const VEHICLES := [
 		},
 		"materials": {
 			"1": {
-				"albedo": preload("res://assets/ground_vehicle/apocalypse_bus/material_1_albedo.png"),
-				"normal": preload("res://assets/ground_vehicle/apocalypse_bus/material_1_normal.png"),
-				"metallic": preload("res://assets/ground_vehicle/apocalypse_bus/material_1_metallic.png"),
-				"roughness_texture": preload("res://assets/ground_vehicle/apocalypse_bus/material_1_roughness.png"),
+				"albedo": "res://assets/ground_vehicle/apocalypse_bus/material_1_albedo.png",
+				"normal": "res://assets/ground_vehicle/apocalypse_bus/material_1_normal.png",
+				"metallic": "res://assets/ground_vehicle/apocalypse_bus/material_1_metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/apocalypse_bus/material_1_roughness.png",
 			},
 			"2": {
-				"albedo": preload("res://assets/ground_vehicle/apocalypse_bus/material_2_albedo.png"),
-				"normal": preload("res://assets/ground_vehicle/apocalypse_bus/material_2_normal.png"),
-				"metallic": preload("res://assets/ground_vehicle/apocalypse_bus/material_2_metallic.png"),
-				"roughness_texture": preload("res://assets/ground_vehicle/apocalypse_bus/material_2_roughness.png"),
+				"albedo": "res://assets/ground_vehicle/apocalypse_bus/material_2_albedo.png",
+				"normal": "res://assets/ground_vehicle/apocalypse_bus/material_2_normal.png",
+				"metallic": "res://assets/ground_vehicle/apocalypse_bus/material_2_metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/apocalypse_bus/material_2_roughness.png",
 			},
 			"3": {
-				"albedo": preload("res://assets/ground_vehicle/apocalypse_bus/material_3_albedo.png"),
-				"normal": preload("res://assets/ground_vehicle/apocalypse_bus/material_3_normal.png"),
-				"metallic": preload("res://assets/ground_vehicle/apocalypse_bus/material_3_metallic.png"),
-				"roughness_texture": preload("res://assets/ground_vehicle/apocalypse_bus/material_3_roughness.png"),
+				"albedo": "res://assets/ground_vehicle/apocalypse_bus/material_3_albedo.png",
+				"normal": "res://assets/ground_vehicle/apocalypse_bus/material_3_normal.png",
+				"metallic": "res://assets/ground_vehicle/apocalypse_bus/material_3_metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/apocalypse_bus/material_3_roughness.png",
 			},
 			"4": {
-				"albedo": preload("res://assets/ground_vehicle/apocalypse_bus/material_4_albedo.png"),
-				"normal": preload("res://assets/ground_vehicle/apocalypse_bus/material_4_normal.png"),
-				"metallic": preload("res://assets/ground_vehicle/apocalypse_bus/material_4_metallic.png"),
-				"roughness_texture": preload("res://assets/ground_vehicle/apocalypse_bus/material_4_roughness.png"),
+				"albedo": "res://assets/ground_vehicle/apocalypse_bus/material_4_albedo.png",
+				"normal": "res://assets/ground_vehicle/apocalypse_bus/material_4_normal.png",
+				"metallic": "res://assets/ground_vehicle/apocalypse_bus/material_4_metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/apocalypse_bus/material_4_roughness.png",
+			},
+		}},
+	{"name": "Post-Apocalyptic UAZ",
+		"scene": "res://assets/ground_vehicle/post_apocalyptic_uaz/Post_Apocalyptic_UAZ.fbx",
+		"scale": 0.5, "separated_meshes": true, "wheel_surfaces": 1,
+		"materials": {
+			"_body_source": {
+				"albedo": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/body_uaz_BaseColor.png",
+				"normal": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/body_uaz_Normal.png",
+				"metallic": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/body_uaz_Metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/body_uaz_Roughness.png",
+			},
+			"_whels": {
+				"albedo": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/whels_uaz_BaseColor.png",
+				"normal": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/whels_uaz_Normal.png",
+				"metallic": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/whels_uaz_Metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/whels_uaz_Roughness.png",
+			},
+			"_rama_source": {
+				"albedo": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/rama_uaz_BaseColor.png",
+				"normal": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/rama_uaz_Normal.png",
+				"metallic": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/rama_uaz_Metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/rama_uaz_Roughness.png",
+			},
+			"_other_source": {
+				"albedo": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Base_color.png",
+				"normal": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Normal.png",
+				"metallic": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Roughness.png",
+				"ao": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Mixed_AO.png",
 			},
 		}},
 ]
@@ -502,6 +532,14 @@ func _mesh_node(node_name: String, mesh: Mesh, position: Vector3, material: Mate
 func vehicle_name() -> String:
 	return str((VEHICLES[_vehicle_index] as Dictionary)["name"])
 
+static func vehicle_scene(vehicle: Dictionary) -> PackedScene:
+	var scene_value: Variant = vehicle.get("scene")
+	if scene_value is PackedScene:
+		return scene_value as PackedScene
+	if scene_value is String:
+		return load(str(scene_value)) as PackedScene
+	return null
+
 static func sanitized_model_scale(value: Variant) -> float:
 	if value is not float and value is not int:
 		return 1.0
@@ -560,7 +598,8 @@ func _build_selected_vehicle() -> void:
 	var vehicle: Dictionary = VEHICLES[_vehicle_index]
 	var scale_amount := float(vehicle["scale"]) * _model_scale_multiplier
 	_vehicle_scale = scale_amount
-	var source := (vehicle["scene"] as PackedScene).instantiate() as Node3D
+	var packed_scene := vehicle_scene(vehicle)
+	var source := packed_scene.instantiate() as Node3D
 	_apply_vehicle_materials(source, vehicle.get("materials", {}) as Dictionary)
 	var split: Dictionary
 	if bool(vehicle.get("separated_meshes", false)):
@@ -632,29 +671,37 @@ func _apply_vehicle_materials(source: Node3D, overrides: Dictionary) -> void:
 			var config: Dictionary = overrides[material_name]
 			var material := StandardMaterial3D.new()
 			material.resource_name = material_name
-			material.albedo_texture = config.get("albedo") as Texture2D
+			material.albedo_texture = _configured_texture(config, "albedo")
 			material.roughness = float(config.get("roughness", 0.62))
-			var normal_texture := config.get("normal") as Texture2D
+			var normal_texture := _configured_texture(config, "normal")
 			if normal_texture != null:
 				material.normal_enabled = true
 				material.normal_texture = normal_texture
-			var metallic_texture := config.get("metallic") as Texture2D
+			var metallic_texture := _configured_texture(config, "metallic")
 			if metallic_texture != null:
 				material.metallic = 1.0
 				material.metallic_texture = metallic_texture
 				material.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
-			var roughness_texture := config.get("roughness_texture") as Texture2D
+			var roughness_texture := _configured_texture(config, "roughness_texture")
 			if roughness_texture != null:
 				material.roughness = 1.0
 				material.roughness_texture = roughness_texture
 				material.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
-			var ao_texture := config.get("ao") as Texture2D
+			var ao_texture := _configured_texture(config, "ao")
 			if ao_texture != null:
 				material.ao_enabled = true
 				material.ao_texture = ao_texture
 				material.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 			mesh_copy.surface_set_material(surface, material)
 		mesh_instance.mesh = mesh_copy
+
+func _configured_texture(config: Dictionary, key: String) -> Texture2D:
+	var value: Variant = config.get(key)
+	if value is Texture2D:
+		return value as Texture2D
+	if value is String:
+		return load(str(value)) as Texture2D
+	return null
 
 func _build_weapon_mounts(dark_material: Material, body_material: Material) -> void:
 	var ring_mesh := CylinderMesh.new()

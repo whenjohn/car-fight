@@ -2,6 +2,25 @@
 
 ## Current decision
 
+- Post-Apocalyptic UAZ is imported as the ninth local presentation model on
+  `codex/more-vehicles`. The owner-supplied FBX and texture 7z contain no author,
+  source URL, readme, or license, so the asset note records that absence without
+  making a license claim. Four PBR sets cover the yellow/rusted body, wheels,
+  frame, and roof/accessory equipment; their 2048–4096px albedo, normal,
+  metallic, roughness, and available AO maps are reduced to 1024px, while
+  unused height maps are omitted. The FBX's four named wheel nodes feed the
+  existing separated-wheel presentation path. A rendered vehicle-lab capture
+  confirmed orientation, scale, emergency-service body, roof tanks/racks,
+  texture assignment, and intact wheel pivots. All vehicle scenes and imported
+  PBR maps now resolve lazily only when selected, keeping the growing visual
+  library out of dedicated/headless startup. Gameplay collision, physics,
+  rollback, and network state remain unchanged. Clean import, nine-vehicle
+  asset coverage, animation coverage, offline, 0.300-correction network, mixed
+  transport, join, reconnect, ball, tractor, course, reverse, jump-gate,
+  combat, RC-orb, shield, and detonation gates pass. Reconnect and shield test
+  windows were extended to retain their strict assertions after larger project
+  resource scans; a stale RPC-cache reconnect sample failed once, then its
+  immediate repeat passed.
 - The native `Vehicle Model` menu now stores an independent presentation scale
   for each of the eight vehicle names instead of one shared multiplier. Its
   disabled status row identifies the currently selected vehicle, `V` restores

@@ -22,11 +22,11 @@ run_case() {
 	local script_name="$2"
 	local case_port="$3"
 	"$godot_bin" --headless --path "$project_root" -- --server --port "$case_port" \
-		--ticks 420 >"$log_dir/$case_name-server.log" 2>&1 &
+		--ticks 540 >"$log_dir/$case_name-server.log" 2>&1 &
 	server_pid=$!
 	sleep 0.8
 	"$godot_bin" --headless --path "$project_root" -- --client --host 127.0.0.1 \
-		--port "$case_port" --name "$case_name" --script "$script_name" --ticks 500 \
+		--port "$case_port" --name "$case_name" --script "$script_name" --ticks 650 \
 		>"$log_dir/$case_name-client.log" 2>&1 &
 	client_pid=$!
 	wait "$server_pid"

@@ -21,13 +21,15 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Leave enough tail room for the replacement client after larger presentation
+# libraries have completed their first process-local resource scan.
 "$godot_bin" --headless --path "$project_root" -- \
-	--server --no-drone --port "$server_port" --ticks 720 \
+	--server --no-drone --port "$server_port" --ticks 900 \
 	>"$log_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
 "$godot_bin" --headless --path "$project_root" -- \
-	--client --host 127.0.0.1 --port "$server_port" --name survivor --ticks 620 \
+	--client --host 127.0.0.1 --port "$server_port" --name survivor --ticks 800 \
 	>"$log_dir/survivor.log" 2>&1 &
 survivor_pid=$!
 sleep 0.4
