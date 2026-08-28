@@ -145,8 +145,11 @@ func _init() -> void:
 		else:
 			vehicle_split = JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
 		var vehicle_wheels: Dictionary = vehicle_split["wheels"]
-		if (vehicle_split["chassis"] as ArrayMesh).get_surface_count() < 1 or vehicle_wheels.size() != 4:
-			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs a chassis and four wheels" % vehicle_config["name"])
+		var expected_wheel_count := int(vehicle_config.get("wheel_count", 4))
+		if (vehicle_split["chassis"] as ArrayMesh).get_surface_count() < 1 \
+				or vehicle_wheels.size() != expected_wheel_count:
+			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs a chassis and %d wheels" % [
+				vehicle_config["name"], expected_wheel_count])
 			quit(1)
 			return
 		var vehicle_front_wheels := 0
@@ -171,11 +174,12 @@ func _init() -> void:
 			quit(1)
 			return
 		vehicle_instance.free()
-	if JEEP_PRESENTATION.VEHICLES.size() != 9 \
+	if JEEP_PRESENTATION.VEHICLES.size() != 10 \
 			or str(JEEP_PRESENTATION.VEHICLES[5]["name"]) != "Humvee M242" \
 			or str(JEEP_PRESENTATION.VEHICLES[6]["name"]) != "Combat Vehicle" \
 			or str(JEEP_PRESENTATION.VEHICLES[7]["name"]) != "Apocalypse Bus" \
-			or str(JEEP_PRESENTATION.VEHICLES[8]["name"]) != "Post-Apocalyptic UAZ":
+			or str(JEEP_PRESENTATION.VEHICLES[8]["name"]) != "Post-Apocalyptic UAZ" \
+			or str(JEEP_PRESENTATION.VEHICLES[9]["name"]) != "Survival Vehicle":
 		push_error("VEHICLE_ASSET_TEST FAIL: imported vehicles must retain cycle order")
 		quit(1)
 		return
@@ -283,6 +287,27 @@ func _init() -> void:
 		quit(1)
 		return
 	uaz_parent.free()
+	var survival_rig := JEEP_PRESENTATION.new()
+	var survival_parent := Node3D.new()
+	survival_parent.add_child(survival_rig)
+	survival_rig.set("_vehicle_index", 9)
+	survival_rig.call("_build_selected_vehicle")
+	var survival_chassis := survival_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var survival_wheels := survival_rig.find_children("*Spin", "Node3D", true, false)
+	var survival_material := survival_chassis.mesh.surface_get_material(0) \
+		as StandardMaterial3D if survival_chassis != null else null
+	if survival_chassis == null or survival_chassis.mesh.get_surface_count() != 1 \
+			or survival_wheels.size() != 6 or survival_material == null \
+			or survival_material.albedo_texture == null \
+			or survival_material.normal_texture == null \
+			or survival_material.metallic_texture == null \
+			or survival_material.roughness_texture == null:
+		survival_parent.free()
+		push_error("SURVIVAL_VEHICLE_ASSET_TEST FAIL: rig must retain six wheels and PBR material")
+		quit(1)
+		return
+	survival_parent.free()
 	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
 	if grid_shader == null or grid_shader.code.is_empty():
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")

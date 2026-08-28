@@ -97,7 +97,7 @@ Controls:
 - Press `F` to flip the selected cone. A vehicle-pointing cone starts precise and widens with distance; an outward-pointing cone starts wide beside the Jeep and narrows toward its far tip.
 - Move the mouse around the vehicle to steer toward it. Press `V` to cycle
   your local presentation through the Jeep, Pickup, Sedan, Wagon, Bus, Humvee M242,
-  Combat Vehicle, Apocalypse Bus, and Post-Apocalyptic UAZ.
+  Combat Vehicle, Apocalypse Bus, Post-Apocalyptic UAZ, and Survival Vehicle.
 - The native `Vehicle Model` system menu scales your selected local vehicle from
   100% to 500% and autosaves a separate choice for every vehicle. This is a
   presentation debug control; the authoritative gameplay collider remains unchanged.

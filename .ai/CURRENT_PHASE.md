@@ -2,6 +2,20 @@
 
 ## Current decision
 
+- Survival Vehicle is imported as the tenth local presentation model on
+  `codex/more-vehicles`. The owner-supplied zip contains one FBX and albedo,
+  normal, metallic, and roughness maps, but no author, source URL, readme, or
+  license; the asset note records that absence without making a license claim.
+  Runtime maps were reduced to 1024px. The source combines its body and wheels
+  in one mesh, so six tight bounds extract all three axles into independent
+  animation pivots, with the front pair steering and all six wheels spinning
+  and feeding skid presentation. A rendered vehicle-lab capture confirmed the
+  armored body, cargo, full PBR texture assignment, orientation, scale, and
+  intact six-wheel layout. Gameplay collision, physics, rollback, and network
+  state remain unchanged. Clean import, ten-vehicle asset coverage, animation
+  coverage, and the complete offline suite pass. The subsequent timing-sensitive
+  network gate produced inconsistent pre-existing authority/escape-assist
+  samples across retries; no presentation asset is loaded on its headless path.
 - Post-Apocalyptic UAZ is imported as the ninth local presentation model on
   `codex/more-vehicles`. The owner-supplied FBX and texture 7z contain no author,
   source URL, readme, or license, so the asset note records that absence without

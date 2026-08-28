@@ -101,6 +101,26 @@ const VEHICLES := [
 				"ao": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Mixed_AO.png",
 			},
 		}},
+	{"name": "Survival Vehicle",
+		"scene": "res://assets/ground_vehicle/survival_vehicle/SurvivalVehicle.fbx",
+		"scale": 2.0, "bounded_wheels": true, "wheel_surfaces": 1,
+		"wheel_count": 6, "source_yaw": -PI * 0.75,
+		"wheel_boxes": {
+			"rear_positive_x": AABB(Vector3(-0.435, 0.0, 0.065), Vector3(0.17, 0.205, 0.19)),
+			"rear_negative_x": AABB(Vector3(-0.135, 0.0, 0.255), Vector3(0.17, 0.205, 0.19)),
+			"middle_positive_x": AABB(Vector3(-0.175, 0.0, -0.315), Vector3(0.17, 0.205, 0.19)),
+			"middle_negative_x": AABB(Vector3(0.145, 0.0, -0.085), Vector3(0.17, 0.205, 0.19)),
+			"front_positive_x": AABB(Vector3(-0.055, 0.0, -0.465), Vector3(0.17, 0.205, 0.19)),
+			"front_negative_x": AABB(Vector3(0.265, 0.0, -0.235), Vector3(0.17, 0.205, 0.19)),
+		},
+		"materials": {
+			"tripo_mat_034b39bd": {
+				"albedo": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/tripo_node_b616c045-e832-4d30-89a9-c672cf0cfe5b_BaseColor.jpg",
+				"normal": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/tripo_node_b616c045-e832-4d30-89a9-c672cf0cfe5b_Normal_Bake.jpg",
+				"metallic": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/survival_vehicle_3d_model_metallic.JPEG",
+				"roughness_texture": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/survival_vehicle_3d_model_roughness.JPEG",
+			},
+		}},
 ]
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
