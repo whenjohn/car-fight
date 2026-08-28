@@ -46,6 +46,68 @@ static func split(source_mesh: Mesh, source_transform: Transform3D) -> Dictionar
 
 	return {"chassis": chassis, "wheels": wheels}
 
+
+## Normalizes an imported scene whose chassis and four wheels are already
+## separate MeshInstance3D nodes. The returned data matches split() so the
+## presentation rig can animate either source layout identically.
+static func split_separated(source: Node3D) -> Dictionary:
+	var chassis_sources: Array[MeshInstance3D] = []
+	var wheel_sources: Array[MeshInstance3D] = []
+	for candidate in source.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := candidate as MeshInstance3D
+		if mesh_instance.name.to_lower().begins_with("wheel"):
+			wheel_sources.append(mesh_instance)
+		else:
+			chassis_sources.append(mesh_instance)
+
+	var wheel_center := Vector3.ZERO
+	var ground_y := INF
+	var wheel_bounds: Array[AABB] = []
+	for wheel_source in wheel_sources:
+		var bounds := wheel_source.transform * wheel_source.mesh.get_aabb()
+		wheel_bounds.append(bounds)
+		wheel_center += bounds.get_center()
+		ground_y = minf(ground_y, bounds.position.y)
+	if not wheel_sources.is_empty():
+		wheel_center /= float(wheel_sources.size())
+	var model_offset := Vector3(-wheel_center.x, -ground_y, -wheel_center.z)
+
+	var chassis := ArrayMesh.new()
+	for chassis_source in chassis_sources:
+		for surface in range(chassis_source.mesh.get_surface_count()):
+			_append_surface(chassis_source.mesh, surface, chassis_source.transform,
+				-model_offset, "", chassis)
+
+	var wheels := {}
+	var wheel_radius := 0.0
+	for index in range(wheel_sources.size()):
+		var wheel_source := wheel_sources[index]
+		var bounds := wheel_bounds[index]
+		var source_center := bounds.get_center()
+		var center := source_center + model_offset
+		var key := "%s_%s" % [
+			"front" if source_center.z >= wheel_center.z else "rear",
+			"positive_x" if source_center.x >= wheel_center.x else "negative_x",
+		]
+		var wheel_mesh := ArrayMesh.new()
+		for surface in range(wheel_source.mesh.get_surface_count()):
+			_append_surface(wheel_source.mesh, surface, wheel_source.transform,
+				source_center, "", wheel_mesh)
+		wheels[key] = {
+			"mesh": wheel_mesh,
+			"center": center,
+			"front": key.begins_with("front"),
+		}
+		wheel_radius += maxf(bounds.size.y, bounds.size.z) * 0.5
+	if not wheel_sources.is_empty():
+		wheel_radius /= float(wheel_sources.size())
+
+	return {
+		"chassis": chassis,
+		"wheels": wheels,
+		"wheel_radius": wheel_radius,
+	}
+
 static func _append_surface(source_mesh: Mesh, surface: int, source_transform: Transform3D,
 		center: Vector3, wheel_filter: String, target: ArrayMesh) -> void:
 	var arrays := source_mesh.surface_get_arrays(surface)

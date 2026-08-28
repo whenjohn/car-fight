@@ -1,5 +1,5 @@
 extends Node3D
-## Presentation-only CC0 vehicle pack. Chassis lean and wheel animation are
+## Presentation-only vehicle models. Chassis lean and wheel animation are
 ## derived locally; the rollback collider remains one equal-mass sphere.
 
 const VEHICLE_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
@@ -16,6 +16,8 @@ const VEHICLES := [
 	{"name": "Sedan", "scene": preload("res://assets/ground_vehicle/Sedan.fbx"), "scale": 0.33},
 	{"name": "Wagon", "scene": preload("res://assets/ground_vehicle/Wagon.fbx"), "scale": 0.33},
 	{"name": "Bus", "scene": preload("res://assets/ground_vehicle/Bus.fbx"), "scale": 0.175},
+	{"name": "Humvee M242", "scene": preload("res://assets/ground_vehicle/humvee_m242/HumveeM242.fbx"),
+		"scale": 0.53, "separated_meshes": true, "wheel_surfaces": 1},
 ]
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
@@ -485,10 +487,15 @@ func _build_selected_vehicle() -> void:
 	var vehicle: Dictionary = VEHICLES[_vehicle_index]
 	_vehicle_scale = float(vehicle["scale"])
 	var source := (vehicle["scene"] as PackedScene).instantiate() as Node3D
-	var source_mesh_instance := source.find_child("*", true, false) as MeshInstance3D
-	var split: Dictionary = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
+	var split: Dictionary
+	if bool(vehicle.get("separated_meshes", false)):
+		split = VEHICLE_SPLITTER.split_separated(source)
+	else:
+		var source_mesh_instance := source.find_child("*", true, false) as MeshInstance3D
+		split = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
 	source.free()
-	_wheel_radius = WHEEL_RADIUS * float(vehicle["scale"]) / JEEP_SCALE
+	_wheel_radius = float(split.get("wheel_radius", WHEEL_RADIUS / JEEP_SCALE)) \
+		* float(vehicle["scale"])
 
 	_chassis_lean = Node3D.new()
 	_chassis_lean.name = "ChassisLean"

@@ -2,6 +2,21 @@
 
 ## Current decision
 
+- Humvee M242 vehicle import is complete on `codex/more-vehicles` in
+  `/Users/johnnguyen/Projects/car-fight-more-vehicles`. The matching FBX and
+  1024x1024 texture from the two owner-supplied RAR archives are stored together
+  under `assets/ground_vehicle/humvee_m242/`. The presentation importer now
+  supports models with four already-separated wheel meshes in addition to the
+  existing combined-mesh vehicle pack: it recenters the axle footprint, places
+  the tire bottoms on the ground, preserves the textured chassis material, and
+  feeds the wheels into the existing steering, suspension, spin, skid, cloak,
+  boost-echo, and X-ray presentation paths. `V` cycles to Humvee M242 as the
+  sixth presentation model; gameplay collision, physics, rollback, and network
+  state remain unchanged. A rendered vehicle-lab capture confirmed the body,
+  M242 turret, four wheels, texture, scale, and orientation. Focused import and
+  animation tests pass, and the permission-correct full `./scripts/test.sh`
+  suite passes (`ALL_TESTS PASS`), including 0.300-unit worst correction in the
+  120 ms network gate.
 - Dynamic tire skid marks are implemented on `codex/skid-marks` in
   `/Users/johnnguyen/Projects/car-fight-skid-marks`. They are client-local,
   presentation-only world-space ribbons sampled from all four animated tire

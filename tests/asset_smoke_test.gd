@@ -129,16 +129,20 @@ func _init() -> void:
 			push_error("VEHICLE_ASSET_TEST FAIL: %s has no mesh" % vehicle_config["name"])
 			quit(1)
 			return
-		var vehicle_split: Dictionary = JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
+		var separate_meshes := bool(vehicle_config.get("separated_meshes", false))
+		var vehicle_split: Dictionary = JEEP_SPLITTER.split_separated(vehicle_instance) \
+			if separate_meshes else JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
 		var vehicle_wheels: Dictionary = vehicle_split["wheels"]
 		if (vehicle_split["chassis"] as ArrayMesh).get_surface_count() < 1 or vehicle_wheels.size() != 4:
 			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs a chassis and four wheels" % vehicle_config["name"])
 			quit(1)
 			return
 		var vehicle_front_wheels := 0
+		var expected_wheel_surfaces := int(vehicle_config.get("wheel_surfaces", 2))
 		for vehicle_wheel in vehicle_wheels.values():
-			if (vehicle_wheel["mesh"] as ArrayMesh).get_surface_count() != 2:
-				push_error("VEHICLE_SPLIT_TEST FAIL: %s wheel must retain tire and hub" % vehicle_config["name"])
+			if (vehicle_wheel["mesh"] as ArrayMesh).get_surface_count() != expected_wheel_surfaces:
+				push_error("VEHICLE_SPLIT_TEST FAIL: %s wheel must retain %d surface(s)" % [
+					vehicle_config["name"], expected_wheel_surfaces])
 				quit(1)
 				return
 			if bool(vehicle_wheel["front"]):
@@ -147,7 +151,7 @@ func _init() -> void:
 			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs two steerable front wheels" % vehicle_config["name"])
 			quit(1)
 			return
-		var vehicle_footprint := _visual_footprint_radius(vehicle_mesh.mesh, vehicle_mesh.transform,
+		var vehicle_footprint := _split_footprint_radius(vehicle_split,
 			float(vehicle_config["scale"]))
 		if vehicle_footprint > VEHICLE_CONFIG.COLLISION_RADIUS + 0.01:
 			push_error("VEHICLE_COLLIDER_TEST FAIL: %s footprint %.3f exceeds collider" % [
@@ -155,6 +159,30 @@ func _init() -> void:
 			quit(1)
 			return
 		vehicle_instance.free()
+	if JEEP_PRESENTATION.VEHICLES.size() != 6 \
+			or str(JEEP_PRESENTATION.VEHICLES[-1]["name"]) != "Humvee M242":
+		push_error("HUMVEE_ASSET_TEST FAIL: Humvee M242 must be the sixth vehicle")
+		quit(1)
+		return
+	var humvee_rig := JEEP_PRESENTATION.new()
+	var humvee_parent := Node3D.new()
+	humvee_parent.add_child(humvee_rig)
+	humvee_rig.set("_vehicle_index", JEEP_PRESENTATION.VEHICLES.size() - 1)
+	humvee_rig.call("_build_selected_vehicle")
+	var humvee_chassis := humvee_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var humvee_wheels := humvee_rig.find_children("*Spin", "Node3D", true, false)
+	var humvee_material := humvee_chassis.mesh.surface_get_material(0) as StandardMaterial3D \
+		if humvee_chassis != null else null
+	if humvee_chassis == null or humvee_wheels.size() != 4 \
+			or humvee_material == null or humvee_material.albedo_texture == null \
+			or humvee_material.albedo_texture.resource_path != \
+				"res://assets/ground_vehicle/humvee_m242/texture.png":
+		humvee_parent.free()
+		push_error("HUMVEE_ASSET_TEST FAIL: rig must retain four wheels and supplied texture")
+		quit(1)
+		return
+	humvee_parent.free()
 	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
 	if grid_shader == null or grid_shader.code.is_empty():
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")
@@ -371,6 +399,28 @@ func _visual_footprint_radius(mesh: Mesh, source_transform: Transform3D,
 		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 		for vertex in vertices:
 			var presented := model_basis * (source_transform * vertex) + model_offset
+			radius = maxf(radius, Vector2(presented.x, presented.z).length())
+	return radius
+
+
+func _split_footprint_radius(split: Dictionary, scale_amount: float) -> float:
+	var radius := _mesh_footprint_radius(split["chassis"] as Mesh, Vector3.ZERO, scale_amount)
+	for wheel_value in (split["wheels"] as Dictionary).values():
+		var wheel := wheel_value as Dictionary
+		radius = maxf(radius, _mesh_footprint_radius(wheel["mesh"] as Mesh,
+			wheel["center"] as Vector3, scale_amount))
+	return radius
+
+
+func _mesh_footprint_radius(mesh: Mesh, position: Vector3, scale_amount: float) -> float:
+	var radius := 0.0
+	var model_basis := Basis(Vector3.UP, PI).scaled(Vector3.ONE * scale_amount)
+	var model_offset := Vector3(0.0, 0.065, -0.05)
+	for surface in range(mesh.get_surface_count()):
+		var arrays := mesh.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for vertex in vertices:
+			var presented := model_basis * (vertex + position) + model_offset
 			radius = maxf(radius, Vector2(presented.x, presented.z).length())
 	return radius
 
