@@ -131,11 +131,17 @@ func _init() -> void:
 			return
 		var separate_meshes := bool(vehicle_config.get("separated_meshes", false))
 		var multi_mesh := bool(vehicle_config.get("multi_mesh", false))
+		var bounded_wheels := bool(vehicle_config.get("bounded_wheels", false))
 		var vehicle_split: Dictionary
 		if separate_meshes:
 			vehicle_split = JEEP_SPLITTER.split_separated(vehicle_instance)
 		elif multi_mesh:
 			vehicle_split = JEEP_SPLITTER.split_multi_mesh(vehicle_instance)
+		elif bounded_wheels:
+			vehicle_split = JEEP_SPLITTER.split_bounded_wheels(vehicle_instance,
+				vehicle_config["wheel_boxes"] as Dictionary,
+				float(vehicle_config.get("source_yaw", 0.0)),
+				vehicle_config.get("wheel_materials", []) as Array)
 		else:
 			vehicle_split = JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
 		var vehicle_wheels: Dictionary = vehicle_split["wheels"]
@@ -165,10 +171,11 @@ func _init() -> void:
 			quit(1)
 			return
 		vehicle_instance.free()
-	if JEEP_PRESENTATION.VEHICLES.size() != 7 \
+	if JEEP_PRESENTATION.VEHICLES.size() != 8 \
 			or str(JEEP_PRESENTATION.VEHICLES[5]["name"]) != "Humvee M242" \
-			or str(JEEP_PRESENTATION.VEHICLES[6]["name"]) != "Combat Vehicle":
-		push_error("VEHICLE_ASSET_TEST FAIL: Humvee and Combat Vehicle must be sixth and seventh")
+			or str(JEEP_PRESENTATION.VEHICLES[6]["name"]) != "Combat Vehicle" \
+			or str(JEEP_PRESENTATION.VEHICLES[7]["name"]) != "Apocalypse Bus":
+		push_error("VEHICLE_ASSET_TEST FAIL: imported vehicles must retain cycle order")
 		quit(1)
 		return
 	var humvee_rig := JEEP_PRESENTATION.new()
@@ -222,6 +229,27 @@ func _init() -> void:
 		quit(1)
 		return
 	combat_parent.free()
+	var apocalypse_rig := JEEP_PRESENTATION.new()
+	var apocalypse_parent := Node3D.new()
+	apocalypse_parent.add_child(apocalypse_rig)
+	apocalypse_rig.set("_vehicle_index", 7)
+	apocalypse_rig.call("_build_selected_vehicle")
+	var apocalypse_chassis := apocalypse_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var apocalypse_wheels := apocalypse_rig.find_children("*Spin", "Node3D", true, false)
+	var apocalypse_material := apocalypse_chassis.mesh.surface_get_material(0) \
+		as StandardMaterial3D if apocalypse_chassis != null else null
+	if apocalypse_chassis == null or apocalypse_chassis.mesh.get_surface_count() != 4 \
+			or apocalypse_wheels.size() != 4 or apocalypse_material == null \
+			or apocalypse_material.albedo_texture == null \
+			or apocalypse_material.normal_texture == null \
+			or apocalypse_material.metallic_texture == null \
+			or apocalypse_material.roughness_texture == null:
+		apocalypse_parent.free()
+		push_error("APOCALYPSE_BUS_ASSET_TEST FAIL: rig must retain four wheels and four PBR materials")
+		quit(1)
+		return
+	apocalypse_parent.free()
 	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
 	if grid_shader == null or grid_shader.code.is_empty():
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")

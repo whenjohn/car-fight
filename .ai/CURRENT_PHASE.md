@@ -2,6 +2,21 @@
 
 ## Current decision
 
+- Apocalypse Bus is imported as the eighth local presentation model on
+  `codex/more-vehicles`. The owner-supplied RAR contained one FBX and four
+  numbered PBR texture sets but no author, source URL, readme, or license, so
+  the asset note records that absence without making a license claim. The FBX
+  was converted to GLB with repaired local texture references; albedo, normal,
+  metallic, and roughness maps were reduced from 2048px to 1024px, while unused
+  height maps were omitted. A bounded material-aware splitter extracts the four
+  wheel assemblies from material 3 without pulling nearby armor into the wheel
+  rig, normalizes the FBX's sideways source axis, and retains all four PBR body
+  materials. A rendered vehicle-lab capture confirmed the rusted yellow bus,
+  armor/cargo details, orientation, scale, and intact wheels. Gameplay collision,
+  physics, rollback, and network state remain unchanged. Clean import, focused
+  asset/animation checks, and the full permission-correct `./scripts/test.sh`
+  suite pass (`ALL_TESTS PASS`), including 0.300-unit worst correction in the
+  120 ms network gate.
 - Combat Vehicle Ver 1.02 is imported as the seventh local presentation model
   on `codex/more-vehicles`. The free-use Yoon's GameART source license is
   preserved beside the assets. The supplied FBX was converted to a clean GLB;

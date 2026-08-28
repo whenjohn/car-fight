@@ -35,6 +35,42 @@ const VEHICLES := [
 				"roughness": 0.82,
 			},
 		}},
+	{"name": "Apocalypse Bus", "scene": preload("res://assets/ground_vehicle/apocalypse_bus/ApocalypseBus.glb"),
+		"scale": 0.0039, "bounded_wheels": true, "wheel_surfaces": 1,
+		"wheel_materials": ["3"],
+		"source_yaw": -PI * 0.5,
+		"wheel_boxes": {
+			"front_positive_x": AABB(Vector3(134.0, 0.0, -87.0), Vector3(72.0, 71.0, 25.0)),
+			"front_negative_x": AABB(Vector3(134.0, 0.0, 62.0), Vector3(72.0, 71.0, 25.0)),
+			"rear_positive_x": AABB(Vector3(-187.0, 0.0, -87.0), Vector3(72.0, 71.0, 25.0)),
+			"rear_negative_x": AABB(Vector3(-187.0, 0.0, 62.0), Vector3(72.0, 71.0, 25.0)),
+		},
+		"materials": {
+			"1": {
+				"albedo": preload("res://assets/ground_vehicle/apocalypse_bus/material_1_albedo.png"),
+				"normal": preload("res://assets/ground_vehicle/apocalypse_bus/material_1_normal.png"),
+				"metallic": preload("res://assets/ground_vehicle/apocalypse_bus/material_1_metallic.png"),
+				"roughness_texture": preload("res://assets/ground_vehicle/apocalypse_bus/material_1_roughness.png"),
+			},
+			"2": {
+				"albedo": preload("res://assets/ground_vehicle/apocalypse_bus/material_2_albedo.png"),
+				"normal": preload("res://assets/ground_vehicle/apocalypse_bus/material_2_normal.png"),
+				"metallic": preload("res://assets/ground_vehicle/apocalypse_bus/material_2_metallic.png"),
+				"roughness_texture": preload("res://assets/ground_vehicle/apocalypse_bus/material_2_roughness.png"),
+			},
+			"3": {
+				"albedo": preload("res://assets/ground_vehicle/apocalypse_bus/material_3_albedo.png"),
+				"normal": preload("res://assets/ground_vehicle/apocalypse_bus/material_3_normal.png"),
+				"metallic": preload("res://assets/ground_vehicle/apocalypse_bus/material_3_metallic.png"),
+				"roughness_texture": preload("res://assets/ground_vehicle/apocalypse_bus/material_3_roughness.png"),
+			},
+			"4": {
+				"albedo": preload("res://assets/ground_vehicle/apocalypse_bus/material_4_albedo.png"),
+				"normal": preload("res://assets/ground_vehicle/apocalypse_bus/material_4_normal.png"),
+				"metallic": preload("res://assets/ground_vehicle/apocalypse_bus/material_4_metallic.png"),
+				"roughness_texture": preload("res://assets/ground_vehicle/apocalypse_bus/material_4_roughness.png"),
+			},
+		}},
 ]
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
@@ -531,6 +567,10 @@ func _build_selected_vehicle() -> void:
 		split = VEHICLE_SPLITTER.split_separated(source)
 	elif bool(vehicle.get("multi_mesh", false)):
 		split = VEHICLE_SPLITTER.split_multi_mesh(source)
+	elif bool(vehicle.get("bounded_wheels", false)):
+		split = VEHICLE_SPLITTER.split_bounded_wheels(source,
+			vehicle["wheel_boxes"] as Dictionary, float(vehicle.get("source_yaw", 0.0)),
+			vehicle.get("wheel_materials", []) as Array)
 	else:
 		var source_mesh_instance := source.find_child("*", true, false) as MeshInstance3D
 		split = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
@@ -603,6 +643,11 @@ func _apply_vehicle_materials(source: Node3D, overrides: Dictionary) -> void:
 				material.metallic = 1.0
 				material.metallic_texture = metallic_texture
 				material.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+			var roughness_texture := config.get("roughness_texture") as Texture2D
+			if roughness_texture != null:
+				material.roughness = 1.0
+				material.roughness_texture = roughness_texture
+				material.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 			var ao_texture := config.get("ao") as Texture2D
 			if ao_texture != null:
 				material.ao_enabled = true
