@@ -33,6 +33,11 @@
   retries pass at 0.919-unit worst network correction and 1.651 rebound. An
   unchanged-master network control also passed at 0.566. The final focused
   foliage test and five-tick presentation boot both pass with the local pack.
+- Human review exposed periodic stop/start motion in the monitored `--local`
+  client caused by stale authority recovery, not rendering. The monitored
+  launcher now accepts `--offline` for foliage, lighting, and handling review;
+  the replacement single-process run advances continuously without recovery
+  events and uses substantially less CPU.
 
 ## Current decision
 

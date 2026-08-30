@@ -311,7 +311,9 @@ After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin
 It connects to macai2 by default. Add `--local` when the monitor must launch an
 isolated local server, including the headless monitor check:
 `./scripts/play_monitored.sh --local --headless --ticks 180`. Normal monitored
-play explicitly starts windowed. On the affected Intel Mac, keep the decorated
+play explicitly starts windowed. Use `./scripts/play_monitored.sh --offline`
+for a standalone visual or handling audition without network correction. On
+the affected Intel Mac, keep the decorated
 window inside the usable desktop area; native fullscreen, borderless fullscreen,
 exact edge-to-edge windows, and edge-to-edge maximization are unsupported.
 OpenGL, ANGLE, and Vulkan fullscreen alternatives have already been ruled out.

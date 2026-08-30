@@ -17,6 +17,7 @@ client_host="${CAR_FIGHT_HOST:-100.113.2.60}"
 client_name="monitored"
 client_position=""
 start_local_server=0
+offline=0
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -51,11 +52,19 @@ while (( $# > 0 )); do
 		--host)
 			client_host="${2:?--host requires a value}"
 			start_local_server=0
+			offline=0
 			shift 2
 			;;
 		--local)
 			client_host="127.0.0.1"
 			start_local_server=1
+			offline=0
+			shift
+			;;
+		--offline)
+			client_host="offline"
+			start_local_server=0
+			offline=1
 			shift
 			;;
 		--name)
@@ -130,6 +139,7 @@ initial_windowserver_pid="${initial_windowserver_pid:-unknown}"
 	echo "client_name=$client_name"
 	echo "client_position=${client_position:-default}"
 	echo "start_local_server=$start_local_server"
+	echo "offline=$offline"
 	echo "headless=$headless"
 	echo "fullscreen_requested=$fullscreen"
 	echo "fake_stall=$fake_stall"
@@ -166,7 +176,11 @@ typeset -a driver_args client_display_args client_user_args network_stack_args s
 driver_args=()
 client_display_args=(--windowed)
 session_label="${CAR_FIGHT_SESSION_LABEL:-$(git -C "$project_root" branch --show-current)}"
-client_user_args=(--client --host "$client_host" --port "$port" --name "$client_name" --session-label "$session_label")
+if (( offline == 1 )); then
+	client_user_args=(--offline --name "$client_name" --session-label "$session_label")
+else
+	client_user_args=(--client --host "$client_host" --port "$port" --name "$client_name" --session-label "$session_label")
+fi
 network_stack_args=()
 server_fixture_args=()
 if [[ "${CAR_FIGHT_G2_STACK:-0}" == "1" ]]; then
