@@ -1,5 +1,5 @@
 extends Node3D
-## Presentation-only CC0 vehicle pack. Chassis lean and wheel animation are
+## Presentation-only vehicle models. Chassis lean and wheel animation are
 ## derived locally; the rollback collider remains one equal-mass sphere.
 
 const VEHICLE_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
@@ -9,13 +9,179 @@ const CLOAK_DUST_SCRIPT := preload("res://fx/vehicle_cloak_dust.gd")
 const TIRE_SKID_TRAILS_SCRIPT := preload("res://player/tire_skid_trails.gd")
 const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
+const MODEL_SCALE_MIN := 1.0
+const MODEL_SCALE_MAX := 5.0
 const OCCLUDED_SILHOUETTE_COLOR := Color(0.34, 0.76, 1.0, 1.0)
+const LOW_POLY_CARS_SCENE := "res://assets/ground_vehicle/low_poly_cars_01/LowPoly_Cars_01.fbx"
 const VEHICLES := [
-	{"name": "Jeep", "scene": preload("res://assets/ground_vehicle/Jeep.fbx"), "scale": 0.45},
-	{"name": "Pickup", "scene": preload("res://assets/ground_vehicle/Pickup.fbx"), "scale": 0.33},
-	{"name": "Sedan", "scene": preload("res://assets/ground_vehicle/Sedan.fbx"), "scale": 0.33},
-	{"name": "Wagon", "scene": preload("res://assets/ground_vehicle/Wagon.fbx"), "scale": 0.33},
-	{"name": "Bus", "scene": preload("res://assets/ground_vehicle/Bus.fbx"), "scale": 0.175},
+	{"name": "Jeep", "scene": "res://assets/ground_vehicle/Jeep.fbx", "scale": 0.45},
+	{"name": "Pickup", "scene": "res://assets/ground_vehicle/Pickup.fbx", "scale": 0.33},
+	{"name": "Sedan", "scene": "res://assets/ground_vehicle/Sedan.fbx", "scale": 0.33},
+	{"name": "Wagon", "scene": "res://assets/ground_vehicle/Wagon.fbx", "scale": 0.33},
+	{"name": "Bus", "scene": "res://assets/ground_vehicle/Bus.fbx", "scale": 0.175},
+	{"name": "Humvee M242", "scene": "res://assets/ground_vehicle/humvee_m242/HumveeM242.fbx",
+		"scale": 0.53, "separated_meshes": true, "wheel_surfaces": 1},
+	{"name": "Combat Vehicle", "scene": "res://assets/ground_vehicle/combat_vehicle/CombatVehicle.glb",
+		"scale": 0.0094, "multi_mesh": true, "wheel_surfaces": 1, "materials": {
+			"V_body": {
+				"albedo": "res://assets/ground_vehicle/combat_vehicle/body_albedo.png",
+				"normal": "res://assets/ground_vehicle/combat_vehicle/body_normal.png",
+				"metallic": "res://assets/ground_vehicle/combat_vehicle/body_metallic.png",
+				"ao": "res://assets/ground_vehicle/combat_vehicle/body_occlusion.png",
+				"roughness": 0.58,
+			},
+			"tire": {
+				"albedo": "res://assets/ground_vehicle/combat_vehicle/Materials/tire.png",
+				"normal": "res://assets/ground_vehicle/combat_vehicle/tire_normal.png",
+				"roughness": 0.82,
+			},
+		}},
+	{"name": "Apocalypse Bus", "scene": "res://assets/ground_vehicle/apocalypse_bus/ApocalypseBus.glb",
+		"scale": 0.0039, "bounded_wheels": true, "wheel_surfaces": 1,
+		"wheel_materials": ["3"],
+		"source_yaw": -PI * 0.5,
+		"wheel_boxes": {
+			"front_positive_x": AABB(Vector3(134.0, 0.0, -87.0), Vector3(72.0, 71.0, 25.0)),
+			"front_negative_x": AABB(Vector3(134.0, 0.0, 62.0), Vector3(72.0, 71.0, 25.0)),
+			"rear_positive_x": AABB(Vector3(-187.0, 0.0, -87.0), Vector3(72.0, 71.0, 25.0)),
+			"rear_negative_x": AABB(Vector3(-187.0, 0.0, 62.0), Vector3(72.0, 71.0, 25.0)),
+		},
+		"materials": {
+			"1": {
+				"albedo": "res://assets/ground_vehicle/apocalypse_bus/material_1_albedo.png",
+				"normal": "res://assets/ground_vehicle/apocalypse_bus/material_1_normal.png",
+				"metallic": "res://assets/ground_vehicle/apocalypse_bus/material_1_metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/apocalypse_bus/material_1_roughness.png",
+			},
+			"2": {
+				"albedo": "res://assets/ground_vehicle/apocalypse_bus/material_2_albedo.png",
+				"normal": "res://assets/ground_vehicle/apocalypse_bus/material_2_normal.png",
+				"metallic": "res://assets/ground_vehicle/apocalypse_bus/material_2_metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/apocalypse_bus/material_2_roughness.png",
+			},
+			"3": {
+				"albedo": "res://assets/ground_vehicle/apocalypse_bus/material_3_albedo.png",
+				"normal": "res://assets/ground_vehicle/apocalypse_bus/material_3_normal.png",
+				"metallic": "res://assets/ground_vehicle/apocalypse_bus/material_3_metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/apocalypse_bus/material_3_roughness.png",
+			},
+			"4": {
+				"albedo": "res://assets/ground_vehicle/apocalypse_bus/material_4_albedo.png",
+				"normal": "res://assets/ground_vehicle/apocalypse_bus/material_4_normal.png",
+				"metallic": "res://assets/ground_vehicle/apocalypse_bus/material_4_metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/apocalypse_bus/material_4_roughness.png",
+			},
+		}},
+	{"name": "Post-Apocalyptic UAZ",
+		"scene": "res://assets/ground_vehicle/post_apocalyptic_uaz/Post_Apocalyptic_UAZ.fbx",
+		"scale": 0.5, "separated_meshes": true, "wheel_surfaces": 1,
+		"materials": {
+			"_body_source": {
+				"albedo": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/body_uaz_BaseColor.png",
+				"normal": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/body_uaz_Normal.png",
+				"metallic": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/body_uaz_Metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/body_uaz_Roughness.png",
+			},
+			"_whels": {
+				"albedo": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/whels_uaz_BaseColor.png",
+				"normal": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/whels_uaz_Normal.png",
+				"metallic": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/whels_uaz_Metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/whels_uaz_Roughness.png",
+			},
+			"_rama_source": {
+				"albedo": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/rama_uaz_BaseColor.png",
+				"normal": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/rama_uaz_Normal.png",
+				"metallic": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/rama_uaz_Metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/rama_uaz_Roughness.png",
+			},
+			"_other_source": {
+				"albedo": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Base_color.png",
+				"normal": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Normal.png",
+				"metallic": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Metallic.png",
+				"roughness_texture": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Roughness.png",
+				"ao": "res://assets/ground_vehicle/post_apocalyptic_uaz/textures/other_uaz_Mixed_AO.png",
+			},
+		}},
+	{"name": "Survival Vehicle",
+		"scene": "res://assets/ground_vehicle/survival_vehicle/SurvivalVehicle.fbx",
+		"scale": 2.0, "bounded_wheels": true, "wheel_surfaces": 1,
+		"wheel_count": 6, "source_yaw": PI * 0.25,
+		"wheel_boxes": {
+			"rear_positive_x": AABB(Vector3(-0.435, 0.0, 0.065), Vector3(0.17, 0.205, 0.19)),
+			"rear_negative_x": AABB(Vector3(-0.135, 0.0, 0.255), Vector3(0.17, 0.205, 0.19)),
+			"middle_positive_x": AABB(Vector3(-0.175, 0.0, -0.315), Vector3(0.17, 0.205, 0.19)),
+			"middle_negative_x": AABB(Vector3(0.145, 0.0, -0.085), Vector3(0.17, 0.205, 0.19)),
+			"front_positive_x": AABB(Vector3(-0.055, 0.0, -0.465), Vector3(0.17, 0.205, 0.19)),
+			"front_negative_x": AABB(Vector3(0.265, 0.0, -0.235), Vector3(0.17, 0.205, 0.19)),
+		},
+		"materials": {
+			"tripo_mat_034b39bd": {
+				"albedo": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/tripo_node_b616c045-e832-4d30-89a9-c672cf0cfe5b_BaseColor.jpg",
+				"normal": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/tripo_node_b616c045-e832-4d30-89a9-c672cf0cfe5b_Normal_Bake.jpg",
+				"metallic": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/survival_vehicle_3d_model_metallic.JPEG",
+				"roughness_texture": "res://assets/ground_vehicle/survival_vehicle/tripo_convert_034b39bd-39b5-4149-bd04-f8ea84643879.fbm/survival_vehicle_3d_model_roughness.JPEG",
+			},
+		}},
+	{"name": "LP Car A03-1", "scene": LOW_POLY_CARS_SCENE, "scale": 0.30,
+		"static_subtree": "car_a03_001", "wheel_count": 0},
+	{"name": "LP Car A01-2", "scene": LOW_POLY_CARS_SCENE, "scale": 0.51,
+		"static_subtree": "car_a01_002", "wheel_count": 0},
+	{"name": "LP Car A02-2", "scene": LOW_POLY_CARS_SCENE, "scale": 0.51,
+		"static_subtree": "car_a02_002", "wheel_count": 0},
+	{"name": "LP Truck A02", "scene": LOW_POLY_CARS_SCENE, "scale": 0.23,
+		"static_subtree": "truck_a02_001", "source_yaw": -PI * 0.5, "wheel_count": 0},
+	{"name": "LP Truck A01", "scene": LOW_POLY_CARS_SCENE, "scale": 0.19,
+		"static_subtree": "truck_a01_001", "source_yaw": -PI * 0.5, "wheel_count": 0},
+	{"name": "LP Truck A03", "scene": LOW_POLY_CARS_SCENE, "scale": 0.23,
+		"static_subtree": "truck_a03_001", "wheel_count": 0},
+	{"name": "LP Truck A04", "scene": LOW_POLY_CARS_SCENE, "scale": 0.23,
+		"static_subtree": "truck_a04_001", "wheel_count": 0},
+	{"name": "LP Tractor A01", "scene": LOW_POLY_CARS_SCENE, "scale": 0.48,
+		"static_subtree": "tractor_a01_001", "wheel_count": 0},
+	{"name": "LP Tractor A02", "scene": LOW_POLY_CARS_SCENE, "scale": 0.42,
+		"static_subtree": "tractor_a02_001", "wheel_count": 0},
+	{"name": "LP Tractor A03", "scene": LOW_POLY_CARS_SCENE, "scale": 0.26,
+		"static_subtree": "tractor_a03_001", "wheel_count": 0},
+	{"name": "LP Car B01", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object545", "wheel_count": 0},
+	{"name": "LP Car B02", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object546", "wheel_count": 0},
+	{"name": "LP Car B03", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object547", "wheel_count": 0},
+	{"name": "LP Car B04", "scene": LOW_POLY_CARS_SCENE, "scale": 0.53,
+		"static_subtree": "Object548", "wheel_count": 0},
+	{"name": "LP Car B05", "scene": LOW_POLY_CARS_SCENE, "scale": 0.53,
+		"static_subtree": "Object549", "wheel_count": 0},
+	{"name": "LP Car B06", "scene": LOW_POLY_CARS_SCENE, "scale": 0.53,
+		"static_subtree": "Object550", "wheel_count": 0},
+	{"name": "LP Car B07", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object551", "wheel_count": 0},
+	{"name": "LP Car B08", "scene": LOW_POLY_CARS_SCENE, "scale": 0.52,
+		"static_subtree": "Object552", "wheel_count": 0},
+	{"name": "LP Car C01", "scene": LOW_POLY_CARS_SCENE, "scale": 0.54,
+		"static_subtree": "Object554", "wheel_count": 0},
+	{"name": "LP Car C02", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object557", "wheel_count": 0},
+	{"name": "LP Car C03", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object563", "wheel_count": 0},
+	{"name": "LP Car C04", "scene": LOW_POLY_CARS_SCENE, "scale": 0.54,
+		"static_subtree": "Object564", "wheel_count": 0},
+	{"name": "LP Car C05", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object565", "wheel_count": 0},
+	{"name": "LP Car C06", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object566", "wheel_count": 0},
+	{"name": "LP Car C07", "scene": LOW_POLY_CARS_SCENE, "scale": 0.54,
+		"static_subtree": "Object567", "wheel_count": 0},
+	{"name": "LP Car C08", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object568", "wheel_count": 0},
+	{"name": "LP Car C09", "scene": LOW_POLY_CARS_SCENE, "scale": 0.56,
+		"static_subtree": "Object569", "wheel_count": 0},
+	{"name": "LP Car C10", "scene": LOW_POLY_CARS_SCENE, "scale": 0.54,
+		"static_subtree": "Object570", "wheel_count": 0},
+	{"name": "LP Car A01-3", "scene": LOW_POLY_CARS_SCENE, "scale": 0.51,
+		"static_subtree": "car_a01_003", "wheel_count": 0},
+	{"name": "LP Car A02-3", "scene": LOW_POLY_CARS_SCENE, "scale": 0.51,
+		"static_subtree": "car_a02_003", "wheel_count": 0},
 ]
 const MAX_VISUAL_STEER := deg_to_rad(30.0)
 const STEER_RATE_REFERENCE := 1.85
@@ -54,6 +220,7 @@ var _wheel_records: Array[Dictionary] = []
 var _wheel_spin_angle := 0.0
 var _wheel_radius := WHEEL_RADIUS
 var _vehicle_scale := JEEP_SCALE
+var _model_scale_multiplier := 1.0
 var _last_signed_speed := 0.0
 var _has_speed_sample := false
 var _smoothed_longitudinal_load := 0.0
@@ -446,8 +613,35 @@ func _mesh_node(node_name: String, mesh: Mesh, position: Vector3, material: Mate
 func vehicle_name() -> String:
 	return str((VEHICLES[_vehicle_index] as Dictionary)["name"])
 
+static func vehicle_scene(vehicle: Dictionary) -> PackedScene:
+	var scene_value: Variant = vehicle.get("scene")
+	if scene_value is PackedScene:
+		return scene_value as PackedScene
+	if scene_value is String:
+		return load(str(scene_value)) as PackedScene
+	return null
+
+static func sanitized_model_scale(value: Variant) -> float:
+	if value is not float and value is not int:
+		return 1.0
+	return clampf(float(value), MODEL_SCALE_MIN, MODEL_SCALE_MAX)
+
+func model_scale_multiplier() -> float:
+	return _model_scale_multiplier
+
+func set_model_scale_multiplier(value: Variant) -> void:
+	var next_scale := sanitized_model_scale(value)
+	if is_equal_approx(next_scale, _model_scale_multiplier):
+		return
+	_model_scale_multiplier = next_scale
+	if _chassis_lean != null:
+		_rebuild_selected_vehicle()
+
 func cycle_vehicle() -> void:
 	_vehicle_index = (_vehicle_index + 1) % VEHICLES.size()
+	_rebuild_selected_vehicle()
+
+func _rebuild_selected_vehicle() -> void:
 	_clear_vehicle_visuals()
 	_build_selected_vehicle()
 	_prepare_cloak_meshes(self)
@@ -483,23 +677,40 @@ func _clear_vehicle_visuals() -> void:
 
 func _build_selected_vehicle() -> void:
 	var vehicle: Dictionary = VEHICLES[_vehicle_index]
-	_vehicle_scale = float(vehicle["scale"])
-	var source := (vehicle["scene"] as PackedScene).instantiate() as Node3D
-	var source_mesh_instance := source.find_child("*", true, false) as MeshInstance3D
-	var split: Dictionary = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
+	var scale_amount := float(vehicle["scale"]) * _model_scale_multiplier
+	_vehicle_scale = scale_amount
+	var packed_scene := vehicle_scene(vehicle)
+	var source := packed_scene.instantiate() as Node3D
+	_apply_vehicle_materials(source, vehicle.get("materials", {}) as Dictionary)
+	var split: Dictionary
+	if vehicle.has("static_subtree"):
+		split = VEHICLE_SPLITTER.split_static_subtree(source,
+			str(vehicle["static_subtree"]), float(vehicle.get("source_yaw", 0.0)))
+	elif bool(vehicle.get("separated_meshes", false)):
+		split = VEHICLE_SPLITTER.split_separated(source)
+	elif bool(vehicle.get("multi_mesh", false)):
+		split = VEHICLE_SPLITTER.split_multi_mesh(source)
+	elif bool(vehicle.get("bounded_wheels", false)):
+		split = VEHICLE_SPLITTER.split_bounded_wheels(source,
+			vehicle["wheel_boxes"] as Dictionary, float(vehicle.get("source_yaw", 0.0)),
+			vehicle.get("wheel_materials", []) as Array)
+	else:
+		var source_mesh_instance := source.find_child("*", true, false) as MeshInstance3D
+		split = VEHICLE_SPLITTER.split(source_mesh_instance.mesh, source_mesh_instance.transform)
 	source.free()
-	_wheel_radius = WHEEL_RADIUS * float(vehicle["scale"]) / JEEP_SCALE
+	_wheel_radius = float(split.get("wheel_radius", WHEEL_RADIUS / JEEP_SCALE)) \
+		* scale_amount
 
 	_chassis_lean = Node3D.new()
 	_chassis_lean.name = "ChassisLean"
 	add_child(_chassis_lean)
-	var chassis_model := _model_root("ChassisModel", _chassis_lean, float(vehicle["scale"]))
+	var chassis_model := _model_root("ChassisModel", _chassis_lean, scale_amount)
 	var chassis := MeshInstance3D.new()
 	chassis.name = "SeparatedChassis"
 	chassis.mesh = split["chassis"]
 	chassis_model.add_child(chassis)
 
-	var wheel_model := _model_root("WheelModel", self, float(vehicle["scale"]))
+	var wheel_model := _model_root("WheelModel", self, scale_amount)
 	_visual_parts = [_chassis_lean, wheel_model]
 	var wheels: Dictionary = split["wheels"]
 	for wheel_name in wheels.keys():
@@ -525,10 +736,74 @@ func _build_selected_vehicle() -> void:
 		wheel_mesh.name = "%sMesh" % str(wheel_name).to_pascal_case()
 		wheel_mesh.mesh = wheel["mesh"]
 		spin_anchor.add_child(wheel_mesh)
+	# Atlas-baked vehicles keep their wheel geometry in the intact chassis mesh,
+	# but still need four presentation-only contact anchors for skid ribbons.
+	var wheel_contacts: Dictionary = split.get("wheel_contacts", {}) as Dictionary
+	for contact_name in wheel_contacts:
+		var contact: Dictionary = wheel_contacts[contact_name]
+		var contact_anchor := Node3D.new()
+		contact_anchor.name = "%sContact" % str(contact_name).to_pascal_case()
+		contact_anchor.position = contact["center"]
+		wheel_model.add_child(contact_anchor)
+		if bool(contact["front"]):
+			_front_steer_nodes.append(contact_anchor)
+		_wheel_records.append({
+			"key": str(contact_name),
+			"node": contact_anchor,
+			"base_y": contact_anchor.position.y,
+			"front": bool(contact["front"]),
+			"side": signf(float((contact["center"] as Vector3).x)),
+		})
 
 	var dark_mat := _material(Color(0.055, 0.075, 0.095), 0.3)
 	var body_mat := _material(Color(0.18, 0.48, 0.22), 0.12)
 	_build_weapon_mounts(dark_mat, body_mat)
+
+func _apply_vehicle_materials(source: Node3D, overrides: Dictionary) -> void:
+	if overrides.is_empty():
+		return
+	for candidate in source.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := candidate as MeshInstance3D
+		var mesh_copy := mesh_instance.mesh.duplicate() as Mesh
+		for surface in range(mesh_copy.get_surface_count()):
+			var imported := mesh_copy.surface_get_material(surface)
+			var material_name := "" if imported == null else imported.resource_name
+			if not overrides.has(material_name):
+				continue
+			var config: Dictionary = overrides[material_name]
+			var material := StandardMaterial3D.new()
+			material.resource_name = material_name
+			material.albedo_texture = _configured_texture(config, "albedo")
+			material.roughness = float(config.get("roughness", 0.62))
+			var normal_texture := _configured_texture(config, "normal")
+			if normal_texture != null:
+				material.normal_enabled = true
+				material.normal_texture = normal_texture
+			var metallic_texture := _configured_texture(config, "metallic")
+			if metallic_texture != null:
+				material.metallic = 1.0
+				material.metallic_texture = metallic_texture
+				material.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+			var roughness_texture := _configured_texture(config, "roughness_texture")
+			if roughness_texture != null:
+				material.roughness = 1.0
+				material.roughness_texture = roughness_texture
+				material.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+			var ao_texture := _configured_texture(config, "ao")
+			if ao_texture != null:
+				material.ao_enabled = true
+				material.ao_texture = ao_texture
+				material.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+			mesh_copy.surface_set_material(surface, material)
+		mesh_instance.mesh = mesh_copy
+
+func _configured_texture(config: Dictionary, key: String) -> Texture2D:
+	var value: Variant = config.get(key)
+	if value is Texture2D:
+		return value as Texture2D
+	if value is String:
+		return load(str(value)) as Texture2D
+	return null
 
 func _build_weapon_mounts(dark_material: Material, body_material: Material) -> void:
 	var ring_mesh := CylinderMesh.new()
@@ -541,7 +816,7 @@ func _build_weapon_mounts(dark_material: Material, body_material: Material) -> v
 	for index in range(4):
 		var mount := Node3D.new()
 		mount.name = "%sWeaponMount" % ["Front", "Right", "Rear", "Left"][index]
-		mount.position = Vector3(0.0, 1.30, -0.04)
+		mount.position = Vector3(0.0, 1.30 * _model_scale_multiplier, -0.04)
 		mount.rotation.y = [0.0, -PI * 0.5, PI, PI * 0.5][index]
 		_chassis_lean.add_child(mount)
 		mount.add_child(_mesh_node("Mount", ring_mesh, Vector3.ZERO, dark_material))
@@ -614,7 +889,7 @@ func _cloak_material(source: Material) -> ShaderMaterial:
 		if base.albedo_texture != null:
 			material.set_shader_parameter("albedo_texture", base.albedo_texture)
 			material.set_shader_parameter("use_albedo_texture", true)
-	material.set_shader_parameter("cut_position", CLOAK_CUT_FRONT)
+	material.set_shader_parameter("cut_position", CLOAK_CUT_FRONT * _model_scale_multiplier)
 	return material
 
 func _build_cloak_dust() -> void:
@@ -646,7 +921,7 @@ func _update_cloak(delta: float, rigid: RigidBody3D) -> void:
 	var forward := -global_basis.z.normalized()
 	var right := global_basis.x.normalized()
 	var up := global_basis.y.normalized()
-	var cut := cloak_cut_position(_cloak_strength)
+	var cut := cloak_cut_position(_cloak_strength) * _model_scale_multiplier
 	_set_cloak_override_active(_cloak_strength > 0.0001)
 	# An already dissolving vehicle must not leave a full X-ray duplicate behind.
 	_set_occlusion_enabled(_cloak_strength <= 0.0001)

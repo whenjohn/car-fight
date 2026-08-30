@@ -96,7 +96,12 @@ Controls:
 - Four triangular cones are preset at the Jeep's front, right, rear, and left. Their combined area cannot exceed the four default 90° cones at range 8. Narrowing or disabling one cone frees area for longer or wider coverage elsewhere.
 - Press `F` to flip the selected cone. A vehicle-pointing cone starts precise and widens with distance; an outward-pointing cone starts wide beside the Jeep and narrows toward its far tip.
 - Move the mouse around the vehicle to steer toward it. Press `V` to cycle
-  your local presentation through the Jeep, Pickup, Sedan, Wagon, and Bus.
+  your local presentation through the Jeep, Pickup, Sedan, Wagon, Bus, Humvee M242,
+  Combat Vehicle, Apocalypse Bus, Post-Apocalyptic UAZ, Survival Vehicle, and
+  the 30 cars, trucks, and tractors from LowPoly Cars 01.
+- The native `Vehicle Model` system menu scales your selected local vehicle from
+  100% to 500% and autosaves a separate choice for every vehicle. This is a
+  presentation debug control; the authoritative gameplay collider remains unchanged.
 - Cursor distance continuously controls speed and acceleration: inside 1 world unit is stopped; at 20 units it requests 18 units/s and the strongest normal acceleration. The wider control radius and softened small-angle steering provide room for precise throttle and racing-line adjustments.
 - Braking and drifting need no extra button. At road speed, pull the cursor inward to fully lock the wheels and preserve an exaggerated forward skid; the chassis snaps into a pronounced 18-degree dive. Add a sharp direction change to rotate that same skid into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
 - Hold `Space` to burst at 28 units/s with stronger acceleration and a wider, committed turn.

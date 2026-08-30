@@ -121,7 +121,7 @@ func _init() -> void:
 		return
 	for vehicle in JEEP_PRESENTATION.VEHICLES:
 		var vehicle_config: Dictionary = vehicle
-		var vehicle_scene := vehicle_config["scene"] as PackedScene
+		var vehicle_scene := JEEP_PRESENTATION.vehicle_scene(vehicle_config)
 		var vehicle_instance := vehicle_scene.instantiate()
 		var vehicle_meshes := vehicle_instance.find_children("*", "MeshInstance3D", true, false)
 		var vehicle_mesh := vehicle_meshes[0] as MeshInstance3D if not vehicle_meshes.is_empty() else null
@@ -129,25 +129,48 @@ func _init() -> void:
 			push_error("VEHICLE_ASSET_TEST FAIL: %s has no mesh" % vehicle_config["name"])
 			quit(1)
 			return
-		var vehicle_split: Dictionary = JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
+		var separate_meshes := bool(vehicle_config.get("separated_meshes", false))
+		var multi_mesh := bool(vehicle_config.get("multi_mesh", false))
+		var bounded_wheels := bool(vehicle_config.get("bounded_wheels", false))
+		var vehicle_split: Dictionary
+		if vehicle_config.has("static_subtree"):
+			vehicle_split = JEEP_SPLITTER.split_static_subtree(vehicle_instance,
+				str(vehicle_config["static_subtree"]),
+				float(vehicle_config.get("source_yaw", 0.0)))
+		elif separate_meshes:
+			vehicle_split = JEEP_SPLITTER.split_separated(vehicle_instance)
+		elif multi_mesh:
+			vehicle_split = JEEP_SPLITTER.split_multi_mesh(vehicle_instance)
+		elif bounded_wheels:
+			vehicle_split = JEEP_SPLITTER.split_bounded_wheels(vehicle_instance,
+				vehicle_config["wheel_boxes"] as Dictionary,
+				float(vehicle_config.get("source_yaw", 0.0)),
+				vehicle_config.get("wheel_materials", []) as Array)
+		else:
+			vehicle_split = JEEP_SPLITTER.split(vehicle_mesh.mesh, vehicle_mesh.transform)
 		var vehicle_wheels: Dictionary = vehicle_split["wheels"]
-		if (vehicle_split["chassis"] as ArrayMesh).get_surface_count() < 1 or vehicle_wheels.size() != 4:
-			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs a chassis and four wheels" % vehicle_config["name"])
+		var expected_wheel_count := int(vehicle_config.get("wheel_count", 4))
+		if (vehicle_split["chassis"] as ArrayMesh).get_surface_count() < 1 \
+				or vehicle_wheels.size() != expected_wheel_count:
+			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs a chassis and %d wheels" % [
+				vehicle_config["name"], expected_wheel_count])
 			quit(1)
 			return
 		var vehicle_front_wheels := 0
+		var expected_wheel_surfaces := int(vehicle_config.get("wheel_surfaces", 2))
 		for vehicle_wheel in vehicle_wheels.values():
-			if (vehicle_wheel["mesh"] as ArrayMesh).get_surface_count() != 2:
-				push_error("VEHICLE_SPLIT_TEST FAIL: %s wheel must retain tire and hub" % vehicle_config["name"])
+			if (vehicle_wheel["mesh"] as ArrayMesh).get_surface_count() != expected_wheel_surfaces:
+				push_error("VEHICLE_SPLIT_TEST FAIL: %s wheel must retain %d surface(s)" % [
+					vehicle_config["name"], expected_wheel_surfaces])
 				quit(1)
 				return
 			if bool(vehicle_wheel["front"]):
 				vehicle_front_wheels += 1
-		if vehicle_front_wheels != 2:
+		if expected_wheel_count > 0 and vehicle_front_wheels != 2:
 			push_error("VEHICLE_SPLIT_TEST FAIL: %s needs two steerable front wheels" % vehicle_config["name"])
 			quit(1)
 			return
-		var vehicle_footprint := _visual_footprint_radius(vehicle_mesh.mesh, vehicle_mesh.transform,
+		var vehicle_footprint := _split_footprint_radius(vehicle_split,
 			float(vehicle_config["scale"]))
 		if vehicle_footprint > VEHICLE_CONFIG.COLLISION_RADIUS + 0.01:
 			push_error("VEHICLE_COLLIDER_TEST FAIL: %s footprint %.3f exceeds collider" % [
@@ -155,6 +178,162 @@ func _init() -> void:
 			quit(1)
 			return
 		vehicle_instance.free()
+	if JEEP_PRESENTATION.VEHICLES.size() != 40 \
+			or str(JEEP_PRESENTATION.VEHICLES[5]["name"]) != "Humvee M242" \
+			or str(JEEP_PRESENTATION.VEHICLES[6]["name"]) != "Combat Vehicle" \
+			or str(JEEP_PRESENTATION.VEHICLES[7]["name"]) != "Apocalypse Bus" \
+			or str(JEEP_PRESENTATION.VEHICLES[8]["name"]) != "Post-Apocalyptic UAZ" \
+			or str(JEEP_PRESENTATION.VEHICLES[9]["name"]) != "Survival Vehicle" \
+			or str(JEEP_PRESENTATION.VEHICLES[10]["name"]) != "LP Car A03-1" \
+			or str(JEEP_PRESENTATION.VEHICLES[39]["name"]) != "LP Car A02-3":
+		push_error("VEHICLE_ASSET_TEST FAIL: imported vehicles must retain cycle order")
+		quit(1)
+		return
+	var humvee_rig := JEEP_PRESENTATION.new()
+	var humvee_parent := Node3D.new()
+	humvee_parent.add_child(humvee_rig)
+	humvee_rig.set("_vehicle_index", 5)
+	humvee_rig.call("_build_selected_vehicle")
+	var humvee_chassis := humvee_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var humvee_wheels := humvee_rig.find_children("*Spin", "Node3D", true, false)
+	var humvee_material := humvee_chassis.mesh.surface_get_material(0) as StandardMaterial3D \
+		if humvee_chassis != null else null
+	if humvee_chassis == null or humvee_wheels.size() != 4 \
+			or humvee_material == null or humvee_material.albedo_texture == null \
+			or humvee_material.albedo_texture.resource_path != \
+				"res://assets/ground_vehicle/humvee_m242/texture.png":
+		humvee_parent.free()
+		push_error("HUMVEE_ASSET_TEST FAIL: rig must retain four wheels and supplied texture")
+		quit(1)
+		return
+	humvee_parent.free()
+	var combat_rig := JEEP_PRESENTATION.new()
+	var combat_parent := Node3D.new()
+	combat_parent.add_child(combat_rig)
+	combat_rig.set("_vehicle_index", 6)
+	combat_rig.call("_build_selected_vehicle")
+	var combat_chassis := combat_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var combat_wheels := combat_rig.find_children("*Spin", "Node3D", true, false)
+	var combat_body_material := combat_chassis.mesh.surface_get_material(0) \
+		as StandardMaterial3D if combat_chassis != null else null
+	var combat_wheel_mesh := combat_rig.find_child("Front*Mesh", true, false) as MeshInstance3D
+	var combat_wheel_material := combat_wheel_mesh.mesh.surface_get_material(0) \
+		as StandardMaterial3D if combat_wheel_mesh != null else null
+	if combat_chassis == null or combat_wheels.size() != 4 \
+			or combat_body_material == null or combat_body_material.albedo_texture == null \
+			or combat_body_material.albedo_texture.resource_path != \
+				"res://assets/ground_vehicle/combat_vehicle/body_albedo.png" \
+			or not combat_body_material.normal_enabled \
+			or combat_body_material.normal_texture == null \
+			or combat_body_material.metallic_texture == null \
+			or not combat_body_material.ao_enabled \
+			or combat_body_material.ao_texture == null \
+			or combat_wheel_material == null or combat_wheel_material.albedo_texture == null \
+			or combat_wheel_material.albedo_texture.resource_path != \
+				"res://assets/ground_vehicle/combat_vehicle/Materials/tire.png" \
+			or not combat_wheel_material.normal_enabled \
+			or combat_wheel_material.normal_texture == null:
+		combat_parent.free()
+		push_error("COMBAT_VEHICLE_ASSET_TEST FAIL: rig must retain four wheels and PBR textures")
+		quit(1)
+		return
+	combat_parent.free()
+	var apocalypse_rig := JEEP_PRESENTATION.new()
+	var apocalypse_parent := Node3D.new()
+	apocalypse_parent.add_child(apocalypse_rig)
+	apocalypse_rig.set("_vehicle_index", 7)
+	apocalypse_rig.call("_build_selected_vehicle")
+	var apocalypse_chassis := apocalypse_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var apocalypse_wheels := apocalypse_rig.find_children("*Spin", "Node3D", true, false)
+	var apocalypse_material := apocalypse_chassis.mesh.surface_get_material(0) \
+		as StandardMaterial3D if apocalypse_chassis != null else null
+	if apocalypse_chassis == null or apocalypse_chassis.mesh.get_surface_count() != 4 \
+			or apocalypse_wheels.size() != 4 or apocalypse_material == null \
+			or apocalypse_material.albedo_texture == null \
+			or apocalypse_material.normal_texture == null \
+			or apocalypse_material.metallic_texture == null \
+			or apocalypse_material.roughness_texture == null:
+		apocalypse_parent.free()
+		push_error("APOCALYPSE_BUS_ASSET_TEST FAIL: rig must retain four wheels and four PBR materials")
+		quit(1)
+		return
+	apocalypse_parent.free()
+	var uaz_rig := JEEP_PRESENTATION.new()
+	var uaz_parent := Node3D.new()
+	uaz_parent.add_child(uaz_rig)
+	uaz_rig.set("_vehicle_index", 8)
+	uaz_rig.call("_build_selected_vehicle")
+	var uaz_chassis := uaz_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var uaz_wheels := uaz_rig.find_children("*Spin", "Node3D", true, false)
+	var uaz_body_material: StandardMaterial3D
+	if uaz_chassis != null:
+		for surface in range(uaz_chassis.mesh.get_surface_count()):
+			var candidate_material := uaz_chassis.mesh.surface_get_material(surface) \
+				as StandardMaterial3D
+			if candidate_material != null and candidate_material.resource_name == "_body_source":
+				uaz_body_material = candidate_material
+				break
+	var uaz_wheel_mesh := uaz_rig.find_child("Front*Mesh", true, false) as MeshInstance3D
+	var uaz_wheel_material := uaz_wheel_mesh.mesh.surface_get_material(0) \
+		as StandardMaterial3D if uaz_wheel_mesh != null else null
+	if uaz_chassis == null or uaz_chassis.mesh.get_surface_count() != 4 \
+			or uaz_wheels.size() != 4 or uaz_body_material == null \
+			or uaz_body_material.albedo_texture == null \
+			or uaz_body_material.normal_texture == null \
+			or uaz_body_material.metallic_texture == null \
+			or uaz_body_material.roughness_texture == null \
+			or uaz_wheel_material == null or uaz_wheel_material.albedo_texture == null \
+			or uaz_wheel_material.normal_texture == null:
+		uaz_parent.free()
+		push_error("POST_APOCALYPTIC_UAZ_ASSET_TEST FAIL: rig must retain four wheels and PBR materials")
+		quit(1)
+		return
+	uaz_parent.free()
+	var survival_rig := JEEP_PRESENTATION.new()
+	var survival_parent := Node3D.new()
+	survival_parent.add_child(survival_rig)
+	survival_rig.set("_vehicle_index", 9)
+	survival_rig.call("_build_selected_vehicle")
+	var survival_chassis := survival_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var survival_wheels := survival_rig.find_children("*Spin", "Node3D", true, false)
+	var survival_material := survival_chassis.mesh.surface_get_material(0) \
+		as StandardMaterial3D if survival_chassis != null else null
+	if survival_chassis == null or survival_chassis.mesh.get_surface_count() != 1 \
+			or survival_wheels.size() != 6 or survival_material == null \
+			or survival_material.albedo_texture == null \
+			or survival_material.normal_texture == null \
+			or survival_material.metallic_texture == null \
+			or survival_material.roughness_texture == null:
+		survival_parent.free()
+		push_error("SURVIVAL_VEHICLE_ASSET_TEST FAIL: rig must retain six wheels and PBR material")
+		quit(1)
+		return
+	survival_parent.free()
+	var low_poly_rig := JEEP_PRESENTATION.new()
+	var low_poly_parent := Node3D.new()
+	low_poly_parent.add_child(low_poly_rig)
+	low_poly_rig.set("_vehicle_index", 20)
+	low_poly_rig.call("_build_selected_vehicle")
+	var low_poly_chassis := low_poly_rig.get_node_or_null(
+		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
+	var low_poly_wheels := low_poly_rig.find_children("*Spin", "Node3D", true, false)
+	var low_poly_contacts := low_poly_rig.find_children("*Contact", "Node3D", true, false)
+	var low_poly_material := low_poly_chassis.mesh.surface_get_material(0) \
+		as StandardMaterial3D if low_poly_chassis != null else null
+	if low_poly_chassis == null or low_poly_chassis.mesh.get_surface_count() != 1 \
+			or not low_poly_wheels.is_empty() or low_poly_contacts.size() != 4 \
+			or low_poly_material == null \
+			or low_poly_material.albedo_texture == null:
+		low_poly_parent.free()
+		push_error("LOW_POLY_PACK_TEST FAIL: selected car must retain its intact atlas mesh")
+		quit(1)
+		return
+	low_poly_parent.free()
 	var grid_shader := load("res://world/grid_ground.gdshader") as Shader
 	if grid_shader == null or grid_shader.code.is_empty():
 		push_error("GRID_SHADER_TEST FAIL: shader did not load")
@@ -371,6 +550,28 @@ func _visual_footprint_radius(mesh: Mesh, source_transform: Transform3D,
 		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 		for vertex in vertices:
 			var presented := model_basis * (source_transform * vertex) + model_offset
+			radius = maxf(radius, Vector2(presented.x, presented.z).length())
+	return radius
+
+
+func _split_footprint_radius(split: Dictionary, scale_amount: float) -> float:
+	var radius := _mesh_footprint_radius(split["chassis"] as Mesh, Vector3.ZERO, scale_amount)
+	for wheel_value in (split["wheels"] as Dictionary).values():
+		var wheel := wheel_value as Dictionary
+		radius = maxf(radius, _mesh_footprint_radius(wheel["mesh"] as Mesh,
+			wheel["center"] as Vector3, scale_amount))
+	return radius
+
+
+func _mesh_footprint_radius(mesh: Mesh, position: Vector3, scale_amount: float) -> float:
+	var radius := 0.0
+	var model_basis := Basis(Vector3.UP, PI).scaled(Vector3.ONE * scale_amount)
+	var model_offset := Vector3(0.0, 0.065, -0.05)
+	for surface in range(mesh.get_surface_count()):
+		var arrays := mesh.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for vertex in vertices:
+			var presented := model_basis * (vertex + position) + model_offset
 			radius = maxf(radius, Vector2(presented.x, presented.z).length())
 	return radius
 

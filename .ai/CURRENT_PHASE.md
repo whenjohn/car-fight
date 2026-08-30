@@ -2,6 +2,149 @@
 
 ## Current decision
 
+- LowPoly Cars 01 is imported as 30 additional local presentation choices,
+  bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
+  four trucks, three tractors/construction vehicles, 11 loose wheel samples,
+  and two empty helpers; only the 30 intact vehicles are exposed. They share
+  the supplied 1024px color atlas, while redundant 128/256/512/2048 copies are
+  omitted. The source includes no author, URL, readme, or license metadata, so
+  the asset note records that absence without making a license claim. A static
+  subtree extractor recenters each selected display model and preserves its
+  complete atlas mesh; most models bake wheels into that mesh, so those wheels
+  remain visually intact rather than risking body damage from guessed cuts.
+  The two sideways semis are normalized separately. A 30-model overview plus
+  representative car/truck lab renders confirmed texture mapping, complete
+  geometry, scale, and forward axes against the player-corrected Survival
+  Vehicle reference. Every model has a collider-safe default scale and retains
+  its own 100–500% debug scale setting. Clean import, 40-vehicle asset coverage,
+  live atlas-model construction, animation/scale coverage, offline, 0.300-unit
+  network, join, reconnect, ball, tractor, reverse, jump-gate, combat, shield,
+  and detonation gates pass. Mixed transport, course rebound, and RC-orb each
+  missed one timing sample, then passed immediately in isolation (mixed also at
+  0.300 units). Gameplay collision, physics, rollback, and network state remain
+  unchanged.
+- LowPoly Cars 01 follow-up fixes the pack's mixed mirrored transforms. Every
+  static subtree now flips triangle winding when its accumulated FBX transform
+  has a negative determinant, then regenerates low-poly normals from the
+  corrected triangles. This fixes partially inverted grouped vehicles and the
+  fully mirrored C02, C05, and C08 cars while preserving atlas UVs/materials.
+  Because their wheels are baked into intact meshes, each pack model now also
+  receives four invisible presentation-only wheel-contact anchors; the rear
+  pair feeds the existing braking, drift, boost, and oil skid ribbons without
+  cutting or duplicating visible wheels. A fresh 30-model render confirms
+  consistent exterior lighting and complete geometry. Focused 40-vehicle asset,
+  live contact-anchor, animation/scale, and skid-trail coverage pass, followed
+  by a clean full `./scripts/test.sh` run (`ALL_TESTS PASS`, including 0.300-unit
+  network and mixed-transport corrections). Gameplay collision, physics,
+  rollback, and network state remain unchanged.
+- Survival Vehicle is imported as the tenth local presentation model on
+  `codex/more-vehicles`. The owner-supplied zip contains one FBX and albedo,
+  normal, metallic, and roughness maps, but no author, source URL, readme, or
+  license; the asset note records that absence without making a license claim.
+  Runtime maps were reduced to 1024px. The source combines its body and wheels
+  in one mesh, so six tight bounds extract all three axles into independent
+  animation pivots, with the front pair steering and all six wheels spinning
+  and feeding skid presentation. A rendered vehicle-lab capture confirmed the
+  armored body, cargo, full PBR texture assignment, scale, and intact six-wheel
+  layout. Player verification caught the FBX facing backward; its presentation
+  yaw is corrected by 180 degrees and focused asset/animation checks pass.
+  Gameplay collision, physics, rollback, and network
+  state remain unchanged. Clean import, ten-vehicle asset coverage, animation
+  coverage, and the complete offline suite pass. The subsequent timing-sensitive
+  network gate produced inconsistent pre-existing authority/escape-assist
+  samples across retries; no presentation asset is loaded on its headless path.
+- Post-Apocalyptic UAZ is imported as the ninth local presentation model on
+  `codex/more-vehicles`. The owner-supplied FBX and texture 7z contain no author,
+  source URL, readme, or license, so the asset note records that absence without
+  making a license claim. Four PBR sets cover the yellow/rusted body, wheels,
+  frame, and roof/accessory equipment; their 2048–4096px albedo, normal,
+  metallic, roughness, and available AO maps are reduced to 1024px, while
+  unused height maps are omitted. The FBX's four named wheel nodes feed the
+  existing separated-wheel presentation path. A rendered vehicle-lab capture
+  confirmed orientation, scale, emergency-service body, roof tanks/racks,
+  texture assignment, and intact wheel pivots. All vehicle scenes and imported
+  PBR maps now resolve lazily only when selected, keeping the growing visual
+  library out of dedicated/headless startup. Gameplay collision, physics,
+  rollback, and network state remain unchanged. Clean import, nine-vehicle
+  asset coverage, animation coverage, offline, 0.300-correction network, mixed
+  transport, join, reconnect, ball, tractor, course, reverse, jump-gate,
+  combat, RC-orb, shield, and detonation gates pass. Reconnect and shield test
+  windows were extended to retain their strict assertions after larger project
+  resource scans; a stale RPC-cache reconnect sample failed once, then its
+  immediate repeat passed.
+- The native `Vehicle Model` menu now stores an independent presentation scale
+  for each of the eight vehicle names instead of one shared multiplier. Its
+  disabled status row identifies the currently selected vehicle, `V` restores
+  that next vehicle's own saved value, reset affects only the current vehicle,
+  and the available presets now extend from 100% through 500% with finer steps
+  above the old 200% ceiling. Existing single-value config files migrate that
+  value to all vehicles on first load; subsequent saves use the per-vehicle
+  dictionary. Chassis, wheels, weapon mounts, cloak, boost echoes, and skid
+  contacts still rebuild together while collision, physics, rollback, and wire
+  state remain unchanged. Clean parse and focused scale/animation coverage pass.
+  The permission-correct full suite passed all focused/offline checks, then its
+  timing-sensitive 120 ms network gate missed one same-tick probe sample. The
+  immediate isolated retry passed at 0.662-unit worst correction; mixed
+  transport, join recovery, reconnect, ball, tractor, course, reverse, jump
+  gate, combat, RC-orb, shield, and detonation gates all pass afterward.
+- Apocalypse Bus is imported as the eighth local presentation model on
+  `codex/more-vehicles`. The owner-supplied RAR contained one FBX and four
+  numbered PBR texture sets but no author, source URL, readme, or license, so
+  the asset note records that absence without making a license claim. The FBX
+  was converted to GLB with repaired local texture references; albedo, normal,
+  metallic, and roughness maps were reduced from 2048px to 1024px, while unused
+  height maps were omitted. A bounded material-aware splitter extracts the four
+  wheel assemblies from material 3 without pulling nearby armor into the wheel
+  rig, normalizes the FBX's sideways source axis, and retains all four PBR body
+  materials. A rendered vehicle-lab capture confirmed the rusted yellow bus,
+  armor/cargo details, orientation, scale, and intact wheels. Gameplay collision,
+  physics, rollback, and network state remain unchanged. Clean import, focused
+  asset/animation checks, and the full permission-correct `./scripts/test.sh`
+  suite pass (`ALL_TESTS PASS`), including 0.300-unit worst correction in the
+  120 ms network gate.
+- Combat Vehicle Ver 1.02 is imported as the seventh local presentation model
+  on `codex/more-vehicles`. The free-use Yoon's GameART source license is
+  preserved beside the assets. The supplied FBX was converted to a clean GLB;
+  its dark X-cam body albedo, normal, metallic, and occlusion maps and tire
+  albedo/normal maps are applied explicitly. The presentation splitter now also
+  handles a separate chassis plus one combined four-wheel mesh, clustering that
+  mesh into four independently animated wheels. Scale, placement, texture, and
+  wheel separation were confirmed in a rendered vehicle-lab capture. Gameplay
+  collision, physics, rollback, and network state remain unchanged. Clean
+  import, focused asset/animation checks, and all full-suite gates pass. The
+  complete run reached the RC-orb gate after a 0.300-unit worst correction in
+  the 120 ms network test; that timing-sensitive gate missed once, then passed
+  immediately in isolation along with the remaining shield and detonation
+  gates.
+- The Humvee worktree now has a native `Vehicle Model` system menu beside
+  `Oil Slick`. It applies a client-local, presentation-only 100%, 110%, 125%,
+  150%, 175%, or 200% multiplier to the currently selected vehicle and keeps
+  that multiplier while cycling with `V`. Chassis, separated animated wheels,
+  wheel-roll radius, weapon-mount height, boost echoes, cloak wipe, X-ray, and
+  skid contact presentation rebuild together; gameplay collision, shield size,
+  physics, rollback, and network state do not change. Reset returns to 100%,
+  and native client/offline changes autosave to the project-scoped
+  `user://vehicle_model_debug.cfg`. Clean import, focused vehicle-animation and
+  asset tests pass. The permission-correct full suite passed through tractor,
+  including 0.300-unit worst correction in the 120 ms network gate, then hit
+  the documented timing-sensitive course sample with zero rebound. Its
+  immediate isolated retry passed at 1.570 rebound/1.042 degrees, followed by
+  passing reverse, jump-gate, combat, RC-orb, shield, and detonation gates.
+- Humvee M242 vehicle import is complete on `codex/more-vehicles` in
+  `/Users/johnnguyen/Projects/car-fight-more-vehicles`. The matching FBX and
+  1024x1024 texture from the two owner-supplied RAR archives are stored together
+  under `assets/ground_vehicle/humvee_m242/`. The presentation importer now
+  supports models with four already-separated wheel meshes in addition to the
+  existing combined-mesh vehicle pack: it recenters the axle footprint, places
+  the tire bottoms on the ground, preserves the textured chassis material, and
+  feeds the wheels into the existing steering, suspension, spin, skid, cloak,
+  boost-echo, and X-ray presentation paths. `V` cycles to Humvee M242 as the
+  sixth presentation model; gameplay collision, physics, rollback, and network
+  state remain unchanged. A rendered vehicle-lab capture confirmed the body,
+  M242 turret, four wheels, texture, scale, and orientation. Focused import and
+  animation tests pass, and the permission-correct full `./scripts/test.sh`
+  suite passes (`ALL_TESTS PASS`), including 0.300-unit worst correction in the
+  120 ms network gate.
 - Dynamic tire skid marks are implemented on `codex/skid-marks` in
   `/Users/johnnguyen/Projects/car-fight-skid-marks`. They are client-local,
   presentation-only world-space ribbons sampled from all four animated tire
