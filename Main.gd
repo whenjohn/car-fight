@@ -48,6 +48,7 @@ const AREA_STRIKE_VISUAL_SCRIPT := preload("res://fx/area_strike_visual.gd")
 const AREA_BURN_VISUAL_SCRIPT := preload("res://fx/area_burn_visual.gd")
 const AREA_TARGET_PREVIEW_SCRIPT := preload("res://fx/area_target_preview.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
+const TREE_VISUAL_LIBRARY := preload("res://world/tree_visual_library.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
@@ -236,6 +237,9 @@ var _impact_fx: Node3D
 var _camera: Camera3D
 var _speed_camera
 var _shadow_light: SpotLight3D
+var _sun_light: DirectionalLight3D
+var _rim_light: DirectionalLight3D
+var _world_environment: Environment
 var _status_label: Label
 var _editor_label: Label
 var _fps_label: Label
@@ -252,7 +256,12 @@ var _debug_popup: PopupMenu
 var _oil_popup: PopupMenu
 var _oil_submenus := {}
 var _vehicle_model_popup: PopupMenu
+var _scenery_popup: PopupMenu
 var _vehicle_model_scales := {}
+var _tree_visual_library
+var _tree_landmarks: Array[StaticBody3D] = []
+var _tree_style_index := 0
+var _lighting_style_index := 0
 var _gameplay_collision_debug_enabled := false
 var _gameplay_text_visible := true
 const DEBUG_COLLISION_MENU_ID := 1
@@ -267,6 +276,15 @@ const VEHICLE_MODEL_RESET_MENU_ID := 2100
 const VEHICLE_MODEL_AUTOSAVE_INFO_MENU_ID := 2101
 const VEHICLE_MODEL_COLLIDER_INFO_MENU_ID := 2102
 const VEHICLE_MODEL_CURRENT_INFO_MENU_ID := 2103
+const TREE_STYLE_MENU_ID_BASE := 3000
+const LIGHTING_STYLE_MENU_ID_BASE := 3100
+const SCENERY_INFO_MENU_ID := 3200
+const LIGHTING_STYLE_NAMES := [
+	"Current warm shadow",
+	"G2 warm key + cool fill",
+	"G2 key + fill + rim",
+	"Soft overcast (shadowless)",
+]
 const VEHICLE_MODEL_SCALE_OPTIONS := [
 	1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0,
 	3.5, 4.0, 4.5, 5.0,
@@ -309,6 +327,22 @@ var _persisted_oil_tuning_pending := false
 
 func _ready() -> void:
 	_parse_args()
+	# Licensed audition art is optional and local-only. A clean checkout keeps
+	# the exact procedural baseline without warnings or missing dependencies.
+	# Normal headless servers/gates do not even probe the optional FBX path.
+	if not _is_headless():
+		_tree_visual_library = TREE_VISUAL_LIBRARY.new()
+		_tree_style_index = 1 if TREE_VISUAL_LIBRARY.source_available() else 0
+		var requested_tree_style := OS.get_environment("CAR_FIGHT_TREE_STYLE")
+		if requested_tree_style.is_valid_int():
+			_tree_style_index = clampi(int(requested_tree_style), 0,
+				TREE_VISUAL_LIBRARY.STYLE_NAMES.size() - 1)
+			if _tree_style_index > 0 and not TREE_VISUAL_LIBRARY.source_available():
+				_tree_style_index = 0
+		var requested_lighting_style := OS.get_environment("CAR_FIGHT_LIGHTING_STYLE")
+		if requested_lighting_style.is_valid_int():
+			_lighting_style_index = clampi(int(requested_lighting_style), 0,
+				LIGHTING_STYLE_NAMES.size() - 1)
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	_load_persisted_oil_tuning()
 	_load_persisted_vehicle_model_scale()
@@ -1652,35 +1686,28 @@ func _add_proximity_landmark(info: Dictionary) -> void:
 	collision.position.y = height * 0.5
 	body.add_child(collision)
 	if not _is_headless():
-		var pole := MeshInstance3D.new()
-		pole.name = "Trunk" if tree_landmark else "Pole"
-		var pole_mesh := CylinderMesh.new()
-		pole_mesh.top_radius = radius * (0.72 if tree_landmark else 0.8)
-		pole_mesh.bottom_radius = radius
-		pole_mesh.height = height
-		pole_mesh.radial_segments = 7 if tree_landmark else 8
-		pole.mesh = pole_mesh
-		pole.position.y = height * 0.5
-		pole.material_override = _material(Color("594638") if tree_landmark else Color("313c42"))
-		pole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		pole.set_meta("arena_presentation", true)
-		body.add_child(pole)
 		if tree_landmark:
-			var crown := MeshInstance3D.new()
-			crown.name = "Crown"
-			var crown_mesh := SphereMesh.new()
-			crown_mesh.radius = 2.15
-			crown_mesh.height = 4.1
-			crown_mesh.radial_segments = 8
-			crown_mesh.rings = 5
-			crown.mesh = crown_mesh
-			crown.position.y = height + 1.1 * crown_scale
-			crown.scale = Vector3(crown_scale, crown_scale * 1.18, crown_scale)
-			crown.material_override = _material(Color("345a3e"))
-			crown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			crown.set_meta("arena_presentation", true)
-			body.add_child(crown)
+			body.set_meta("tree_height_scale", height_scale)
+			body.set_meta("tree_crown_scale", crown_scale)
+			body.set_meta("tree_collision_height", height)
+			body.set_meta("tree_collision_radius", radius)
+			var tree_index := _tree_landmarks.size()
+			_tree_landmarks.append(body)
+			_build_tree_visual(body, tree_index)
 		else:
+			var pole := MeshInstance3D.new()
+			pole.name = "Pole"
+			var pole_mesh := CylinderMesh.new()
+			pole_mesh.top_radius = radius * 0.8
+			pole_mesh.bottom_radius = radius
+			pole_mesh.height = height
+			pole_mesh.radial_segments = 8
+			pole.mesh = pole_mesh
+			pole.position.y = height * 0.5
+			pole.material_override = _material(Color("313c42"))
+			pole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			pole.set_meta("arena_presentation", true)
+			body.add_child(pole)
 			var lamp := MeshInstance3D.new()
 			lamp.name = "Lamp"
 			var lamp_mesh := SphereMesh.new()
@@ -1700,26 +1727,86 @@ func _add_proximity_landmark(info: Dictionary) -> void:
 			body.add_child(lamp)
 	add_child(body)
 
+
+func _build_tree_visual(body: StaticBody3D, tree_index: int) -> void:
+	var crown_scale := float(body.get_meta("tree_crown_scale", 1.0))
+	var trunk_height := float(body.get_meta("tree_collision_height", 5.2))
+	var radius := float(body.get_meta("tree_collision_radius", 0.58))
+	var target_height := trunk_height + 3.519 * crown_scale
+	var imported := _tree_visual_library.build_visual(
+		_tree_style_index, tree_index, target_height) as Node3D
+	if imported != null:
+		body.add_child(imported)
+		return
+	var pole := MeshInstance3D.new()
+	pole.name = "Trunk"
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = radius * 0.72
+	pole_mesh.bottom_radius = radius
+	pole_mesh.height = trunk_height
+	pole_mesh.radial_segments = 7
+	pole.mesh = pole_mesh
+	pole.position.y = trunk_height * 0.5
+	pole.material_override = _material(Color("594638"))
+	pole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pole.set_meta("arena_presentation", true)
+	pole.set_meta("tree_visual", true)
+	body.add_child(pole)
+	var crown := MeshInstance3D.new()
+	crown.name = "Crown"
+	var crown_mesh := SphereMesh.new()
+	crown_mesh.radius = 2.15
+	crown_mesh.height = 4.1
+	crown_mesh.radial_segments = 8
+	crown_mesh.rings = 5
+	crown.mesh = crown_mesh
+	crown.position.y = trunk_height + 1.1 * crown_scale
+	crown.scale = Vector3(crown_scale, crown_scale * 1.18, crown_scale)
+	crown.material_override = _material(Color("345a3e"))
+	crown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	crown.set_meta("arena_presentation", true)
+	crown.set_meta("tree_visual", true)
+	body.add_child(crown)
+
+
+func _rebuild_tree_visuals() -> void:
+	for tree_index in range(_tree_landmarks.size()):
+		var body := _tree_landmarks[tree_index]
+		for child in body.get_children():
+			if bool(child.get_meta("tree_visual", false)):
+				body.remove_child(child)
+				child.queue_free()
+		_build_tree_visual(body, tree_index)
+
 func _build_presentation() -> void:
 	var environment := WorldEnvironment.new()
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("10171d")
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("b6cad3")
-	env.ambient_light_energy = 0.08
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.82
-	environment.environment = env
+	_world_environment = Environment.new()
+	_world_environment.background_mode = Environment.BG_COLOR
+	_world_environment.background_color = Color("10171d")
+	_world_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_world_environment.ambient_light_color = Color("b6cad3")
+	_world_environment.ambient_light_energy = 0.08
+	_world_environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	_world_environment.tonemap_exposure = 0.82
+	_world_environment.ssao_enabled = false
+	environment.environment = _world_environment
 	add_child(environment)
-	var light := DirectionalLight3D.new()
-	light.name = "ShadowSun"
-	light.rotation_degrees = Vector3(-42.0, -32.0, 0.0)
-	light.light_color = Color("fff1d4")
-	light.light_energy = 0.28
+	_sun_light = DirectionalLight3D.new()
+	_sun_light.name = "ShadowSun"
+	_sun_light.rotation_degrees = Vector3(-42.0, -32.0, 0.0)
+	_sun_light.light_color = Color("fff1d4")
+	_sun_light.light_energy = 0.28
 	# A second shadow map produces striped self-shadowing on ANGLE.
-	light.shadow_enabled = false
-	add_child(light)
+	_sun_light.shadow_enabled = false
+	add_child(_sun_light)
+	_rim_light = DirectionalLight3D.new()
+	_rim_light.name = "SceneryRimLight"
+	_rim_light.rotation_degrees = Vector3(-34.0, 142.0, 0.0)
+	_rim_light.light_color = Color(0.48, 0.72, 1.0)
+	_rim_light.light_energy = 0.32
+	_rim_light.shadow_enabled = false
+	_rim_light.visible = false
+	add_child(_rim_light)
 	# ANGLE's compatibility path does not consistently expose directional
 	# shadows on this Intel Mac. A broad real-time spotlight supplies a shadow
 	# map that the ground grid, roads, supports, cars, and ball all receive.
@@ -1743,6 +1830,7 @@ func _build_presentation() -> void:
 	_shadow_light.shadow_reverse_cull_face = true
 	add_child(_shadow_light)
 	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
+	_apply_lighting_style()
 	_camera = Camera3D.new()
 	_camera.name = "IsometricCamera"
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -1798,6 +1886,7 @@ func _build_presentation() -> void:
 	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
 	_build_vehicle_model_menu()
 	_build_oil_tuning_menu()
+	_build_scenery_menu()
 	_status_label = Label.new()
 	_status_label.position = Vector2(18.0, 16.0)
 	_status_label.add_theme_font_size_override("font_size", 18)
@@ -1865,6 +1954,100 @@ func _on_debug_menu_item_pressed(id: int) -> void:
 		if _status_label != null:
 			_status_label.visible = _gameplay_text_visible or local_player() == null
 		_update_editor_label()
+
+
+func _build_scenery_menu() -> void:
+	_scenery_popup = PopupMenu.new()
+	_scenery_popup.name = "Scenery"
+	_scenery_popup.title = "Scenery"
+	_system_menu_bar.add_child(_scenery_popup)
+	_scenery_popup.add_item("Tree model", SCENERY_INFO_MENU_ID)
+	_scenery_popup.set_item_disabled(
+		_scenery_popup.get_item_index(SCENERY_INFO_MENU_ID), true)
+	var asset_available := TREE_VISUAL_LIBRARY.source_available()
+	for index in range(TREE_VISUAL_LIBRARY.STYLE_NAMES.size()):
+		_scenery_popup.add_radio_check_item(TREE_VISUAL_LIBRARY.STYLE_NAMES[index],
+			TREE_STYLE_MENU_ID_BASE + index)
+		if index > 0 and not asset_available:
+			_scenery_popup.set_item_disabled(_scenery_popup.get_item_index(
+				TREE_STYLE_MENU_ID_BASE + index), true)
+	_scenery_popup.add_separator()
+	_scenery_popup.add_item("Lighting (SSAO always off)", SCENERY_INFO_MENU_ID + 1)
+	_scenery_popup.set_item_disabled(
+		_scenery_popup.get_item_index(SCENERY_INFO_MENU_ID + 1), true)
+	for index in range(LIGHTING_STYLE_NAMES.size()):
+		_scenery_popup.add_radio_check_item(LIGHTING_STYLE_NAMES[index],
+			LIGHTING_STYLE_MENU_ID_BASE + index)
+	_scenery_popup.id_pressed.connect(_on_scenery_menu_pressed)
+	_refresh_scenery_menu()
+
+
+func _refresh_scenery_menu() -> void:
+	if _scenery_popup == null:
+		return
+	for index in range(TREE_VISUAL_LIBRARY.STYLE_NAMES.size()):
+		_scenery_popup.set_item_checked(_scenery_popup.get_item_index(
+			TREE_STYLE_MENU_ID_BASE + index), index == _tree_style_index)
+	for index in range(LIGHTING_STYLE_NAMES.size()):
+		_scenery_popup.set_item_checked(_scenery_popup.get_item_index(
+			LIGHTING_STYLE_MENU_ID_BASE + index), index == _lighting_style_index)
+
+
+func _on_scenery_menu_pressed(id: int) -> void:
+	var tree_index := id - TREE_STYLE_MENU_ID_BASE
+	if tree_index >= 0 and tree_index < TREE_VISUAL_LIBRARY.STYLE_NAMES.size():
+		if tree_index == 0 or TREE_VISUAL_LIBRARY.source_available():
+			_tree_style_index = tree_index
+			_rebuild_tree_visuals()
+			_refresh_scenery_menu()
+		return
+	var lighting_index := id - LIGHTING_STYLE_MENU_ID_BASE
+	if lighting_index >= 0 and lighting_index < LIGHTING_STYLE_NAMES.size():
+		_lighting_style_index = lighting_index
+		_apply_lighting_style()
+		_refresh_scenery_menu()
+
+
+func _apply_lighting_style() -> void:
+	if _world_environment == null or _sun_light == null \
+			or _rim_light == null or _shadow_light == null:
+		return
+	# G2's Compatibility SSAO modes dropped this Intel laptop to 10-13 FPS.
+	# Keep every live audition on the proven no-SSAO path.
+	_world_environment.ssao_enabled = false
+	_rim_light.visible = false
+	match _lighting_style_index:
+		1, 2:
+			_world_environment.background_color = Color(0.085, 0.105, 0.15)
+			_world_environment.ambient_light_color = Color(0.48, 0.60, 0.82)
+			_world_environment.ambient_light_energy = 0.62
+			_world_environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+			_world_environment.tonemap_exposure = 1.08
+			_sun_light.rotation_degrees = Vector3(-56.0, -38.0, 0.0)
+			_sun_light.light_color = Color(1.0, 0.86, 0.72)
+			_sun_light.light_energy = 1.18
+			_shadow_light.visible = false
+			_rim_light.visible = _lighting_style_index == 2
+		3:
+			_world_environment.background_color = Color("29343a")
+			_world_environment.ambient_light_color = Color("d7e1e6")
+			_world_environment.ambient_light_energy = 0.42
+			_world_environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+			_world_environment.tonemap_exposure = 0.95
+			_sun_light.rotation_degrees = Vector3(-58.0, -25.0, 0.0)
+			_sun_light.light_color = Color("eef5f7")
+			_sun_light.light_energy = 0.65
+			_shadow_light.visible = false
+		_:
+			_world_environment.background_color = Color("10171d")
+			_world_environment.ambient_light_color = Color("b6cad3")
+			_world_environment.ambient_light_energy = 0.08
+			_world_environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+			_world_environment.tonemap_exposure = 0.82
+			_sun_light.rotation_degrees = Vector3(-42.0, -32.0, 0.0)
+			_sun_light.light_color = Color("fff1d4")
+			_sun_light.light_energy = 0.28
+			_shadow_light.visible = true
 
 
 func _build_vehicle_model_menu() -> void:

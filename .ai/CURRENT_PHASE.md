@@ -1,20 +1,38 @@
 # Current phase
 
-## Trees, foliage, and lighting audition ready
+## Trees, foliage, and lighting audition ready for human review
 
 - Work is isolated on `codex/trees-foliage-lighting` in
-  `/Users/johnnguyen/Projects/car-fight-trees-foliage-lighting`. No gameplay,
-  scene, or presentation code has changed yet; the next input is the
-  owner-downloaded tree asset candidates.
-- The existing 142 deterministic static/seeded landmarks, including the
-  bounded 76-tree east corridor, remain the trial layout. Imported tree art
-  should replace only presentation while preserving the current simple trunk
-  collider and network-free object classification.
-- The first lighting comparisons will keep Compatibility SSAO disabled and
-  preserve the current single moving 2048 shadow atlas. G2's Intel Iris tests
-  found key/fill/rim and low-radiance HDRI modes safe, while either SSAO mode
-  collapsed roughly 55 FPS to 10-13 FPS. Tree shadows start disabled and are
-  considered only as a separate measured variant.
+  `/Users/johnnguyen/Projects/car-fight-trees-foliage-lighting`. The locally
+  installed ilkhom23 CGTrader pack supplies 200 one-material trees. Its Royalty
+  Free License (no AI) permits incorporated game use but not source-file
+  redistribution, so the FBX and 1024px atlas remain under ignored
+  `assets/local/`; a clean checkout falls back to procedural trees.
+- The native `Scenery` menu live-switches the procedural baseline and six
+  deterministic ten-tree ranges. Collection 21-30 is the local default because
+  it is the lightest useful group; the more detailed ranges remain explicit
+  auditions. Every imported mesh is normalized to the existing landmark
+  height, grounded, and shadow-disabled. The existing 142 static/seeded
+  objects, 76-tree corridor, simple trunk colliders, gameplay, and network
+  state are unchanged. Normal headless servers do not instantiate the library
+  or probe the optional asset path.
+- The same menu live-switches current warm shadow, G2 warm-key/cool-fill,
+  G2 key/fill/rim, and soft shadowless overcast lighting. SSAO is forcibly off
+  in every mode because G2 measured a roughly 55-to-10/13 FPS collapse on this
+  Intel Compatibility laptop.
+- Matching monitored local runs found the procedural baseline at 54.7 FPS
+  average / 54 median and light collection 21-30 at 53.0 average / 54 median.
+  The imported row added about 16% visible primitives and 15 MB video memory;
+  its short sample minimum was 45 FPS. No GPU reset, WindowServer fault, or
+  script error occurred. Detailed rows still need human visual/performance
+  review before any selection is promoted.
+- Project parse, focused foliage/presentation/layout checks, WebRTC lifecycle,
+  offline, mixed transport, join recovery, reconnect, ball, tractor, reverse,
+  gate, combat, RC-orb, shield, and det gates pass. The monolithic suite hit
+  the documented timing-sensitive network/escape and course samples; isolated
+  retries pass at 0.919-unit worst network correction and 1.651 rebound. An
+  unchanged-master network control also passed at 0.566. The final focused
+  foliage test and five-tick presentation boot both pass with the local pack.
 
 ## Current decision
 

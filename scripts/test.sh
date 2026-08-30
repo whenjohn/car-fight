@@ -24,6 +24,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/homing_missile_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/arena_layout_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/sense_of_speed_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/tree_visual_library_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/driving_course_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/crash_telemetry_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/input_codec_test.gd

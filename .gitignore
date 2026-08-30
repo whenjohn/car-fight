@@ -4,3 +4,6 @@
 build/
 .crash-runs/
 .network-runs/
+# Licensed marketplace source assets used for local visual auditions only.
+# Keep these out of the public repository; committed code must fall back cleanly.
+assets/local/
