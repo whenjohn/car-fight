@@ -736,6 +736,24 @@ func _build_selected_vehicle() -> void:
 		wheel_mesh.name = "%sMesh" % str(wheel_name).to_pascal_case()
 		wheel_mesh.mesh = wheel["mesh"]
 		spin_anchor.add_child(wheel_mesh)
+	# Atlas-baked vehicles keep their wheel geometry in the intact chassis mesh,
+	# but still need four presentation-only contact anchors for skid ribbons.
+	var wheel_contacts: Dictionary = split.get("wheel_contacts", {}) as Dictionary
+	for contact_name in wheel_contacts:
+		var contact: Dictionary = wheel_contacts[contact_name]
+		var contact_anchor := Node3D.new()
+		contact_anchor.name = "%sContact" % str(contact_name).to_pascal_case()
+		contact_anchor.position = contact["center"]
+		wheel_model.add_child(contact_anchor)
+		if bool(contact["front"]):
+			_front_steer_nodes.append(contact_anchor)
+		_wheel_records.append({
+			"key": str(contact_name),
+			"node": contact_anchor,
+			"base_y": contact_anchor.position.y,
+			"front": bool(contact["front"]),
+			"side": signf(float((contact["center"] as Vector3).x)),
+		})
 
 	var dark_mat := _material(Color(0.055, 0.075, 0.095), 0.3)
 	var body_mat := _material(Color(0.18, 0.48, 0.22), 0.12)

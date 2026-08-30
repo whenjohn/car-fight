@@ -39,8 +39,24 @@ static func split_static_subtree(source: Node3D, subtree_name: String,
 			continue
 		var combined := orientation * _transform_relative_to(mesh_source, source)
 		for surface in range(mesh_source.mesh.get_surface_count()):
-			_append_surface(mesh_source.mesh, surface, combined, origin, "", chassis)
-	return {"chassis": chassis, "wheels": {}}
+			_append_surface(mesh_source.mesh, surface, combined, origin, "", chassis, true)
+	var contacts := {}
+	var wheel_height := 0.0
+	if has_bounds:
+		var half_width := bounds.size.x * 0.5
+		var half_length := bounds.size.z * 0.5
+		wheel_height = minf(bounds.size.x * 0.18, bounds.size.y * 0.28)
+		for front in [false, true]:
+			for positive_x in [false, true]:
+				var key := "%s_%s" % ["front" if front else "rear",
+					"positive_x" if positive_x else "negative_x"]
+				contacts[key] = {
+					"center": Vector3(half_width * (0.78 if positive_x else -0.78),
+						wheel_height, half_length * (0.62 if front else -0.62)),
+					"front": front,
+				}
+	return {"chassis": chassis, "wheels": {}, "wheel_contacts": contacts,
+		"wheel_radius": wheel_height}
 
 static func split(source_mesh: Mesh, source_transform: Transform3D) -> Dictionary:
 	var chassis := ArrayMesh.new()
@@ -384,12 +400,14 @@ static func _append_model_wheel_surface(source_mesh: Mesh, surface: int,
 	builder.begin(Mesh.PRIMITIVE_TRIANGLES)
 	builder.set_material(source_mesh.surface_get_material(surface))
 	var added := 0
+	var mirrored := source_transform.basis.determinant() < 0.0
 	for triangle in range(_triangle_count(vertices, indices)):
 		var centroid := source_transform * _triangle_centroid(vertices, indices, triangle)
 		if _model_wheel_key(centroid, wheel_center) != wheel_filter:
 			continue
 		for corner in range(3):
-			var source_index := _vertex_index(indices, triangle, corner)
+			var winding_corner := 2 - corner if mirrored else corner
+			var source_index := _vertex_index(indices, triangle, winding_corner)
 			if normals.size() > source_index:
 				builder.set_normal((normal_transform * normals[source_index]).normalized())
 			if colors.size() > source_index:
@@ -418,7 +436,8 @@ static func _transform_relative_to(node: Node3D, root: Node3D) -> Transform3D:
 	return result
 
 static func _append_surface(source_mesh: Mesh, surface: int, source_transform: Transform3D,
-		center: Vector3, wheel_filter: String, target: ArrayMesh) -> void:
+		center: Vector3, wheel_filter: String, target: ArrayMesh,
+		regenerate_normals: bool = false) -> void:
 	var arrays := source_mesh.surface_get_arrays(surface)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
@@ -430,12 +449,14 @@ static func _append_surface(source_mesh: Mesh, surface: int, source_transform: T
 	builder.begin(Mesh.PRIMITIVE_TRIANGLES)
 	builder.set_material(source_mesh.surface_get_material(surface))
 	var added := 0
+	var mirrored := source_transform.basis.determinant() < 0.0
 	for triangle in range(_triangle_count(vertices, indices)):
 		if not wheel_filter.is_empty() and _wheel_key(_triangle_centroid(vertices, indices, triangle)) != wheel_filter:
 			continue
 		for corner in range(3):
-			var source_index := _vertex_index(indices, triangle, corner)
-			if normals.size() > source_index:
+			var winding_corner := 2 - corner if mirrored else corner
+			var source_index := _vertex_index(indices, triangle, winding_corner)
+			if not regenerate_normals and normals.size() > source_index:
 				builder.set_normal((normal_transform * normals[source_index]).normalized())
 			if colors.size() > source_index:
 				builder.set_color(colors[source_index])
@@ -444,6 +465,8 @@ static func _append_surface(source_mesh: Mesh, surface: int, source_transform: T
 			builder.add_vertex(source_transform * vertices[source_index] - center)
 			added += 1
 	if added > 0:
+		if regenerate_normals:
+			builder.generate_normals()
 		builder.commit(target)
 
 static func _wheel_key(centroid: Vector3) -> String:

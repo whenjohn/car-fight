@@ -23,6 +23,20 @@
   missed one timing sample, then passed immediately in isolation (mixed also at
   0.300 units). Gameplay collision, physics, rollback, and network state remain
   unchanged.
+- LowPoly Cars 01 follow-up fixes the pack's mixed mirrored transforms. Every
+  static subtree now flips triangle winding when its accumulated FBX transform
+  has a negative determinant, then regenerates low-poly normals from the
+  corrected triangles. This fixes partially inverted grouped vehicles and the
+  fully mirrored C02, C05, and C08 cars while preserving atlas UVs/materials.
+  Because their wheels are baked into intact meshes, each pack model now also
+  receives four invisible presentation-only wheel-contact anchors; the rear
+  pair feeds the existing braking, drift, boost, and oil skid ribbons without
+  cutting or duplicating visible wheels. A fresh 30-model render confirms
+  consistent exterior lighting and complete geometry. Focused 40-vehicle asset,
+  live contact-anchor, animation/scale, and skid-trail coverage pass, followed
+  by a clean full `./scripts/test.sh` run (`ALL_TESTS PASS`, including 0.300-unit
+  network and mixed-transport corrections). Gameplay collision, physics,
+  rollback, and network state remain unchanged.
 - Survival Vehicle is imported as the tenth local presentation model on
   `codex/more-vehicles`. The owner-supplied zip contains one FBX and albedo,
   normal, metallic, and roughness maps, but no author, source URL, readme, or

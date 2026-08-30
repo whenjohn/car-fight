@@ -322,10 +322,12 @@ func _init() -> void:
 	var low_poly_chassis := low_poly_rig.get_node_or_null(
 		"ChassisLean/ChassisModel/SeparatedChassis") as MeshInstance3D
 	var low_poly_wheels := low_poly_rig.find_children("*Spin", "Node3D", true, false)
+	var low_poly_contacts := low_poly_rig.find_children("*Contact", "Node3D", true, false)
 	var low_poly_material := low_poly_chassis.mesh.surface_get_material(0) \
 		as StandardMaterial3D if low_poly_chassis != null else null
 	if low_poly_chassis == null or low_poly_chassis.mesh.get_surface_count() != 1 \
-			or not low_poly_wheels.is_empty() or low_poly_material == null \
+			or not low_poly_wheels.is_empty() or low_poly_contacts.size() != 4 \
+			or low_poly_material == null \
 			or low_poly_material.albedo_texture == null:
 		low_poly_parent.free()
 		push_error("LOW_POLY_PACK_TEST FAIL: selected car must retain its intact atlas mesh")
