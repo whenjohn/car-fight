@@ -4,6 +4,7 @@ extends Node3D
 ## network state and is visible only while the local player is in the city map.
 
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
+const CITY_LAYOUT := preload("res://world/city_layout.gd")
 const DISTRICT_PATH := "res://assets/local/city_audition/extracted/city_district.tscn"
 
 var _players: Node3D
@@ -24,6 +25,7 @@ func build_presentation() -> bool:
 		return false
 	district.name = "LowPolyCityDistrict"
 	district.position = MAP_LAYOUT.CITY_CENTER
+	district.scale = Vector3.ONE * CITY_LAYOUT.SCALE
 	add_child(district)
 	set_process(true)
 	return true

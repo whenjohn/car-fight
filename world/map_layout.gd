@@ -2,6 +2,8 @@ extends RefCounted
 ## Explicit world spaces. An entity belongs to a map; gameplay must not infer
 ## membership from a large world coordinate.
 
+const CITY_LAYOUT := preload("res://world/city_layout.gd")
+
 const ARENA := 0
 const DRIVING_COURSE := 1
 const CITY_AUDITION := 2
@@ -9,7 +11,7 @@ const CITY_AUDITION := 2
 const COURSE_CENTER := Vector3(560.0, 0.0, 0.0)
 const COURSE_HALF_EXTENT := 120.0
 const CITY_CENTER := Vector3(0.0, 0.0, 600.0)
-const CITY_HALF_EXTENT := 110.0
+const CITY_HALF_EXTENT := 110.0 * CITY_LAYOUT.SCALE
 const GATE_HALF_SIZE := 7.5
 const GATE_COOLDOWN := 1.25
 
@@ -18,8 +20,8 @@ const ARENA_LANDING := Vector3(57.0, 0.0, 57.0)
 const COURSE_GATE_LOCAL := Vector3(-108.0, 0.0, 100.0)
 const COURSE_START_LOCAL := Vector3(-100.0, 0.0, 60.0)
 const ARENA_CITY_GATE := Vector3(-68.0, 0.0, 66.0)
-const CITY_GATE_LOCAL := Vector3(-94.0, 0.0, 92.0)
-const CITY_START_LOCAL := Vector3(-42.0, 0.0, 80.0)
+const CITY_GATE_LOCAL := Vector3(-94.0, 0.0, 92.0) * CITY_LAYOUT.SCALE
+const CITY_START_LOCAL := Vector3(-42.0, 0.0, 80.0) * CITY_LAYOUT.SCALE
 
 
 static func map_name(map_id: int) -> String:

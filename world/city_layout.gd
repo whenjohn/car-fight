@@ -2,6 +2,7 @@ extends RefCounted
 ## Deterministic city-block composition shared by local art extraction and the
 ## simple gameplay collision proxies. Imported meshes remain visual-only.
 
+const SCALE := 1.5
 const STREET_LINES := [-42.0, 0.0, 42.0]
 const CONNECTOR_CENTERS := [-31.0, -21.0, -11.0, 11.0, 21.0, 31.0]
 

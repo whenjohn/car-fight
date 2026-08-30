@@ -7,6 +7,8 @@ const ARENA_CONFIG := preload("res://world/arena_config.gd")
 
 
 func _init() -> void:
+	_check(is_equal_approx(CITY_LAYOUT.SCALE, 1.5),
+		"city composition remains uniformly enlarged to 150 percent")
 	_check(MAP_LAYOUT.CITY_CENTER.z > ARENA_CONFIG.HALF_EXTENT
 		+ MAP_LAYOUT.CITY_HALF_EXTENT + 40.0, "city has a clear physical gap from arena")
 	_check(MAP_LAYOUT.CITY_CENTER.distance_to(MAP_LAYOUT.COURSE_CENTER)

@@ -1631,10 +1631,12 @@ func _build_city_space() -> void:
 	for index in range(CITY_LAYOUT.BUILDINGS.size()):
 		var building: Dictionary = CITY_LAYOUT.BUILDINGS[index]
 		var footprint: Vector2 = building["footprint"]
-		var height := float(building["height"])
+		var height := float(building["height"]) * CITY_LAYOUT.SCALE
 		_add_static_box("CityBuildingCollision%02d" % index,
-			Vector3(footprint.x, height, footprint.y),
-			center + building["position"] + Vector3(0.0, height * 0.5, 0.0),
+			Vector3(footprint.x * CITY_LAYOUT.SCALE, height,
+				footprint.y * CITY_LAYOUT.SCALE),
+			center + (building["position"] as Vector3) * CITY_LAYOUT.SCALE
+				+ Vector3(0.0, height * 0.5, 0.0),
 			Color.TRANSPARENT, deg_to_rad(float(building["yaw"])), false)
 
 func _build_combat_targets() -> void:

@@ -16,6 +16,10 @@
   five-tick presentation boot, and the permission-correct complete
   `./scripts/test.sh` suite pass (`ALL_TESTS PASS`); monitored human review is
   next.
+- Enlarged the complete city composition to 150% relative to the unchanged
+  vehicles. One shared scale now expands road widths and spacing, buildings,
+  deterministic footprint collision, the city floor/walls, and its entrance
+  and return placement together.
 - Added native-scale local auditions of six stone meshes and one ruined house
   just north of the tree corridor. Their working textures are capped at 1024px,
   shadows and collisions are disabled, and the imported files remain ignored.

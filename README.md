@@ -342,4 +342,6 @@ after changing the source selection, run:
 
 The game loads only the resulting small extracted district, not the complete
 three-million-vertex FBX. The supplied forest EXR is currently omitted because
-Godot cannot decode its compression.
+Godot cannot decode its compression. The entire city composition is presented
+at 150% source scale—including its street spacing, collision footprints, and
+map boundary—while vehicle scale remains unchanged.
