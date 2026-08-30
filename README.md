@@ -99,6 +99,13 @@ Controls:
   your local presentation through the Jeep, Pickup, Sedan, Wagon, Bus, Humvee M242,
   Combat Vehicle, Apocalypse Bus, Post-Apocalyptic UAZ, Survival Vehicle, and
   the 30 cars, trucks, and tractors from LowPoly Cars 01.
+- A PlayStation controller uses the left stick for camera-relative direction and
+  analog speed. `Cross` bursts, `Circle` reverses, `L1` shields, `R1` cloaks,
+  and `L2` vacuums. `Square` fires a homing missile, `Triangle` launches the RC
+  orb, and `R2` is primary fire / RC detonate. D-pad up arms the area weapon,
+  down activates det, right deploys troops, and left cycles the vehicle. Moving
+  the mouse switches driving back to mouse control; moving the left stick takes
+  control again.
 - The native `Vehicle Model` system menu scales your selected local vehicle from
   100% to 500% and autosaves a separate choice for every vehicle. This is a
   presentation debug control; the authoritative gameplay collider remains unchanged.
