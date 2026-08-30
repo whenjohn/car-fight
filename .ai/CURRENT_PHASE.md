@@ -1,5 +1,21 @@
 # Current phase
 
+## Trees, foliage, and lighting audition ready
+
+- Work is isolated on `codex/trees-foliage-lighting` in
+  `/Users/johnnguyen/Projects/car-fight-trees-foliage-lighting`. No gameplay,
+  scene, or presentation code has changed yet; the next input is the
+  owner-downloaded tree asset candidates.
+- The existing 142 deterministic static/seeded landmarks, including the
+  bounded 76-tree east corridor, remain the trial layout. Imported tree art
+  should replace only presentation while preserving the current simple trunk
+  collider and network-free object classification.
+- The first lighting comparisons will keep Compatibility SSAO disabled and
+  preserve the current single moving 2048 shadow atlas. G2's Intel Iris tests
+  found key/fill/rim and low-radiance HDRI modes safe, while either SSAO mode
+  collapsed roughly 55 FPS to 10-13 FPS. Tree shadows start disabled and are
+  considered only as a separate measured variant.
+
 ## Current decision
 
 - PlayStation controller support is merged to `master` at `5083b43`. The left
