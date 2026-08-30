@@ -2,6 +2,25 @@
 
 ## Current decision
 
+- Sense-of-speed work is implemented on `codex/sense-of-speed` in
+  `/Users/johnnguyen/Projects/car-fight-sense-of-speed`. The normal arena now
+  uses the previously proven network-test half-extent of 240 units; the separate
+  driving-course world moved east to preserve its physical gap. Two broad
+  boulevard corridors are framed by 72 deterministic static/seeded trees and
+  lamp posts with real collision and a bounded focused count, spaced to clear
+  the established server-driver route. Each presented vehicle now emits
+  compatibility-safe road dust and small debris at speed plus rear tire smoke
+  under fast braking/drift. The local camera gains velocity-aligned forward
+  lead, a short boost-onset pullback, subtle burst-speed vibration, and jolts on
+  drift commitment, wall bumps, and weapon impacts; none of these presentation
+  cues feed physics, rollback, or network state. Focused layout/camera/FX,
+  vehicle-animation, forced-presentation, offline, and 120 ms networking checks
+  pass (0.368-unit isolated and 0.381-unit full-suite worst corrections). The
+  complete suite passed through combat, then the documented timing-sensitive
+  RC-orb gate missed its manual detonation; RC-orb passed immediately in
+  isolation, followed by passing shield and detonation gates. Human rendered
+  feel review remains next so lead, boost lag, vibration, particle density, and
+  landmark spacing can be tuned together before merge.
 - LowPoly Cars 01 is imported as 30 additional local presentation choices,
   bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
   four trucks, three tractors/construction vehicles, 11 loose wheel samples,

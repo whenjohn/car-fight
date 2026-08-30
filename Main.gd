@@ -19,6 +19,7 @@ const DRIFT_GUIDE_SCRIPT := preload("res://player/drift_guide.gd")
 const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
+const SPEED_CAMERA_SCRIPT := preload("res://fx/speed_camera.gd")
 const OCCLUDED_SUPPORT_HINTS_SCRIPT := preload("res://fx/occluded_support_hints.gd")
 const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
@@ -230,6 +231,7 @@ var _combat_bolts: Node3D
 var _shield_drone: Node3D
 var _impact_fx: Node3D
 var _camera: Camera3D
+var _speed_camera
 var _shadow_light: SpotLight3D
 var _status_label: Label
 var _editor_label: Label
@@ -419,8 +421,14 @@ func _process(_delta: float) -> void:
 	var pitch := deg_to_rad(55.0)
 	var horizontal := cos(pitch) * 80.0
 	var offset := Vector3(sin(yaw) * horizontal, sin(pitch) * 80.0, cos(yaw) * horizontal)
-	_camera.global_position = target + offset
-	_camera.look_at(target, Vector3.UP)
+	var camera_target := target
+	if _speed_camera != null:
+		if local is RigidBody3D and not is_instance_valid(_rc_orb_visuals.get(int(local.name))):
+			camera_target += _speed_camera.advance(local as RigidBody3D, _delta)
+		else:
+			_speed_camera.reset()
+	_camera.global_position = camera_target + offset
+	_camera.look_at(camera_target, Vector3.UP)
 	_camera.size = 30.0 if _combat_editor_active else ARENA_CONFIG.CAMERA_SIZE
 	_update_editor_presentation(local)
 	if _shadow_light != null:
@@ -1520,6 +1528,8 @@ func _build_arena() -> void:
 	for obstacle in ARENA_LAYOUT.collision_objects():
 		_add_static_box(str(obstacle["name"]), obstacle["size"], obstacle["position"],
 			obstacle["color"], float(obstacle["yaw"]))
+	for landmark in ARENA_LAYOUT.proximity_objects(_arena_half):
+		_add_proximity_landmark(landmark)
 	if _ramps_enabled:
 		_build_elevated_course()
 	_build_driving_course_space()
@@ -1612,6 +1622,70 @@ func _add_static_oriented_box(node_name: String, size: Vector3, position: Vector
 		body.add_child(mesh_instance)
 	add_child(body)
 
+
+func _add_proximity_landmark(info: Dictionary) -> void:
+	var body := StaticBody3D.new()
+	body.name = str(info["name"])
+	body.position = info["position"]
+	var tree_landmark := str(info["kind"]) == "tree"
+	var radius := 0.58 if tree_landmark else 0.28
+	var height := 5.2 if tree_landmark else 6.6
+	var collision := CollisionShape3D.new()
+	var shape := CylinderShape3D.new()
+	shape.radius = radius
+	shape.height = height
+	collision.shape = shape
+	collision.position.y = height * 0.5
+	body.add_child(collision)
+	if not _is_headless():
+		var pole := MeshInstance3D.new()
+		pole.name = "Trunk" if tree_landmark else "Pole"
+		var pole_mesh := CylinderMesh.new()
+		pole_mesh.top_radius = radius * (0.72 if tree_landmark else 0.8)
+		pole_mesh.bottom_radius = radius
+		pole_mesh.height = height
+		pole_mesh.radial_segments = 7 if tree_landmark else 8
+		pole.mesh = pole_mesh
+		pole.position.y = height * 0.5
+		pole.material_override = _material(Color("594638") if tree_landmark else Color("313c42"))
+		pole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pole.set_meta("arena_presentation", true)
+		body.add_child(pole)
+		if tree_landmark:
+			var crown := MeshInstance3D.new()
+			crown.name = "Crown"
+			var crown_mesh := SphereMesh.new()
+			crown_mesh.radius = 2.15
+			crown_mesh.height = 4.1
+			crown_mesh.radial_segments = 8
+			crown_mesh.rings = 5
+			crown.mesh = crown_mesh
+			crown.position.y = height + 1.1
+			crown.scale = Vector3(1.0, 1.18, 1.0)
+			crown.material_override = _material(Color("345a3e"))
+			crown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			crown.set_meta("arena_presentation", true)
+			body.add_child(crown)
+		else:
+			var lamp := MeshInstance3D.new()
+			lamp.name = "Lamp"
+			var lamp_mesh := SphereMesh.new()
+			lamp_mesh.radius = 0.48
+			lamp_mesh.height = 0.82
+			lamp_mesh.radial_segments = 10
+			lamp_mesh.rings = 5
+			lamp.mesh = lamp_mesh
+			lamp.position.y = height + 0.18
+			var lamp_material := _material(Color("ffd889"), true)
+			lamp_material.emission_enabled = true
+			lamp_material.emission = Color("ffb950")
+			lamp_material.emission_energy_multiplier = 2.2
+			lamp.material_override = lamp_material
+			lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			lamp.set_meta("arena_presentation", true)
+			body.add_child(lamp)
+	add_child(body)
+
 func _build_presentation() -> void:
 	var environment := WorldEnvironment.new()
 	var env := Environment.new()
@@ -1661,6 +1735,7 @@ func _build_presentation() -> void:
 	_camera.size = ARENA_CONFIG.CAMERA_SIZE
 	_camera.current = true
 	add_child(_camera)
+	_speed_camera = SPEED_CAMERA_SCRIPT.new()
 	_build_shader_prewarm()
 	_impact_fx = Node3D.new()
 	_impact_fx.name = "ImpactFX"

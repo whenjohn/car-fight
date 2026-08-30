@@ -46,3 +46,28 @@ static func collision_objects() -> Array[Dictionary]:
 			"color": Color("56656b"),
 		},
 	]
+
+
+## Four landmark rows frame two broad, intersecting driving boulevards. They
+## are static/seeded world objects: deterministic, network-free, and bounded.
+static func proximity_objects(half_extent: float) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var spacing := 21
+	var limit := floori((half_extent - 20.0) / spacing) * spacing
+	for along in range(-limit, limit + 1, spacing):
+		if abs(along) < 30:
+			continue
+		for side in [-1, 1]:
+			result.append(_landmark("NorthSouth", side * 16.0, float(along),
+				result.size()))
+			result.append(_landmark("EastWest", float(along), side * 16.0,
+				result.size()))
+	return result
+
+
+static func _landmark(route: String, x: float, z: float, index: int) -> Dictionary:
+	return {
+		"name": "Proximity%s%03d" % [route, index],
+		"position": Vector3(x, 0.0, z),
+		"kind": "tree" if index % 4 == 0 else "lamp",
+	}

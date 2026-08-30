@@ -61,6 +61,17 @@ func _init() -> void:
 				push_error("ARENA_LAYOUT_TEST FAIL: %s blocks a spawn" % obstacle_name)
 				quit(1)
 				return
+	var proximity_objects: Array = layout_script.proximity_objects(arena_half)
+	if proximity_objects.size() < 64 or proximity_objects.size() > 96:
+		push_error("ARENA_LAYOUT_TEST FAIL: proximity landmark count is not bounded")
+		quit(1)
+		return
+	for landmark in proximity_objects:
+		var landmark_position: Vector3 = landmark["position"]
+		if maxf(absf(landmark_position.x), absf(landmark_position.z)) >= arena_half - 10.0:
+			push_error("ARENA_LAYOUT_TEST FAIL: proximity landmark reaches a wall")
+			quit(1)
+			return
 	var target_layout := load("res://combat/target_layout.gd")
 	var uses_outer_field := false
 	for target_position in target_layout.positions():
