@@ -40,7 +40,12 @@
   remains compatibility-safe, client-local, and driven by the same synchronized
   skid values. Focused asset/scale/lifetime coverage, clean import,
   forced-presentation construction, and vehicle-animation checks pass. Fresh
-  rendered human review is next.
+  rendered feedback then found the enlarged card's repeated silhouette too
+  obvious. The source card now produces a four-frame atlas: original, mirrored,
+  wide-cropped, and tall-cropped silhouettes. Every puff randomly selects a
+  frame and combines it with 42–100% scale, 64% lifetime, emission-time, and
+  rotation variation, removing synchronized stamped copies. Focused variation
+  coverage and forced-presentation construction pass. Fresh human review is next.
 - LowPoly Cars 01 is imported as 30 additional local presentation choices,
   bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
   four trucks, three tractors/construction vehicles, 11 loose wheel samples,

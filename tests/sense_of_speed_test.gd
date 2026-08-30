@@ -53,6 +53,8 @@ func _init() -> void:
 		"large smoke cards linger in world space for several seconds")
 	_check(SPEED_FX.SMOKE_CORE_COUNT >= 48 and SPEED_FX.SMOKE_HAZE_COUNT >= 36,
 		"sustained skids build a full overlapping cloud")
+	_check(SPEED_FX.SMOKE_VARIANT_COUNT >= 4,
+		"large billows randomly select multiple smoke silhouettes")
 	print("SENSE_OF_SPEED_TEST PASS landmarks=%d tree_path=%d" % [
 		landmarks.size(), tree_path.size()])
 	quit(0)

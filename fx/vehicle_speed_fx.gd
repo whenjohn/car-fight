@@ -15,11 +15,13 @@ const SMOKE_HAZE_LIFETIME := 7.00
 const SMOKE_CORE_MAX_SCALE := 1.60
 const SMOKE_HAZE_MAX_SCALE := 2.00
 const SMOKE_GROWTH_PEAK := 1.40
+const SMOKE_VARIANT_COUNT := 4
 
 var _dust: CPUParticles3D
 var _debris: CPUParticles3D
 var _smoke_core: CPUParticles3D
 var _smoke_haze: CPUParticles3D
+static var _shared_smoke_atlas: ImageTexture
 
 
 func _ready() -> void:
@@ -95,6 +97,7 @@ func _particles(node_name: String, count: int, lifetime: float, color: Color,
 	particles.lifetime = lifetime
 	particles.local_coords = false
 	particles.fixed_fps = 30
+	particles.randomness = 0.72 if billowy else 0.18
 	particles.emitting = false
 	particles.set_meta("maximum_amount", count)
 	particles.color = color
@@ -108,8 +111,11 @@ func _particles(node_name: String, count: int, lifetime: float, color: Color,
 	material.vertex_color_use_as_albedo = true
 	material.albedo_color = Color.WHITE
 	if billowy:
-		material.albedo_texture = SMOKE_TEXTURE
+		material.albedo_texture = _smoke_atlas()
 		material.billboard_keep_scale = true
+		material.particles_anim_h_frames = 2
+		material.particles_anim_v_frames = 2
+		material.particles_anim_loop = false
 	quad.material = material
 	particles.mesh = quad
 	return particles
@@ -129,13 +135,17 @@ func _configure_smoke(particles: CPUParticles3D, local_position: Vector3,
 	particles.gravity = Vector3(0.0, rise_acceleration, 0.0)
 	particles.damping_min = 1.25
 	particles.damping_max = 2.15
-	particles.lifetime_randomness = 0.40
+	particles.lifetime_randomness = 0.64
 	particles.angle_min = -360.0
 	particles.angle_max = 360.0
 	particles.angular_velocity_min = -92.0
 	particles.angular_velocity_max = 92.0
-	particles.scale_amount_min = maximum_scale * 0.74
+	particles.scale_amount_min = maximum_scale * 0.42
 	particles.scale_amount_max = maximum_scale
+	particles.anim_offset_min = 0.0
+	particles.anim_offset_max = 0.999
+	particles.anim_speed_min = 0.0
+	particles.anim_speed_max = 0.0
 	var growth := Curve.new()
 	growth.min_value = 0.0
 	growth.max_value = SMOKE_GROWTH_PEAK
@@ -160,6 +170,34 @@ func _configure_smoke(particles: CPUParticles3D, local_position: Vector3,
 
 static func maximum_haze_card_size() -> float:
 	return SMOKE_HAZE_CARD_SIZE * SMOKE_HAZE_MAX_SCALE * SMOKE_GROWTH_PEAK
+
+
+static func _smoke_atlas() -> ImageTexture:
+	if _shared_smoke_atlas != null:
+		return _shared_smoke_atlas
+	var source := SMOKE_TEXTURE.get_image()
+	var size := source.get_width()
+	var variants: Array[Image] = []
+	variants.append(source.duplicate())
+	var mirrored := source.duplicate()
+	mirrored.flip_x()
+	variants.append(mirrored)
+	# Two differently cropped cards change lobe proportions, not just rotation.
+	var wide := source.get_region(Rect2i(size / 14, 0, size - size / 7, size))
+	wide.resize(size, size, Image.INTERPOLATE_LANCZOS)
+	wide.flip_y()
+	variants.append(wide)
+	var tall := source.get_region(Rect2i(0, size / 12, size, size - size / 6))
+	tall.resize(size, size, Image.INTERPOLATE_LANCZOS)
+	tall.flip_x()
+	variants.append(tall)
+	var atlas := Image.create(size * 2, size * 2, false, Image.FORMAT_RGBA8)
+	for index in variants.size():
+		atlas.blit_rect(variants[index], Rect2i(0, 0, size, size),
+			Vector2i((index % 2) * size, floori(float(index) / 2.0) * size))
+	atlas.generate_mipmaps()
+	_shared_smoke_atlas = ImageTexture.create_from_image(atlas)
+	return _shared_smoke_atlas
 
 
 func _set_emission(particles: CPUParticles3D, strength: float) -> void:
