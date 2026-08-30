@@ -49,6 +49,9 @@ const AREA_BURN_VISUAL_SCRIPT := preload("res://fx/area_burn_visual.gd")
 const AREA_TARGET_PREVIEW_SCRIPT := preload("res://fx/area_target_preview.gd")
 const ARENA_LAYOUT := preload("res://world/arena_layout.gd")
 const TREE_VISUAL_LIBRARY := preload("res://world/tree_visual_library.gd")
+const PROP_AUDITION_LIBRARY := preload("res://world/prop_audition_library.gd")
+const CITY_AUDITION_SCRIPT := preload("res://world/city_audition.gd")
+const CITY_LAYOUT := preload("res://world/city_layout.gd")
 const BALL_SCRIPT := preload("res://world/arena_ball.gd")
 const ELEVATED_COURSE := preload("res://world/elevated_course.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
@@ -259,6 +262,8 @@ var _vehicle_model_popup: PopupMenu
 var _scenery_popup: PopupMenu
 var _vehicle_model_scales := {}
 var _tree_visual_library
+var _prop_audition_library
+var _city_audition: Node3D
 var _tree_landmarks: Array[StaticBody3D] = []
 var _tree_style_index := 0
 var _lighting_style_index := 0
@@ -332,6 +337,7 @@ func _ready() -> void:
 	# Normal headless servers/gates do not even probe the optional FBX path.
 	if not _is_headless():
 		_tree_visual_library = TREE_VISUAL_LIBRARY.new()
+		_prop_audition_library = PROP_AUDITION_LIBRARY.new()
 		_tree_style_index = TREE_VISUAL_LIBRARY.default_style_index()
 		var requested_tree_style := OS.get_environment("CAR_FIGHT_TREE_STYLE")
 		if requested_tree_style.is_valid_int():
@@ -1270,6 +1276,8 @@ func _build_world() -> void:
 		_driving_course.call("build_presentation")
 		_jump_gates.call("build_presentation")
 		_build_presentation()
+		_build_prop_auditions()
+		_build_city_audition()
 		if _motion_trace_enabled:
 			_motion_trace = Node.new()
 			_motion_trace.name = "PresentedMotionTrace"
@@ -1579,6 +1587,7 @@ func _build_arena() -> void:
 	if _ramps_enabled:
 		_build_elevated_course()
 	_build_driving_course_space()
+	_build_city_space()
 
 
 func _build_driving_course_space() -> void:
@@ -1599,6 +1608,34 @@ func _build_driving_course_space() -> void:
 		center + Vector3(-half, wall_y, 0.0), Color("40545b"))
 	_add_static_box("CourseWallEast", Vector3(wall_thickness, wall_height, half * 2.0),
 		center + Vector3(half, wall_y, 0.0), Color("40545b"))
+
+
+func _build_city_space() -> void:
+	var center := MAP_LAYOUT.CITY_CENTER
+	var half := MAP_LAYOUT.CITY_HALF_EXTENT
+	_add_static_box("CityGroundCollision", Vector3(half * 2.0, 1.0, half * 2.0),
+		center + Vector3(0.0, -0.5, 0.0), Color("24282b"), 0.0, false)
+	if not _is_headless():
+		_build_shader_ground("CityShaderGridGround", center, half)
+	var wall_height: float = ARENA_CONFIG.WALL_HEIGHT
+	var wall_thickness: float = ARENA_CONFIG.WALL_THICKNESS
+	var wall_y := wall_height * 0.5
+	_add_static_box("CityWallNorth", Vector3(half * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), center + Vector3(0.0, wall_y, -half), Color("4f5559"))
+	_add_static_box("CityWallSouth", Vector3(half * 2.0 + wall_thickness * 2.0,
+		wall_height, wall_thickness), center + Vector3(0.0, wall_y, half), Color("4f5559"))
+	_add_static_box("CityWallWest", Vector3(wall_thickness, wall_height, half * 2.0),
+		center + Vector3(-half, wall_y, 0.0), Color("4f5559"))
+	_add_static_box("CityWallEast", Vector3(wall_thickness, wall_height, half * 2.0),
+		center + Vector3(half, wall_y, 0.0), Color("4f5559"))
+	for index in range(CITY_LAYOUT.BUILDINGS.size()):
+		var building: Dictionary = CITY_LAYOUT.BUILDINGS[index]
+		var footprint: Vector2 = building["footprint"]
+		var height := float(building["height"])
+		_add_static_box("CityBuildingCollision%02d" % index,
+			Vector3(footprint.x, height, footprint.y),
+			center + building["position"] + Vector3(0.0, height * 0.5, 0.0),
+			Color.TRANSPARENT, deg_to_rad(float(building["yaw"])), false)
 
 func _build_combat_targets() -> void:
 	var positions := TARGET_LAYOUT.positions()
@@ -1939,6 +1976,28 @@ func _build_presentation() -> void:
 	_network_tier_label.add_theme_constant_override("shadow_offset_y", 2)
 	_network_tier_label.visible = false
 	hud.add_child(_network_tier_label)
+
+
+func _build_prop_auditions() -> void:
+	if _prop_audition_library == null:
+		return
+	var props := _prop_audition_library.build_audition() as Node3D
+	if props == null:
+		return
+	# Just north of the east-side tree corridor, with about 20 m of clear space
+	# before the arena wall. Native source dimensions already read correctly
+	# beside the roughly four-meter vehicles.
+	props.position = Vector3(100.0, 0.0, -210.0)
+	add_child(props)
+
+
+func _build_city_audition() -> void:
+	_city_audition = Node3D.new()
+	_city_audition.name = "CityAudition"
+	_city_audition.set_script(CITY_AUDITION_SCRIPT)
+	_city_audition.call("setup", _players)
+	add_child(_city_audition)
+	_city_audition.call("build_presentation")
 
 func _on_debug_menu_item_pressed(id: int) -> void:
 	if id == DEBUG_COLLISION_MENU_ID:

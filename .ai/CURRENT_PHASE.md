@@ -2,6 +2,25 @@
 
 ## Trees, foliage, and lighting audition ready for human review
 
+- Added a third, physically separate `LOW POLY CITY` map at the south arena
+  teleport pad, with a paired return pad, deterministic map transitions, a
+  220-meter collision floor, and boundary walls. The local city source is far
+  too heavy to load whole (491 meshes / about 3 million vertices), so the
+  audition uses a small extraction of 63 placed instances from 16 meshes: a
+  continuous 3x3 street grid with an entrance avenue, five houses, three shops,
+  two apartment buildings, two lightweight skyscrapers, a gas station, and a
+  factory. Fourteen deterministic footprint colliders keep cars on the streets.
+  Dense 40k-112k triangle park
+  meshes are deliberately excluded. The supplied forest EXR uses compression
+  Godot cannot decode and is not used. Focused city/course/prop tests, a
+  five-tick presentation boot, and the permission-correct complete
+  `./scripts/test.sh` suite pass (`ALL_TESTS PASS`); monitored human review is
+  next.
+- Added native-scale local auditions of six stone meshes and one ruined house
+  just north of the tree corridor. Their working textures are capped at 1024px,
+  shadows and collisions are disabled, and the imported files remain ignored.
+  A monitored near-house pass stayed mostly around 55 FPS after one-time asset
+  warm-up, with no thermal, GPU, or display fault.
 - Shapespark's CC0 low-poly exterior plants kit is tracked with Git LFS and
   exposed as three four-tree families. Family 1 is the new local default; the
   prior 200-tree collection and procedural baseline remain selectable. The

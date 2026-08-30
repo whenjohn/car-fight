@@ -28,3 +28,23 @@ with Git LFS under:
 
 The Scenery menu exposes the three four-tree families separately and loads only
 the selected source pack.
+
+## Local prop auditions
+
+Optional stones and ruined-house trials live under ignored
+`assets/local/prop_auditions/`. Their working textures are reduced to 1024px
+for this Intel laptop. The game places one native-scale house and all six
+vehicle-scale stones just north of the tree corridor; they are visual-only and
+shadow-disabled.
+
+## Local city audition
+
+The ignored `assets/local/city_audition/` source contains the Low Poly City
+FBX, its texture atlas, and the optional forest HDRI. Run
+`tools/extract_city_audition.gd` through headless Godot to produce a small local
+district under `assets/local/city_audition/extracted/`. Runtime presentation
+loads only that extraction, keeps it shadowless and collision-free, and shows
+it only after using the arena's `LOW POLY CITY` teleport pad. The dedicated
+city floor, walls, fourteen building-footprint colliders, and two-way transition
+remain available in clean checkouts. Its 3x3 road grid plus entrance avenue is
+continuous and drivable even though the source meshes themselves stay visual.
