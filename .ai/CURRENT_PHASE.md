@@ -13,8 +13,9 @@
   active pad clears controller drive state. A focused controller regression,
   offline test, and the complete permission-correct `./scripts/test.sh` suite
   pass (`ALL_TESTS PASS`), including 0.300-unit worst correction in the 120 ms
-  network gate. No Sony controller was connected during automated validation,
-  so a hands-on stick-direction/deadzone and button-label pass remains next.
+  network gate. A windowed Godot probe detects the USB DualSense as standardized
+  joypad device 0 with all six axes neutral at 0.0; a hands-on stick-direction,
+  deadzone, and button-label pass is now running through `play_monitored.sh`.
 - Sense-of-speed work is merged to `master` at `ee634a6`. The normal arena now
   uses the previously proven network-test half-extent of 240 units; the separate
   driving-course world moved east to preserve its physical gap. Two broad
