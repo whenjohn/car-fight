@@ -2,8 +2,7 @@
 
 ## Current decision
 
-- Sense-of-speed work is implemented on `codex/sense-of-speed` in
-  `/Users/johnnguyen/Projects/car-fight-sense-of-speed`. The normal arena now
+- Sense-of-speed work is merged to `master` at `ee634a6`. The normal arena now
   uses the previously proven network-test half-extent of 240 units; the separate
   driving-course world moved east to preserve its physical gap. Two broad
   boulevard corridors plus a dedicated east-side tree path are framed by 142
@@ -17,14 +16,12 @@
   drift commitment, wall bumps, and weapon impacts; none of these presentation
   cues feed physics, rollback, or network state. Focused layout/camera/FX,
   vehicle-animation, forced-presentation, offline, and 120 ms networking checks
-  pass (0.368-unit isolated and 0.381-unit full-suite worst corrections). The
-  complete suite passed through combat, then the documented timing-sensitive
-  RC-orb gate missed its manual detonation; RC-orb passed immediately in
-  isolation, followed by passing shield and detonation gates. Human rendered
-  feel review remains next so lead, boost lag, vibration, particle density, and
-  landmark spacing can be tuned together before merge. After the denser tree
-  path follow-up, focused layout and forced-presentation checks pass and the
-  120 ms network gate passes at 0.527-unit worst correction.
+  pass. After the denser tree path and smoke-variation follow-ups, the complete
+  post-merge `./scripts/test.sh` suite passes (`ALL_TESTS PASS`), including the
+  120 ms network gate at 0.300-unit worst correction and the RC-orb, shield,
+  and detonation gates. Human rendered feel review remains next so lead, boost
+  lag, vibration, particle density, landmark spacing, and the varied large
+  smoke silhouettes can be tuned together.
 - The first tire-smoke presentation has been replaced after human feedback that
   its equal flat particles looked generated rather than smoky, then enlarged
   again after feedback that the first layered follow-up still read as small
@@ -45,7 +42,8 @@
   wide-cropped, and tall-cropped silhouettes. Every puff randomly selects a
   frame and combines it with 42–100% scale, 64% lifetime, emission-time, and
   rotation variation, removing synchronized stamped copies. Focused variation
-  coverage and forced-presentation construction pass. Fresh human review is next.
+  coverage, forced-presentation construction, and the complete post-merge suite
+  pass. Fresh human review is next.
 - LowPoly Cars 01 is imported as 30 additional local presentation choices,
   bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
   four trucks, three tractors/construction vehicles, 11 loose wheel samples,
