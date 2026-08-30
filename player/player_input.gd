@@ -5,6 +5,8 @@ const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
 const INPUT_CODEC := preload("res://net/input_codec.gd")
 const CLIENT_CRUISE := preload("res://player/client_cruise.gd")
 
+const TRIGGER_ACTIVE := 0.25
+
 var cursor_offset := Vector2.ZERO
 var burst := false
 var reverse := false
@@ -26,6 +28,23 @@ var drop_troops := false
 # Safe spawn default: authority cannot fire before the owning client's first
 # gathered input declares that it has entered drive mode.
 var editing := true
+
+
+func _controller_id(main: Node) -> int:
+	var preferred := int(main.call("active_controller_id")) \
+		if main.has_method("active_controller_id") else -1
+	var connected := Input.get_connected_joypads()
+	if preferred in connected:
+		return preferred
+	return int(connected[0]) if not connected.is_empty() else -1
+
+
+func _joy_button(device: int, button: JoyButton) -> bool:
+	return device >= 0 and Input.is_joy_button_pressed(device, button)
+
+
+func _joy_trigger(device: int, axis: JoyAxis) -> bool:
+	return device >= 0 and Input.get_joy_axis(device, axis) > TRIGGER_ACTIVE
 
 func _clear_live_input() -> void:
 	cursor_offset = Vector2.ZERO
@@ -93,32 +112,51 @@ func _gather() -> void:
 		_clear_live_input()
 		_finalize_input()
 		return
-	if main.has_method("cursor_offset_for"):
+	var controller := _controller_id(main)
+	var controller_drive := controller >= 0 \
+		and main.has_method("controller_drive_active") \
+		and bool(main.call("controller_drive_active"))
+	if controller_drive and main.has_method("controller_cursor_offset_for"):
+		var stick := Vector2(Input.get_joy_axis(controller, JOY_AXIS_LEFT_X),
+			Input.get_joy_axis(controller, JOY_AXIS_LEFT_Y))
+		cursor_offset = main.call("controller_cursor_offset_for", stick)
+	elif main.has_method("cursor_offset_for"):
 		cursor_offset = main.cursor_offset_for(body)
 	else:
 		cursor_offset = Vector2.ZERO
-	burst = Input.is_action_pressed("burst")
-	reverse = Input.is_action_pressed("reverse")
+	burst = Input.is_action_pressed("burst") or _joy_button(controller, JOY_BUTTON_A)
+	reverse = Input.is_action_pressed("reverse") or _joy_button(controller, JOY_BUTTON_B)
 	editing = bool(main.call("combat_editor_active", body)) \
 		if main.has_method("combat_editor_active") else false
-	cloak_held = Input.is_action_pressed("cloak") and not editing
-	shield_held = Input.is_action_pressed("shield") and not editing
+	cloak_held = (Input.is_action_pressed("cloak") \
+		or _joy_button(controller, JOY_BUTTON_RIGHT_SHOULDER)) and not editing
+	shield_held = (Input.is_action_pressed("shield") \
+		or _joy_button(controller, JOY_BUTTON_LEFT_SHOULDER)) and not editing
 	# Match g2: poll the bare modifier directly so unrelated key events cannot
 	# make InputMap lose the held Shift level.
-	tractor = Input.is_key_pressed(KEY_SHIFT) and not editing
+	tractor = (Input.is_key_pressed(KEY_SHIFT) \
+		or _joy_trigger(controller, JOY_AXIS_TRIGGER_LEFT)) and not editing
 	det = (Input.is_key_pressed(_det_key) \
-		or (OS.has_feature("web") and Input.is_key_pressed(KEY_ALT))) and not editing
+		or (OS.has_feature("web") and Input.is_key_pressed(KEY_ALT)) \
+		or _joy_button(controller, JOY_BUTTON_DPAD_DOWN)) and not editing
 	# Slot 3 mirrors the isometric Splash weapon: arm it once, then hold the
 	# primary button and drag a ground area before releasing to call the run.
-	area_arm_held = Input.is_key_pressed(KEY_3) and not editing
-	area_fire = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not editing
+	area_arm_held = (Input.is_key_pressed(KEY_3) \
+		or _joy_button(controller, JOY_BUTTON_DPAD_UP)) and not editing
+	var controller_primary := _joy_trigger(controller, JOY_AXIS_TRIGGER_RIGHT)
+	area_fire = (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
+		or controller_primary) and not editing
 	# Unlike G2's slot-selection gesture, Car Fight fires slot 1 immediately.
-	homing_held = Input.is_key_pressed(KEY_1) and not editing
+	homing_held = (Input.is_key_pressed(KEY_1) \
+		or _joy_button(controller, JOY_BUTTON_X)) and not editing
 	# Unlike G2's slot selector, Num 2 fires the RC orb immediately. Left mouse
 	# detonates an active orb; both values cross the existing input timeline.
-	rc_fire_held = (Input.is_key_pressed(KEY_2) or Input.is_key_pressed(KEY_KP_2)) and not editing
-	rc_detonate_held = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not editing
+	rc_fire_held = (Input.is_key_pressed(KEY_2) or Input.is_key_pressed(KEY_KP_2) \
+		or _joy_button(controller, JOY_BUTTON_Y)) and not editing
+	rc_detonate_held = (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
+		or controller_primary) and not editing
 	# Troop delivery is deliberately a vehicle-area interaction: hold F only
 	# while inside the red pad's radius; there is no cursor targeting involved.
-	drop_troops = Input.is_key_pressed(KEY_F) and not editing
+	drop_troops = (Input.is_key_pressed(KEY_F) \
+		or _joy_button(controller, JOY_BUTTON_DPAD_RIGHT)) and not editing
 	_finalize_input()

@@ -19,6 +19,7 @@ const DRIFT_GUIDE_SCRIPT := preload("res://player/drift_guide.gd")
 const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
+const CONTROLLER_INPUT := preload("res://player/controller_input.gd")
 const SPEED_CAMERA_SCRIPT := preload("res://fx/speed_camera.gd")
 const OCCLUDED_SUPPORT_HINTS_SCRIPT := preload("res://fx/occluded_support_hints.gd")
 const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
@@ -137,6 +138,8 @@ var _presentation_control_last_command := ""
 var _network_hud_enabled := false
 var _network_profile := "unshaped"
 var _hotkey_hints_visible := true
+var _controller_drive_active := false
+var _active_controller_id := -1
 var _resim_budget_ms := 0.0
 var _mux_collision_test := false
 var _mux_close_transport_test := ""
@@ -306,6 +309,7 @@ var _persisted_oil_tuning_pending := false
 
 func _ready() -> void:
 	_parse_args()
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	_load_persisted_oil_tuning()
 	_load_persisted_vehicle_model_scale()
 	if not _run_id.is_empty():
@@ -343,6 +347,14 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if _webrtc_transport != null:
 		_webrtc_transport.call("close")
+
+
+func _on_joy_connection_changed(device: int, connected: bool) -> void:
+	if connected:
+		_active_controller_id = device
+	elif device == _active_controller_id:
+		_active_controller_id = -1
+		_controller_drive_active = false
 
 ## Deterministic positive control for the late-join/render-stall regression.
 ## A real rendered client can pause here for shader compilation after netfox
@@ -462,7 +474,7 @@ func _process(_delta: float) -> void:
 		if _hotkey_hints_visible:
 			_status_label.text += "\n%s" % (
 				"Drag cone handles  |  F: flip  |  R: reset  |  Enter: drive" \
-				if _combat_editor_active else "Mouse: drive  |  Stay in GREEN area to load troops  |  Hold F in RED area to deploy  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones")
+				if _combat_editor_active else _drive_control_hint())
 		if _client_cruise_allowed:
 			_status_label.text += "\nP: %s client cruise (full speed, no burst)" % [
 				"STOP" if _client_cruise_active else "START"]
@@ -2362,6 +2374,21 @@ func _update_editor_label() -> void:
 		COVERAGE.ZONE_NAMES[_selected_zone], ranges[_selected_zone],
 		rad_to_deg(widths[_selected_zone]), direction_label, used, COVERAGE.TOTAL_BUDGET]
 
+func _input(event: InputEvent) -> void:
+	if _role not in ["client", "offline"] or not _scripted.is_empty():
+		return
+	if event is InputEventJoypadMotion:
+		var joy_motion := event as InputEventJoypadMotion
+		if joy_motion.axis in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y] \
+				and absf(joy_motion.axis_value) > CONTROLLER_INPUT.STICK_DEADZONE:
+			_controller_drive_active = true
+			_active_controller_id = joy_motion.device
+	elif event is InputEventJoypadButton:
+		_active_controller_id = event.device
+	elif event is InputEventMouseMotion and event.relative.length_squared() > 1.0:
+		_controller_drive_active = false
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _role not in ["client", "offline"] or not _scripted.is_empty():
 		return
@@ -2392,6 +2419,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_R and _combat_editor_active:
 			_reset_coverage_cones()
+			get_viewport().set_input_as_handled()
+	elif event is InputEventJoypadButton and event.pressed \
+			and not _combat_editor_active:
+		if event.button_index == JOY_BUTTON_DPAD_LEFT:
+			_cycle_local_vehicle()
 			get_viewport().set_input_as_handled()
 	if not _combat_editor_active:
 		return
@@ -2617,6 +2649,27 @@ func cursor_offset_for(body: Node3D) -> Vector2:
 	var hit := origin + direction * t
 	var delta := hit - control_origin
 	return Vector2(delta.x, delta.z).limit_length(FOLLOW.MAX_DISTANCE)
+
+
+func controller_cursor_offset_for(raw_stick: Vector2) -> Vector2:
+	if _camera == null:
+		return Vector2.ZERO
+	return CONTROLLER_INPUT.cursor_offset(raw_stick, _camera.global_basis.x,
+		_camera.global_basis.y, FOLLOW.MAX_DISTANCE)
+
+
+func controller_drive_active() -> bool:
+	return _controller_drive_active
+
+
+func active_controller_id() -> int:
+	return _active_controller_id
+
+
+func _drive_control_hint() -> String:
+	if _controller_drive_active:
+		return "Left stick: drive  |  Cross: burst  |  Circle: reverse  |  Square: homing  |  Triangle: RC orb  |  R2: primary/detonate  |  L1: shield  |  R1: cloak  |  L2: vacuum  |  D-pad: area/det/troops/vehicle"
+	return "Mouse: drive  |  Stay in GREEN area to load troops  |  Hold F in RED area to deploy  |  V: vehicle  |  1: homing missile  |  2: RC orb  |  Click: detonate RC orb  |  3: area weapon  |  Cmd: det  |  Q: shield  |  R: cloak  |  Shift: vacuum  |  Space: burst  |  Tab: reverse  |  E: editor  |  C: cones"
 
 func is_scripted_client() -> bool:
 	return not _scripted.is_empty() \
