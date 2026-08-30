@@ -47,10 +47,12 @@ func _init() -> void:
 	var smoke_texture := load(SPEED_FX.SMOKE_TEXTURE_PATH) as Texture2D
 	_check(smoke_texture != null and smoke_texture.get_width() == 512,
 		"tire smoke reuses the detailed G2 isometric smoke card")
-	_check(SPEED_FX.maximum_haze_card_size() >= 5.5,
-		"outer billows grow at least as wide as a vehicle")
-	_check(SPEED_FX.SMOKE_HAZE_LIFETIME >= 3.0,
-		"large smoke cards linger in world space")
+	_check(SPEED_FX.maximum_haze_card_size() >= 15.0,
+		"outer billows grow several times wider than a vehicle")
+	_check(SPEED_FX.SMOKE_HAZE_LIFETIME >= 7.0,
+		"large smoke cards linger in world space for several seconds")
+	_check(SPEED_FX.SMOKE_CORE_COUNT >= 48 and SPEED_FX.SMOKE_HAZE_COUNT >= 36,
+		"sustained skids build a full overlapping cloud")
 	print("SENSE_OF_SPEED_TEST PASS landmarks=%d tree_path=%d" % [
 		landmarks.size(), tree_path.size()])
 	quit(0)

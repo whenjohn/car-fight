@@ -6,13 +6,15 @@ const DUST_FULL_SPEED := 20.0
 const SKID_SMOKE_START_SPEED := 7.0
 const SMOKE_TEXTURE_PATH := "res://assets/vfx/starter_vfx_fire/tex_smoke_07.png"
 const SMOKE_TEXTURE := preload(SMOKE_TEXTURE_PATH)
-const SMOKE_CORE_CARD_SIZE := 1.55
-const SMOKE_HAZE_CARD_SIZE := 2.75
-const SMOKE_CORE_LIFETIME := 1.65
-const SMOKE_HAZE_LIFETIME := 3.20
-const SMOKE_CORE_MAX_SCALE := 1.15
-const SMOKE_HAZE_MAX_SCALE := 1.60
-const SMOKE_GROWTH_PEAK := 1.30
+const SMOKE_CORE_COUNT := 48
+const SMOKE_HAZE_COUNT := 36
+const SMOKE_CORE_CARD_SIZE := 2.80
+const SMOKE_HAZE_CARD_SIZE := 5.50
+const SMOKE_CORE_LIFETIME := 3.50
+const SMOKE_HAZE_LIFETIME := 7.00
+const SMOKE_CORE_MAX_SCALE := 1.60
+const SMOKE_HAZE_MAX_SCALE := 2.00
+const SMOKE_GROWTH_PEAK := 1.40
 
 var _dust: CPUParticles3D
 var _debris: CPUParticles3D
@@ -41,20 +43,20 @@ func _ready() -> void:
 	_debris.gravity = Vector3(0.0, -7.0, 0.0)
 	add_child(_debris)
 
-	_smoke_core = _particles("TireSmokeCore", 22, SMOKE_CORE_LIFETIME,
+	_smoke_core = _particles("TireSmokeCore", SMOKE_CORE_COUNT, SMOKE_CORE_LIFETIME,
 		Color.WHITE, SMOKE_CORE_CARD_SIZE, true)
 	_configure_smoke(_smoke_core, Vector3(0.0, 0.14, 1.28),
-		Vector3(0.78, 0.04, 0.14), Vector3(0.0, 0.56, 0.30), 0.90,
-		SMOKE_CORE_MAX_SCALE, 0.42, Color(0.38, 0.39, 0.37), 0.72)
+		Vector3(0.92, 0.05, 0.18), Vector3(0.0, 0.48, 0.22), 0.72,
+		SMOKE_CORE_MAX_SCALE, 0.32, Color(0.54, 0.55, 0.52), 0.92)
 	add_child(_smoke_core)
 
 	# A second, slower layer outlives the dark tire puff. Different size, rise,
 	# rotation, and fade timing keep the trail from reading as cloned discs.
-	_smoke_haze = _particles("TireSmokeHaze", 14, SMOKE_HAZE_LIFETIME,
+	_smoke_haze = _particles("TireSmokeHaze", SMOKE_HAZE_COUNT, SMOKE_HAZE_LIFETIME,
 		Color.WHITE, SMOKE_HAZE_CARD_SIZE, true)
 	_configure_smoke(_smoke_haze, Vector3(0.0, 0.18, 1.30),
-		Vector3(0.86, 0.05, 0.20), Vector3(0.0, 0.72, 0.18), 0.56,
-		SMOKE_HAZE_MAX_SCALE, 0.28, Color(0.56, 0.57, 0.54), 0.52)
+		Vector3(1.02, 0.06, 0.24), Vector3(0.0, 0.56, 0.12), 0.42,
+		SMOKE_HAZE_MAX_SCALE, 0.18, Color(0.68, 0.69, 0.66), 0.76)
 	add_child(_smoke_haze)
 
 
@@ -82,7 +84,7 @@ func update_effects(speed: float, brake: float, drift: float, boosting: bool,
 	_set_emission(_dust, dust_amount)
 	_set_emission(_debris, maxf(dust_amount - 0.28, 0.0) / 0.72)
 	_set_emission(_smoke_core, smoke_amount)
-	_set_emission(_smoke_haze, smoke_amount * 0.82)
+	_set_emission(_smoke_haze, smoke_amount)
 
 
 func _particles(node_name: String, count: int, lifetime: float, color: Color,
@@ -148,8 +150,8 @@ func _configure_smoke(particles: CPUParticles3D, local_position: Vector3,
 	fade.add_point(0.07, Color(tone.r, tone.g, tone.b, peak_alpha))
 	fade.add_point(0.42, Color(tone.r + 0.08, tone.g + 0.08, tone.b + 0.08,
 		peak_alpha * 0.76))
-	fade.add_point(0.74, Color(tone.r + 0.16, tone.g + 0.16, tone.b + 0.16,
-		peak_alpha * 0.38))
+	fade.add_point(0.80, Color(tone.r + 0.16, tone.g + 0.16, tone.b + 0.16,
+		peak_alpha * 0.46))
 	fade.set_offset(fade.get_point_count() - 1, 1.0)
 	fade.set_color(fade.get_point_count() - 1,
 		Color(tone.r + 0.20, tone.g + 0.20, tone.b + 0.20, 0.0))

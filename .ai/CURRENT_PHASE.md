@@ -31,10 +31,12 @@
   particles. The exact accepted G2 isometric campfire reference was recovered
   from commit `8178080`: its detailed 512px CC0/MIT smoke card is now preserved
   locally with source/license metadata. Tire smoke uses only 22 darker core
-  cards and 14 broad haze cards, randomized like that reference. The outer
-  billows grow to 5.72 units—at least vehicle width—and linger for 3.2 seconds
-  in world space, while slower drift, damping, rotation, lifetime variation,
-  expansion, and grey fade make adjacent cards overlap into a cloud. The smoke
+  cards and broad haze cards randomized like that reference. A second human
+  review found that revision still too small, sparse, and brief to see. The
+  current intentionally overt calibration uses 48 darker core cards and 36
+  haze cards; outer billows grow to 15.4 units and linger for seven seconds in
+  world space. Slower drift, damping, rotation, lifetime variation, expansion,
+  higher opacity, and grey fade make adjacent cards overlap into a cloud. The smoke
   remains compatibility-safe, client-local, and driven by the same synchronized
   skid values. Focused asset/scale/lifetime coverage, clean import,
   forced-presentation construction, and vehicle-animation checks pass. Fresh
