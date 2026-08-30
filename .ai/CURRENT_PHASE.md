@@ -10,9 +10,9 @@
   deterministic static/seeded landmarks with real collision and a bounded
   focused count, spaced to clear the established server-driver route. The tree
   path uses two dense rows 24 units apart, nine-unit longitudinal spacing, and
-  trees 55% taller than the ordinary landmark trees. Each presented vehicle now emits
-  compatibility-safe road dust and small debris at speed plus rear tire smoke
-  under fast braking/drift. The local camera gains velocity-aligned forward
+  trees 55% taller than the ordinary landmark trees. Each presented vehicle
+  now emits compatibility-safe road dust and small debris at speed plus rear
+  tire smoke under fast braking/drift. The local camera gains velocity-aligned forward
   lead, a short boost-onset pullback, subtle burst-speed vibration, and jolts on
   drift commitment, wall bumps, and weapon impacts; none of these presentation
   cues feed physics, rollback, or network state. Focused layout/camera/FX,
@@ -26,15 +26,19 @@
   path follow-up, focused layout and forced-presentation checks pass and the
   120 ms network gate passes at 0.527-unit worst correction.
 - The first tire-smoke presentation has been replaced after human feedback that
-  its equal flat particles looked generated rather than smoky. Following G2's
-  grow/fade/thin vocabulary and per-effect variation, tire smoke now combines a
-  short darker core with a larger, slower haze layer. Both use a shared
-  procedural multi-lobed soft silhouette, randomized rotation and lifetime,
-  separate rise/drift rates, expanding scale curves, and a grey density-to-fade
-  gradient. The smoke remains compatibility-safe, client-local, and driven by
-  the same synchronized skid values. Focused core/edge/asymmetry coverage,
-  forced-presentation construction, vehicle-animation coverage, offline play,
-  and diff checks pass. Fresh rendered human review is next.
+  its equal flat particles looked generated rather than smoky, then enlarged
+  again after feedback that the first layered follow-up still read as small
+  particles. The exact accepted G2 isometric campfire reference was recovered
+  from commit `8178080`: its detailed 512px CC0/MIT smoke card is now preserved
+  locally with source/license metadata. Tire smoke uses only 22 darker core
+  cards and 14 broad haze cards, randomized like that reference. The outer
+  billows grow to 5.72 units—at least vehicle width—and linger for 3.2 seconds
+  in world space, while slower drift, damping, rotation, lifetime variation,
+  expansion, and grey fade make adjacent cards overlap into a cloud. The smoke
+  remains compatibility-safe, client-local, and driven by the same synchronized
+  skid values. Focused asset/scale/lifetime coverage, clean import,
+  forced-presentation construction, and vehicle-animation checks pass. Fresh
+  rendered human review is next.
 - LowPoly Cars 01 is imported as 30 additional local presentation choices,
   bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
   four trucks, three tractors/construction vehicles, 11 loose wheel samples,

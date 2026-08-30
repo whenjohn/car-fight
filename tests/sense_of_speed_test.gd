@@ -44,13 +44,13 @@ func _init() -> void:
 		"a fast skid emits tire smoke")
 	_check(SPEED_FX.smoke_strength(14.0, 1.0, 0.0, false) == 0.0,
 		"airborne tires do not emit smoke")
-	_check(SPEED_FX.smoke_puff_alpha(Vector2.ZERO) > 0.75,
-		"smoke puffs retain a substantial cloudy core")
-	_check(SPEED_FX.smoke_puff_alpha(Vector2(0.98, 0.98)) < 0.02,
-		"smoke puffs have transparent soft corners")
-	_check(absf(SPEED_FX.smoke_puff_alpha(Vector2(-0.55, -0.1))
-		- SPEED_FX.smoke_puff_alpha(Vector2(0.55, -0.1))) > 0.04,
-		"multi-lobed smoke is visibly irregular instead of a uniform disc")
+	var smoke_texture := load(SPEED_FX.SMOKE_TEXTURE_PATH) as Texture2D
+	_check(smoke_texture != null and smoke_texture.get_width() == 512,
+		"tire smoke reuses the detailed G2 isometric smoke card")
+	_check(SPEED_FX.maximum_haze_card_size() >= 5.5,
+		"outer billows grow at least as wide as a vehicle")
+	_check(SPEED_FX.SMOKE_HAZE_LIFETIME >= 3.0,
+		"large smoke cards linger in world space")
 	print("SENSE_OF_SPEED_TEST PASS landmarks=%d tree_path=%d" % [
 		landmarks.size(), tree_path.size()])
 	quit(0)

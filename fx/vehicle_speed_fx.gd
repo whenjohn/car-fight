@@ -4,12 +4,20 @@ extends Node3D
 const DUST_START_SPEED := 8.0
 const DUST_FULL_SPEED := 20.0
 const SKID_SMOKE_START_SPEED := 7.0
+const SMOKE_TEXTURE_PATH := "res://assets/vfx/starter_vfx_fire/tex_smoke_07.png"
+const SMOKE_TEXTURE := preload(SMOKE_TEXTURE_PATH)
+const SMOKE_CORE_CARD_SIZE := 1.55
+const SMOKE_HAZE_CARD_SIZE := 2.75
+const SMOKE_CORE_LIFETIME := 1.65
+const SMOKE_HAZE_LIFETIME := 3.20
+const SMOKE_CORE_MAX_SCALE := 1.15
+const SMOKE_HAZE_MAX_SCALE := 1.60
+const SMOKE_GROWTH_PEAK := 1.30
 
 var _dust: CPUParticles3D
 var _debris: CPUParticles3D
 var _smoke_core: CPUParticles3D
 var _smoke_haze: CPUParticles3D
-static var _shared_smoke_texture: ImageTexture
 
 
 func _ready() -> void:
@@ -33,18 +41,20 @@ func _ready() -> void:
 	_debris.gravity = Vector3(0.0, -7.0, 0.0)
 	add_child(_debris)
 
-	_smoke_core = _particles("TireSmokeCore", 64, 0.92,
-		Color(0.36, 0.37, 0.35, 0.50), 0.50, true)
+	_smoke_core = _particles("TireSmokeCore", 22, SMOKE_CORE_LIFETIME,
+		Color.WHITE, SMOKE_CORE_CARD_SIZE, true)
 	_configure_smoke(_smoke_core, Vector3(0.0, 0.14, 1.28),
-		Vector3(0.78, 0.04, 0.14), Vector3(0.0, 0.72, 0.45), 2.0, 0.72)
+		Vector3(0.78, 0.04, 0.14), Vector3(0.0, 0.56, 0.30), 0.90,
+		SMOKE_CORE_MAX_SCALE, 0.42, Color(0.38, 0.39, 0.37), 0.72)
 	add_child(_smoke_core)
 
 	# A second, slower layer outlives the dark tire puff. Different size, rise,
 	# rotation, and fade timing keep the trail from reading as cloned discs.
-	_smoke_haze = _particles("TireSmokeHaze", 48, 1.38,
-		Color(0.68, 0.69, 0.66, 0.28), 0.76, true)
+	_smoke_haze = _particles("TireSmokeHaze", 14, SMOKE_HAZE_LIFETIME,
+		Color.WHITE, SMOKE_HAZE_CARD_SIZE, true)
 	_configure_smoke(_smoke_haze, Vector3(0.0, 0.18, 1.30),
-		Vector3(0.86, 0.05, 0.20), Vector3(0.0, 0.92, 0.25), 1.45, 1.05)
+		Vector3(0.86, 0.05, 0.20), Vector3(0.0, 0.72, 0.18), 0.56,
+		SMOKE_HAZE_MAX_SCALE, 0.28, Color(0.56, 0.57, 0.54), 0.52)
 	add_child(_smoke_haze)
 
 
@@ -96,7 +106,8 @@ func _particles(node_name: String, count: int, lifetime: float, color: Color,
 	material.vertex_color_use_as_albedo = true
 	material.albedo_color = Color.WHITE
 	if billowy:
-		material.albedo_texture = _smoke_texture()
+		material.albedo_texture = SMOKE_TEXTURE
+		material.billboard_keep_scale = true
 	quad.material = material
 	particles.mesh = quad
 	return particles
@@ -104,72 +115,49 @@ func _particles(node_name: String, count: int, lifetime: float, color: Color,
 
 func _configure_smoke(particles: CPUParticles3D, local_position: Vector3,
 		emission_extents: Vector3, initial_direction: Vector3,
-		maximum_velocity: float, maximum_scale: float) -> void:
+		maximum_velocity: float, maximum_scale: float, rise_acceleration: float,
+		tone: Color, peak_alpha: float) -> void:
 	particles.position = local_position
 	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	particles.emission_box_extents = emission_extents
 	particles.direction = initial_direction
-	particles.spread = 52.0
+	particles.spread = 68.0
 	particles.initial_velocity_min = maximum_velocity * 0.34
 	particles.initial_velocity_max = maximum_velocity
-	particles.gravity = Vector3(0.0, 0.78, 0.0)
-	particles.lifetime_randomness = 0.28
-	particles.angle_min = -180.0
-	particles.angle_max = 180.0
-	particles.angular_velocity_min = -38.0
-	particles.angular_velocity_max = 38.0
+	particles.gravity = Vector3(0.0, rise_acceleration, 0.0)
+	particles.damping_min = 1.25
+	particles.damping_max = 2.15
+	particles.lifetime_randomness = 0.40
+	particles.angle_min = -360.0
+	particles.angle_max = 360.0
+	particles.angular_velocity_min = -92.0
+	particles.angular_velocity_max = 92.0
 	particles.scale_amount_min = maximum_scale * 0.74
 	particles.scale_amount_max = maximum_scale
 	var growth := Curve.new()
 	growth.min_value = 0.0
-	growth.max_value = 1.35
-	growth.add_point(Vector2(0.0, 0.24))
-	growth.add_point(Vector2(0.20, 0.62))
-	growth.add_point(Vector2(0.58, 1.06))
-	growth.add_point(Vector2(1.0, 1.30))
+	growth.max_value = SMOKE_GROWTH_PEAK
+	growth.add_point(Vector2(0.0, 0.34))
+	growth.add_point(Vector2(0.14, 0.72))
+	growth.add_point(Vector2(0.50, 1.08))
+	growth.add_point(Vector2(1.0, SMOKE_GROWTH_PEAK))
 	particles.scale_amount_curve = growth
 	var fade := Gradient.new()
 	fade.set_offset(0, 0.0)
-	fade.set_color(0, Color(0.78, 0.79, 0.75, 0.16))
-	fade.add_point(0.12, Color(0.48, 0.49, 0.46, 0.62))
-	fade.add_point(0.48, Color(0.61, 0.62, 0.59, 0.42))
+	fade.set_color(0, Color(tone.r, tone.g, tone.b, 0.0))
+	fade.add_point(0.07, Color(tone.r, tone.g, tone.b, peak_alpha))
+	fade.add_point(0.42, Color(tone.r + 0.08, tone.g + 0.08, tone.b + 0.08,
+		peak_alpha * 0.76))
+	fade.add_point(0.74, Color(tone.r + 0.16, tone.g + 0.16, tone.b + 0.16,
+		peak_alpha * 0.38))
 	fade.set_offset(fade.get_point_count() - 1, 1.0)
-	fade.set_color(fade.get_point_count() - 1, Color(0.72, 0.73, 0.70, 0.0))
+	fade.set_color(fade.get_point_count() - 1,
+		Color(tone.r + 0.20, tone.g + 0.20, tone.b + 0.20, 0.0))
 	particles.color_ramp = fade
 
 
-static func smoke_puff_alpha(uv: Vector2) -> float:
-	# Union several soft lobes, then lightly break up the density. The silhouette
-	# stays cloud-like at any rotation without requiring an imported texture.
-	var lobes := [
-		Vector3(-0.20, 0.06, 0.68), Vector3(0.24, 0.10, 0.58),
-		Vector3(-0.04, -0.25, 0.54), Vector3(0.18, -0.31, 0.45),
-		Vector3(-0.39, -0.17, 0.42), Vector3(0.03, 0.34, 0.44),
-	]
-	var density := 0.0
-	for lobe_value in lobes:
-		var lobe: Vector3 = lobe_value
-		var distance: float = uv.distance_to(Vector2(lobe.x, lobe.y)) / lobe.z
-		density = maxf(density, 1.0 - smoothstep(0.52, 1.0, distance))
-	var breakup := 0.88 + 0.12 * sin(uv.x * 17.0 + sin(uv.y * 9.0) * 2.4) \
-		* sin(uv.y * 15.0 - uv.x * 3.0)
-	return clampf(pow(density, 1.28) * breakup, 0.0, 1.0)
-
-
-static func _smoke_texture() -> ImageTexture:
-	if _shared_smoke_texture != null:
-		return _shared_smoke_texture
-	const TEXTURE_SIZE := 96
-	var image := Image.create(TEXTURE_SIZE, TEXTURE_SIZE, false, Image.FORMAT_RGBA8)
-	for y in TEXTURE_SIZE:
-		for x in TEXTURE_SIZE:
-			var uv := Vector2(float(x) / float(TEXTURE_SIZE - 1),
-				float(y) / float(TEXTURE_SIZE - 1)) * 2.0 - Vector2.ONE
-			var alpha := smoke_puff_alpha(uv)
-			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
-	image.generate_mipmaps()
-	_shared_smoke_texture = ImageTexture.create_from_image(image)
-	return _shared_smoke_texture
+static func maximum_haze_card_size() -> float:
+	return SMOKE_HAZE_CARD_SIZE * SMOKE_HAZE_MAX_SCALE * SMOKE_GROWTH_PEAK
 
 
 func _set_emission(particles: CPUParticles3D, strength: float) -> void:
