@@ -2,16 +2,25 @@
 
 ## Trees, foliage, and lighting audition ready for human review
 
+- Shapespark's CC0 low-poly exterior plants kit is tracked with Git LFS and
+  exposed as three four-tree families. Family 1 is the new local default; the
+  prior 200-tree collection and procedural baseline remain selectable. The
+  library loads only the selected source pack. All nine imported menu choices
+  pass the focused normalization/fallback/shadow test.
+- The first monitored offline Shapespark run paused once for 10.9 seconds while
+  Godot uploaded 22 embedded textures, then remained continuous while driving
+  at roughly 55-68 FPS. It used about 58 MB texture / 67 MB video memory, with
+  no thermal warning, GPU reset, or recurring simulation stall.
 - Work is isolated on `codex/trees-foliage-lighting` in
   `/Users/johnnguyen/Projects/car-fight-trees-foliage-lighting`. The locally
   installed ilkhom23 CGTrader pack supplies 200 one-material trees. Its Royalty
   Free License (no AI) permits incorporated game use but not source-file
   redistribution, so the FBX and 1024px atlas remain under ignored
   `assets/local/`; a clean checkout falls back to procedural trees.
-- The native `Scenery` menu live-switches the procedural baseline and six
-  deterministic ten-tree ranges. Collection 21-30 is the local default because
-  it is the lightest useful group; the more detailed ranges remain explicit
-  auditions. Every imported mesh is normalized to the existing landmark
+- The native `Scenery` menu live-switches the procedural baseline, six
+  deterministic ten-tree collection ranges, and three Shapespark families.
+  Shapespark family 1 is the local default; the more detailed collection ranges
+  remain explicit auditions. Every imported mesh is normalized to the existing landmark
   height, grounded, and shadow-disabled. The existing 142 static/seeded
   objects, 76-tree corridor, simple trunk colliders, gameplay, and network
   state are unchanged. Normal headless servers do not instantiate the library
@@ -27,12 +36,12 @@
   script error occurred. Detailed rows still need human visual/performance
   review before any selection is promoted.
 - Project parse, focused foliage/presentation/layout checks, WebRTC lifecycle,
-  offline, mixed transport, join recovery, reconnect, ball, tractor, reverse,
-  gate, combat, RC-orb, shield, and det gates pass. The monolithic suite hit
-  the documented timing-sensitive network/escape and course samples; isolated
-  retries pass at 0.919-unit worst network correction and 1.651 rebound. An
-  unchanged-master network control also passed at 0.566. The final focused
-  foliage test and five-tick presentation boot both pass with the local pack.
+  offline, network (0.300 worst correction), mixed transport, join recovery,
+  reconnect, ball, tractor, reverse, gate, combat, RC-orb, shield, and det
+  gates pass. The latest monolithic suite hit only the documented
+  timing-sensitive course sample; its immediate isolated retry passed with a
+  1.651 rebound. The final focused foliage test passes all nine imported menu
+  choices with the tracked Shapespark pack and local collection pack.
 - Human review exposed periodic stop/start motion in the monitored `--local`
   client caused by stale authority recovery, not rendering. The monitored
   launcher now accepts `--offline` for foliage, lighting, and handling review;

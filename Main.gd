@@ -332,12 +332,12 @@ func _ready() -> void:
 	# Normal headless servers/gates do not even probe the optional FBX path.
 	if not _is_headless():
 		_tree_visual_library = TREE_VISUAL_LIBRARY.new()
-		_tree_style_index = 1 if TREE_VISUAL_LIBRARY.source_available() else 0
+		_tree_style_index = TREE_VISUAL_LIBRARY.default_style_index()
 		var requested_tree_style := OS.get_environment("CAR_FIGHT_TREE_STYLE")
 		if requested_tree_style.is_valid_int():
 			_tree_style_index = clampi(int(requested_tree_style), 0,
 				TREE_VISUAL_LIBRARY.STYLE_NAMES.size() - 1)
-			if _tree_style_index > 0 and not TREE_VISUAL_LIBRARY.source_available():
+			if not TREE_VISUAL_LIBRARY.style_available(_tree_style_index):
 				_tree_style_index = 0
 		var requested_lighting_style := OS.get_environment("CAR_FIGHT_LIGHTING_STYLE")
 		if requested_lighting_style.is_valid_int():
@@ -1964,11 +1964,10 @@ func _build_scenery_menu() -> void:
 	_scenery_popup.add_item("Tree model", SCENERY_INFO_MENU_ID)
 	_scenery_popup.set_item_disabled(
 		_scenery_popup.get_item_index(SCENERY_INFO_MENU_ID), true)
-	var asset_available := TREE_VISUAL_LIBRARY.source_available()
 	for index in range(TREE_VISUAL_LIBRARY.STYLE_NAMES.size()):
 		_scenery_popup.add_radio_check_item(TREE_VISUAL_LIBRARY.STYLE_NAMES[index],
 			TREE_STYLE_MENU_ID_BASE + index)
-		if index > 0 and not asset_available:
+		if not TREE_VISUAL_LIBRARY.style_available(index):
 			_scenery_popup.set_item_disabled(_scenery_popup.get_item_index(
 				TREE_STYLE_MENU_ID_BASE + index), true)
 	_scenery_popup.add_separator()
@@ -1996,7 +1995,7 @@ func _refresh_scenery_menu() -> void:
 func _on_scenery_menu_pressed(id: int) -> void:
 	var tree_index := id - TREE_STYLE_MENU_ID_BASE
 	if tree_index >= 0 and tree_index < TREE_VISUAL_LIBRARY.STYLE_NAMES.size():
-		if tree_index == 0 or TREE_VISUAL_LIBRARY.source_available():
+		if TREE_VISUAL_LIBRARY.style_available(tree_index):
 			_tree_style_index = tree_index
 			_rebuild_tree_visuals()
 			_refresh_scenery_menu()
