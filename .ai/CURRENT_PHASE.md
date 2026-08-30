@@ -25,6 +25,16 @@
   landmark spacing can be tuned together before merge. After the denser tree
   path follow-up, focused layout and forced-presentation checks pass and the
   120 ms network gate passes at 0.527-unit worst correction.
+- The first tire-smoke presentation has been replaced after human feedback that
+  its equal flat particles looked generated rather than smoky. Following G2's
+  grow/fade/thin vocabulary and per-effect variation, tire smoke now combines a
+  short darker core with a larger, slower haze layer. Both use a shared
+  procedural multi-lobed soft silhouette, randomized rotation and lifetime,
+  separate rise/drift rates, expanding scale curves, and a grey density-to-fade
+  gradient. The smoke remains compatibility-safe, client-local, and driven by
+  the same synchronized skid values. Focused core/edge/asymmetry coverage,
+  forced-presentation construction, vehicle-animation coverage, offline play,
+  and diff checks pass. Fresh rendered human review is next.
 - LowPoly Cars 01 is imported as 30 additional local presentation choices,
   bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
   four trucks, three tractors/construction vehicles, 11 loose wheel samples,

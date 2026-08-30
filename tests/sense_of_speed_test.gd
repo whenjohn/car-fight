@@ -44,6 +44,13 @@ func _init() -> void:
 		"a fast skid emits tire smoke")
 	_check(SPEED_FX.smoke_strength(14.0, 1.0, 0.0, false) == 0.0,
 		"airborne tires do not emit smoke")
+	_check(SPEED_FX.smoke_puff_alpha(Vector2.ZERO) > 0.75,
+		"smoke puffs retain a substantial cloudy core")
+	_check(SPEED_FX.smoke_puff_alpha(Vector2(0.98, 0.98)) < 0.02,
+		"smoke puffs have transparent soft corners")
+	_check(absf(SPEED_FX.smoke_puff_alpha(Vector2(-0.55, -0.1))
+		- SPEED_FX.smoke_puff_alpha(Vector2(0.55, -0.1))) > 0.04,
+		"multi-lobed smoke is visibly irregular instead of a uniform disc")
 	print("SENSE_OF_SPEED_TEST PASS landmarks=%d tree_path=%d" % [
 		landmarks.size(), tree_path.size()])
 	quit(0)
