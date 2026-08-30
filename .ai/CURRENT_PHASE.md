@@ -2,8 +2,8 @@
 
 ## Current decision
 
-- PlayStation controller support is implemented on `codex/controller` in
-  `/Users/johnnguyen/Projects/car-fight-controller`. The left stick supplies a
+- PlayStation controller support is merged to `master` at `5083b43`. The left
+  stick supplies a
   camera-relative analog cursor through a radial deadzone, preserving the
   existing distance-based FOLLOW throttle and rollback input path. Cross,
   Circle, shoulders, triggers, face buttons, and D-pad cover boost, reverse,
@@ -14,8 +14,8 @@
   offline test, and the complete permission-correct `./scripts/test.sh` suite
   pass (`ALL_TESTS PASS`), including 0.300-unit worst correction in the 120 ms
   network gate. A windowed Godot probe detects the USB DualSense as standardized
-  joypad device 0 with all six axes neutral at 0.0; a hands-on stick-direction,
-  deadzone, and button-label pass is now running through `play_monitored.sh`.
+  joypad device 0 with all six axes neutral at 0.0, and the hands-on controller
+  pass was accepted as good for now. The feature worktree can be removed.
 - Sense-of-speed work is merged to `master` at `ee634a6`. The normal arena now
   uses the previously proven network-test half-extent of 240 units; the separate
   driving-course world moved east to preserve its physical gap. Two broad
