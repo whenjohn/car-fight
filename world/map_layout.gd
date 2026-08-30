@@ -5,7 +5,7 @@ extends RefCounted
 const ARENA := 0
 const DRIVING_COURSE := 1
 
-const COURSE_CENTER := Vector3(400.0, 0.0, 0.0)
+const COURSE_CENTER := Vector3(560.0, 0.0, 0.0)
 const COURSE_HALF_EXTENT := 120.0
 const GATE_HALF_SIZE := 7.5
 const GATE_COOLDOWN := 1.25

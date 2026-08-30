@@ -2,6 +2,50 @@
 
 ## Current decision
 
+- Sense-of-speed work is implemented on `codex/sense-of-speed` in
+  `/Users/johnnguyen/Projects/car-fight-sense-of-speed`. The normal arena now
+  uses the previously proven network-test half-extent of 240 units; the separate
+  driving-course world moved east to preserve its physical gap. Two broad
+  boulevard corridors plus a dedicated east-side tree path are framed by 142
+  deterministic static/seeded landmarks with real collision and a bounded
+  focused count, spaced to clear the established server-driver route. The tree
+  path uses two dense rows 24 units apart, nine-unit longitudinal spacing, and
+  trees 55% taller than the ordinary landmark trees. Each presented vehicle
+  now emits compatibility-safe road dust and small debris at speed plus rear
+  tire smoke under fast braking/drift. The local camera gains velocity-aligned forward
+  lead, a short boost-onset pullback, subtle burst-speed vibration, and jolts on
+  drift commitment, wall bumps, and weapon impacts; none of these presentation
+  cues feed physics, rollback, or network state. Focused layout/camera/FX,
+  vehicle-animation, forced-presentation, offline, and 120 ms networking checks
+  pass (0.368-unit isolated and 0.381-unit full-suite worst corrections). The
+  complete suite passed through combat, then the documented timing-sensitive
+  RC-orb gate missed its manual detonation; RC-orb passed immediately in
+  isolation, followed by passing shield and detonation gates. Human rendered
+  feel review remains next so lead, boost lag, vibration, particle density, and
+  landmark spacing can be tuned together before merge. After the denser tree
+  path follow-up, focused layout and forced-presentation checks pass and the
+  120 ms network gate passes at 0.527-unit worst correction.
+- The first tire-smoke presentation has been replaced after human feedback that
+  its equal flat particles looked generated rather than smoky, then enlarged
+  again after feedback that the first layered follow-up still read as small
+  particles. The exact accepted G2 isometric campfire reference was recovered
+  from commit `8178080`: its detailed 512px CC0/MIT smoke card is now preserved
+  locally with source/license metadata. Tire smoke uses only 22 darker core
+  cards and broad haze cards randomized like that reference. A second human
+  review found that revision still too small, sparse, and brief to see. The
+  current intentionally overt calibration uses 48 darker core cards and 36
+  haze cards; outer billows grow to 15.4 units and linger for seven seconds in
+  world space. Slower drift, damping, rotation, lifetime variation, expansion,
+  higher opacity, and grey fade make adjacent cards overlap into a cloud. The smoke
+  remains compatibility-safe, client-local, and driven by the same synchronized
+  skid values. Focused asset/scale/lifetime coverage, clean import,
+  forced-presentation construction, and vehicle-animation checks pass. Fresh
+  rendered feedback then found the enlarged card's repeated silhouette too
+  obvious. The source card now produces a four-frame atlas: original, mirrored,
+  wide-cropped, and tall-cropped silhouettes. Every puff randomly selects a
+  frame and combines it with 42–100% scale, 64% lifetime, emission-time, and
+  rotation variation, removing synchronized stamped copies. Focused variation
+  coverage and forced-presentation construction pass. Fresh human review is next.
 - LowPoly Cars 01 is imported as 30 additional local presentation choices,
   bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
   four trucks, three tractors/construction vehicles, 11 loose wheel samples,

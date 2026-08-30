@@ -7,6 +7,7 @@ const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
 const CLOAK_DUST_SCRIPT := preload("res://fx/vehicle_cloak_dust.gd")
 const TIRE_SKID_TRAILS_SCRIPT := preload("res://player/tire_skid_trails.gd")
+const VEHICLE_SPEED_FX_SCRIPT := preload("res://fx/vehicle_speed_fx.gd")
 const JEEP_SCALE := 0.45
 const WHEEL_RADIUS := 0.31
 const MODEL_SCALE_MIN := 1.0
@@ -247,6 +248,7 @@ var _oil_fx_magenta: StandardMaterial3D
 var _oil_fx_ring: StandardMaterial3D
 var _oil_fx_time := 0.0
 var _tire_skid_trails: Node3D
+var _vehicle_speed_fx: Node3D
 var _boost_skid_pulse := 0.0
 var _boost_was_active := false
 var _boost_release_no_skid := 0.0
@@ -264,6 +266,7 @@ func _ready() -> void:
 	_build_boost_echoes()
 	_build_oil_slip_fx()
 	_build_tire_skid_trails()
+	_build_vehicle_speed_fx()
 
 func _process(delta: float) -> void:
 	if _body == null:
@@ -293,6 +296,9 @@ func _process(delta: float) -> void:
 		for spin_node in _wheel_spin_nodes:
 			spin_node.rotation.x = _wheel_spin_angle
 		_update_tire_skid_trails(inputs, delta)
+		if _vehicle_speed_fx != null:
+			_vehicle_speed_fx.call("update_effects", planar_speed, brake_skid,
+				drift_signed, bool(inputs["boosting"]), bool(_body.get("was_supported")))
 		_update_boost_echoes(delta, bool(inputs["boosting"]), planar_speed)
 		_update_cloak(delta, rigid)
 	_update_oil_slip_fx(delta)
@@ -391,6 +397,13 @@ func _build_tire_skid_trails() -> void:
 	_tire_skid_trails.name = "TireSkidTrails"
 	_tire_skid_trails.set_script(TIRE_SKID_TRAILS_SCRIPT)
 	add_child(_tire_skid_trails)
+
+
+func _build_vehicle_speed_fx() -> void:
+	_vehicle_speed_fx = Node3D.new()
+	_vehicle_speed_fx.name = "VehicleSpeedFX"
+	_vehicle_speed_fx.set_script(VEHICLE_SPEED_FX_SCRIPT)
+	add_child(_vehicle_speed_fx)
 
 
 func _update_tire_skid_trails(inputs: Dictionary, delta: float) -> void:
