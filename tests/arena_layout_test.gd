@@ -62,7 +62,7 @@ func _init() -> void:
 				quit(1)
 				return
 	var proximity_objects: Array = layout_script.proximity_objects(arena_half)
-	if proximity_objects.size() < 64 or proximity_objects.size() > 96:
+	if proximity_objects.size() < 130 or proximity_objects.size() > 155:
 		push_error("ARENA_LAYOUT_TEST FAIL: proximity landmark count is not bounded")
 		quit(1)
 		return

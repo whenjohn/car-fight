@@ -12,8 +12,16 @@ func _init() -> void:
 	_check(MAPS.COURSE_CENTER.x > ARENA.HALF_EXTENT + MAPS.COURSE_HALF_EXTENT + 40.0,
 		"the larger arena remains physically separate from the driving course")
 	var landmarks := LAYOUT.proximity_objects(ARENA.HALF_EXTENT)
-	_check(landmarks.size() >= 64 and landmarks.size() <= 96,
+	_check(landmarks.size() >= 130 and landmarks.size() <= 155,
 		"proximity scenery has a useful, bounded object count")
+	var tree_path := LAYOUT.tree_path_objects(ARENA.HALF_EXTENT)
+	_check(tree_path.size() >= 70 and tree_path.size() <= 80,
+		"the dedicated tree path is visibly dense but bounded")
+	for tree in tree_path:
+		_check(str(tree["kind"]) == "tree" and float(tree["height_scale"]) >= 1.5,
+			"tree-path landmarks are consistently tall trees")
+		_check(absf(float((tree["position"] as Vector3).x) - 100.0) == 12.0,
+			"tree rows frame a 24-unit driving lane")
 	for landmark in landmarks:
 		var position: Vector3 = landmark["position"]
 		_check(maxf(absf(position.x), absf(position.z)) < ARENA.HALF_EXTENT - 10.0,
@@ -36,7 +44,8 @@ func _init() -> void:
 		"a fast skid emits tire smoke")
 	_check(SPEED_FX.smoke_strength(14.0, 1.0, 0.0, false) == 0.0,
 		"airborne tires do not emit smoke")
-	print("SENSE_OF_SPEED_TEST PASS landmarks=%d" % landmarks.size())
+	print("SENSE_OF_SPEED_TEST PASS landmarks=%d tree_path=%d" % [
+		landmarks.size(), tree_path.size()])
 	quit(0)
 
 

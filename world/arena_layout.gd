@@ -60,8 +60,31 @@ static func proximity_objects(half_extent: float) -> Array[Dictionary]:
 		for side in [-1, 1]:
 			result.append(_landmark("NorthSouth", side * 16.0, float(along),
 				result.size()))
-			result.append(_landmark("EastWest", float(along), side * 16.0,
-				result.size()))
+			# Leave the east boulevard open where it crosses the dedicated tree lane.
+			if along < 75 or along > 126:
+				result.append(_landmark("EastWest", float(along), side * 16.0,
+					result.size()))
+	result.append_array(tree_path_objects(half_extent))
+	return result
+
+
+## A deliberately dense, tall tree corridor on the east side of the arena.
+## The 24-unit clear lane remains generous for cars while nine-unit tree
+## spacing makes speed legible continuously instead of as isolated landmarks.
+static func tree_path_objects(half_extent: float) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var end := mini(180, floori(half_extent - 30.0))
+	for along in range(-end, end + 1, 9):
+		if abs(along) < 13:
+			continue
+		for x in [88.0, 112.0]:
+			result.append({
+				"name": "TallTreePath%03d" % result.size(),
+				"position": Vector3(x, 0.0, float(along)),
+				"kind": "tree",
+				"height_scale": 1.55,
+				"crown_scale": 1.25,
+			})
 	return result
 
 

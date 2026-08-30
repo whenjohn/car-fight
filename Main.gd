@@ -1629,7 +1629,9 @@ func _add_proximity_landmark(info: Dictionary) -> void:
 	body.position = info["position"]
 	var tree_landmark := str(info["kind"]) == "tree"
 	var radius := 0.58 if tree_landmark else 0.28
-	var height := 5.2 if tree_landmark else 6.6
+	var height_scale := float(info.get("height_scale", 1.0))
+	var crown_scale := float(info.get("crown_scale", 1.0))
+	var height := (5.2 if tree_landmark else 6.6) * height_scale
 	var collision := CollisionShape3D.new()
 	var shape := CylinderShape3D.new()
 	shape.radius = radius
@@ -1660,8 +1662,8 @@ func _add_proximity_landmark(info: Dictionary) -> void:
 			crown_mesh.radial_segments = 8
 			crown_mesh.rings = 5
 			crown.mesh = crown_mesh
-			crown.position.y = height + 1.1
-			crown.scale = Vector3(1.0, 1.18, 1.0)
+			crown.position.y = height + 1.1 * crown_scale
+			crown.scale = Vector3(crown_scale, crown_scale * 1.18, crown_scale)
 			crown.material_override = _material(Color("345a3e"))
 			crown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			crown.set_meta("arena_presentation", true)

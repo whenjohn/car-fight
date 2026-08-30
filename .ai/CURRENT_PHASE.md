@@ -6,9 +6,11 @@
   `/Users/johnnguyen/Projects/car-fight-sense-of-speed`. The normal arena now
   uses the previously proven network-test half-extent of 240 units; the separate
   driving-course world moved east to preserve its physical gap. Two broad
-  boulevard corridors are framed by 72 deterministic static/seeded trees and
-  lamp posts with real collision and a bounded focused count, spaced to clear
-  the established server-driver route. Each presented vehicle now emits
+  boulevard corridors plus a dedicated east-side tree path are framed by 142
+  deterministic static/seeded landmarks with real collision and a bounded
+  focused count, spaced to clear the established server-driver route. The tree
+  path uses two dense rows 24 units apart, nine-unit longitudinal spacing, and
+  trees 55% taller than the ordinary landmark trees. Each presented vehicle now emits
   compatibility-safe road dust and small debris at speed plus rear tire smoke
   under fast braking/drift. The local camera gains velocity-aligned forward
   lead, a short boost-onset pullback, subtle burst-speed vibration, and jolts on
@@ -20,7 +22,9 @@
   RC-orb gate missed its manual detonation; RC-orb passed immediately in
   isolation, followed by passing shield and detonation gates. Human rendered
   feel review remains next so lead, boost lag, vibration, particle density, and
-  landmark spacing can be tuned together before merge.
+  landmark spacing can be tuned together before merge. After the denser tree
+  path follow-up, focused layout and forced-presentation checks pass and the
+  120 ms network gate passes at 0.527-unit worst correction.
 - LowPoly Cars 01 is imported as 30 additional local presentation choices,
   bringing the `V` cycle to 40 models. The owner-supplied FBX contains 23 cars,
   four trucks, three tractors/construction vehicles, 11 loose wheel samples,
