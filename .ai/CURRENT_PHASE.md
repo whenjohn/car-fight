@@ -73,6 +73,41 @@
 
 ## Current decision
 
+- The requested combined rendering/scenery integration is now on local
+  `master`: `codex/trees-foliage-lighting` contributes the switchable tree
+  library, Shapespark foliage audition, optional prop/city auditions, expanded
+  city map, and Scenery lighting menu; `codex/rendering-styles` contributes the
+  separate sparse HDRI-lit `Overcast City` world and offline-safe
+  `World > Arena / Overcast City` menu. Merge resolution keeps the foliage and
+  World menu command ranges separate, preserves the foliage branch's monitored
+  offline launcher behavior, and prevents foliage/city audition dressing from
+  leaking into the deliberately uncluttered overcast world. Combined clean
+  import, shell/diff checks, normal Arena offline, Overcast City offline drive,
+  presentation assets, and all four focused foliage/city/overcast tests pass.
+  The complete suite again stopped only at the pre-existing timing-sensitive
+  escape-assist sample; the identical miss was reproduced on untouched
+  `master`. Every subsequent gate was then run manually: mixed transport, join,
+  reconnect, ball, tractor, course, reverse, map gate, combat, shield, and det
+  passed; RC orb missed once and passed immediately in isolation. Push is next.
+- Rendering-style exploration now has a separate sparse `Overcast City` debug
+  world on `codex/rendering-styles`. It preserves the normal car and physics but
+  replaces the cluttered arena with an open cross-street, four distant building
+  masses, restrained sidewalks/puddles, and the accepted CC0 Poly Haven
+  Kloofendal overcast HDRI from the older `godot-aerial` study. Filmic grading,
+  sky ambient/reflections, a weak directional key, and a shallow stable
+  Compatibility spotlight approximate that Forward+ study without enabling the
+  Intel-breaking renderer or SSAO/SDFGI. The native system menu adds
+  `World > Arena / Overcast City`; it is enabled only in offline debug sessions
+  and stops/restarts the offline scene so visual geometry and authoritative
+  collision always switch together. `scripts/play_overcast_world.sh` launches
+  this through the existing monitored, window-safe wrapper. The new focused
+  world/menu test, presentation asset test, normal offline regression, clean
+  import, shell syntax, and diff checks pass. The complete suite reached the
+  network gate, where the timing-sensitive escape-assist sample missed twice;
+  the identical gate then produced the same miss on untouched `master`, with
+  clean contact/bump evidence in all three runs, confirming baseline test drift
+  rather than a rendering-world regression. Human lighting/layout tuning and
+  the requested combined merge with `codex/trees-foliage-lighting` are next.
 - PlayStation controller support is merged to `master` at `5083b43`. The left
   stick supplies a
   camera-relative analog cursor through a radial deadzone, preserving the

@@ -61,6 +61,7 @@ const DOTS_SCRIPT := preload("res://world/dots.gd")
 const TROOP_DELIVERY_SCRIPT := preload("res://world/troop_delivery.gd")
 const OIL_SLICK := preload("res://world/oil_slick.gd")
 const OIL_SLICKS_SCRIPT := preload("res://world/oil_slicks.gd")
+const OVERCAST_WORLD := preload("res://world/overcast_world.gd")
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
 const MOTION_TRACE_SCRIPT := preload("res://diagnostics/motion_trace.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
@@ -177,6 +178,7 @@ var _reverse_test := false
 var _gate_test := false
 var _drone_enabled := true
 var _ball_enabled := true
+var _overcast_world_enabled := false
 var _start_tick := -1
 var _next_spawn_slot := 0
 var _next_remote_state_generation := 1
@@ -256,6 +258,7 @@ var _network_hud_rb_ticks_max := 0
 var _network_tier_label: Label
 var _system_menu_bar: MenuBar
 var _debug_popup: PopupMenu
+var _world_popup: PopupMenu
 var _oil_popup: PopupMenu
 var _oil_submenus := {}
 var _vehicle_model_popup: PopupMenu
@@ -271,6 +274,9 @@ var _gameplay_collision_debug_enabled := false
 var _gameplay_text_visible := true
 const DEBUG_COLLISION_MENU_ID := 1
 const DEBUG_GAMEPLAY_TEXT_MENU_ID := 2
+const WORLD_ARENA_MENU_ID := 3300
+const WORLD_OVERCAST_MENU_ID := 3301
+const WORLD_OFFLINE_INFO_MENU_ID := 3302
 const OIL_INSTANT_MENU_ID := 1001
 const OIL_RESET_MENU_ID := 1002
 const OIL_AUTOSAVE_INFO_MENU_ID := 1003
@@ -491,8 +497,8 @@ func _process(_delta: float) -> void:
 		var id := multiplayer.get_unique_id()
 		var speed: float = 0.0 if local == null else local.speed()
 		var mode := "COVERAGE EDITOR" if _combat_editor_active else "DRIVE + AUTO FIRE"
-		var location := "ARENA"
-		if local != null:
+		var location := "OVERCAST CITY" if _overcast_world_enabled else "ARENA"
+		if local != null and not _overcast_world_enabled:
 			location = MAP_LAYOUT.map_name(int(local.get("map_id")))
 			if int(local.get("map_id")) == MAP_LAYOUT.DRIVING_COURSE:
 				var section: Dictionary = DRIVING_COURSE_SCRIPT.section_at(local.global_position)
@@ -531,6 +537,7 @@ func _parse_args() -> void:
 	_ramps_enabled = OS.get_environment("CAR_FIGHT_NO_RAMPS") != "1"
 	_drone_enabled = OS.get_environment("CAR_FIGHT_NO_DRONE") != "1"
 	_ball_enabled = OS.get_environment("CAR_FIGHT_NO_BALL") != "1"
+	_overcast_world_enabled = OS.get_environment("CAR_FIGHT_OVERCAST_WORLD") == "1"
 	_join_stall_ms = maxi(0, int(OS.get_environment("CAR_FIGHT_JOIN_STALL_MS")))
 	_join_stall_after_ms = maxi(0,
 		int(OS.get_environment("CAR_FIGHT_JOIN_STALL_AFTER_MS")))
@@ -808,6 +815,8 @@ func _parse_args() -> void:
 			_drone_enabled = false
 		elif arg == "--no-ball":
 			_ball_enabled = false
+		elif arg == "--overcast-world":
+			_overcast_world_enabled = true
 		elif arg.begins_with("--host="):
 			_host = arg.get_slice("=", 1)
 			_proxy_server_host = _host
@@ -995,7 +1004,8 @@ func _start_server() -> void:
 		get_tree().quit(2)
 		return
 	multiplayer.multiplayer_peer = peer
-	_dots.call("generate")
+	if _dots != null:
+		_dots.call("generate")
 	if _server_driver_enabled:
 		_spawn_server_driver()
 	if _transport == "mux":
@@ -1071,9 +1081,10 @@ func _start_offline() -> void:
 	var config := _configuration_for(owner_id)
 	_apply_coverage_config(owner_id, config["ranges"], config["widths"],
 		config["tips_outward"])
-	var ball := _spawn_ball({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
-	_balls.add_child(ball, true)
-	_ball_seeded = true
+	if _ball_enabled and not _overcast_world_enabled:
+		var ball := _spawn_ball({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
+		_balls.add_child(ball, true)
+		_ball_seeded = true
 	_next_spawn_slot = 1
 	var time_error: int = await NetworkTime.start()
 	if time_error != OK:
@@ -1124,10 +1135,11 @@ func _on_peer_join(id: int) -> void:
 		target_counts.append(int(target.get("hit_count")))
 	_sync_target_hits.rpc_id(id, target_counts)
 	_next_spawn_slot += 1
-	if _ball_enabled and not _ball_seeded:
+	if _ball_enabled and not _overcast_world_enabled and not _ball_seeded:
 		_ball_seeded = true
 		_ball_spawner.spawn({"name": "ArenaBall", "position": BALL_SCRIPT.SPAWN_POSITION})
-	_dots.call("send_state_to", id)
+	if _dots != null:
+		_dots.call("send_state_to", id)
 
 func _spawn_server_driver() -> void:
 	if not multiplayer.is_server() or _players.get_node_or_null("1") != null:
@@ -1227,57 +1239,62 @@ func _build_world() -> void:
 	_area_burns = Node3D.new()
 	_area_burns.name = "AreaBurns"
 	add_child(_area_burns)
-	_shield_drone = Node3D.new()
-	_shield_drone.name = "ShieldTestDrone"
-	_shield_drone.set_script(SHIELD_DRONE_SCRIPT)
-	_shield_drone.position = SHIELD_DRONE_SCRIPT.ARENA_POSITION
-	add_child(_shield_drone)
+	if _overcast_world_enabled:
+		OVERCAST_WORLD.build_geometry(self, not _is_headless())
+	else:
+		_shield_drone = Node3D.new()
+		_shield_drone.name = "ShieldTestDrone"
+		_shield_drone.set_script(SHIELD_DRONE_SCRIPT)
+		_shield_drone.position = SHIELD_DRONE_SCRIPT.ARENA_POSITION
+		add_child(_shield_drone)
+		if not _is_headless():
+			_shield_drone.call("build_presentation")
+		_build_arena()
+		_driving_course = Node3D.new()
+		_driving_course.name = "DrivingCourse"
+		_driving_course.set_script(DRIVING_COURSE_SCRIPT)
+		_driving_course.call("setup", _players)
+		add_child(_driving_course)
+		_jump_gates = Node3D.new()
+		_jump_gates.name = "JumpGates"
+		_jump_gates.set_script(JUMP_GATES_SCRIPT)
+		_jump_gates.call("setup", _players)
+		add_child(_jump_gates)
+		_dots = Node3D.new()
+		_dots.name = "Dots"
+		_dots.set_script(DOTS_SCRIPT)
+		add_child(_dots)
+		_troop_delivery = Node3D.new()
+		_troop_delivery.name = "TroopDelivery"
+		_troop_delivery.set_script(TROOP_DELIVERY_SCRIPT)
+		_troop_delivery.call("setup", _players)
+		add_child(_troop_delivery)
+		_build_combat_targets()
 	if not _is_headless():
-		_shield_drone.call("build_presentation")
-	_build_arena()
-	_driving_course = Node3D.new()
-	_driving_course.name = "DrivingCourse"
-	_driving_course.set_script(DRIVING_COURSE_SCRIPT)
-	_driving_course.call("setup", _players)
-	add_child(_driving_course)
-	_jump_gates = Node3D.new()
-	_jump_gates.name = "JumpGates"
-	_jump_gates.set_script(JUMP_GATES_SCRIPT)
-	_jump_gates.call("setup", _players)
-	add_child(_jump_gates)
-	_dots = Node3D.new()
-	_dots.name = "Dots"
-	_dots.set_script(DOTS_SCRIPT)
-	add_child(_dots)
-	_troop_delivery = Node3D.new()
-	_troop_delivery.name = "TroopDelivery"
-	_troop_delivery.set_script(TROOP_DELIVERY_SCRIPT)
-	_troop_delivery.call("setup", _players)
-	add_child(_troop_delivery)
-	_build_combat_targets()
-	if not _is_headless():
-		# Oil gameplay is fixed shared data; these compatibility-friendly ground
-		# decals are presentation-only and never add collision or rollback bodies.
-		var oil_slicks := Node3D.new()
-		oil_slicks.name = "OilSlicks"
-		oil_slicks.set_script(OIL_SLICKS_SCRIPT)
-		oil_slicks.call("setup", _players)
-		add_child(oil_slicks)
-		# Grass is intentionally presentation-only. The existing GroundCollision
-		# remains the sole static collider on server and predicting clients.
-		var grass := Node3D.new()
-		grass.name = "InteractiveGrass"
-		grass.set_script(INTERACTIVE_GRASS_SCRIPT)
-		grass.call("setup", _players, _combat_bolts)
-		# A deliberate 36 m test plot on the quiet east side of the arena: dense
-		# enough to read as a real patch, but small enough to compare with bare ground.
-		grass.position = Vector3(58.0, 0.0, 18.0)
-		add_child(grass)
-		_driving_course.call("build_presentation")
-		_jump_gates.call("build_presentation")
+		if not _overcast_world_enabled:
+			# Oil gameplay is fixed shared data; these compatibility-friendly ground
+			# decals are presentation-only and never add collision or rollback bodies.
+			var oil_slicks := Node3D.new()
+			oil_slicks.name = "OilSlicks"
+			oil_slicks.set_script(OIL_SLICKS_SCRIPT)
+			oil_slicks.call("setup", _players)
+			add_child(oil_slicks)
+			# Grass is intentionally presentation-only. The existing GroundCollision
+			# remains the sole static collider on server and predicting clients.
+			var grass := Node3D.new()
+			grass.name = "InteractiveGrass"
+			grass.set_script(INTERACTIVE_GRASS_SCRIPT)
+			grass.call("setup", _players, _combat_bolts)
+			# A deliberate 36 m test plot on the quiet east side of the arena: dense
+			# enough to read as a real patch, but small enough to compare with bare ground.
+			grass.position = Vector3(58.0, 0.0, 18.0)
+			add_child(grass)
+			_driving_course.call("build_presentation")
+			_jump_gates.call("build_presentation")
 		_build_presentation()
-		_build_prop_auditions()
-		_build_city_audition()
+		if not _overcast_world_enabled:
+			_build_prop_auditions()
+			_build_city_audition()
 		if _motion_trace_enabled:
 			_motion_trace = Node.new()
 			_motion_trace.name = "PresentedMotionTrace"
@@ -1818,6 +1835,44 @@ func _rebuild_tree_visuals() -> void:
 		_build_tree_visual(body, tree_index)
 
 func _build_presentation() -> void:
+	if _overcast_world_enabled:
+		_shadow_light = OVERCAST_WORLD.build_lighting(self)
+	else:
+		_build_arena_lighting()
+	_camera = Camera3D.new()
+	_camera.name = "IsometricCamera"
+	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	_camera.size = ARENA_CONFIG.CAMERA_SIZE
+	_camera.current = true
+	add_child(_camera)
+	_speed_camera = SPEED_CAMERA_SCRIPT.new()
+	_build_shader_prewarm()
+	_impact_fx = Node3D.new()
+	_impact_fx.name = "ImpactFX"
+	_impact_fx.set_script(IMPACT_FX_SCRIPT)
+	add_child(_impact_fx)
+	_editor_stage = MeshInstance3D.new()
+	_editor_stage.name = "CoverageEditorStage"
+	var editor_plane := PlaneMesh.new()
+	editor_plane.size = Vector2(64.0, 64.0)
+	_editor_stage.mesh = editor_plane
+	_editor_stage.material_override = _material(Color("182125"))
+	_editor_stage.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_editor_stage.visible = false
+	add_child(_editor_stage)
+	var boost_blur := CanvasLayer.new()
+	boost_blur.name = "BoostVelocityBlur"
+	boost_blur.set_script(BOOST_VELOCITY_BLUR_SCRIPT)
+	boost_blur.call("setup", _players, _camera)
+	add_child(boost_blur)
+	var hud := CanvasLayer.new()
+	hud.name = "HUD"
+	hud.layer = 10
+	add_child(hud)
+	_build_hud(hud)
+
+
+func _build_arena_lighting() -> void:
 	var environment := WorldEnvironment.new()
 	_world_environment = Environment.new()
 	_world_environment.background_mode = Environment.BG_COLOR
@@ -1870,36 +1925,9 @@ func _build_presentation() -> void:
 	add_child(_shadow_light)
 	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
 	_apply_lighting_style()
-	_camera = Camera3D.new()
-	_camera.name = "IsometricCamera"
-	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	_camera.size = ARENA_CONFIG.CAMERA_SIZE
-	_camera.current = true
-	add_child(_camera)
-	_speed_camera = SPEED_CAMERA_SCRIPT.new()
-	_build_shader_prewarm()
-	_impact_fx = Node3D.new()
-	_impact_fx.name = "ImpactFX"
-	_impact_fx.set_script(IMPACT_FX_SCRIPT)
-	add_child(_impact_fx)
-	_editor_stage = MeshInstance3D.new()
-	_editor_stage.name = "CoverageEditorStage"
-	var editor_plane := PlaneMesh.new()
-	editor_plane.size = Vector2(64.0, 64.0)
-	_editor_stage.mesh = editor_plane
-	_editor_stage.material_override = _material(Color("182125"))
-	_editor_stage.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_editor_stage.visible = false
-	add_child(_editor_stage)
-	var boost_blur := CanvasLayer.new()
-	boost_blur.name = "BoostVelocityBlur"
-	boost_blur.set_script(BOOST_VELOCITY_BLUR_SCRIPT)
-	boost_blur.call("setup", _players, _camera)
-	add_child(boost_blur)
-	var hud := CanvasLayer.new()
-	hud.name = "HUD"
-	hud.layer = 10
-	add_child(hud)
+
+
+func _build_hud(hud: CanvasLayer) -> void:
 	var indicators := Control.new()
 	indicators.name = "OffscreenIndicators"
 	indicators.set_script(OFFSCREEN_INDICATORS_SCRIPT)
@@ -1923,6 +1951,7 @@ func _build_presentation() -> void:
 	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_GAMEPLAY_TEXT_MENU_ID),
 		_gameplay_text_visible)
 	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
+	_build_world_menu()
 	_build_vehicle_model_menu()
 	_build_oil_tuning_menu()
 	_build_scenery_menu()
@@ -2108,6 +2137,46 @@ func _apply_lighting_style() -> void:
 			_sun_light.light_color = Color("fff1d4")
 			_sun_light.light_energy = 0.28
 			_shadow_light.visible = true
+
+
+func _build_world_menu() -> void:
+	_world_popup = PopupMenu.new()
+	_world_popup.name = "World"
+	_world_popup.title = "World"
+	_system_menu_bar.add_child(_world_popup)
+	_world_popup.add_radio_check_item("Arena", WORLD_ARENA_MENU_ID)
+	_world_popup.add_radio_check_item("Overcast City", WORLD_OVERCAST_MENU_ID)
+	_world_popup.set_item_checked(_world_popup.get_item_index(WORLD_ARENA_MENU_ID),
+		not _overcast_world_enabled)
+	_world_popup.set_item_checked(_world_popup.get_item_index(WORLD_OVERCAST_MENU_ID),
+		_overcast_world_enabled)
+	_world_popup.add_separator()
+	_world_popup.add_item("Offline rendering debug only", WORLD_OFFLINE_INFO_MENU_ID)
+	_world_popup.set_item_disabled(_world_popup.get_item_index(WORLD_OFFLINE_INFO_MENU_ID), true)
+	if _role != "offline":
+		_world_popup.set_item_disabled(_world_popup.get_item_index(WORLD_ARENA_MENU_ID), true)
+		_world_popup.set_item_disabled(_world_popup.get_item_index(WORLD_OVERCAST_MENU_ID), true)
+	_world_popup.id_pressed.connect(_on_world_menu_pressed)
+
+
+func _on_world_menu_pressed(id: int) -> void:
+	if _role != "offline" or id not in [WORLD_ARENA_MENU_ID, WORLD_OVERCAST_MENU_ID]:
+		return
+	var use_overcast := id == WORLD_OVERCAST_MENU_ID
+	if use_overcast == _overcast_world_enabled:
+		return
+	# World geometry is authoritative. Stop the offline clock and rebuild the
+	# whole scene so presentation and collision change together.
+	OS.set_environment("CAR_FIGHT_OVERCAST_WORLD", "1" if use_overcast else "0")
+	NetworkTime.stop()
+	multiplayer.multiplayer_peer = null
+	call_deferred("_reload_selected_world")
+
+
+func _reload_selected_world() -> void:
+	var error := get_tree().reload_current_scene()
+	if error != OK:
+		push_error("Could not reload selected debug world: %s" % error_string(error))
 
 
 func _build_vehicle_model_menu() -> void:
