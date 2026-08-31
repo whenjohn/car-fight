@@ -297,7 +297,7 @@ const LIGHTING_STYLE_NAMES := [
 	"G2 warm key + cool fill",
 	"G2 key + fill + rim",
 	"Overcast city HDRI",
-	"Sunlit aerial (Intel-safe)",
+	"Sunlit aerial (Forward+ 4.6)",
 ]
 const VEHICLE_MODEL_SCALE_OPTIONS := [
 	1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0,
@@ -2204,15 +2204,19 @@ func _apply_lighting_style() -> void:
 			_world_environment.adjustment_brightness = 0.98
 			_world_environment.adjustment_contrast = 0.96
 			_world_environment.adjustment_saturation = 0.90
-			# Godot 4.7 Forward+ cannot compile its Vulkan compute pipelines on this
-			# Intel Iris Plus. This live-driving preset therefore keeps the sunlit
-			# procedural dome, Filmic grade, sky reflections, and MSAA while using
-			# Car Fight's stable Compatibility spotlight for contact shadows.
+			# Keep this first Intel Forward+ pass deliberately lean: real clustered
+			# rendering, low SSAO, and cascaded sun shadows, but no SSIL/SSR/SDFGI or
+			# TAA until the driving baseline proves stable and fast enough.
+			_world_environment.ssao_enabled = true
+			_world_environment.ssao_radius = 1.6
+			_world_environment.ssao_intensity = 1.0
+			_world_environment.ssao_power = 1.2
+			_world_environment.ssao_detail = 0.4
 			_sun_light.rotation_degrees = Vector3(-57.0, -34.0, 0.0)
 			_sun_light.light_color = Color(1.0, 0.965, 0.90)
 			_sun_light.light_energy = 1.65
 			_sun_light.light_specular = 0.8
-			_sun_light.shadow_enabled = false
+			_sun_light.shadow_enabled = true
 			_sun_light.shadow_opacity = 0.88
 			_sun_light.light_angular_distance = 0.65
 			_sun_light.shadow_blur = 1.0
@@ -2228,7 +2232,7 @@ func _apply_lighting_style() -> void:
 			_shadow_light.light_energy = 1.45
 			_shadow_light.light_specular = 0.5
 			_shadow_light.shadow_opacity = 0.72
-			_shadow_light.visible = true
+			_shadow_light.visible = false
 		_:
 			_world_environment.background_color = Color("10171d")
 			_world_environment.ambient_light_color = Color("b6cad3")

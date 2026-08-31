@@ -1,5 +1,31 @@
 # Current phase
 
+## Godot 4.6.3 Forward+ Intel experiment ready for review
+
+- Isolated on `codex/forwardplus-46-rendering` at
+  `/Users/johnnguyen/Projects/car-fight-forwardplus-46`, based on the completed
+  sunlit city worktree; both `master` and the Compatibility study are untouched.
+- Pins the project to Godot 4.6 Forward+ and replaces Rapier 0.8.39/API 4.7 with
+  the official Rapier 0.8.35 enhanced-determinism/API 4.6 release. The published
+  release archive SHA-256
+  `f6477144bccf8002c71647193444bd540ed648204d84e6e69919f4affafbf414`
+  was verified before installation.
+- Starts with a lean Intel baseline: real clustered Forward+, 2048 cascaded sun
+  shadows, low SSAO and 2x MSAA at 1280x720. SSIL, SSR, SDFGI and TAA remain off
+  until stability and driving frame rate are measured.
+- The monitored human run initialized as `Vulkan 1.2.283 - Forward+` on the Intel
+  Iris Plus and exited cleanly. It had one 20.2-second first-cache shader stall
+  plus a non-fatal MoltenVK pipeline-cache write warning, but none of Godot 4.7's
+  compute-pipeline compile/null-dispatch failures. Ten focused driving samples
+  ranged from 16–145 FPS and averaged 58.8 FPS, with 94–101 draw calls, at most
+  44.6k visible primitives and about 216 MB reported video memory.
+- Presentation, city and deterministic physics gates pass. The permission-correct
+  full suite also passes its unit tests, WebRTC lifecycle, offline, latency,
+  mixed-transport and join-transient stages. Its reconnect stage stops only
+  because Godot 4.6 emits `1 resources still in use at exit` for each deliberately
+  short-lived client and the strict scanner classifies any `ERROR:` line as a
+  failure; this shutdown-only 4.6 compatibility warning remains to resolve.
+
 ## Sunlit aerial city driving worktree ready for review
 
 - Isolated on `codex/sunlit-aerial-rendering` at
