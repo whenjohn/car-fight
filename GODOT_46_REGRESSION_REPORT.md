@@ -19,18 +19,24 @@ Status: integration candidate; do not promote to `master` yet.
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Godot 4.6.3 clean import/parse | Pending | |
-| Focused tests and complete `scripts/test.sh` | Pending | |
-| Native ENet profile matrix | Pending | |
-| Web offline release build/smoke | Pending | |
-| Browser/native WebRTC smoke | Pending | |
-| Accepted WebRTC lifecycle/impairment gates | Pending | |
+| Godot 4.6.3 clean import/parse | Pass | Clean second import; no parse, compile, script-load, or autoload errors |
+| Focused tests and complete `scripts/test.sh` | In progress | First suite passed through tractor, then hit the documented timing-sensitive course sample; isolated course and every downstream gate passed |
+| Native ENet profile matrix | Pass | All seven profiles passed; worst correction stayed below 1 unit in the retained complete matrix |
+| Web offline release build/smoke | Pass | `build/web-smoke-report.json`: Rapier 0.8.35, 60 FPS steady, 17.99 speed, zero browser errors |
+| Browser/native WebRTC smoke | Needs human performance pass | Lifecycle, replacement, movement, queues, and errors pass; short steady FPS varied from 35.2 to 51.2 against the unchanged 45 average floor |
+| Accepted WebRTC lifecycle/impairment gates | A/B performance open | Harness lifecycle passes. Candidate 120 ms TURN transport was healthy but measured 21.2 FPS; immediate preserved-4.7 control also failed at 18.6 FPS under the same machine load |
 | Clean Git diff and active-version audit | Pending | |
 
 The reconnect scanner remains strict for all runtime errors. It separately
 counts only Godot 4.6's exact shutdown-only
 `ERROR: 1 resources still in use at exit` warning after every process exits
 successfully and the topology/replacement assertions pass.
+
+Godot 4.6 headless startup required a longer observation window for the clean
+native authority-probe assertion. The native harness now runs 600 server / 720
+client ticks while retaining every existing correction, topology, traffic,
+loss, and error threshold. The Web refresh scanner now counts only Godot's
+actual `WARNING:` emission rather than also counting netfox's textual copy.
 
 ## Human Mac/Web acceptance
 

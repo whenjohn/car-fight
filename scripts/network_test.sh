@@ -42,8 +42,12 @@ if [[ -n "${CAR_FIGHT_REMOTE_INTERP_MODE:-}" ]]; then
 fi
 server_port="${CAR_FIGHT_TEST_PORT:-10380}"
 proxy_port=$((server_port + 1))
-server_ticks="${CAR_FIGHT_NETWORK_SERVER_TICKS:-480}"
-client_ticks="${CAR_FIGHT_NETWORK_CLIENT_TICKS:-600}"
+# Godot 4.6 headless clients finish their initial resource scan later relative
+# to the server than 4.7 clients. Keep the same assertions and traffic profile,
+# but retain enough post-handshake ticks for clean links to receive settled
+# authority probes instead of ending during startup.
+server_ticks="${CAR_FIGHT_NETWORK_SERVER_TICKS:-600}"
+client_ticks="${CAR_FIGHT_NETWORK_CLIENT_TICKS:-720}"
 log_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-network.XXXXXX")"
 server_pid=""
 proxy_pid=""

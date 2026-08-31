@@ -27,6 +27,16 @@
   values or behavior. Clean import now passes, and reconnect passes with all
   topology assertions while separately reporting three instances of the exact
   known shutdown-only resource warning.
+- The complete seven-profile native ENet matrix passes after extending only
+  its post-handshake observation window for slower 4.6 startup; retained
+  assertions and thresholds are unchanged. Offline Web passes with Rapier
+  0.8.35, 60 FPS steady, normal movement, and zero browser errors.
+- Browser/native lifecycle, refresh/replacement, movement, and queue checks
+  pass, but short Chrome performance remains variable. Candidate clean samples
+  ranged from 35.2 to 51.2 steady average against the existing 45 FPS floor.
+  The isolated 120 ms TURN candidate held healthy transport/queues but only
+  21.2 FPS; an immediate preserved-4.7 control also failed at 18.6 FPS. Treat
+  this as an open human performance/soak row, not permission to lower the gate.
 
 ## Trees, foliage, and lighting audition ready for human review
 
