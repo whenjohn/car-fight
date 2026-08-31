@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 parse_log="$(mktemp "${TMPDIR:-/tmp}/car-fight-parse.XXXXXX")"
 
 "$godot_bin" --headless --path "$project_root" --editor --quit >"$parse_log" 2>&1

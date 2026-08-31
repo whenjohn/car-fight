@@ -6,7 +6,7 @@ set -euo pipefail
 unsetopt BG_NICE
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 native_port="${CAR_FIGHT_NATIVE_BASELINE_PORT:-10180}"
 web_port="${CAR_FIGHT_WEB_BASELINE_PORT:-18088}"
 run_stamp="$(date '+%Y%m%d-%H%M%S')"

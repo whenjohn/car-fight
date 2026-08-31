@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 output_dir="${CAR_FIGHT_WEB_OUTPUT:-$project_root/build/web}"
 preset="${CAR_FIGHT_WEB_PRESET:-Web Offline}"
 mode="${1:-debug}"

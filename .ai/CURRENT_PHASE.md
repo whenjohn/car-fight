@@ -21,6 +21,12 @@
 - Complete automated regression and fresh human native Mac/Web cross-play
   acceptance remain required before moving `master` or production macai2.
   Lighting improvements remain frozen until that promotion is complete.
+- The first clean 4.6 import found 4.7-only inferred typing in current
+  networking telemetry, StateBundle, and two preserved netfox code paths.
+  Explicit numeric annotations/casts restore 4.6 parsing without changing
+  values or behavior. Clean import now passes, and reconnect passes with all
+  topology assertions while separately reporting three instances of the exact
+  known shutdown-only resource warning.
 
 ## Trees, foliage, and lighting audition ready for human review
 

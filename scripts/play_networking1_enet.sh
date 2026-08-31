@@ -5,10 +5,10 @@ set -euo pipefail
 unsetopt BG_NICE
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 remote_ssh="${CAR_FIGHT_SSH_HOST:-macai2-ts}"
 remote_root="${CAR_FIGHT_NETWORKING1_REMOTE_ROOT:-/Users/macai2/Projects/car-fight-networking-1}"
-remote_godot="${CAR_FIGHT_REMOTE_GODOT:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+remote_godot="${CAR_FIGHT_REMOTE_GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
 remote_port="${CAR_FIGHT_NETWORKING1_SERVER_PORT:-12680}"
 proxy_port="${CAR_FIGHT_NETWORKING1_PROXY_PORT:-12681}"
 profile="${1:-latency120}"

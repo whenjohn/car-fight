@@ -1,6 +1,8 @@
 # Godot 4.6.3 Forward+ merge plan
 
-Status: approved direction, not yet applied to `master`.
+Status: merged into the protected `integration/godot-46-rapier-0835`
+candidate; not yet applied to `master`. The pre-migration head is preserved by
+the pushed tag `pre-godot-46-2026-08-31`.
 
 This document is the handoff for moving the canonical Car Fight project from
 Godot 4.7 + Rapier 0.8.39 to the Intel-Mac-tested Godot 4.6.3 + Rapier 0.8.35

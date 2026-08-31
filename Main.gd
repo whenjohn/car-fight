@@ -2607,8 +2607,8 @@ func _update_network_hud(delta: float) -> void:
 	var elapsed := maxf(_network_hud_elapsed, 0.001)
 	var fps := float(_network_hud_frames) / elapsed
 	var frame_avg := _network_hud_frame_ms_sum / maxf(1.0, float(_network_hud_frames))
-	var rtt_ms := NetworkTime.remote_rtt * 1000.0
-	var jitter_ms := NetworkTimeSynchronizer.rtt_jitter * 1000.0
+	var rtt_ms: float = float(NetworkTime.remote_rtt) * 1000.0
+	var jitter_ms: float = float(NetworkTimeSynchronizer.rtt_jitter) * 1000.0
 	var presentation: Dictionary = RemotePositionTransport.presentation_snapshot()
 	var local_body: Node3D = local_player()
 	if local_body != null and local_body.has_method("local_presentation_metrics"):
@@ -3285,7 +3285,7 @@ func _on_tick(delta: float, tick: int) -> void:
 func _send_settled_authority_probes() -> void:
 	if not multiplayer.is_server() or _start_tick < 0:
 		return
-	var tick := NetworkTime.tick
+	var tick: int = int(NetworkTime.tick)
 	if tick == _last_authority_probe_tick or (tick - _start_tick) % 30 != 0:
 		return
 	_last_authority_probe_tick = tick
@@ -4103,7 +4103,7 @@ func _receive_authority_probe(tick: int, owner_id: int, authoritative_position: 
 	_log("CORRECTION tick=%d error=%.3f worst=%.3f" % [tick, error, _worst_correction_error])
 	if error < CORRECTION_REPORT_FLOOR:
 		return
-	var current_tick := NetworkTime.tick
+	var current_tick: int = int(NetworkTime.tick)
 	var app: Dictionary = NetworkPerformance.get_app_telemetry_snapshot(current_tick)
 	var route_state: Dictionary = StateBundle.route_state_snapshot(owner_id, current_tick)
 	var local: Node3D = local_player()

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 server_port="${CAR_FIGHT_RECONNECT_TEST_PORT:-11080}"
 log_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-reconnect.XXXXXX")"
 server_pid=""
@@ -89,13 +89,17 @@ if [[ "${two_player_samples:-0}" -lt 2 ]] \
 	tail -100 "$log_dir/replacement.log" >&2
 	exit 1
 fi
-if rg -q 'ERROR:|SCRIPT ERROR|Parse Error|Invalid call|Invalid get index|Parameter .* is null|Node not found|Failed to get path from RPC' \
-		"$log_dir"/*.log; then
+known_shutdown_warning='ERROR: 1 resources still in use at exit'
+known_shutdown_warnings="$(rg -c "$known_shutdown_warning" "$log_dir"/*.log \
+	| awk -F: '{ total += $NF } END { print total + 0 }')"
+unexpected_errors="$(rg -n 'ERROR:|SCRIPT ERROR|Parse Error|Invalid call|Invalid get index|Parameter .* is null|Node not found|Failed to get path from RPC' \
+		"$log_dir"/*.log | rg -v "$known_shutdown_warning" || true)"
+if [[ -n "$unexpected_errors" ]]; then
 	echo "disconnect/reconnect produced a runtime or detached-node error; logs: $log_dir" >&2
-	rg 'ERROR:|SCRIPT ERROR|Parse Error|Invalid call|Invalid get index|Parameter .* is null|Node not found|Failed to get path from RPC' \
-		"$log_dir"/*.log >&2
+	print -r -- "$unexpected_errors" >&2
 	exit 1
 fi
 
 echo "RECONNECT_TEST PASS joins=${joins:-0} leaves=${leaves:-0} survivor_two_player_samples=${two_player_samples:-0}"
+echo "known Godot 4.6 shutdown warnings: $known_shutdown_warnings"
 echo "logs: $log_dir"

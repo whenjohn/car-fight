@@ -3,7 +3,7 @@ set -euo pipefail
 unsetopt BG_NICE
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 web_port="${CAR_FIGHT_WEB_NETWORK_PORT:-18088}"
 enet_port="${CAR_FIGHT_MUX_ENET_PORT:-12380}"
 signal_port="${CAR_FIGHT_MUX_SIGNAL_PORT:-12381}"

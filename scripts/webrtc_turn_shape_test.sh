@@ -22,7 +22,7 @@ turn_image="coturn/coturn:4.6.3-r3"
 turn_user="car-fight"
 turn_credential="car-fight-shape"
 remote_root="${CAR_FIGHT_SHAPE_REMOTE_ROOT:-/Users/macai2/Projects/car-fight-network-shaping}"
-remote_godot="${CAR_FIGHT_SHAPE_REMOTE_GODOT:-/Applications/Godot47.app/Contents/MacOS/Godot}"
+remote_godot="${CAR_FIGHT_SHAPE_REMOTE_GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
 remote_enet_port="${CAR_FIGHT_SHAPE_REMOTE_ENET_PORT:-12480}"
 remote_signal_port="${CAR_FIGHT_SHAPE_REMOTE_SIGNAL_PORT:-12481}"
 local_signal_port="${CAR_FIGHT_SHAPE_LOCAL_SIGNAL_PORT:-12581}"
@@ -406,7 +406,7 @@ if [[ "$interactive_native" == "1" ]]; then
 	mkdir -p "$run_dir/native-client"
 	CAR_FIGHT_TELEMETRY_FILE="$run_dir/native-client/telemetry.jsonl" \
 	CAR_FIGHT_NO_DRONE=1 CAR_FIGHT_NETWORK_HUD=1 \
-		"${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}" \
+		"${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}" \
 		--windowed --position 80,80 --path "$project_root" -- \
 		--client --transport enet --host "$server_ip" --port "$remote_enet_port" \
 		--name macos-enet --session-label networking2-mixed --run-id "$run_id" \
@@ -438,7 +438,7 @@ elif [[ "$interactive_browser" != "1" ]]; then
 		# soak instead of letting the scripted drive eventually enter a map gate.
 		native_script_args=()
 	fi
-	"${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}" --headless \
+	"${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}" --headless \
 		--path "$project_root" -- --client --transport enet --host "$server_ip" \
 		--port "$remote_enet_port" --name native-survivor "${native_script_args[@]}" --ticks "$native_ticks" \
 		"${native_stack_args[@]}" \

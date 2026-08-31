@@ -63,6 +63,6 @@ the ability to exaggerate readable arcade motion in one auditable script.
 Focused validation:
 
 ```sh
-/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . \
   --script res://tests/vehicle_animation_test.gd
 ```
