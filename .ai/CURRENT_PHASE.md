@@ -19,6 +19,8 @@
   compute-pipeline compile/null-dispatch failures. Ten focused driving samples
   ranged from 16–145 FPS and averaged 58.8 FPS, with 94–101 draw calls, at most
   44.6k visible primitives and about 216 MB reported video memory.
+- Human visual review accepted the lean Forward+ city baseline as looking good;
+  preserve these settings as the comparison point before enabling heavier effects.
 - Presentation, city and deterministic physics gates pass. The permission-correct
   full suite also passes its unit tests, WebRTC lifecycle, offline, latency,
   mixed-transport and join-transient stages. Its reconnect stage stops only
