@@ -88,7 +88,8 @@
   escape-assist sample; the identical miss was reproduced on untouched
   `master`. Every subsequent gate was then run manually: mixed transport, join,
   reconnect, ball, tractor, course, reverse, map gate, combat, shield, and det
-  passed; RC orb missed once and passed immediately in isolation. Push is next.
+  passed; RC orb missed once and passed immediately in isolation. The combined
+  merge commit `566fd49` is pushed to `origin/master`.
 - Rendering-style exploration now has a separate sparse `Overcast City` debug
   world on `codex/rendering-styles`. It preserves the normal car and physics but
   replaces the cluttered arena with an open cross-street, four distant building
