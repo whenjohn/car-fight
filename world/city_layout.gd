@@ -5,6 +5,8 @@ extends RefCounted
 const SCALE := 1.5
 const STREET_LINES := [-42.0, 0.0, 42.0]
 const CONNECTOR_CENTERS := [-31.0, -21.0, -11.0, 11.0, 21.0, 31.0]
+const TREE_BLOCK_CENTERS := [-63.0, -21.0, 21.0, 63.0]
+const TREE_STREET_OFFSET := 8.0
 
 const BUILDINGS := [
 	{"model": "house_01", "position": Vector3(-21, 0, -21), "yaw": 90.0,
@@ -65,3 +67,32 @@ static func pieces() -> Array[Dictionary]:
 	for building in BUILDINGS:
 		result.append(building)
 	return result
+
+
+static func tree_lining_positions() -> Array[Vector3]:
+	var result: Array[Vector3] = []
+	# One tree on either sidewalk at each block center. Mirroring the pattern
+	# across both street axes lines the grid without crowding intersections.
+	for street_x in STREET_LINES:
+		for block_z in TREE_BLOCK_CENTERS:
+			_add_tree_if_clear(result, Vector3(street_x - TREE_STREET_OFFSET, 0.0, block_z))
+			_add_tree_if_clear(result, Vector3(street_x + TREE_STREET_OFFSET, 0.0, block_z))
+	for street_z in STREET_LINES:
+		for block_x in TREE_BLOCK_CENTERS:
+			_add_tree_if_clear(result, Vector3(block_x, 0.0, street_z - TREE_STREET_OFFSET))
+			_add_tree_if_clear(result, Vector3(block_x, 0.0, street_z + TREE_STREET_OFFSET))
+	return result
+
+
+static func _add_tree_if_clear(result: Array[Vector3], candidate: Vector3) -> void:
+	for building in BUILDINGS:
+		var footprint: Vector2 = building["footprint"]
+		var yaw := fposmod(float(building["yaw"]), 180.0)
+		if is_equal_approx(yaw, 90.0):
+			footprint = Vector2(footprint.y, footprint.x)
+		var center: Vector3 = building["position"]
+		var half_size := footprint * 0.5 + Vector2(2.0, 2.0)
+		if absf(candidate.x - center.x) <= half_size.x \
+				and absf(candidate.z - center.z) <= half_size.y:
+			return
+	result.append(candidate)

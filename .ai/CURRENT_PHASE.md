@@ -11,6 +11,10 @@
   `Overcast city HDRI`, reusing the accepted Overcast City panorama, sky ambient
   and reflections, Filmic grade, weak warm sun, and stable contact shadow while
   retaining the selected Arena/Low Poly City geometry.
+- Lines both sides of the Low Poly City street grid with the owner-local
+  Collection 121–130 tree family at deterministic block-center sites. Building
+  footprints are excluded and the trees remain presentation-only, with no new
+  gameplay collision or network state.
 - `scripts/play_sunlit_aerial.sh` launches offline directly inside `LOW POLY
   CITY`, retaining the normal mouse/controller follow driving, boost, reverse,
   weapons, vehicle cycling, camera, physics, and collision behavior.
