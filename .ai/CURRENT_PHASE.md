@@ -1,5 +1,37 @@
 # Current phase
 
+## Sunlit aerial city driving worktree ready for review
+
+- Isolated on `codex/sunlit-aerial-rendering` at
+  `/Users/johnnguyen/Projects/car-fight-sunlit-aerial`; `master` is untouched.
+- Adds a fifth `Scenery > Lighting` preset, `Sunlit aerial (Intel-safe)`, porting
+  the godot-aerial study's bright sky dome, warm midday key, Filmic exposure and
+  restrained grade into the full Car Fight world and controls.
+- `scripts/play_sunlit_aerial.sh` launches offline directly inside `LOW POLY
+  CITY`, retaining the normal mouse/controller follow driving, boost, reverse,
+  weapons, vehicle cycling, camera, physics, and collision behavior.
+- The owner-local extracted city is shared from the main checkout without
+  copying or tracking its unlicensed source files. The sunlit launcher restores
+  building shadows but keeps road tiles out of the shadow pass.
+- A true Forward+ port was attempted and rejected on this machine: Godot 4.7.1
+  repeatedly fails to compile MoltenVK compute pipelines on the Intel Iris Plus
+  and then dispatches null pipelines. The live preset therefore uses Car Fight's
+  proven Compatibility renderer with a procedural sky, sky ambient/reflections,
+  directional color key, and stable moving spotlight shadows. The full Forward+
+  version remains appropriate for a newer GPU target.
+- Focused presentation and city tests pass, as does a 180-tick direct-city
+  offline boot. The monitored human drive exited cleanly. After one shader
+  warm-up stall, telemetry sampled roughly 64–112 FPS, 117–136 draw calls,
+  35k–43k visible primitives, and 122 MB video memory while driving in map 2.
+
+## Next for this worktree
+
+- Human visual call on brightness, shadow opacity, sky color, and whether the
+  existing orthographic Car Fight camera should tilt closer to the drone photo.
+- If the Compatibility approximation is accepted, tune materials and camera
+  before adding more effects. If true Forward+ is required, move validation to
+  Apple Silicon/Windows hardware rather than fighting this Intel MoltenVK path.
+
 ## Trees, foliage, and lighting audition ready for human review
 
 - Added a third, physically separate `LOW POLY CITY` map at the south arena

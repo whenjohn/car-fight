@@ -26,6 +26,15 @@ func build_presentation() -> bool:
 	district.name = "LowPolyCityDistrict"
 	district.position = MAP_LAYOUT.CITY_CENTER
 	district.scale = Vector3.ONE * CITY_LAYOUT.SCALE
+	# The normal game keeps this optional district out of the shadow pass. The
+	# isolated sunlit launcher restores building shadows while leaving the many
+	# flat road tiles cheap.
+	if OS.get_environment("CAR_FIGHT_LIGHTING_STYLE") == "4":
+		for node in district.find_children("*", "MeshInstance3D", true, false):
+			var visual := node as MeshInstance3D
+			var holder_name := visual.get_parent().name.to_lower()
+			if not holder_name.begins_with("road_"):
+				visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	add_child(district)
 	set_process(true)
 	return true

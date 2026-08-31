@@ -489,9 +489,13 @@ func _init() -> void:
 		push_error("SHADOW_ATLAS_TEST FAIL: arena shadow atlas must stay within the 2048 budget")
 		quit(1)
 		return
+	var rendering_method := str(ProjectSettings.get_setting(
+		"rendering/renderer/rendering_method", "gl_compatibility"))
+	var expected_shadow_filter := 1 if rendering_method == "forward_plus" else 0
 	if int(ProjectSettings.get_setting(
-			"rendering/lights_and_shadows/positional_shadow/soft_shadow_filter_quality", 2)) != 0:
-		push_error("SHADOW_FILTER_TEST FAIL: compatibility shadows must not use a grain pattern")
+			"rendering/lights_and_shadows/positional_shadow/soft_shadow_filter_quality",
+			2)) != expected_shadow_filter:
+		push_error("SHADOW_FILTER_TEST FAIL: shadow filtering must match the active renderer")
 		quit(1)
 		return
 	var full_roll_degrees := rad_to_deg(absf(JEEP_PRESENTATION.chassis_roll_target(1.85, 8.0)))
