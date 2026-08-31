@@ -109,6 +109,13 @@ Controls:
 - The native `Vehicle Model` system menu scales your selected local vehicle from
   100% to 500% and autosaves a separate choice for every vehicle. This is a
   presentation debug control; the authoritative gameplay collider remains unchanged.
+- On the foliage audition branch, the native `Scenery` menu switches between
+  the procedural trees and locally installed collection ranges, and compares
+  four no-SSAO lighting setups. These controls change presentation only; tree
+  count, trunk collision, physics, and networking remain unchanged.
+- Locally installed stone and ruined-house auditions sit just north of the
+  east tree corridor near `(100, -210)`. They retain vehicle-relative source
+  scale and are visual-only, with no collision or network state.
 - Cursor distance continuously controls speed and acceleration: inside 1 world unit is stopped; at 20 units it requests 18 units/s and the strongest normal acceleration. The wider control radius and softened small-angle steering provide room for precise throttle and racing-line adjustments.
 - Braking and drifting need no extra button. At road speed, pull the cursor inward to fully lock the wheels and preserve an exaggerated forward skid; the chassis snaps into a pronounced 18-degree dive. Add a sharp direction change to rotate that same skid into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
 - Hold `Space` to burst at 28 units/s with stronger acceleration and a wider, committed turn.
@@ -307,7 +314,9 @@ After a WindowServer/login-session recovery, attach the generated `.ips`, `.spin
 It connects to macai2 by default. Add `--local` when the monitor must launch an
 isolated local server, including the headless monitor check:
 `./scripts/play_monitored.sh --local --headless --ticks 180`. Normal monitored
-play explicitly starts windowed. On the affected Intel Mac, keep the decorated
+play explicitly starts windowed. Use `./scripts/play_monitored.sh --offline`
+for a standalone visual or handling audition without network correction. On
+the affected Intel Mac, keep the decorated
 window inside the usable desktop area; native fullscreen, borderless fullscreen,
 exact edge-to-edge windows, and edge-to-edge maximization are unsupported.
 OpenGL, ANGLE, and Vulkan fullscreen alternatives have already been ruled out.
@@ -319,3 +328,20 @@ For multiplayer feel testing without hosting the server on this Mac, deploy the 
 The first two-rendered-client trial exposed the stale-history loop later fixed by D-040. Subsequent pairs remain in one shared world and play smoothly. In the latest accepted run, accidentally enlarging one client from 1280 x 720 to 2800 x 1518 briefly reduced it to 6-8 FPS while physics stayed inexpensive; reducing the window restored performance. Keep both clients at the launcher's safe inset size. See [`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md) for the evidence and next platform sequence.
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.
+
+The optional Low Poly City audition has its own map. Drive onto the
+`LOW POLY CITY` pad on the south side of the arena; the destination has a
+separate `RETURN TO ARENA` pad. Local source art stays under
+`assets/local/city_audition/`. To regenerate the lightweight 63-piece district
+after changing the source selection, run:
+
+```sh
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tools/extract_city_audition.gd
+```
+
+The game loads only the resulting small extracted district, not the complete
+three-million-vertex FBX. The supplied forest EXR is currently omitted because
+Godot cannot decode its compression. The entire city composition is presented
+at 150% source scale—including its street spacing, collision footprints, and
+map boundary—while vehicle scale remains unchanged.

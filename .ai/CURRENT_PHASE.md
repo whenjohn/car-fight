@@ -1,5 +1,76 @@
 # Current phase
 
+## Trees, foliage, and lighting audition ready for human review
+
+- Added a third, physically separate `LOW POLY CITY` map at the south arena
+  teleport pad, with a paired return pad, deterministic map transitions, a
+  220-meter collision floor, and boundary walls. The local city source is far
+  too heavy to load whole (491 meshes / about 3 million vertices), so the
+  audition uses a small extraction of 63 placed instances from 16 meshes: a
+  continuous 3x3 street grid with an entrance avenue, five houses, three shops,
+  two apartment buildings, two lightweight skyscrapers, a gas station, and a
+  factory. Fourteen deterministic footprint colliders keep cars on the streets.
+  Dense 40k-112k triangle park
+  meshes are deliberately excluded. The supplied forest EXR uses compression
+  Godot cannot decode and is not used. Focused city/course/prop tests, a
+  five-tick presentation boot, and the permission-correct complete
+  `./scripts/test.sh` suite pass (`ALL_TESTS PASS`); monitored human review is
+  next.
+- Enlarged the complete city composition to 150% relative to the unchanged
+  vehicles. One shared scale now expands road widths and spacing, buildings,
+  deterministic footprint collision, the city floor/walls, and its entrance
+  and return placement together.
+- Added native-scale local auditions of six stone meshes and one ruined house
+  just north of the tree corridor. Their working textures are capped at 1024px,
+  shadows and collisions are disabled, and the imported files remain ignored.
+  A monitored near-house pass stayed mostly around 55 FPS after one-time asset
+  warm-up, with no thermal, GPU, or display fault.
+- Shapespark's CC0 low-poly exterior plants kit is tracked with Git LFS and
+  exposed as three four-tree families. Family 1 is the new local default; the
+  prior 200-tree collection and procedural baseline remain selectable. The
+  library loads only the selected source pack. All nine imported menu choices
+  pass the focused normalization/fallback/shadow test.
+- The first monitored offline Shapespark run paused once for 10.9 seconds while
+  Godot uploaded 22 embedded textures, then remained continuous while driving
+  at roughly 55-68 FPS. It used about 58 MB texture / 67 MB video memory, with
+  no thermal warning, GPU reset, or recurring simulation stall.
+- Work is isolated on `codex/trees-foliage-lighting` in
+  `/Users/johnnguyen/Projects/car-fight-trees-foliage-lighting`. The locally
+  installed ilkhom23 CGTrader pack supplies 200 one-material trees. Its Royalty
+  Free License (no AI) permits incorporated game use but not source-file
+  redistribution, so the FBX and 1024px atlas remain under ignored
+  `assets/local/`; a clean checkout falls back to procedural trees.
+- The native `Scenery` menu live-switches the procedural baseline, six
+  deterministic ten-tree collection ranges, and three Shapespark families.
+  Shapespark family 1 is the local default; the more detailed collection ranges
+  remain explicit auditions. Every imported mesh is normalized to the existing landmark
+  height, grounded, and shadow-disabled. The existing 142 static/seeded
+  objects, 76-tree corridor, simple trunk colliders, gameplay, and network
+  state are unchanged. Normal headless servers do not instantiate the library
+  or probe the optional asset path.
+- The same menu live-switches current warm shadow, G2 warm-key/cool-fill,
+  G2 key/fill/rim, and soft shadowless overcast lighting. SSAO is forcibly off
+  in every mode because G2 measured a roughly 55-to-10/13 FPS collapse on this
+  Intel Compatibility laptop.
+- Matching monitored local runs found the procedural baseline at 54.7 FPS
+  average / 54 median and light collection 21-30 at 53.0 average / 54 median.
+  The imported row added about 16% visible primitives and 15 MB video memory;
+  its short sample minimum was 45 FPS. No GPU reset, WindowServer fault, or
+  script error occurred. Detailed rows still need human visual/performance
+  review before any selection is promoted.
+- Project parse, focused foliage/presentation/layout checks, WebRTC lifecycle,
+  offline, network (0.300 worst correction), mixed transport, join recovery,
+  reconnect, ball, tractor, reverse, gate, combat, RC-orb, shield, and det
+  gates pass. The latest monolithic suite hit only the documented
+  timing-sensitive course sample; its immediate isolated retry passed with a
+  1.651 rebound. The final focused foliage test passes all nine imported menu
+  choices with the tracked Shapespark pack and local collection pack.
+- Human review exposed periodic stop/start motion in the monitored `--local`
+  client caused by stale authority recovery, not rendering. The monitored
+  launcher now accepts `--offline` for foliage, lighting, and handling review;
+  the replacement single-process run advances continuously without recovery
+  events and uses substantially less CPU.
+
 ## Current decision
 
 - PlayStation controller support is merged to `master` at `5083b43`. The left
