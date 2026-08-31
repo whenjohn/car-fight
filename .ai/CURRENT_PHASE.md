@@ -1,21 +1,26 @@
 # Current phase
 
-## Approved next session: merge Godot 4.6.3 Forward+ into master
+## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
-- The owner approved planning the canonical move from Godot 4.7 + Rapier
-  0.8.39 to the Intel-tested Godot 4.6.3 + official Rapier 0.8.35 enhanced
-  determinism/API 4.6 baseline. No project downgrade has been applied to
-  `master` yet.
-- Use `codex/forwardplus-46-rendering` at approved head `6f9e6aa` as the single
-  integration source. It already contains `codex/sunlit-aerial-rendering`; do
-  not merge both branches separately.
-- The complete rationale, exact commits, measured Forward+ evidence, known
-  reconnect shutdown warning, conflict policy, and acceptance gates are in
-  `GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`. Read it before changing the engine,
-  Rapier addon, project metadata, launchers, or documentation.
-- Preserve current gameplay, vendored netfox patches, server authority, ENet,
-  WebRTC, and mux code. This is an engine/renderer/Rapier compatibility merge,
-  not authorization for a networking rewrite.
+- Integration is isolated on `integration/godot-46-rapier-0835` at
+  `/Users/johnnguyen/Projects/car-fight-godot46-integration`. Canonical
+  `master` remains on Godot 4.7 until the complete automated and human Mac/Web
+  regression matrix is accepted. The pushed tag
+  `pre-godot-46-2026-08-31` permanently preserves that pre-migration head.
+- The candidate merges `codex/forwardplus-46-rendering` once. It includes the
+  sunlit city work without independently merging the earlier experiment branch.
+  Preserve current gameplay, vendored netfox patches, server authority, ENet,
+  WebRTC, and mux code; this is not authorization for a networking rewrite.
+- The candidate pins Godot 4.6 Forward+ and the official Rapier 0.8.35
+  enhanced-determinism/API 4.6 bundle. The verified release archive SHA-256 is
+  `f6477144bccf8002c71647193444bd540ed648204d84e6e69919f4affafbf414`.
+- The accepted lean native baseline is clustered Forward+, 2048 cascaded sun
+  shadows, low SSAO, and 2x MSAA at 1280x720, with SSIL, SSR, SDFGI, and TAA
+  disabled. The earlier monitored Intel run reported Vulkan Forward+, averaged
+  58.8 FPS after shader warm-up, exited cleanly, and was visually approved.
+- Complete automated regression and fresh human native Mac/Web cross-play
+  acceptance remain required before moving `master` or production macai2.
+  Lighting improvements remain frozen until that promotion is complete.
 
 ## Trees, foliage, and lighting audition ready for human review
 

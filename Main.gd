@@ -245,6 +245,8 @@ var _shadow_light: SpotLight3D
 var _sun_light: DirectionalLight3D
 var _rim_light: DirectionalLight3D
 var _world_environment: Environment
+var _sunlit_sky: Sky
+var _overcast_sky: Sky
 var _status_label: Label
 var _editor_label: Label
 var _fps_label: Label
@@ -294,7 +296,8 @@ const LIGHTING_STYLE_NAMES := [
 	"Current warm shadow",
 	"G2 warm key + cool fill",
 	"G2 key + fill + rim",
-	"Soft overcast (shadowless)",
+	"Overcast city HDRI",
+	"Sunlit aerial (Forward+ 4.6)",
 ]
 const VEHICLE_MODEL_SCALE_OPTIONS := [
 	1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0,
@@ -1075,8 +1078,15 @@ func _on_mux_peer_rejected(peer_id: int, transport: String) -> void:
 func _start_offline() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	var owner_id := multiplayer.get_unique_id()
-	var body := _spawn_player({"id": owner_id, "slot": 0,
-		"remote_generation": _allocate_remote_state_generation()})
+	var spawn_info := {"id": owner_id, "slot": 0,
+		"remote_generation": _allocate_remote_state_generation()}
+	if OS.get_environment("CAR_FIGHT_START_MAP").to_lower() == "city":
+		var city_position := MAP_LAYOUT.city_start()
+		city_position.y = _spawn_transform(0).origin.y
+		spawn_info["position"] = city_position
+		spawn_info["yaw"] = 0.0
+		spawn_info["map_id"] = MAP_LAYOUT.CITY_AUDITION
+	var body := _spawn_player(spawn_info)
 	_players.add_child(body, true)
 	var config := _configuration_for(owner_id)
 	_apply_coverage_config(owner_id, config["ranges"], config["widths"],
@@ -1314,6 +1324,7 @@ func _spawn_player(data: Variant) -> Node:
 	body.set("disable_collision_escape", bool(info.get("disable_collision_escape", false)))
 	body.set("remote_state_generation", int(info.get("remote_generation", 0)))
 	body.set("local_presentation_smoothing", _local_presentation_smoothing_enabled)
+	body.set("map_id", int(info.get("map_id", MAP_LAYOUT.ARENA)))
 	if not _coverage_configs.has(owner_id):
 		_coverage_configs[owner_id] = {
 			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths(),
@@ -1883,6 +1894,27 @@ func _build_arena_lighting() -> void:
 	_world_environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	_world_environment.tonemap_exposure = 0.82
 	_world_environment.ssao_enabled = false
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color(0.20, 0.42, 0.72)
+	sky_material.sky_horizon_color = Color(0.72, 0.82, 0.92)
+	sky_material.ground_bottom_color = Color(0.16, 0.19, 0.12)
+	sky_material.ground_horizon_color = Color(0.58, 0.62, 0.52)
+	sky_material.sky_curve = 0.12
+	sky_material.ground_curve = 0.18
+	sky_material.sun_angle_max = 1.0
+	sky_material.sun_curve = 0.08
+	sky_material.energy_multiplier = 0.78
+	_sunlit_sky = Sky.new()
+	_sunlit_sky.sky_material = sky_material
+	_sunlit_sky.radiance_size = Sky.RADIANCE_SIZE_256
+	_sunlit_sky.process_mode = Sky.PROCESS_MODE_QUALITY
+	var overcast_material := PanoramaSkyMaterial.new()
+	overcast_material.panorama = load(OVERCAST_WORLD.HDRI_PATH) as Texture2D
+	overcast_material.energy_multiplier = 1.0
+	_overcast_sky = Sky.new()
+	_overcast_sky.sky_material = overcast_material
+	_overcast_sky.radiance_size = Sky.RADIANCE_SIZE_128
+	_overcast_sky.process_mode = Sky.PROCESS_MODE_QUALITY
 	environment.environment = _world_environment
 	add_child(environment)
 	_sun_light = DirectionalLight3D.new()
@@ -2029,6 +2061,7 @@ func _build_city_audition() -> void:
 	_city_audition.call("setup", _players)
 	add_child(_city_audition)
 	_city_audition.call("build_presentation")
+	_city_audition.call("set_lighting_style", _lighting_style_index)
 
 func _on_debug_menu_item_pressed(id: int) -> void:
 	if id == DEBUG_COLLISION_MENU_ID:
@@ -2101,9 +2134,24 @@ func _apply_lighting_style() -> void:
 	if _world_environment == null or _sun_light == null \
 			or _rim_light == null or _shadow_light == null:
 		return
-	# G2's Compatibility SSAO modes dropped this Intel laptop to 10-13 FPS.
-	# Keep every live audition on the proven no-SSAO path.
+	# Reset expensive screen-space effects before applying a preset. They remain
+	# disabled on this Intel-safe Compatibility path.
 	_world_environment.ssao_enabled = false
+	_world_environment.ssil_enabled = false
+	_world_environment.ssr_enabled = false
+	_world_environment.sdfgi_enabled = false
+	_world_environment.adjustment_enabled = false
+	_world_environment.background_mode = Environment.BG_COLOR
+	_world_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_world_environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	_world_environment.tonemap_white = 1.0
+	_sun_light.shadow_enabled = false
+	_sun_light.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	_sun_light.light_specular = 0.5
+	_shadow_light.light_color = Color("fff0cf")
+	_shadow_light.light_energy = 1.75
+	_shadow_light.light_specular = 0.5
+	_shadow_light.shadow_opacity = 0.92
 	_rim_light.visible = false
 	match _lighting_style_index:
 		1, 2:
@@ -2118,14 +2166,72 @@ func _apply_lighting_style() -> void:
 			_shadow_light.visible = false
 			_rim_light.visible = _lighting_style_index == 2
 		3:
-			_world_environment.background_color = Color("29343a")
-			_world_environment.ambient_light_color = Color("d7e1e6")
-			_world_environment.ambient_light_energy = 0.42
-			_world_environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-			_world_environment.tonemap_exposure = 0.95
-			_sun_light.rotation_degrees = Vector3(-58.0, -25.0, 0.0)
-			_sun_light.light_color = Color("eef5f7")
-			_sun_light.light_energy = 0.65
+			# Match World > Overcast City's accepted HDRI lighting while retaining
+			# the currently selected arena/city geometry and normal game controls.
+			_world_environment.background_mode = Environment.BG_SKY
+			_world_environment.sky = _overcast_sky
+			_world_environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+			_world_environment.ambient_light_sky_contribution = 1.0
+			_world_environment.ambient_light_energy = 1.0
+			_world_environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+			_world_environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+			_world_environment.tonemap_exposure = 1.0
+			_world_environment.tonemap_white = 1.5
+			_world_environment.adjustment_enabled = true
+			_world_environment.adjustment_brightness = 1.05
+			_world_environment.adjustment_contrast = 1.0
+			_world_environment.adjustment_saturation = 1.08
+			_sun_light.rotation_degrees = Vector3(-68.0, -130.0, 0.0)
+			_sun_light.light_color = Color("fff5e8")
+			_sun_light.light_energy = 0.34
+			_sun_light.light_specular = 0.35
+			_shadow_light.light_color = Color("fff7eb")
+			_shadow_light.light_energy = 0.72
+			_shadow_light.light_specular = 0.25
+			_shadow_light.shadow_opacity = 0.34
+			_shadow_light.visible = true
+		4:
+			_world_environment.background_mode = Environment.BG_SKY
+			_world_environment.sky = _sunlit_sky
+			_world_environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+			_world_environment.ambient_light_sky_contribution = 1.0
+			_world_environment.ambient_light_energy = 0.95
+			_world_environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+			_world_environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+			_world_environment.tonemap_exposure = 0.94
+			_world_environment.tonemap_white = 2.8
+			_world_environment.adjustment_enabled = true
+			_world_environment.adjustment_brightness = 0.98
+			_world_environment.adjustment_contrast = 0.96
+			_world_environment.adjustment_saturation = 0.90
+			# Keep this first Intel Forward+ pass deliberately lean: real clustered
+			# rendering, low SSAO, and cascaded sun shadows, but no SSIL/SSR/SDFGI or
+			# TAA until the driving baseline proves stable and fast enough.
+			_world_environment.ssao_enabled = true
+			_world_environment.ssao_radius = 1.6
+			_world_environment.ssao_intensity = 1.0
+			_world_environment.ssao_power = 1.2
+			_world_environment.ssao_detail = 0.4
+			_sun_light.rotation_degrees = Vector3(-57.0, -34.0, 0.0)
+			_sun_light.light_color = Color(1.0, 0.965, 0.90)
+			_sun_light.light_energy = 1.65
+			_sun_light.light_specular = 0.8
+			_sun_light.shadow_enabled = true
+			_sun_light.shadow_opacity = 0.88
+			_sun_light.light_angular_distance = 0.65
+			_sun_light.shadow_blur = 1.0
+			_sun_light.shadow_bias = 0.035
+			_sun_light.shadow_normal_bias = 1.1
+			_sun_light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+			_sun_light.directional_shadow_max_distance = 165.0
+			_sun_light.directional_shadow_split_1 = 0.08
+			_sun_light.directional_shadow_split_2 = 0.22
+			_sun_light.directional_shadow_split_3 = 0.48
+			_sun_light.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_AND_SKY
+			_shadow_light.light_color = Color(1.0, 0.93, 0.82)
+			_shadow_light.light_energy = 1.45
+			_shadow_light.light_specular = 0.5
+			_shadow_light.shadow_opacity = 0.72
 			_shadow_light.visible = false
 		_:
 			_world_environment.background_color = Color("10171d")
@@ -2137,6 +2243,8 @@ func _apply_lighting_style() -> void:
 			_sun_light.light_color = Color("fff1d4")
 			_sun_light.light_energy = 0.28
 			_shadow_light.visible = true
+	if _city_audition != null:
+		_city_audition.call("set_lighting_style", _lighting_style_index)
 
 
 func _build_world_menu() -> void:
