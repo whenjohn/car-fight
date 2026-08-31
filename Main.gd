@@ -246,6 +246,7 @@ var _sun_light: DirectionalLight3D
 var _rim_light: DirectionalLight3D
 var _world_environment: Environment
 var _sunlit_sky: Sky
+var _overcast_sky: Sky
 var _status_label: Label
 var _editor_label: Label
 var _fps_label: Label
@@ -295,7 +296,7 @@ const LIGHTING_STYLE_NAMES := [
 	"Current warm shadow",
 	"G2 warm key + cool fill",
 	"G2 key + fill + rim",
-	"Soft overcast (shadowless)",
+	"Overcast city HDRI",
 	"Sunlit aerial (Intel-safe)",
 ]
 const VEHICLE_MODEL_SCALE_OPTIONS := [
@@ -1907,6 +1908,13 @@ func _build_arena_lighting() -> void:
 	_sunlit_sky.sky_material = sky_material
 	_sunlit_sky.radiance_size = Sky.RADIANCE_SIZE_256
 	_sunlit_sky.process_mode = Sky.PROCESS_MODE_QUALITY
+	var overcast_material := PanoramaSkyMaterial.new()
+	overcast_material.panorama = load(OVERCAST_WORLD.HDRI_PATH) as Texture2D
+	overcast_material.energy_multiplier = 1.0
+	_overcast_sky = Sky.new()
+	_overcast_sky.sky_material = overcast_material
+	_overcast_sky.radiance_size = Sky.RADIANCE_SIZE_128
+	_overcast_sky.process_mode = Sky.PROCESS_MODE_QUALITY
 	environment.environment = _world_environment
 	add_child(environment)
 	_sun_light = DirectionalLight3D.new()
@@ -2053,6 +2061,7 @@ func _build_city_audition() -> void:
 	_city_audition.call("setup", _players)
 	add_child(_city_audition)
 	_city_audition.call("build_presentation")
+	_city_audition.call("set_lighting_style", _lighting_style_index)
 
 func _on_debug_menu_item_pressed(id: int) -> void:
 	if id == DEBUG_COLLISION_MENU_ID:
@@ -2135,8 +2144,14 @@ func _apply_lighting_style() -> void:
 	_world_environment.background_mode = Environment.BG_COLOR
 	_world_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	_world_environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	_world_environment.tonemap_white = 1.0
 	_sun_light.shadow_enabled = false
 	_sun_light.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	_sun_light.light_specular = 0.5
+	_shadow_light.light_color = Color("fff0cf")
+	_shadow_light.light_energy = 1.75
+	_shadow_light.light_specular = 0.5
+	_shadow_light.shadow_opacity = 0.92
 	_rim_light.visible = false
 	match _lighting_style_index:
 		1, 2:
@@ -2151,15 +2166,30 @@ func _apply_lighting_style() -> void:
 			_shadow_light.visible = false
 			_rim_light.visible = _lighting_style_index == 2
 		3:
-			_world_environment.background_color = Color("29343a")
-			_world_environment.ambient_light_color = Color("d7e1e6")
-			_world_environment.ambient_light_energy = 0.42
-			_world_environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-			_world_environment.tonemap_exposure = 0.95
-			_sun_light.rotation_degrees = Vector3(-58.0, -25.0, 0.0)
-			_sun_light.light_color = Color("eef5f7")
-			_sun_light.light_energy = 0.65
-			_shadow_light.visible = false
+			# Match World > Overcast City's accepted HDRI lighting while retaining
+			# the currently selected arena/city geometry and normal game controls.
+			_world_environment.background_mode = Environment.BG_SKY
+			_world_environment.sky = _overcast_sky
+			_world_environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+			_world_environment.ambient_light_sky_contribution = 1.0
+			_world_environment.ambient_light_energy = 1.0
+			_world_environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+			_world_environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+			_world_environment.tonemap_exposure = 1.0
+			_world_environment.tonemap_white = 1.5
+			_world_environment.adjustment_enabled = true
+			_world_environment.adjustment_brightness = 1.05
+			_world_environment.adjustment_contrast = 1.0
+			_world_environment.adjustment_saturation = 1.08
+			_sun_light.rotation_degrees = Vector3(-68.0, -130.0, 0.0)
+			_sun_light.light_color = Color("fff5e8")
+			_sun_light.light_energy = 0.34
+			_sun_light.light_specular = 0.35
+			_shadow_light.light_color = Color("fff7eb")
+			_shadow_light.light_energy = 0.72
+			_shadow_light.light_specular = 0.25
+			_shadow_light.shadow_opacity = 0.34
+			_shadow_light.visible = true
 		4:
 			_world_environment.background_mode = Environment.BG_SKY
 			_world_environment.sky = _sunlit_sky
@@ -2196,6 +2226,7 @@ func _apply_lighting_style() -> void:
 			_sun_light.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_AND_SKY
 			_shadow_light.light_color = Color(1.0, 0.93, 0.82)
 			_shadow_light.light_energy = 1.45
+			_shadow_light.light_specular = 0.5
 			_shadow_light.shadow_opacity = 0.72
 			_shadow_light.visible = true
 		_:
@@ -2208,6 +2239,8 @@ func _apply_lighting_style() -> void:
 			_sun_light.light_color = Color("fff1d4")
 			_sun_light.light_energy = 0.28
 			_shadow_light.visible = true
+	if _city_audition != null:
+		_city_audition.call("set_lighting_style", _lighting_style_index)
 
 
 func _build_world_menu() -> void:
