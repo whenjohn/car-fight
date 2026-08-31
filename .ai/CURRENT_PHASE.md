@@ -37,6 +37,17 @@
   The isolated 120 ms TURN candidate held healthy transport/queues but only
   21.2 FPS; an immediate preserved-4.7 control also failed at 18.6 FPS. Treat
   this as an open human performance/soak row, not permission to lower the gate.
+- Human offline macOS gameplay was accepted at candidate `7463b5f`; monitored
+  evidence `.crash-runs/20260831-183253` exited cleanly. The first local
+  Mac+Chrome human cross-play run was rejected for severe jerk/pullback. Its
+  native client fell to about 7 FPS with 150--190 ms network/rollback loops,
+  but an identical untouched-4.7 control was no better at about 5 FPS and
+  185--200 ms, identifying the dual-window local load as baseline-equivalent.
+  An isolated candidate server was then synced to macai2's non-production
+  `car-fight-network-shaping` checkout and started normally, but the local 4.6
+  Forward+ client hit an Intel Metal/Vulkan `VK_TIMEOUT`, lost the GPU device,
+  and crashed before ENet readiness. Reproduction and a clean remote
+  Mac+browser human pass remain promotion blockers; production was untouched.
 
 ## Trees, foliage, and lighting audition ready for human review
 

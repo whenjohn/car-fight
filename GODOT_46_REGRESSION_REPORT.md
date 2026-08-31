@@ -45,10 +45,10 @@ Use only ordinary decorated windows on the affected Intel Mac.
 
 | Scenario | Required observations | Result/evidence |
 | --- | --- | --- |
-| Native Mac offline | Mouse and DualSense handling; boost, reverse, drift, collisions, ball, tractor, weapons, defenses, vehicles, arena/city transitions, and scenery choices | Pending |
-| Native Forward+ stability | Vulkan Forward+, Rapier 0.8.35, shader warm-up followed by stable frame pacing, and no thermal/GPU/display fault during a 10-minute drive | Pending |
+| Native Mac offline | Mouse and DualSense handling; boost, reverse, drift, collisions, ball, tractor, weapons, defenses, vehicles, arena/city transitions, and scenery choices | Pass at `7463b5f`; human accepted macOS gameplay. Monitored run `.crash-runs/20260831-183253` exited cleanly after about 2 minutes with Vulkan Forward+, Rapier 0.8.35, roughly 145 FPS while idle in the city, and no GPU/display fault. |
+| Native Forward+ stability | Vulkan Forward+, Rapier 0.8.35, shader warm-up followed by stable frame pacing, and no thermal/GPU/display fault during a 10-minute drive | Failed/open. The accepted offline sample was clean, but remote-network attempt `.network-runs/20260831T234408Z-79596-113-webrtc-clean` hit an Intel Metal/Vulkan `VK_TIMEOUT`, device loss, and signal-4 crash before ENet readiness. Reproduce before promotion. |
 | Two native ENet clients | Isolated candidate server; reciprocal movement/collision/weapons, late join, leave/rejoin, reconnect, clean link, and 120 ms impairment | Pending |
-| Native Mac + Chrome WebRTC | Same authoritative candidate world; drive and observe in both directions, collide/fire, refresh/rejoin browser while native survives | Pending |
+| Native Mac + Chrome WebRTC | Same authoritative candidate world; drive and observe in both directions, collide/fire, refresh/rejoin browser while native survives | Failed/open. Human reported heavy jerk, pullback, and movement corrections in local candidate run `.crash-runs/web-network-local-20260831-184026`; native telemetry fell to about 7 FPS with 150--190 ms network/rollback loops. Identical preserved-4.7 control `.crash-runs/web-network-local-20260831-184231` was no better (about 5 FPS and 185--200 ms loops), so the local dual-window symptom is baseline/load-equivalent rather than a demonstrated downgrade regression. |
 | Impaired Mac + Web | Accepted forced-TURN 120 ms path in both observation directions plus a 5–10 minute soak; bounded correction/queues and clean recovery | Pending |
 
 ## Promotion rule
