@@ -7,6 +7,10 @@
 - Adds a fifth `Scenery > Lighting` preset, `Sunlit aerial (Intel-safe)`, porting
   the godot-aerial study's bright sky dome, warm midday key, Filmic exposure and
   restrained grade into the full Car Fight world and controls.
+- Replaces the old simplified `Soft overcast (shadowless)` scenery option with
+  `Overcast city HDRI`, reusing the accepted Overcast City panorama, sky ambient
+  and reflections, Filmic grade, weak warm sun, and stable contact shadow while
+  retaining the selected Arena/Low Poly City geometry.
 - `scripts/play_sunlit_aerial.sh` launches offline directly inside `LOW POLY
   CITY`, retaining the normal mouse/controller follow driving, boost, reverse,
   weapons, vehicle cycling, camera, physics, and collision behavior.
