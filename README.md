@@ -12,6 +12,12 @@
 > branches into this gameplay branch or rerun known-risk
 > fullscreen/edge-to-edge probes merely to reconfirm them.
 
+> **Next-session engine migration:** The approved but not yet applied plan is
+> to move `master` to Godot 4.6.3 + Rapier 0.8.35 and the tested Vulkan
+> Forward+ sunlit-city baseline. Follow
+> [`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`](GODOT_46_FORWARD_PLUS_MERGE_PLAN.md);
+> do not independently merge both rendering experiment branches.
+
 A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
 Native networking remains ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. An isolated localhost cross-play path now adds browser WebRTC without moving native clients off ENet; a server-side mux exposes both transports as one authoritative world. The vendored netfox includes G2's D-040 stale-history recovery patch: after a client stall advances beyond retained rollback history, impossible origins are skipped with a bounded warning while the client waits for fresh authority. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.

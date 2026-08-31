@@ -1,6 +1,9 @@
 # Car Fight project notes
 
-This is a clean Godot 4.7 experiment. Keep it small and auditable.
+This is currently a clean Godot 4.7 experiment. The approved next migration is
+Godot 4.6.3 + Rapier 0.8.35 with real Forward+; read
+`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md` before changing the engine, renderer, or
+Rapier version. Keep it small and auditable.
 
 - Run with `/Applications/Godot47.app/Contents/MacOS/Godot`.
 - Server authority and ENet lifecycle live in `Main.gd`.

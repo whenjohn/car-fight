@@ -1,5 +1,22 @@
 # Current phase
 
+## Approved next session: merge Godot 4.6.3 Forward+ into master
+
+- The owner approved planning the canonical move from Godot 4.7 + Rapier
+  0.8.39 to the Intel-tested Godot 4.6.3 + official Rapier 0.8.35 enhanced
+  determinism/API 4.6 baseline. No project downgrade has been applied to
+  `master` yet.
+- Use `codex/forwardplus-46-rendering` at approved head `6f9e6aa` as the single
+  integration source. It already contains `codex/sunlit-aerial-rendering`; do
+  not merge both branches separately.
+- The complete rationale, exact commits, measured Forward+ evidence, known
+  reconnect shutdown warning, conflict policy, and acceptance gates are in
+  `GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`. Read it before changing the engine,
+  Rapier addon, project metadata, launchers, or documentation.
+- Preserve current gameplay, vendored netfox patches, server authority, ENet,
+  WebRTC, and mux code. This is an engine/renderer/Rapier compatibility merge,
+  not authorization for a networking rewrite.
+
 ## Trees, foliage, and lighting audition ready for human review
 
 - Added a third, physically separate `LOW POLY CITY` map at the south arena
