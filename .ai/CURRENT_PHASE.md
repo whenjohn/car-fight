@@ -19,8 +19,10 @@
   disabled. The earlier monitored Intel run reported Vulkan Forward+, averaged
   58.8 FPS after shader warm-up, exited cleanly, and was visually approved.
 - Complete automated regression and fresh human native Mac/Web cross-play
-  acceptance remain required before moving `master` or production macai2.
-  Lighting improvements remain frozen until that promotion is complete.
+  acceptance now pass. The final permission-correct `./scripts/test.sh` run
+  ended with `ALL_TESTS PASS`; promotion of the audited candidate to `master`
+  and the subsequent production macai2 smoke are next. Lighting improvements
+  remain frozen until that promotion is complete.
 - The first clean 4.6 import found 4.7-only inferred typing in current
   networking telemetry, StateBundle, and two preserved netfox code paths.
   Explicit numeric annotations/casts restore 4.6 parsing without changing
@@ -32,11 +34,10 @@
   assertions and thresholds are unchanged. Offline Web passes with Rapier
   0.8.35, 60 FPS steady, normal movement, and zero browser errors.
 - Browser/native lifecycle, refresh/replacement, movement, and queue checks
-  pass, but short Chrome performance remains variable. Candidate clean samples
-  ranged from 35.2 to 51.2 steady average against the existing 45 FPS floor.
-  The isolated 120 ms TURN candidate held healthy transport/queues but only
-  21.2 FPS; an immediate preserved-4.7 control also failed at 18.6 FPS. Treat
-  this as an open human performance/soak row, not permission to lower the gate.
+  pass. Earlier same-machine dual-render samples were variable and an immediate
+  preserved-4.7 control failed under the same load. Human acceptance therefore
+  retained the existing gate and used separated sustained-render evidence:
+  forced-TURN impairment/refresh and full-scene browser/native combat now pass.
 - Human offline macOS gameplay was accepted at candidate `7463b5f`; monitored
   evidence `.crash-runs/20260831-183253` exited cleanly. The first local
   Mac+Chrome human cross-play run was rejected for severe jerk/pullback. Its
@@ -47,9 +48,9 @@
   checkout. One local 4.6 Forward+ attempt hit an Intel Metal/Vulkan
   `VK_TIMEOUT` before ENet readiness. After reboot, native remote play passed;
   clean Mac+Chrome forced-TURN play plus browser leave/rejoin also passed, and
-  a 120 ms forced-TURN retry was playable with bounded corrections. The
-  explicit long stability/soak durations and remaining reciprocal combat
-  observations remain promotion blockers; production was untouched.
+  a 120 ms forced-TURN retry was playable with bounded corrections. The later
+  long stability/soak and cross-platform combat passes close those promotion
+  blockers; production remains untouched pending the final promotion step.
 - Two-native human review found and resolved a real LOW POLY CITY presentation
   regression. The batch receiver's live map validation duplicated only Arena
   and Driving Course, rejected every city (`map=2`) envelope as malformed, and
@@ -94,6 +95,30 @@
   The only SCTP send failure coincided with the user's final browser close and
   was immediately followed by the expected peer leave. Isolated services were
   cleaned up.
+- Native Forward+ stability now passes. Monitored offline run
+  `.crash-runs/20260831-215500` remained open for 27 minutes in the ordinary
+  1280x720 Vulkan Forward+ window on Godot 4.6.3 with Rapier 0.8.35. Across
+  1,600 one-second samples it averaged 59.73 FPS (34 minimum) with only three
+  isolated slow frames, then exited cleanly at the user's request. There was
+  no recovery, crash report, Vulkan device loss, GPU reset, watchdog, thermal,
+  or display fault. An earlier clean 7:45 run also averaged 59.43 FPS but was
+  retained only as supporting evidence because it did not meet the explicit
+  ten-minute duration gate.
+- Cross-platform human combat review now passes with separated full-scene
+  rendering. The correct isolated macai2 Godot 4.6.3/Rapier 0.8.35 mux server
+  was first verified with exactly two simultaneous Mac/Web peers, but rendering
+  the complete Arena in both local clients reduced native to about 15 FPS while
+  Chrome stayed around 39--47 FPS. Network identities and initial RTT were
+  correct, and native physics remained about 0.21 ms; this was rejected as the
+  already established local dual-render load class. Browser-only full-Arena run
+  `.network-runs/20260901T034649Z-70505-5429-webrtc-clean` then averaged 59.08
+  FPS over 99 HUD samples with zero recoveries. Native-only full-Arena run
+  `.crash-runs/networking1-enet-clean-proxy-20260831-225014` averaged 59.41 FPS
+  over 181 samples and exited cleanly. The user accepted authoritative drone
+  hits/jostle, shield ripple and reduced shove, shield/cloak exclusion, and
+  cloak stopping targeting on both rendered platforms. The remote harnesses now
+  expose opt-in real-drone/humans-only modes while preserving their lean default
+  fixtures.
 
 ## Trees, foliage, and lighting audition ready for human review
 

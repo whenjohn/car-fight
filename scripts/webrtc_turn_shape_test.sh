@@ -69,6 +69,16 @@ if [[ "${CAR_FIGHT_SERVER_DRIVER_LANE:-0}" == "1" ]]; then
 	server_driver_arg="--server-driver-lane"
 	driver_mode="slow-left-lane"
 fi
+if [[ "${CAR_FIGHT_SHAPE_HUMANS_ONLY:-0}" == "1" ]]; then
+	server_driver_arg=""
+	driver_mode="none"
+fi
+server_drone_arg="--no-drone"
+native_no_drone=1
+if [[ "${CAR_FIGHT_SHAPE_DRONE:-0}" == "1" ]]; then
+	server_drone_arg=""
+	native_no_drone=0
+fi
 player_capsule_enabled="${CAR_FIGHT_PLAYER_CAPSULE:-1}"
 player_capsule_arg="--player-capsule"
 if [[ "$player_capsule_enabled" == "0" ]]; then
@@ -285,7 +295,7 @@ if (( soak_seconds > 0 )); then
 	echo "soak: ${soak_seconds}s with one browser leave/rejoin; server_ticks=$server_ticks native_ticks=$native_ticks"
 fi
 if [[ "$interactive_browser" == "1" ]]; then
-	echo "interactive browser: server-driven Jeep enabled; driver=$driver_mode; player_capsule=$player_capsule_enabled; failsafe=${failsafe_seconds}s; close Chrome to stop"
+	echo "interactive browser: driver=$driver_mode; drone=${CAR_FIGHT_SHAPE_DRONE:-0}; player_capsule=$player_capsule_enabled; failsafe=${failsafe_seconds}s; close Chrome to stop"
 fi
 
 if [[ "${CAR_FIGHT_HARNESS_LIFECYCLE_TEST:-0}" == "1" ]]; then
@@ -363,7 +373,7 @@ server_ticks_arg="--ticks $server_ticks"
 if [[ "$interactive_browser" == "1" ]]; then
 	server_ticks_arg=""
 fi
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' --no-drone $server_driver_arg $player_capsule_arg $server_arena_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' $server_drone_arg $server_driver_arg $player_capsule_arg $server_arena_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
@@ -405,7 +415,7 @@ curl -fs -o /dev/null "http://127.0.0.1:$web_port/"
 if [[ "$interactive_native" == "1" ]]; then
 	mkdir -p "$run_dir/native-client"
 	CAR_FIGHT_TELEMETRY_FILE="$run_dir/native-client/telemetry.jsonl" \
-	CAR_FIGHT_NO_DRONE=1 CAR_FIGHT_NETWORK_HUD=1 \
+	CAR_FIGHT_NO_DRONE="$native_no_drone" CAR_FIGHT_NETWORK_HUD=1 \
 		"${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}" \
 		--windowed --position 80,80 --path "$project_root" -- \
 		--client --transport enet --host "$server_ip" --port "$remote_enet_port" \
