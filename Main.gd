@@ -1917,9 +1917,9 @@ func _build_city_lighting() -> void:
 	_shadow_light.shadow_opacity = 0.92
 	_shadow_light.shadow_bias = 0.12
 	_shadow_light.shadow_normal_bias = 1.25
-	# The Intel fallback keeps this caster set to gameplay actors only. A modest
-	# area size supplies the soft shadow edges the prior hard filter lacked.
-	_shadow_light.light_size = 1.25 if _intel_shadow_fallback else 0.0
+	# The Intel fallback keeps this caster set to gameplay actors only. Use the
+	# ordinary filter for soft edges without the extra PCSS cost of light_size.
+	_shadow_light.light_size = 0.0
 	_shadow_light.shadow_blur = 1.0 if _intel_shadow_fallback else 0.0
 	# Closed box meshes can cast from their back faces without shadow acne.
 	_shadow_light.shadow_reverse_cull_face = true
@@ -2100,6 +2100,10 @@ func _finish_staged_rendered_startup() -> void:
 				_record_render_startup_phase("spotlight_shadows_skipped_blob",
 					_pipeline_compilation_counts(), 0)
 			else:
+				before = _pipeline_compilation_counts()
+				_record_render_startup_phase("spotlight_light_begin", before, 0)
+				_shadow_light.visible = true
+				await _finish_startup_pipeline_batch("spotlight_light", before)
 				before = _pipeline_compilation_counts()
 				_record_render_startup_phase("spotlight_shadows_begin", before, 0)
 				_shadow_light.shadow_enabled = true
@@ -2409,7 +2413,7 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_shadow_light.light_energy = 1.45
 			_shadow_light.light_specular = 0.5
 			_shadow_light.shadow_opacity = 0.72
-			_shadow_light.visible = _intel_shadow_fallback
+			_shadow_light.visible = _intel_shadow_fallback and not stage_expensive
 		_:
 			_world_environment.background_color = Color("10171d")
 			_world_environment.ambient_light_color = Color("b6cad3")

@@ -92,14 +92,20 @@
   monitored run `.crash-runs/20260901-014020` stayed up, then clarified that
   realtime shadows themselves are not forbidden: the prior player-following
   spotlight shadow worked on this machine. The next bounded configuration
-  therefore stages only that spotlight after the base frame, limits city
-  buildings to receivers rather than casters, and uses a modest area size for
-  soft edges. The shader contact blob remains available through
+  therefore limits city buildings to receivers rather than casters. First
+  rendered attempt `.crash-runs/20260901-015158` at `4a40704` did not complete
+  the base phase: the spotlight was already visible there even though its
+  shadow map was disabled, and the frame ended in the same Metal timeout. It
+  therefore does not isolate the positional shadow submission. The correction
+  keeps the spotlight hidden for base, presents light-only next, then enables
+  its filtered shadow on a third frame. PCSS `light_size` is removed; ordinary
+  shadow blur supplies the softer edge at lower cost. The shader contact blob
+  remains available through
   `CAR_FIGHT_FORCE_BLOB_SHADOWS=1`. Supported non-Intel adapters retain the
-  staged four-cascade sun and low SSAO. Clean import, focused lighting tests,
-  the forced-Intel presentation smoke, and the complete permission-correct
-  suite pass (`ALL_TESTS PASS`). This revised spotlight path has not yet had a
-  rendered run.
+  staged four-cascade sun and low SSAO. After the corrected staging, clean
+  import, focused lighting tests, the forced-Intel presentation smoke, and the
+  complete permission-correct suite all pass (`ALL_TESTS PASS`). It has not had
+  another rendered run.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 

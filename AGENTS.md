@@ -66,5 +66,6 @@ Keep renderer changes small and auditable.
   compiler worker idle, then hung the command buffer submitted immediately
   after enabling that sun shadow. The earlier accepted player-following
   positional shadow is allowed as a bounded alternative: keep city buildings
-  out of its caster set, stage it after the base frame, and keep filter quality
-  at 1. The shader contact blob remains an explicit emergency fallback.
+  out of its caster set, stage light visibility and its shadow map on separate
+  frames after the base frame, keep filter quality at 1, and do not enable PCSS
+  `light_size`. The shader contact blob remains an explicit emergency fallback.

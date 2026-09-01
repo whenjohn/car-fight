@@ -14,6 +14,18 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
 
 ## 2026-09-01 Forward+ cold-pipeline device loss
 
+### 01:52 spotlight attempt did not reach its shadow toggle
+
+- Run `.crash-runs/20260901-015158`, commit `4a40704`, PID 88441, exited 134.
+- The log selected `mode=soft_spotlight` but recorded no completed `base`
+  startup phase. The Metal timeout arrived around ten seconds after launch,
+  with the same Vulkan device-lost abort in the chained frame/swap path.
+- The spotlight shadow map was disabled during base, but the spotlight itself
+  was visible and configured with PCSS `light_size=1.25`. This run therefore
+  does not show that the positional shadow toggle failed. The corrected probe
+  hides the spotlight during base, presents light-only on its own frame, then
+  enables a normally filtered shadow on the following frame. PCSS is removed.
+
 ### 01:28 incident isolates cascaded shadows
 
 - Incident `F302FC55-105C-45CD-BFC6-24A021C422F6`, PID 86070, run
