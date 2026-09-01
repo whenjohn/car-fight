@@ -334,6 +334,7 @@ var _join_stall_after_ms := 0
 var _join_stall_started := false
 var _persisted_oil_tuning := {}
 var _persisted_oil_tuning_pending := false
+var _lighting_startup_staged := false
 
 func _ready() -> void:
 	_parse_args()
@@ -1283,6 +1284,8 @@ func _build_world() -> void:
 		_build_presentation()
 		_build_prop_auditions()
 		_build_city_presentation()
+		if _lighting_startup_staged:
+			_complete_staged_lighting.call_deferred()
 		if _motion_trace_enabled:
 			_motion_trace = Node.new()
 			_motion_trace.name = "PresentedMotionTrace"
@@ -1917,7 +1920,11 @@ func _build_city_lighting() -> void:
 	_shadow_light.shadow_reverse_cull_face = true
 	add_child(_shadow_light)
 	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
-	_apply_lighting_style()
+	# The Intel Iris driver can hang its render ring when sky processing, four
+	# shadow cascades, every city caster, and SSAO first appear in one submission.
+	# Keep the chosen grade, but let the first frame establish its base pipelines.
+	_lighting_startup_staged = _lighting_style_index == 4
+	_apply_lighting_style(_lighting_startup_staged)
 
 
 func _build_hud(hud: CanvasLayer) -> void:
@@ -2021,7 +2028,28 @@ func _build_city_presentation() -> void:
 	_city_presentation.call("setup", _players)
 	add_child(_city_presentation)
 	_city_presentation.call("build_presentation")
-	_city_presentation.call("set_lighting_style", _lighting_style_index)
+	_city_presentation.call("set_lighting_style",
+		0 if _lighting_startup_staged else _lighting_style_index)
+
+
+func _complete_staged_lighting() -> void:
+	# Each await closes and presents one command buffer before the next costly
+	# Forward+ feature is introduced. This avoids recreating the startup workload
+	# that produced the captured Intel RCS hardware-ring hangs.
+	await RenderingServer.frame_post_draw
+	if not _lighting_startup_staged or _lighting_style_index != 4:
+		return
+	_sun_light.shadow_enabled = true
+	await RenderingServer.frame_post_draw
+	if not _lighting_startup_staged or _lighting_style_index != 4:
+		return
+	if _city_presentation != null:
+		_city_presentation.call("set_lighting_style", _lighting_style_index)
+	await RenderingServer.frame_post_draw
+	if not _lighting_startup_staged or _lighting_style_index != 4:
+		return
+	_world_environment.ssao_enabled = true
+	_lighting_startup_staged = false
 
 func _on_debug_menu_item_pressed(id: int) -> void:
 	if id == DEBUG_COLLISION_MENU_ID:
@@ -2085,12 +2113,13 @@ func _on_scenery_menu_pressed(id: int) -> void:
 		return
 	var lighting_index := id - LIGHTING_STYLE_MENU_ID_BASE
 	if lighting_index >= 0 and lighting_index < LIGHTING_STYLE_NAMES.size():
+		_lighting_startup_staged = false
 		_lighting_style_index = lighting_index
 		_apply_lighting_style()
 		_refresh_scenery_menu()
 
 
-func _apply_lighting_style() -> void:
+func _apply_lighting_style(stage_expensive: bool = false) -> void:
 	if _world_environment == null or _sun_light == null \
 			or _rim_light == null or _shadow_light == null:
 		return
@@ -2167,7 +2196,7 @@ func _apply_lighting_style() -> void:
 			# Keep this first Intel Forward+ pass deliberately lean: real clustered
 			# rendering, low SSAO, and cascaded sun shadows, but no SSIL/SSR/SDFGI or
 			# TAA until the driving baseline proves stable and fast enough.
-			_world_environment.ssao_enabled = true
+			_world_environment.ssao_enabled = not stage_expensive
 			_world_environment.ssao_radius = 1.6
 			_world_environment.ssao_intensity = 1.0
 			_world_environment.ssao_power = 1.2
@@ -2176,7 +2205,7 @@ func _apply_lighting_style() -> void:
 			_sun_light.light_color = Color(1.0, 0.965, 0.90)
 			_sun_light.light_energy = 1.65
 			_sun_light.light_specular = 0.8
-			_sun_light.shadow_enabled = true
+			_sun_light.shadow_enabled = not stage_expensive
 			_sun_light.shadow_opacity = 0.88
 			_sun_light.light_angular_distance = 0.65
 			_sun_light.shadow_blur = 1.0

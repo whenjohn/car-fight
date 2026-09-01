@@ -16,6 +16,9 @@ func _init() -> void:
 	_check('renderer/rendering_method="forward_plus"' in project \
 		and 'renderer/rendering_method.mobile="forward_plus"' in project,
 		"desktop and mobile use the accepted Forward+ renderer")
+	_check('config/use_custom_user_dir=true' in project \
+		and 'config/custom_user_dir_name="Car Fight/godot-4.6"' in project,
+		"Godot 4.6 does not share its Vulkan pipeline cache with other engines")
 	_check("_world_environment.ssao_enabled = true" in source \
 		and "environment/ssao/quality=0" in project,
 		"the default Forward+ preset enables the accepted low SSAO pass")
@@ -27,6 +30,11 @@ func _init() -> void:
 		and "DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS" in source \
 		and "lights_and_shadows/directional_shadow/size=2048" in project,
 		"the default sun uses the accepted cascaded shadow configuration")
+	_check("func _complete_staged_lighting()" in source \
+		and source.count("await RenderingServer.frame_post_draw") >= 4 \
+		and "_world_environment.ssao_enabled = not stage_expensive" in source \
+		and "_sun_light.shadow_enabled = not stage_expensive" in source,
+		"the costly default lighting passes are split across startup frames")
 	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5")
 	quit(0)
 

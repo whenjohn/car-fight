@@ -13,6 +13,10 @@ Keep renderer changes small and auditable.
   lighting presets and measure any additional effect independently.
 
 - Run with `/Applications/Godot.app/Contents/MacOS/Godot` (Godot 4.6.3).
+- Keep `application/config/custom_user_dir_name` on the dedicated
+  `Car Fight/godot-4.6` directory. Godot names its Vulkan pipeline cache by
+  rendering method and adapter, not engine version; pointing 4.6 and 4.7 at the
+  same `user://` cache allowed alternating engines to rewrite one Intel cache.
 - Server authority and ENet lifecycle live in `Main.gd`.
 - Deterministic FOLLOW math lives in `player/follow_controller.gd`; presentation must not affect it.
 - Player input authority belongs to its owning client; body/state authority stays with server peer 1.
@@ -46,3 +50,8 @@ Keep renderer changes small and auditable.
   neutral controls. Do not repeat OpenGL, ANGLE, Vulkan, or edge-coverage
   diagnostics merely to reconfirm them. Read
   `MAC_INTEL_FULLSCREEN_FINDINGS.md` before changing display policy.
+- Keep the default Forward+ sky, cascaded shadows, city shadow casters, and
+  SSAO staged across separate startup frames. Raising either soft-shadow
+  filter above quality 1 produced a captured Intel RCS hardware-ring hang and
+  kernel GPU restart; do not repeat that rendered probe without a new bounded
+  mitigation.

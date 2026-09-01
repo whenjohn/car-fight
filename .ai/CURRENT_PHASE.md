@@ -33,6 +33,25 @@
 - Next step is a human-reviewed ordinary-window run through
   `scripts/play_monitored.sh` to accept the final city composition and lighting.
   Do not merge or deploy this branch until that visual pass is accepted.
+- Ordinary-window crash investigation after the first visual pass identified a
+  concrete Intel startup failure, not a gameplay crash. Raising directional and
+  positional soft-shadow filtering from quality 1 to 2 produced a Metal command
+  timeout on the first rendered frames. macOS unified logs recorded the Intel
+  RCS ring busy in a batch buffer, `GPURestartBegin/End`, and the matching Godot
+  `kIOAccelCommandBufferCallbackErrorTimeout`. A later untouched Godot 4.6
+  control repeated the hardware-ring hang after Godot 4.7 had also compiled
+  shaders against the same `user://` pipeline cache.
+- The mitigation keeps the accepted quality-1 shadows and complete Forward+
+  sunlit result, but starts the base sky first and enables directional cascades,
+  city building casters, and SSAO on three subsequent presented frames. Godot
+  4.6 now uses `Car Fight/godot-4.6` as its dedicated custom user directory, so
+  Godot 4.7 and the legacy shared cache cannot rewrite its pipeline data.
+  Project parse, focused lighting/presentation checks, WebRTC harness lifecycle,
+  offline, and the isolated 120 ms network gate pass. The permission-correct
+  full suite reached the known timing-sensitive collision escape row; it missed
+  once with contact present, and the immediate isolated retry passed with one
+  escape and a 1.174-unit worst correction. Do not launch another rendered
+  client until the staged/cold-cache run is intentionally reviewed.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
