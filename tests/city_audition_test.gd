@@ -34,6 +34,24 @@ func _init() -> void:
 			_check(lining != null and int(lining.get_meta("tree_count", 0))
 				== tree_positions.size(), "every clear tree site uses Collection 121-130")
 	city.free()
+	if local_scene_available:
+		var staged_city := CITY.new()
+		_check(staged_city.begin_staged_presentation(),
+			"local city can prepare without attaching all render surfaces")
+		var staged_district := staged_city.get_node_or_null("LowPolyCityDistrict")
+		_check(staged_district != null and staged_district.get_child_count() == 0,
+			"prepared district starts with no mesh holders in the scene tree")
+		var pending_before := staged_city.pending_presentation_batch_count()
+		_check(pending_before > 1, "local city is divided into multiple pipeline batches")
+		staged_city.add_next_presentation_batch()
+		_check(staged_district.get_child_count() > 0 \
+			and staged_city.pending_presentation_batch_count() < pending_before,
+			"one staged step attaches only one mesh-resource family")
+		while staged_city.has_pending_presentation_batches():
+			staged_city.add_next_presentation_batch()
+		_check(int(staged_district.get_meta("piece_count", 0)) == 63,
+			"staged district preserves source composition metadata")
+		staged_city.free()
 	print("CITY_AUDITION_TEST PASS local_scene=%d" % (1 if local_scene_available else 0))
 	quit()
 

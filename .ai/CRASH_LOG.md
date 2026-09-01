@@ -2,9 +2,46 @@
 
 ## Safety status
 
-The rendered car-fight client is a probable reproducible trigger for a macOS/Intel graphics stack failure. Do not automatically run `./scripts/play.sh`, open the project in a rendered editor, or perform a rendered soak test while investigating this issue. Headless tests are still appropriate. Get the user's explicit approval before a rendered reproduction attempt because the failure can kill WindowServer and disrupt the whole login session.
+The rendered car-fight client has two captured macOS/Intel graphics failure
+classes: the older fullscreen/WindowServer watchdog and a current Forward+
+cold-pipeline Intel render-ring hang that makes Godot abort after device loss.
+Do not automatically run `./scripts/play.sh`, open the project in a rendered
+editor, or perform a rendered soak. Headless tests are appropriate. Every
+rendered attempt requires the user's explicit approval and must use the ordinary
+window monitored launcher so pipeline phases and the kernel boundary are saved.
+The kernel has successfully restarted the GPU after the recent Forward+ hangs;
+do not prescribe a reboot as the routine diagnostic or recovery step.
 
-No renderer, lighting, shader, gameplay, or launch-script change has been made in response. The user explicitly chose to log the evidence and continue development unchanged.
+## 2026-09-01 Forward+ cold-pipeline device loss
+
+- Latest incident: 2026-09-01 01:07:23 -0500, Godot incident
+  `8BC7CC15-C22E-4A57-A609-BE718EA5400D`, PID 84825, Godot 4.6.3 x86_64.
+- Evidence bundle: `.crash-runs/20260901-010710`, project commit `626ee8b`,
+  ordinary 1280 x 720 window, Forward+ Vulkan/MoltenVK on Intel Iris Plus.
+- The main thread received `VK_TIMEOUT` /
+  `kIOAccelCommandBufferCallbackErrorTimeout`, reported device loss in
+  `command_queue_execute_and_present`, and Godot deliberately called `abort()`.
+  The SIGABRT is therefore the consequence, not the initiating fault.
+- Worker threads 3 and 6 were concurrently in Forward+ pipeline creation:
+  `SceneShaderForwardClustered::ShaderData::_create_pipeline` through
+  `RenderingDevice::render_pipeline_create` and `update_pipeline_cache`.
+- The dedicated cold 4.6 cache grew to 10,461,997 bytes by the crash. Process
+  sampling peaked near 534 MB RSS; this does not support ordinary 16 GB system
+  memory exhaustion. The report's repeated kernel VM allocation triage is most
+  consistent with graphics/kernel allocation pressure at the hang boundary.
+- Read-only unified logs identify Intel RCS hardware context 733 busy in a batch
+  buffer, followed by `GPURestartSignaled`, queued/begin/end type-2 recovery on
+  multiple channels. macOS recovered the GPU without a reboot, after which
+  Godot exited because its rendering device was already lost.
+- Earlier quality-2 and valid untouched-4.6 controls produced the same class on
+  contexts 715 and 726. Quality 2 was an initial trigger, but the latest isolated
+  quality-1 cold-cache incident proves shadow softness is not the only trigger.
+- Root-cause boundary: Godot 4.6 automatically schedules Forward+ surface
+  pipelines when meshes enter the scene tree, even while invisible. The old
+  startup attached the entire city/material set before its effect-only staging
+  coroutine could run. The current candidate stages actual scene-tree insertion
+  and records pipeline counts; it has passed the complete headless regression
+  suite but has not yet received an approved rendered validation.
 
 ## Confirmed incidents
 

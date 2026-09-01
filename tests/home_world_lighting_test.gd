@@ -30,11 +30,15 @@ func _init() -> void:
 		and "DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS" in source \
 		and "lights_and_shadows/directional_shadow/size=2048" in project,
 		"the default sun uses the accepted cascaded shadow configuration")
-	_check("func _complete_staged_lighting()" in source \
-		and source.count("await RenderingServer.frame_post_draw") >= 4 \
+	_check("func _finish_staged_rendered_startup()" in source \
+		and source.count("await RenderingServer.frame_post_draw") >= 2 \
 		and "_world_environment.ssao_enabled = not stage_expensive" in source \
 		and "_sun_light.shadow_enabled = not stage_expensive" in source,
 		"the costly default lighting passes are split across startup frames")
+	_check('call("begin_staged_presentation")' in source \
+		and 'call("add_next_presentation_batch")' in source \
+		and "_finish_startup_pipeline_batch" in source,
+		"city mesh families enter Forward+ through the presented-frame startup queue")
 	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5")
 	quit(0)
 

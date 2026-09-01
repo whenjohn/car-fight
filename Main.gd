@@ -321,6 +321,7 @@ var _network_last_target_msec := -1.0
 var _network_last_mode := ""
 var _network_tier_notice_remaining := 0.0
 var _shader_prewarm: Node3D
+var _vehicle_pipeline_prewarm: Node3D
 var _driving_course: Node3D
 var _occluded_support_hints: Node3D
 var _jump_gates: Node3D
@@ -372,6 +373,11 @@ func _ready() -> void:
 		return
 	_connect_network_events()
 	_build_world()
+	if not _is_headless():
+		if DisplayServer.get_name() == "headless":
+			_finish_rendered_startup_without_frames()
+		else:
+			await _finish_staged_rendered_startup()
 	NetworkTime.on_tick.connect(_on_tick)
 	NetworkRollback.after_loop.connect(_send_settled_authority_probes)
 	NetworkTime.after_sync.connect(_inject_join_stall_for_test)
@@ -380,13 +386,6 @@ func _ready() -> void:
 	elif _role == "offline":
 		await _start_offline()
 	else:
-		if DisplayServer.get_name() != "headless" and _shader_prewarm != null:
-			# Compile the cloak pipelines before ENet/netfox starts its clock. Doing
-			# this after spawn can consume the rollback history on Intel Compatibility.
-			# Presentation gates still use a headless display and cannot produce the
-			# frame_post_draw signal even though they build presentation nodes.
-			await RenderingServer.frame_post_draw
-			_shader_prewarm.visible = false
 		_start_client()
 
 
@@ -1244,7 +1243,10 @@ func _build_world() -> void:
 	_shield_drone.position = SHIELD_DRONE_SCRIPT.CITY_POSITION
 	add_child(_shield_drone)
 	if not _is_headless():
-		_shield_drone.call("build_presentation")
+		# Register the environment, lights, MSAA, and camera before the majority
+		# of meshes enter the scene tree. Godot's Forward+ precompiler uses the
+		# features it has already observed to select each surface pipeline.
+		_build_presentation()
 	_build_home_world()
 	_driving_course = Node3D.new()
 	_driving_course.name = "DrivingCourse"
@@ -1267,31 +1269,10 @@ func _build_world() -> void:
 	add_child(_troop_delivery)
 	_build_combat_targets()
 	if not _is_headless():
-		# Oil decals and grass remain presentation-only and never add rollback bodies.
-		var oil_slicks := Node3D.new()
-		oil_slicks.name = "OilSlicks"
-		oil_slicks.set_script(OIL_SLICKS_SCRIPT)
-		oil_slicks.call("setup", _players)
-		add_child(oil_slicks)
-		var grass := Node3D.new()
-		grass.name = "InteractiveGrass"
-		grass.set_script(INTERACTIVE_GRASS_SCRIPT)
-		grass.call("setup", _players, _combat_bolts)
-		grass.position = Vector3(58.0, 0.0, 18.0)
-		add_child(grass)
-		_driving_course.call("build_presentation")
-		_jump_gates.call("build_presentation")
-		_build_presentation()
-		_build_prop_auditions()
-		_build_city_presentation()
-		if _lighting_startup_staged:
-			_complete_staged_lighting.call_deferred()
-		if _motion_trace_enabled:
-			_motion_trace = Node.new()
-			_motion_trace.name = "PresentedMotionTrace"
-			_motion_trace.set_script(MOTION_TRACE_SCRIPT)
-			add_child(_motion_trace)
-			_motion_trace.call("setup", self, _players, _camera)
+		# Render-only families are attached by _finish_staged_rendered_startup().
+		# This is intentionally later than collision/network construction: an
+		# invisible MeshInstance3D still starts Forward+ surface compilation.
+		pass
 
 func _spawn_player(data: Variant) -> Node:
 	var info: Dictionary = data if data is Dictionary else {"id": int(data), "slot": 0}
@@ -1821,7 +1802,7 @@ func _build_presentation() -> void:
 	_camera.current = true
 	add_child(_camera)
 	_speed_camera = SPEED_CAMERA_SCRIPT.new()
-	_build_shader_prewarm()
+	_create_shader_prewarm_container()
 	_impact_fx = Node3D.new()
 	_impact_fx.name = "ImpactFX"
 	_impact_fx.set_script(IMPACT_FX_SCRIPT)
@@ -2021,35 +2002,177 @@ func _build_prop_auditions() -> void:
 	add_child(props)
 
 
-func _build_city_presentation() -> void:
+func _build_city_presentation(staged: bool = false) -> void:
 	_city_presentation = Node3D.new()
 	_city_presentation.name = "LowPolyCity"
 	_city_presentation.set_script(CITY_PRESENTATION_SCRIPT)
 	_city_presentation.call("setup", _players)
 	add_child(_city_presentation)
-	_city_presentation.call("build_presentation")
-	_city_presentation.call("set_lighting_style",
-		0 if _lighting_startup_staged else _lighting_style_index)
+	if staged:
+		_city_presentation.call("begin_staged_presentation")
+	else:
+		_city_presentation.call("build_presentation")
+	_city_presentation.call("set_lighting_style", _lighting_style_index)
 
 
-func _complete_staged_lighting() -> void:
-	# Each await closes and presents one command buffer before the next costly
-	# Forward+ feature is introduced. This avoids recreating the startup workload
-	# that produced the captured Intel RCS hardware-ring hangs.
-	await RenderingServer.frame_post_draw
-	if not _lighting_startup_staged or _lighting_style_index != 4:
+func _build_oil_slick_presentation() -> void:
+	# Oil decals and grass remain presentation-only and never add rollback bodies.
+	var oil_slicks := Node3D.new()
+	oil_slicks.name = "OilSlicks"
+	oil_slicks.set_script(OIL_SLICKS_SCRIPT)
+	oil_slicks.call("setup", _players)
+	add_child(oil_slicks)
+
+
+func _build_grass_presentation() -> void:
+	var grass := Node3D.new()
+	grass.name = "InteractiveGrass"
+	grass.set_script(INTERACTIVE_GRASS_SCRIPT)
+	grass.call("setup", _players, _combat_bolts)
+	grass.position = Vector3(58.0, 0.0, 18.0)
+	add_child(grass)
+
+
+func _build_motion_trace_presentation() -> void:
+	if not _motion_trace_enabled:
 		return
-	_sun_light.shadow_enabled = true
-	await RenderingServer.frame_post_draw
-	if not _lighting_startup_staged or _lighting_style_index != 4:
-		return
-	if _city_presentation != null:
-		_city_presentation.call("set_lighting_style", _lighting_style_index)
-	await RenderingServer.frame_post_draw
-	if not _lighting_startup_staged or _lighting_style_index != 4:
-		return
-	_world_environment.ssao_enabled = true
+	_motion_trace = Node.new()
+	_motion_trace.name = "PresentedMotionTrace"
+	_motion_trace.set_script(MOTION_TRACE_SCRIPT)
+	add_child(_motion_trace)
+	_motion_trace.call("setup", self, _players, _camera)
+
+
+## Forward+ automatically compiles a surface pipeline when a mesh first enters
+## the scene tree, including invisible meshes. On this Intel Iris Mac, attaching
+## the complete city before frame one can saturate the background compiler and
+## hang the hardware render ring. Keep networking stopped while we introduce one
+## material/mesh family per presented frame, with a short cold-cache settling
+## window only when that family actually increased the compilation counters.
+func _finish_staged_rendered_startup() -> void:
+	var before := _pipeline_compilation_counts()
+	await _finish_startup_pipeline_batch("base", before)
+	if _lighting_startup_staged and _lighting_style_index == 4:
+		before = _pipeline_compilation_counts()
+		_sun_light.shadow_enabled = true
+		await _finish_startup_pipeline_batch("directional_shadows", before)
+		before = _pipeline_compilation_counts()
+		_world_environment.ssao_enabled = true
+		await _finish_startup_pipeline_batch("ssao", before)
+
+	before = _pipeline_compilation_counts()
+	_shield_drone.call("build_presentation")
+	await _finish_startup_pipeline_batch("shield_drone", before)
+	before = _pipeline_compilation_counts()
+	_build_oil_slick_presentation()
+	await _finish_startup_pipeline_batch("oil_slicks", before)
+	before = _pipeline_compilation_counts()
+	_build_grass_presentation()
+	await _finish_startup_pipeline_batch("interactive_grass", before)
+	before = _pipeline_compilation_counts()
+	_driving_course.call("build_presentation")
+	await _finish_startup_pipeline_batch("driving_course", before)
+	before = _pipeline_compilation_counts()
+	_jump_gates.call("build_presentation")
+	await _finish_startup_pipeline_batch("jump_gates", before)
+
+	for shader_index in range(_startup_prewarm_shaders().size()):
+		before = _pipeline_compilation_counts()
+		_add_shader_prewarm(_startup_prewarm_shaders()[shader_index])
+		await _finish_startup_pipeline_batch("custom_shader_%d" % shader_index, before)
+	before = _pipeline_compilation_counts()
+	_build_vehicle_pipeline_prewarm()
+	await _finish_startup_pipeline_batch("default_vehicle", before)
+
+	before = _pipeline_compilation_counts()
+	_build_prop_auditions()
+	await _finish_startup_pipeline_batch("prop_auditions", before)
+	_build_city_presentation(true)
+	var city_batch := 0
+	while bool(_city_presentation.call("has_pending_presentation_batches")):
+		before = _pipeline_compilation_counts()
+		_city_presentation.call("add_next_presentation_batch")
+		await _finish_startup_pipeline_batch("city_batch_%02d" % city_batch, before)
+		city_batch += 1
+
 	_lighting_startup_staged = false
+	if _shader_prewarm != null:
+		_shader_prewarm.visible = false
+	if _vehicle_pipeline_prewarm != null:
+		_vehicle_pipeline_prewarm.queue_free()
+		_vehicle_pipeline_prewarm = null
+	_build_motion_trace_presentation()
+	_record_render_startup_phase("complete", _pipeline_compilation_counts(), 0)
+
+
+func _finish_rendered_startup_without_frames() -> void:
+	# Presentation smoke gates intentionally force 3D nodes under the headless
+	# display driver, which never emits frame_post_draw. Preserve their complete
+	# scene contract without pretending they exercise the GPU startup path.
+	if _lighting_startup_staged and _lighting_style_index == 4:
+		_sun_light.shadow_enabled = true
+		_world_environment.ssao_enabled = true
+	_shield_drone.call("build_presentation")
+	_build_oil_slick_presentation()
+	_build_grass_presentation()
+	_driving_course.call("build_presentation")
+	_jump_gates.call("build_presentation")
+	_build_shader_prewarm()
+	_build_vehicle_pipeline_prewarm()
+	_build_prop_auditions()
+	_build_city_presentation()
+	_lighting_startup_staged = false
+	if _shader_prewarm != null:
+		_shader_prewarm.visible = false
+	if _vehicle_pipeline_prewarm != null:
+		_vehicle_pipeline_prewarm.queue_free()
+		_vehicle_pipeline_prewarm = null
+	_build_motion_trace_presentation()
+
+
+func _finish_startup_pipeline_batch(phase: String, before: Dictionary) -> void:
+	await RenderingServer.frame_post_draw
+	var after := _pipeline_compilation_counts()
+	var compiled := _pipeline_compilation_total(after) - _pipeline_compilation_total(before)
+	var adapter := str(RenderingServer.get_video_adapter_name()).to_lower()
+	if compiled > 0 and "intel" in adapter:
+		await get_tree().create_timer(0.12).timeout
+		await RenderingServer.frame_post_draw
+		after = _pipeline_compilation_counts()
+	_record_render_startup_phase(phase, after, maxi(compiled, 0))
+
+
+func _pipeline_compilation_counts() -> Dictionary:
+	return {
+		"canvas": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS),
+		"mesh": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH),
+		"surface": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE),
+		"draw": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW),
+		"specialization": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION),
+	}
+
+
+func _pipeline_compilation_total(counts: Dictionary) -> int:
+	var total := 0
+	for value in counts.values():
+		total += int(value)
+	return total
+
+
+func _record_render_startup_phase(phase: String, counts: Dictionary, compiled: int) -> void:
+	_log("RENDER_STARTUP phase=%s compiled=%d pipelines=%s" % [
+		phase, compiled, JSON.stringify(counts)])
+	if _crash_telemetry != null:
+		_crash_telemetry.call("record_event", "render_startup_phase", {
+			"phase": phase,
+			"compiled": compiled,
+			"pipeline_compilations": counts,
+		})
 
 func _on_debug_menu_item_pressed(id: int) -> void:
 	if id == DEBUG_COLLISION_MENU_ID:
@@ -2677,29 +2800,61 @@ func _poll_presentation_control(delta: float) -> void:
 		return
 	RemotePositionTransport.set_presentation_mode(command)
 
-func _build_shader_prewarm() -> void:
+func _startup_prewarm_shaders() -> Array:
+	return [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER, HOMING_MISSILE_SHADER]
+
+
+func _create_shader_prewarm_container() -> void:
+	if _shader_prewarm != null:
+		return
 	_shader_prewarm = Node3D.new()
 	_shader_prewarm.name = "ShaderPrewarm"
 	_camera.add_child(_shader_prewarm)
 	_shader_prewarm.position = Vector3(0.0, 0.0, -2.0)
-	for shader in [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER, HOMING_MISSILE_SHADER]:
-		var instance := MeshInstance3D.new()
-		var sphere := SphereMesh.new()
-		sphere.radius = 0.001
-		sphere.height = 0.002
-		instance.mesh = sphere
-		var material := ShaderMaterial.new()
-		material.shader = shader
-		if shader == CLOAK_DISSOLVE_SHADER:
-			material.set_shader_parameter("cut_position", -999.0)
-		elif shader == CLOAK_GHOST_SHADER:
-			material.set_shader_parameter("cloak_strength", 0.0)
-		elif shader == SHIELD_SHADER:
-			material.set_shader_parameter("shield_strength", 0.0)
-			material.set_shader_parameter("impact_age", 1.2)
-		instance.material_override = material
-		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_shader_prewarm.add_child(instance)
+
+
+func _build_shader_prewarm() -> void:
+	_create_shader_prewarm_container()
+	for shader in _startup_prewarm_shaders():
+		_add_shader_prewarm(shader)
+
+
+func _add_shader_prewarm(shader: Shader) -> void:
+	var instance := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.001
+	sphere.height = 0.002
+	instance.mesh = sphere
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	if shader == CLOAK_DISSOLVE_SHADER:
+		material.set_shader_parameter("cut_position", -999.0)
+	elif shader == CLOAK_GHOST_SHADER:
+		material.set_shader_parameter("cloak_strength", 0.0)
+	elif shader == SHIELD_SHADER:
+		material.set_shader_parameter("shield_strength", 0.0)
+		material.set_shader_parameter("impact_age", 1.2)
+	instance.material_override = material
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_shader_prewarm.add_child(instance)
+
+
+func _build_vehicle_pipeline_prewarm() -> void:
+	if _vehicle_pipeline_prewarm != null:
+		return
+	_vehicle_pipeline_prewarm = Node3D.new()
+	_vehicle_pipeline_prewarm.name = "DefaultVehiclePipelinePrewarm"
+	_vehicle_pipeline_prewarm.visible = false
+	_vehicle_pipeline_prewarm.process_mode = Node.PROCESS_MODE_DISABLED
+	add_child(_vehicle_pipeline_prewarm)
+	# Use the real local presentation builder so the Jeep vertex formats, cloak,
+	# shield, coverage overlay, markers, skid trails, and speed effects are all
+	# registered before networking starts. The disabled hidden body never enters
+	# the spawner or rollback world and is discarded once compilation is staged.
+	var dummy_owner := multiplayer.get_unique_id()
+	var dummy := _spawn_player({"id": dummy_owner, "slot": 0})
+	dummy.process_mode = Node.PROCESS_MODE_DISABLED
+	_vehicle_pipeline_prewarm.add_child(dummy)
 
 func _update_editor_presentation(local: Node3D) -> void:
 	if local == null or _editor_stage == null:

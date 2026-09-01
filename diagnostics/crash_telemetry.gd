@@ -171,6 +171,16 @@ func _write_sample() -> void:
 		"video_memory_bytes": Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED),
 		"texture_memory_bytes": Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED),
 		"buffer_memory_bytes": Performance.get_monitor(Performance.RENDER_BUFFER_MEM_USED),
+		"pipeline_compilations_canvas": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS),
+		"pipeline_compilations_mesh": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH),
+		"pipeline_compilations_surface": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE),
+		"pipeline_compilations_draw": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW),
+		"pipeline_compilations_specialization": RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION),
 		"window_mode": int(DisplayServer.window_get_mode()),
 		"window_mode_name": _window_mode_name(int(DisplayServer.window_get_mode())),
 		"window_size": _vector2i_array(DisplayServer.window_get_size()),

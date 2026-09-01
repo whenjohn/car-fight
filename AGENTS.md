@@ -50,8 +50,13 @@ Keep renderer changes small and auditable.
   neutral controls. Do not repeat OpenGL, ANGLE, Vulkan, or edge-coverage
   diagnostics merely to reconfirm them. Read
   `MAC_INTEL_FULLSCREEN_FINDINGS.md` before changing display policy.
-- Keep the default Forward+ sky, cascaded shadows, city shadow casters, and
-  SSAO staged across separate startup frames. Raising either soft-shadow
-  filter above quality 1 produced a captured Intel RCS hardware-ring hang and
-  kernel GPU restart; do not repeat that rendered probe without a new bounded
-  mitigation.
+- Keep the default Forward+ feature-first startup queue: present the base
+  environment, cascaded shadows, and SSAO before attaching the bulk of the
+  render scene, then add custom shaders, the default Jeep, city mesh-resource
+  families, and street trees in bounded presented-frame batches. Visibility
+  is not a substitute for this queue; Godot 4.6 precompiles surfaces as soon
+  as even an invisible MeshInstance3D enters the scene tree. Preserve the
+  pipeline-compilation telemetry. Raising either soft-shadow filter above
+  quality 1, or attaching the complete cold city before frame one, produced a
+  captured Intel RCS hardware-ring hang and kernel GPU restart; do not repeat
+  either rendered probe without a new bounded mitigation.

@@ -41,17 +41,40 @@
   `kIOAccelCommandBufferCallbackErrorTimeout`. A later untouched Godot 4.6
   control repeated the hardware-ring hang after Godot 4.7 had also compiled
   shaders against the same `user://` pipeline cache.
-- The mitigation keeps the accepted quality-1 shadows and complete Forward+
-  sunlit result, but starts the base sky first and enables directional cascades,
-  city building casters, and SSAO on three subsequent presented frames. Godot
-  4.6 now uses `Car Fight/godot-4.6` as its dedicated custom user directory, so
-  Godot 4.7 and the legacy shared cache cannot rewrite its pipeline data.
-  Project parse, focused lighting/presentation checks, WebRTC harness lifecycle,
-  offline, and the isolated 120 ms network gate pass. The permission-correct
-  full suite reached the known timing-sensitive collision escape row; it missed
-  once with contact present, and the immediate isolated retry passed with one
-  escape and a 1.174-unit worst correction. Do not launch another rendered
-  client until the staged/cold-cache run is intentionally reviewed.
+- The first mitigation was insufficient. Run `.crash-runs/20260901-010710` at
+  `626ee8b` used the new isolated, initially empty 4.6 cache but still hung Intel
+  render context 733 about twelve seconds after launch. Godot aborted only after
+  the Metal command timeout/device loss. The crash report shows Forward+
+  `ShaderData::_create_pipeline` work on two worker threads while the main thread
+  was submitting transfer workers for presentation; the fresh cache reached
+  10,461,997 bytes. Process RSS was only about 534 MB, so the report's kernel VM
+  allocation triage is graphics/kernel pressure accompanying the hardware hang,
+  not ordinary application-memory exhaustion. macOS completed its own type-2
+  GPU restart; rebooting is not required to diagnose or recover from this class.
+- Godot 4.6's documented precompiler behavior explains the miss: surface
+  pipelines start when 3D objects enter the scene tree, including invisible
+  objects. The prior code attached the complete district, trees, props, grass,
+  oil, course, gates, and four shader warmups before frame one, so staging only
+  shadow/SSAO switches happened after the cold compiler had already received
+  the whole scene.
+- The replacement implementation keeps networking stopped and uses a
+  feature-first rendered startup queue. It presents the base environment,
+  directional cascades, and SSAO first; then stages the shield fixture, oil,
+  grass, course, gates, each custom shader, and the real default Jeep
+  presentation. The Low Poly City extraction is prepared off-tree and its 63
+  holders are attached by shared mesh-resource family, followed by one street
+  tree per batch. Each family reaches a presented frame before the next; when
+  an Intel batch increases compilation counters it also receives a 120 ms cold
+  settling window. Monitored telemetry now records per-phase canvas, mesh,
+  surface, draw, and specialization compilation counts.
+- Clean 4.6.3 import, focused city/lighting/telemetry tests, forced-presentation
+  five-tick boot, offline, and permission-correct 120 ms ENet pass. The complete
+  permission-correct `./scripts/test.sh` suite ends in `ALL_TESTS PASS`, including
+  WebRTC lifecycle, mixed transport, transient join, reconnect, ball, tractor,
+  course, reverse, city-course-city gate, combat, RC orb, shield, and detonation.
+  No rendered client has been launched with this replacement yet; the next step
+  is one explicitly approved ordinary-window monitored run, not a reboot or an
+  unmonitored retry.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
