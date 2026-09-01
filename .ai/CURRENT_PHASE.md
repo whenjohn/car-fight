@@ -117,7 +117,12 @@
   Supported adapters still use the original cascades and low SSAO. Clean import,
   focused lighting/city/telemetry checks, the forced-Intel presentation smoke,
   and the complete permission-correct suite pass (`ALL_TESTS PASS`). The cleaned
-  runtime still needs one monitored rendered confirmation.
+  runtime is visually accepted and passed its ordinary-window monitored run at
+  `.crash-runs/20260901-021324` on cleanup commit `376c26b`. It built the full
+  city normally, reported `RENDER_SHADOW_MODE mode=filtered_spotlight ssao=off
+  cascades=off`, reached `RENDER_LIGHTING_READY` and `OFFLINE_READY`, continued
+  through tick 480, and exited `clean` with no timeout or device loss. This is
+  the accepted Intel Forward+ baseline; no further crash workaround is pending.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 

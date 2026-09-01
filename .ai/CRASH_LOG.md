@@ -14,6 +14,21 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
 
 ## 2026-09-01 Forward+ lighting device loss
 
+### 02:13 simplified retained fix is clean
+
+- Run `.crash-runs/20260901-021324`, cleanup commit `376c26b`, PID 90320.
+- The ordinary complete Low Poly City build reported
+  `mode=filtered_spotlight ssao=off cascades=off`, then reached both
+  `RENDER_LIGHTING_READY` and `OFFLINE_READY`. It continued through server tick
+  480 and the monitor reported `clean`; there was no Metal timeout, Vulkan
+  device loss, GPU reset, or crash report.
+- This run verifies the post-cleanup implementation without the abandoned cache,
+  compiler telemetry, scene batching, settle delays, PCSS, prewarm staging, or
+  blob-shadow fallback. The retained Intel behavior is the normal full-city
+  build followed by a hidden-spotlight frame, a light-only frame, and the
+  filtered spotlight-shadow frame. SSAO and four-cascade directional shadows
+  remain disabled only on the affected Intel path.
+
 ### 01:59 corrected spotlight staging is clean
 
 - Run `.crash-runs/20260901-015950`, commit `709013b`, PID 89277.
