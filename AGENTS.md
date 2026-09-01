@@ -1,11 +1,16 @@
 # Car Fight project notes
 
-This worktree is the protected Godot 4.6.3 + Rapier 0.8.35 Forward+
-integration candidate. Canonical `master` remains on Godot 4.7 until the
-automated and human Mac/Web regression matrix in
-`GODOT_46_REGRESSION_REPORT.md` is accepted. Read
-`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md` before changing the engine, renderer,
-Rapier version, or migration boundary. Keep it small and auditable.
+This repository uses the accepted Godot 4.6.3 + Rapier 0.8.35 Forward+
+baseline. The migration regression matrix in `GODOT_46_REGRESSION_REPORT.md`
+is complete and the pre-migration Godot 4.7 state remains preserved by the
+`pre-godot-46-2026-08-31` tag. Read `GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`
+before changing the engine, renderer, Rapier version, or migration boundary.
+Keep renderer changes small and auditable.
+
+- Low Poly City is the canonical home world; Driving Course is the only
+  secondary map. The old Arena and standalone Overcast City worlds are retired.
+- The accepted Forward+ sunlit preset is the default. Preserve the other four
+  lighting presets and measure any additional effect independently.
 
 - Run with `/Applications/Godot.app/Contents/MacOS/Godot` (Godot 4.6.3).
 - Server authority and ENet lifecycle live in `Main.gd`.

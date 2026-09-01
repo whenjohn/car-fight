@@ -2,30 +2,23 @@ extends SceneTree
 
 const CAMERA := preload("res://fx/speed_camera.gd")
 const SPEED_FX := preload("res://fx/vehicle_speed_fx.gd")
-const ARENA := preload("res://world/arena_config.gd")
 const MAPS := preload("res://world/map_layout.gd")
-const LAYOUT := preload("res://world/arena_layout.gd")
+const CITY := preload("res://world/city_layout.gd")
 
 
 func _init() -> void:
-	_check(ARENA.HALF_EXTENT == 240.0, "normal play uses the proven large arena scale")
-	_check(MAPS.COURSE_CENTER.x > ARENA.HALF_EXTENT + MAPS.COURSE_HALF_EXTENT + 40.0,
-		"the larger arena remains physically separate from the driving course")
-	var landmarks := LAYOUT.proximity_objects(ARENA.HALF_EXTENT)
-	_check(landmarks.size() >= 130 and landmarks.size() <= 155,
-		"proximity scenery has a useful, bounded object count")
-	var tree_path := LAYOUT.tree_path_objects(ARENA.HALF_EXTENT)
-	_check(tree_path.size() >= 70 and tree_path.size() <= 80,
-		"the dedicated tree path is visibly dense but bounded")
-	for tree in tree_path:
-		_check(str(tree["kind"]) == "tree" and float(tree["height_scale"]) >= 1.5,
-			"tree-path landmarks are consistently tall trees")
-		_check(absf(float((tree["position"] as Vector3).x) - 100.0) == 12.0,
-			"tree rows frame a 24-unit driving lane")
-	for landmark in landmarks:
-		var position: Vector3 = landmark["position"]
-		_check(maxf(absf(position.x), absf(position.z)) < ARENA.HALF_EXTENT - 10.0,
-			"proximity scenery stays clear of boundary walls")
+	_check(MAPS.CITY_HALF_EXTENT == 165.0,
+		"normal play uses the accepted 150-percent Low Poly City scale")
+	_check(MAPS.COURSE_CENTER.x > MAPS.CITY_HALF_EXTENT + MAPS.COURSE_HALF_EXTENT + 40.0,
+		"the city remains physically separate from the driving course")
+	var roads := CITY.roads()
+	_check(roads.size() == 49, "the city has a connected, bounded street grid")
+	var trees := CITY.tree_lining_positions()
+	_check(trees.size() >= 32 and trees.size() <= 64,
+		"street trees provide dense but bounded proximity motion cues")
+	for tree in trees:
+		_check(maxf(absf(tree.x), absf(tree.z)) < MAPS.CITY_HALF_EXTENT - 10.0,
+			"street trees stay clear of the city boundary walls")
 	_check(CAMERA.lead_strength(0.0) == 0.0, "camera does not lead a parked car")
 	_check(CAMERA.lead_strength(18.0) > 0.99, "camera reaches full lead at road speed")
 	_check(CAMERA.desired_offset(Vector3(0.0, 0.0, -18.0), 0.0).z < -7.0,
@@ -55,8 +48,8 @@ func _init() -> void:
 		"sustained skids build a full overlapping cloud")
 	_check(SPEED_FX.SMOKE_VARIANT_COUNT >= 4,
 		"large billows randomly select multiple smoke silhouettes")
-	print("SENSE_OF_SPEED_TEST PASS landmarks=%d tree_path=%d" % [
-		landmarks.size(), tree_path.size()])
+	print("SENSE_OF_SPEED_TEST PASS roads=%d street_trees=%d" % [
+		roads.size(), trees.size()])
 	quit(0)
 
 

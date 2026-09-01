@@ -417,8 +417,8 @@ func _init() -> void:
 		quit(1)
 		return
 	var drone_range: float = SHIELD_DRONE.BOLT_SPEED * SHIELD_DRONE.BOLT_LIFETIME
-	var central_spawn_distance := Vector2(SHIELD_DRONE.ARENA_POSITION.x,
-		SHIELD_DRONE.ARENA_POSITION.z).length()
+	var central_spawn_distance := Vector2(SHIELD_DRONE.CITY_POSITION.x,
+		SHIELD_DRONE.CITY_POSITION.z).length()
 	if drone_range <= central_spawn_distance:
 		push_error("SHIELD_DRONE_TEST FAIL: bolts must cross the expanded west clearing")
 		quit(1)

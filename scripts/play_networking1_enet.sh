@@ -26,7 +26,7 @@ if [[ "${CAR_FIGHT_NETWORKING1_DRONE:-0}" == "1" ]]; then
 	local_no_drone=0
 	local_no_ball=0
 	local_no_ramps=0
-	fixture_description="full Arena drone: macai2 authority; local process: one rendered human player"
+	fixture_description="full Low Poly City drone: macai2 authority; local process: one rendered human player"
 fi
 
 if [[ "$presentation_mode" != "fixed" && "$presentation_mode" != "adaptive" && "$presentation_mode" != "predictive" && "$presentation_mode" != "proxy" ]]; then

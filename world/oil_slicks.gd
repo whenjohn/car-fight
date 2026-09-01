@@ -27,7 +27,7 @@ func _process(_delta: float) -> void:
 		visible = true
 		return
 	var local := _players.get_node_or_null(str(multiplayer.get_unique_id()))
-	visible = local == null or int(local.get("map_id")) == MAP_LAYOUT.ARENA
+	visible = local == null or int(local.get("map_id")) == MAP_LAYOUT.CITY
 
 
 func _build_decal(slick: Dictionary) -> void:

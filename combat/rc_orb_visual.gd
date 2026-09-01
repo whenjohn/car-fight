@@ -38,7 +38,7 @@ func _process(delta: float) -> void:
 func _build_orb() -> void:
 	var mesh := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
-	# The Web camera covers a large arena; keep the RC orb readable at a glance
+	# The Web camera covers a large city; keep the RC orb readable at a glance
 	# instead of reducing it to a sub-pixel projectile.
 	sphere.radius = 0.32
 	sphere.height = 0.64

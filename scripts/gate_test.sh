@@ -37,7 +37,7 @@ client_pid=""
 result_line="$(rg 'RESULT players=1 .*gatetransitions=' "$log_dir/server.log" | tail -1)"
 if [[ -z "$result_line" ]] || ! print -r -- "$result_line" \
 		| rg -q 'coursemaps=0 courseoff=0 gatetransitions=2'; then
-	echo "jump gates did not complete a safe arena-course-arena round trip; logs: $log_dir" >&2
+	echo "jump gates did not complete a safe city-course-city round trip; logs: $log_dir" >&2
 	tail -100 "$log_dir/server.log" >&2
 	tail -60 "$log_dir/client.log" >&2
 	exit 1

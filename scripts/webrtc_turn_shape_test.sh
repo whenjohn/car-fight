@@ -503,7 +503,7 @@ if [[ "$interactive_browser" == "1" ]]; then
 	if [[ "$interactive_native" == "1" ]]; then
 		peer_mode="macos-enet-direct+browser-webrtc-turn"
 	fi
-	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 arena_half=$((network_test_arena == 1 ? 240 : 84)) client_cruise=$client_cruise_enabled motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
+	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 world_half=$((network_test_arena == 1 ? 240 : 165)) client_cruise=$client_cruise_enabled motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
 	echo "mode will remain $presentation_mode until you explicitly change it; close Chrome to stop"
 	wait "$chrome_pid"
 	exit $?

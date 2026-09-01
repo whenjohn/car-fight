@@ -1,5 +1,39 @@
 # Current phase
 
+## Low Poly City default world + Forward+ lighting refresh
+
+- Work is isolated on `codex/post-downgrade-lighting` in
+  `/Users/johnnguyen/Projects/car-fight-post-downgrade-lighting`, based on
+  canonical Godot 4.6.3 `master` after the completed downgrade/promotion.
+- Low Poly City is now authoritative map 0 at the world origin and the default
+  offline/client/server environment. Driving Course remains map 1 with a
+  direct city-to-course round trip. The old Arena, its standalone layout test,
+  and the standalone Overcast City world/menu/launcher were removed.
+- The accepted Forward+ sunlit configuration is now lighting preset 5 and the
+  runtime default: cascaded directional shadows, low SSAO, and 2x MSAA. The
+  other four live-selectable grades remain, including the overcast HDRI as a
+  lighting preset on the same city geometry rather than a separate world.
+- City bounds, spawn/driver routes, targets, dots, oil, ball, drone filtering,
+  transport validation, jump-gate labels, and status text now use the city as
+  the home map. The former arena ball/config scripts are retained only in
+  purpose under their new `city_ball.gd` and `world_config.gd` names.
+- The licensed Low Poly City source remains ignored under `assets/local/` and
+  is linked into this worktree for local visual review; no restricted source
+  asset was staged. A clean checkout continues to use the tracked fallback
+  presentation while retaining the same city collision/layout contract.
+- Validation: clean Godot 4.6.3 import passes; focused lighting/city/course,
+  offline, 120 ms ENet, mixed transport, transient join, reconnect, ball,
+  tractor, course, reverse, city-course-city gate, combat, RC orb, shield, and
+  detonation gates pass. Full-suite runs exposed and verified three obsolete
+  Arena-era assumptions: target dummies bracketed the spawn/escape lane, course
+  telemetry stopped at the removed north wall, and scripted RC fire/detonate
+  pulses were too short for the heavier city startup. The lane/cutoff/input
+  windows are corrected without weakening physics or gameplay thresholds; the
+  affected network, course, RC, shield, and detonation gates pass afterward.
+- Next step is a human-reviewed ordinary-window run through
+  `scripts/play_monitored.sh` to accept the final city composition and lighting.
+  Do not merge or deploy this branch until that visual pass is accepted.
+
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
 - Godot 4.6.3 + Rapier 0.8.35 is now promoted on canonical `master` at

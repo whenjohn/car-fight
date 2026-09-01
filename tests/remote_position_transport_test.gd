@@ -153,11 +153,11 @@ func _initialize() -> void:
 		"highest valid recipient map was rejected")
 	check(not Validation.valid_recipient_map(5, 5),
 		"out-of-range recipient map was accepted")
-	check(Validation.valid_recipient_map(MapLayout.CITY_AUDITION,
-		MapLayout.CITY_AUDITION + 1),
+	check(Validation.valid_recipient_map(MapLayout.CITY,
+		MapLayout.DRIVING_COURSE + 1),
 		"LOW POLY CITY recipient map was rejected")
-	check(not Validation.valid_recipient_map(MapLayout.CITY_AUDITION + 1,
-		MapLayout.CITY_AUDITION + 1),
+	check(not Validation.valid_recipient_map(MapLayout.DRIVING_COURSE + 1,
+		MapLayout.DRIVING_COURSE + 1),
 		"unknown map after LOW POLY CITY was accepted")
 	check(Validation.has_valid_unique_membership(
 		PackedInt64Array([10, 20]), PackedInt32Array([1, 2])),

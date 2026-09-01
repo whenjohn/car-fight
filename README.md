@@ -12,12 +12,12 @@
 > branches into this gameplay branch or rerun known-risk
 > fullscreen/edge-to-edge probes merely to reconfirm them.
 
-> **Engine migration candidate:** This integration worktree uses Godot 4.6.3 +
-> Rapier 0.8.35 and the tested Vulkan Forward+ sunlit-city baseline. Canonical
-> `master` remains on 4.7 until the complete automated and human Mac/Web matrix
-> passes. Follow
-> [`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`](GODOT_46_FORWARD_PLUS_MERGE_PLAN.md);
-> do not independently merge both rendering experiment branches.
+> **Rendering baseline:** Canonical `master` uses Godot 4.6.3 + Rapier 0.8.35.
+> This branch makes Low Poly City the home world and the tested Vulkan Forward+
+> sunlit grade the default while preserving the other four lighting presets.
+> [`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`](GODOT_46_FORWARD_PLUS_MERGE_PLAN.md)
+> remains the migration record; the pre-migration Godot 4.7 state is preserved
+> by tag rather than as a second branch to merge.
 
 A deliberately small Godot 4.6.3 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
@@ -43,8 +43,8 @@ ports and do not contact macai2.
 
 ## Offline Web build
 
-The browser checkpoint is intentionally offline: it spawns one local Jeep and
-the arena without opening ENet, changing the native server, or adding a browser
+The browser checkpoint is intentionally offline: it spawns one local Jeep in
+Low Poly City without opening ENet, changing the native server, or adding a browser
 transport. Godot 4.6.3's matching Web export templates are required.
 
 ```bash
@@ -116,9 +116,10 @@ Controls:
 - The native `Vehicle Model` system menu scales your selected local vehicle from
   100% to 500% and autosaves a separate choice for every vehicle. This is a
   presentation debug control; the authoritative gameplay collider remains unchanged.
-- On the foliage audition branch, the native `Scenery` menu switches between
-  the procedural trees and locally installed collection ranges, and compares
-  four no-SSAO lighting setups. These controls change presentation only; tree
+- The native `Scenery` menu switches between the procedural trees and locally
+  installed collection ranges, and compares five lighting setups. Forward+
+  sunlit is the default; low SSAO is enabled only for that accepted preset.
+  These controls change presentation only; tree
   count, trunk collision, physics, and networking remain unchanged.
 - Locally installed stone and ruined-house auditions sit just north of the
   east tree corridor near `(100, -210)`. They retain vehicle-relative source
@@ -128,7 +129,7 @@ Controls:
 - Hold `Space` to burst at 28 units/s with stronger acceleration and a wider, committed turn.
 - Press `Q` to toggle the vehicle shield. It absorbs 85% of an incoming drone bolt's shove while a localized glass ripple shows where the shot landed.
 - Press `R` to toggle cloak. Cloak and shield are mutually exclusive: cloaking lowers the shield, and the shield cannot be raised while cloaked.
-- Hold `Shift` to vacuum the arena ball toward the Jeep. The field does not change normal mouse steering.
+- Hold `Shift` to vacuum the city ball toward the Jeep. The field does not change normal mouse steering.
 - Hold `Tab` to reverse at low speed.
 - Steering behaves like a ground vehicle: the Jeep cannot pivot while stopped, yaw builds with road speed, and the turning circle widens at high speed. The close cursor band has stronger, faster steering for carving; pulling farther away progressively trades that rotation for acceleration and speed.
 - If a collision holds the Jeep nearly stationary while movement is still requested, a short side bump and forced steer peel it away. Cursor steering chooses the escape side; a stable per-player side handles a perfectly straight impact. There is no automatic reverse mode.
@@ -136,7 +137,11 @@ Controls:
 - Drive mode keeps a deliberately faint coverage debug around the local Jeep. A firing zone flashes briefly; press `C` to hide or show the debug.
 - One stationary drone by itself in the empty west clearing arms after a short delay and fires once every two seconds at the nearest visible driving player. Its bolts lightly jostle and deflect an unshielded Jeep; cloak prevents targeting. The drone is a non-colliding shield-test fixture and cannot be targeted or destroyed.
 
-The 168-unit-wide floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Its obstacles, outer targets, and shield-test clearing are spread across longer driving lines. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
+Low Poly City is the normal home world. Its 150%-scale 3x3 street grid,
+building footprints, tree-lined roads, ball, targets, drone, troop areas, and
+Driving Course gate all share authoritative collision. Forward+ sunlit lighting
+uses low SSAO, 2048 cascaded shadows, and 2x MSAA; SSIL, SSR, SDFGI, and TAA
+remain disabled. Four alternate lighting presets stay available in `Scenery`.
 
 Four small fixed weapon mounts show the side zones. At runtime every combined CC0 vehicle-pack mesh is split into a chassis and four wheel assemblies: only the chassis leans under turning load, the front tires visibly steer, and all tires spin with signed road speed. This rig and the `V` selection are presentation-only; collision always uses the same server-authoritative, equal-mass sphere on every peer.
 
@@ -212,13 +217,13 @@ trace, then replay it with:
 
 `play_shaped_local.sh` is the visual smoothness harness. It owns an isolated
 local server and relay, enables the G2 profile, and spawns peer 1 as a
-server-authoritative Jeep following long straight runs around the arena's open
-perimeter, joined by short chamfered corners. The observer spawns beside it, the route stays clear of the driving-course
+server-authoritative Jeep following long straight runs around the enlarged
+network-test world's open perimeter, joined by short chamfered corners. The observer spawns beside it, the route stays clear of the driving-course
 gate, and the harness removes the elevated ramps on both server and client to
-leave a flat arena for the moving test target. It also disables the physical
-arena ball, shield-test drone presentation, and the orange marker mounted above
+leave a flat world for the moving test target. It also disables the physical
+city ball, shield-test drone presentation, and the orange marker mounted above
 each peer, leaving only the two Jeeps. A
-server guard restores the moving Jeep if it ever leaves the arena. The single rendered client can chase it; closing
+server guard restores the moving Jeep if it ever leaves the test world. The single rendered client can chase it; closing
 that client window stops only the processes launched by the harness. For local browser/native
 comparison, run `CAR_FIGHT_G2_STACK=1 ./scripts/play_web_network_local.sh`; its
 server-driven car is enabled by default as well.
@@ -275,7 +280,7 @@ browser bytes with 15,166 still queued; the server's ordered channel exceeded
 
 ## Structure
 
-- `Main.gd` — role/transport router, ENet/WebRTC lifecycle, spawn authority, arena, camera, and HUD.
+- `Main.gd` — role/transport router, ENet/WebRTC lifecycle, spawn authority, city, camera, and HUD.
 - `net/mux_multiplayer_peer.gd` — server-side ENet/WebRTC peer merger.
 - `net/webrtc_transport.gd` — WebSocket signaling and WebRTC peer lifecycle.
 - `player/follow_controller.gd` — pure deterministic mouse steering math.
@@ -336,10 +341,10 @@ The first two-rendered-client trial exposed the stale-history loop later fixed b
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.
 
-The optional Low Poly City audition has its own map. Drive onto the
-`LOW POLY CITY` pad on the south side of the arena; the destination has a
-separate `RETURN TO ARENA` pad. Local source art stays under
-`assets/local/city_audition/`. To regenerate the lightweight 63-piece district
+Low Poly City is the default home map. Its `DRIVING COURSE` pad enters the
+separate course and that course's `RETURN TO CITY` pad returns home. Local
+source art stays under `assets/local/city_audition/`. To regenerate the
+lightweight 63-piece district
 after changing the source selection, run:
 
 ```sh

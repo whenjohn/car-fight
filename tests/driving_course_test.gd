@@ -2,11 +2,10 @@ extends SceneTree
 
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const COURSE := preload("res://world/driving_course.gd")
-const ARENA_CONFIG := preload("res://world/arena_config.gd")
 
 
 func _init() -> void:
-	if MAP_LAYOUT.COURSE_CENTER.x <= ARENA_CONFIG.HALF_EXTENT \
+	if MAP_LAYOUT.COURSE_CENTER.x <= MAP_LAYOUT.CITY_HALF_EXTENT \
 			+ MAP_LAYOUT.COURSE_HALF_EXTENT + 40.0:
 		_fail("separate maps need a clear physical gap")
 		return
@@ -55,21 +54,21 @@ func _init() -> void:
 	if str(COURSE.section_at(c_mid)["id"]) != "C":
 		_fail("the tight 90 must report stable section C vocabulary")
 		return
-	var to_course := MAP_LAYOUT.transition(MAP_LAYOUT.ARENA,
-		MAP_LAYOUT.ARENA_GATE, 1.2)
+	var to_course := MAP_LAYOUT.transition(MAP_LAYOUT.CITY,
+		MAP_LAYOUT.CITY_COURSE_GATE, 1.2)
 	if int(to_course.get("map_id", -1)) != MAP_LAYOUT.DRIVING_COURSE \
 			or COURSE.off_track(to_course.get("position", Vector3.ZERO)):
-		_fail("arena gate must land on the driving course")
+		_fail("city gate must land on the driving course")
 		return
-	var to_arena := MAP_LAYOUT.transition(MAP_LAYOUT.DRIVING_COURSE,
+	var to_city := MAP_LAYOUT.transition(MAP_LAYOUT.DRIVING_COURSE,
 		MAP_LAYOUT.course_gate(), 1.2)
-	if int(to_arena.get("map_id", -1)) != MAP_LAYOUT.ARENA \
-			or MAP_LAYOUT.gate_index_at(MAP_LAYOUT.ARENA,
-				to_arena.get("position", Vector3.ZERO)) >= 0:
-		_fail("return gate must land in the arena clear of immediate retrigger")
+	if int(to_city.get("map_id", -1)) != MAP_LAYOUT.CITY \
+			or MAP_LAYOUT.gate_index_at(MAP_LAYOUT.CITY,
+				to_city.get("position", Vector3.ZERO)) >= 0:
+		_fail("return gate must land in the city clear of immediate retrigger")
 		return
-	if not MAP_LAYOUT.transition(MAP_LAYOUT.ARENA, Vector3.ZERO, 1.2).is_empty():
-		_fail("ordinary arena driving must never trigger a jump")
+	if not MAP_LAYOUT.transition(MAP_LAYOUT.CITY, Vector3.ZERO, 1.2).is_empty():
+		_fail("ordinary city driving must never trigger a jump")
 		return
 	var course_visual := COURSE.new()
 	course_visual.build_presentation()

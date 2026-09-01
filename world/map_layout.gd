@@ -4,34 +4,30 @@ extends RefCounted
 
 const CITY_LAYOUT := preload("res://world/city_layout.gd")
 
-const ARENA := 0
+const CITY := 0
 const DRIVING_COURSE := 1
-const CITY_AUDITION := 2
 
 const COURSE_CENTER := Vector3(560.0, 0.0, 0.0)
 const COURSE_HALF_EXTENT := 120.0
-const CITY_CENTER := Vector3(0.0, 0.0, 600.0)
-const CITY_HALF_EXTENT := 110.0 * CITY_LAYOUT.SCALE
+const CITY_CENTER := Vector3.ZERO
+const CITY_HALF_EXTENT := 165.0
 const GATE_HALF_SIZE := 7.5
 const GATE_COOLDOWN := 1.25
 
-const ARENA_GATE := Vector3(68.0, 0.0, 66.0)
-const ARENA_LANDING := Vector3(57.0, 0.0, 57.0)
+const CITY_COURSE_GATE := Vector3(68.0, 0.0, 66.0)
+const CITY_LANDING := Vector3(57.0, 0.0, 57.0)
 const COURSE_GATE_LOCAL := Vector3(-108.0, 0.0, 100.0)
 const COURSE_START_LOCAL := Vector3(-100.0, 0.0, 60.0)
-const ARENA_CITY_GATE := Vector3(-68.0, 0.0, 66.0)
-const CITY_GATE_LOCAL := Vector3(-94.0, 0.0, 92.0) * CITY_LAYOUT.SCALE
-const CITY_START_LOCAL := Vector3(-42.0, 0.0, 80.0) * CITY_LAYOUT.SCALE
 
 
 static func map_name(map_id: int) -> String:
 	match map_id:
 		DRIVING_COURSE:
 			return "DRIVING COURSE"
-		CITY_AUDITION:
+		CITY:
 			return "LOW POLY CITY"
 		_:
-			return "ARENA"
+			return "UNKNOWN"
 
 
 static func course_gate() -> Vector3:
@@ -42,24 +38,12 @@ static func course_start() -> Vector3:
 	return COURSE_CENTER + COURSE_START_LOCAL
 
 
-static func city_gate() -> Vector3:
-	return CITY_CENTER + CITY_GATE_LOCAL
-
-
-static func city_start() -> Vector3:
-	return CITY_CENTER + CITY_START_LOCAL
-
-
 static func gates() -> Array[Dictionary]:
 	return [
-		{"map_id": ARENA, "position": ARENA_GATE, "label": "DRIVING COURSE",
+		{"map_id": CITY, "position": CITY_COURSE_GATE, "label": "DRIVING COURSE",
 			"target_map_id": DRIVING_COURSE, "landing": course_start(), "yaw": -PI * 0.5},
-		{"map_id": DRIVING_COURSE, "position": course_gate(), "label": "RETURN TO ARENA",
-			"target_map_id": ARENA, "landing": ARENA_LANDING, "yaw": PI * 0.25},
-		{"map_id": ARENA, "position": ARENA_CITY_GATE, "label": "LOW POLY CITY",
-			"target_map_id": CITY_AUDITION, "landing": city_start(), "yaw": 0.0},
-		{"map_id": CITY_AUDITION, "position": city_gate(), "label": "RETURN TO ARENA",
-			"target_map_id": ARENA, "landing": ARENA_LANDING, "yaw": PI * 0.25},
+		{"map_id": DRIVING_COURSE, "position": course_gate(), "label": "RETURN TO CITY",
+			"target_map_id": CITY, "landing": CITY_LANDING, "yaw": PI * 0.25},
 	]
 
 

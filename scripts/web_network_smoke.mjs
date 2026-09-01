@@ -167,7 +167,7 @@ async function run() {
   const neutralize = async () => {
     // A click transfers focus from the browser shell to the game. Keep the
     // pointer centered afterwards so a soak observes networking without
-    // silently steering the local car into arena geometry.
+    // silently steering the local car into city geometry.
     const centerResult = await send("Runtime.evaluate", {
       expression: `(() => {
         const rect = document.querySelector("canvas")?.getBoundingClientRect();

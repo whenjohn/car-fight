@@ -49,7 +49,7 @@ var wall_bump_count := 0
 var was_supported := false
 var landing_fall_speed := 0.0
 var landing_jostle_cooldown := 0.0
-var map_id := MAP_LAYOUT.ARENA
+var map_id := MAP_LAYOUT.CITY
 var remote_state_generation := 0
 var gate_cooldown := 0.0
 var gate_transition_count := 0
@@ -564,7 +564,7 @@ func area_gesture_preview() -> Dictionary:
 
 ## Cross-body hit commands arrive after this body's current tick. Queue them
 ## until its own rollback simulation owns a live direct_state, as the tractor
-## already does for the arena ball.
+## already does for the city ball.
 func apply_external_impact(linear_impulse: Vector3, torque_impulse: Vector3,
 		recovery_time: float, shielded: bool) -> void:
 	_pending_linear_impulse += linear_impulse
@@ -605,7 +605,7 @@ func set_rc_pilot_active(active: bool) -> void:
 	if active:
 		tractor_ball_held = false
 
-func _arena_ball() -> Node:
+func _city_ball() -> Node:
 	var balls := get_node_or_null("/root/Main/Balls")
 	if balls == null or balls.get_child_count() == 0:
 		return null
@@ -1012,7 +1012,7 @@ func _process(_delta: float) -> void:
 func _update_tractor_rope() -> void:
 	if _tractor_rope == null:
 		return
-	var ball := _arena_ball()
+	var ball := _city_ball()
 	_tractor_rope.visible = tractor_ball_held and not is_cloaked and ball != null
 	if not _tractor_rope.visible:
 		return

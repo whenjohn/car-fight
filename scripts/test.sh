@@ -22,8 +22,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/coverage_config_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/area_weapon_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/homing_missile_test.gd
-"$godot_bin" --headless --path "$project_root" --script res://tests/arena_layout_test.gd
-"$godot_bin" --headless --path "$project_root" --script res://tests/overcast_world_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/home_world_lighting_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/sense_of_speed_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/tree_visual_library_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/prop_audition_library_test.gd
@@ -40,7 +39,7 @@ fi
 "$godot_bin" --headless --path "$project_root" --script res://tests/remote_position_transport_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/adaptive_presentation_delay_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/window_safety_policy_test.gd
-"$godot_bin" --headless --path "$project_root" --script res://tests/arena_ball_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/city_ball_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/dots_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/offscreen_indicators_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/troop_delivery_test.gd

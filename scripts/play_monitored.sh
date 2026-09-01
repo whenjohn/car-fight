@@ -18,7 +18,6 @@ client_name="monitored"
 client_position=""
 start_local_server=0
 offline=0
-overcast_world=0
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -71,10 +70,6 @@ while (( $# > 0 )); do
 		--name)
 			client_name="${2:?--name requires a value}"
 			shift 2
-			;;
-		--overcast-world)
-			overcast_world=1
-			shift
 			;;
 		--position)
 			client_position="${2:?--position requires X,Y}"
@@ -145,7 +140,6 @@ initial_windowserver_pid="${initial_windowserver_pid:-unknown}"
 	echo "client_position=${client_position:-default}"
 	echo "start_local_server=$start_local_server"
 	echo "offline=$offline"
-	echo "overcast_world=$overcast_world"
 	echo "headless=$headless"
 	echo "fullscreen_requested=$fullscreen"
 	echo "fake_stall=$fake_stall"
@@ -251,7 +245,6 @@ fi
 server_pid=""
 if (( start_local_server == 1 )); then
 	CAR_FIGHT_TELEMETRY_FILE="$run_dir/server.telemetry.jsonl" \
-		CAR_FIGHT_OVERCAST_WORLD="$overcast_world" \
 		"$godot_bin" "${driver_args[@]}" --headless --path "$project_root" -- \
 		--server --port "$port" "${network_stack_args[@]}" \
 		"${server_fixture_args[@]}" > "$run_dir/server.log" 2>&1 &
@@ -271,7 +264,6 @@ if (( start_local_server == 1 )); then
 	fi
 fi
 CAR_FIGHT_TELEMETRY_FILE="$run_dir/client.telemetry.jsonl" \
-	CAR_FIGHT_OVERCAST_WORLD="$overcast_world" \
 	CAR_FIGHT_FAKE_STALL_AFTER_SECONDS="$fake_stall_after" \
 	CAR_FIGHT_FAKE_STALL_DURATION_SECONDS="$fake_stall_duration" \
 	"$godot_bin" "${driver_args[@]}" "${client_display_args[@]}" \
