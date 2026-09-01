@@ -553,7 +553,8 @@ func _push_batch(sequence: int, publication: int, tick: int, recipient_map: int,
 		_last_batch_publication, _last_batch_tick, sequence, publication, tick,
 		recipient_map, ids.size(), generations.size(), positions.size(), rotations.size(),
 		linear_velocities.size(), angular_velocities.size())
-	if disposition == "accept" and not _valid_recipient_map(recipient_map):
+	if disposition == "accept" and not Validation.valid_recipient_map(recipient_map,
+			MapLayout.CITY_AUDITION + 1):
 		disposition = "malformed"
 	if disposition == "accept" \
 			and not Validation.has_valid_unique_membership(ids, generations):
@@ -649,10 +650,6 @@ func _body_for_delivery(body_id: int) -> Node:
 	if not Validation.is_deliverable_body(body):
 		return null
 	return body
-
-func _valid_recipient_map(recipient_map: int) -> bool:
-	return recipient_map == Relevance.UNKNOWN_MAP \
-		or recipient_map in [MapLayout.ARENA, MapLayout.DRIVING_COURSE]
 
 func _deliver(body_id: int, generation: int, tick: int,
 		position: Vector3, rotation: Quaternion, linear_velocity: Vector3,

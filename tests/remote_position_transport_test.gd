@@ -4,6 +4,7 @@ const Schedule := preload("res://net/remote_position_schedule.gd")
 const Interp := preload("res://net/remote_snapshot_interpolation.gd")
 const Validation := preload("res://net/remote_position_validation.gd")
 const Relevance := preload("res://net/remote_position_relevance.gd")
+const MapLayout := preload("res://world/map_layout.gd")
 
 var failed := false
 
@@ -152,6 +153,12 @@ func _initialize() -> void:
 		"highest valid recipient map was rejected")
 	check(not Validation.valid_recipient_map(5, 5),
 		"out-of-range recipient map was accepted")
+	check(Validation.valid_recipient_map(MapLayout.CITY_AUDITION,
+		MapLayout.CITY_AUDITION + 1),
+		"LOW POLY CITY recipient map was rejected")
+	check(not Validation.valid_recipient_map(MapLayout.CITY_AUDITION + 1,
+		MapLayout.CITY_AUDITION + 1),
+		"unknown map after LOW POLY CITY was accepted")
 	check(Validation.has_valid_unique_membership(
 		PackedInt64Array([10, 20]), PackedInt32Array([1, 2])),
 		"valid unique membership was rejected")

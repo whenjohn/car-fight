@@ -44,10 +44,23 @@
   but an identical untouched-4.7 control was no better at about 5 FPS and
   185--200 ms, identifying the dual-window local load as baseline-equivalent.
   An isolated candidate server was then synced to macai2's non-production
-  `car-fight-network-shaping` checkout and started normally, but the local 4.6
-  Forward+ client hit an Intel Metal/Vulkan `VK_TIMEOUT`, lost the GPU device,
-  and crashed before ENet readiness. Reproduction and a clean remote
-  Mac+browser human pass remain promotion blockers; production was untouched.
+  checkout. One local 4.6 Forward+ attempt hit an Intel Metal/Vulkan
+  `VK_TIMEOUT` before ENet readiness. After reboot, native remote play passed;
+  clean Mac+Chrome forced-TURN play plus browser leave/rejoin also passed, and
+  a 120 ms forced-TURN retry was playable with bounded corrections. The
+  explicit long stability/soak durations and remaining reciprocal combat
+  observations remain promotion blockers; production was untouched.
+- Two-native human review found and resolved a real LOW POLY CITY presentation
+  regression. The batch receiver's live map validation duplicated only Arena
+  and Driving Course, rejected every city (`map=2`) envelope as malformed, and
+  therefore hid the other Jeep even though authoritative state was correct.
+  The live receiver now uses the shared bounded validator through
+  `CITY_AUDITION`, with focused regression coverage. Clean G2 ENet, mixed
+  ENet/WebRTC, and gate harnesses pass. In human rerun
+  `.crash-runs/two-client-20260831-205007`, both clients accepted city batches,
+  retained two active same-map remotes, observed advancing peer positions, and
+  reported `malformed=0`; the user confirmed visibility worked. The temporary
+  isolated macai2 service was stopped, and production remains unchanged.
 
 ## Trees, foliage, and lighting audition ready for human review
 
