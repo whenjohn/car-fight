@@ -2,11 +2,11 @@
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
-- Integration is isolated on `integration/godot-46-rapier-0835` at
-  `/Users/johnnguyen/Projects/car-fight-godot46-integration`. Canonical
-  `master` remains on Godot 4.7 until the complete automated and human Mac/Web
-  regression matrix is accepted. The pushed tag
-  `pre-godot-46-2026-08-31` permanently preserves that pre-migration head.
+- Godot 4.6.3 + Rapier 0.8.35 is now promoted on canonical `master` at
+  `e1923ab`. The accepted integration remains available at
+  `/Users/johnnguyen/Projects/car-fight-godot46-integration`, and the pushed tag
+  `pre-godot-46-2026-08-31` permanently preserves the pre-migration Godot 4.7
+  head `2c8a710`.
 - The candidate merges `codex/forwardplus-46-rendering` once. It includes the
   sunlit city work without independently merging the earlier experiment branch.
   Preserve current gameplay, vendored netfox patches, server authority, ENet,
@@ -19,10 +19,11 @@
   disabled. The earlier monitored Intel run reported Vulkan Forward+, averaged
   58.8 FPS after shader warm-up, exited cleanly, and was visually approved.
 - Complete automated regression and fresh human native Mac/Web cross-play
-  acceptance now pass. The final permission-correct `./scripts/test.sh` run
-  ended with `ALL_TESTS PASS`; promotion of the audited candidate to `master`
-  and the subsequent production macai2 smoke are next. Lighting improvements
-  remain frozen until that promotion is complete.
+  acceptance pass. The final permission-correct `./scripts/test.sh` run ended
+  with `ALL_TESTS PASS`; `master` was fast-forwarded and pushed, production
+  macai2 was deployed through the normal helper, and the final connection /
+  leave / reconnect smoke passed. Lighting work may now resume as a separate
+  measured workstream.
 - The first clean 4.6 import found 4.7-only inferred typing in current
   networking telemetry, StateBundle, and two preserved netfox code paths.
   Explicit numeric annotations/casts restore 4.6 parsing without changing
@@ -119,6 +120,13 @@
   cloak stopping targeting on both rendered platforms. The remote harnesses now
   expose opt-in real-drone/humans-only modes while preserving their lean default
   fixtures.
+- Production promotion is complete. The macai2 launchd service restarted as
+  PID 77154 using Godot 4.6.3 and Rapier 0.8.35, listening on production UDP
+  10080 and TCP 10181. In `/private/tmp/car-fight-production-smoke.3vu3BK`, one
+  survivor remained connected while two fresh peer IDs joined and left in
+  sequence; all clients exited cleanly, the server returned to zero players,
+  and the post-smoke error scan found no script, parse, Vulkan, device-loss,
+  panic, or runtime error. Keep `pre-godot-46-2026-08-31` as the rollback tag.
 
 ## Trees, foliage, and lighting audition ready for human review
 

@@ -1,6 +1,6 @@
 # Godot 4.6.3 + Rapier 0.8.35 regression report
 
-Status: integration candidate; do not promote to `master` yet.
+Status: accepted and promoted to `master`; production macai2 smoke passed.
 
 ## Candidate identity and preservation
 
@@ -12,8 +12,9 @@ Status: integration candidate; do not promote to `master` yet.
   `f6477144bccf8002c71647193444bd540ed648204d84e6e69919f4affafbf414`
 - Preserved canonical head: `2c8a710`, pushed tag
   `pre-godot-46-2026-08-31`
-- Production `master` and macai2 deployment remain unchanged until every
-  required row below passes.
+- `master` was fast-forwarded to tested candidate `e1923ab` and pushed after
+  every required row below passed. Production macai2 was then deployed through
+  `scripts/deploy_macai2.sh` and verified on Godot 4.6.3 + Rapier 0.8.35.
 
 ## Automated acceptance
 
@@ -58,3 +59,12 @@ tested candidate. Production macai2 is updated afterward through the normal
 deployment helper and receives a final connection/reconnect smoke. Keep the
 safety tag and experiment worktrees until that production smoke is accepted.
 Do not add or tune further lighting effects during this migration.
+
+Completed: `master` and `origin/master` were fast-forwarded from preserved
+`2c8a710` to `e1923ab`. The production launchd service restarted successfully
+as PID 77154 on UDP 10080 / TCP 10181. Smoke evidence
+`/private/tmp/car-fight-production-smoke.3vu3BK` kept one survivor connected
+while peer IDs `1057280035` and `1264133311` joined and left in sequence; the
+survivor observed both, all clients exited cleanly, the server drained to zero
+players, and the post-smoke error scan was clean. The rollback tag
+`pre-godot-46-2026-08-31` remains preserved.
