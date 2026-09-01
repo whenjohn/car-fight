@@ -335,7 +335,6 @@ var _join_stall_started := false
 var _persisted_oil_tuning := {}
 var _persisted_oil_tuning_pending := false
 var _intel_safe_lighting := false
-var _intel_lighting_staged := false
 
 func _ready() -> void:
 	_parse_args()
@@ -373,11 +372,6 @@ func _ready() -> void:
 		return
 	_connect_network_events()
 	_build_world()
-	if not _is_headless() and _intel_lighting_staged:
-		if DisplayServer.get_name() == "headless":
-			_finish_intel_lighting_without_frames()
-		else:
-			await _finish_intel_lighting()
 	NetworkTime.on_tick.connect(_on_tick)
 	NetworkRollback.after_loop.connect(_send_settled_authority_probes)
 	NetworkTime.after_sync.connect(_inject_join_stall_for_test)
@@ -1902,8 +1896,8 @@ func _build_city_lighting() -> void:
 	_rim_light.shadow_enabled = false
 	_rim_light.visible = false
 	add_child(_rim_light)
-	# Retain the player-following spotlight for the alternate lighting presets.
-	# The Intel sunlit experiment uses one directional shadow map instead.
+	# Keep the original post-downgrade shadow configuration intact: both lights
+	# are configured before any city presentation meshes enter the scene tree.
 	_shadow_light = SpotLight3D.new()
 	_shadow_light.name = "CityShadowLight"
 	_shadow_light.position = Vector3(-32.0, 40.0, 34.0)
@@ -1912,20 +1906,20 @@ func _build_city_lighting() -> void:
 	_shadow_light.spot_range = 100.0
 	_shadow_light.spot_angle = 66.0
 	_shadow_light.spot_attenuation = 0.1
-	_intel_lighting_staged = _intel_safe_lighting and _lighting_style_index == 4
-	_shadow_light.shadow_enabled = not _intel_lighting_staged
+	_shadow_light.shadow_enabled = true
 	_shadow_light.shadow_opacity = 0.92
 	_shadow_light.shadow_bias = 0.12
 	_shadow_light.shadow_normal_bias = 1.25
 	_shadow_light.light_size = 0.0
-	_shadow_light.shadow_blur = 1.0 if _intel_safe_lighting else 0.0
+	_shadow_light.shadow_blur = 0.0
 	# Closed box meshes can cast from their back faces without shadow acne.
 	_shadow_light.shadow_reverse_cull_face = true
 	add_child(_shadow_light)
 	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
-	_apply_lighting_style(_intel_lighting_staged)
+	_apply_lighting_style()
 	if _intel_safe_lighting:
-		_log("RENDER_SHADOW_MODE mode=single_directional ssao=off cascades=off")
+		_log("RENDER_SHADOW_MODE mode=startup_quality1 ssao=off cascades=4 spotlight=on")
+		_log("RENDER_LIGHTING_READY mode=startup_quality1")
 
 
 func _should_use_intel_safe_lighting() -> bool:
@@ -2041,23 +2035,6 @@ func _build_city_presentation() -> void:
 	_city_presentation.call("set_lighting_style", _effective_city_lighting_style())
 
 
-func _finish_intel_lighting() -> void:
-	# Present the complete city first, then allocate exactly one softly filtered
-	# directional shadow map on its own frame. This deliberately does not restore
-	# the four-cascade submission that timed out the Intel render ring.
-	await RenderingServer.frame_post_draw
-	if not _intel_lighting_staged or _lighting_style_index != 4:
-		return
-	_sun_light.shadow_enabled = true
-	await RenderingServer.frame_post_draw
-	_intel_lighting_staged = false
-	_log("RENDER_LIGHTING_READY mode=single_directional")
-
-
-func _finish_intel_lighting_without_frames() -> void:
-	_sun_light.shadow_enabled = true
-	_intel_lighting_staged = false
-
 func _on_debug_menu_item_pressed(id: int) -> void:
 	if id == DEBUG_COLLISION_MENU_ID:
 		_gameplay_collision_debug_enabled = not _gameplay_collision_debug_enabled
@@ -2125,7 +2102,7 @@ func _on_scenery_menu_pressed(id: int) -> void:
 		_refresh_scenery_menu()
 
 
-func _apply_lighting_style(stage_intel_sun: bool = false) -> void:
+func _apply_lighting_style() -> void:
 	if _world_environment == null or _sun_light == null \
 			or _rim_light == null or _shadow_light == null:
 		return
@@ -2147,7 +2124,7 @@ func _apply_lighting_style(stage_intel_sun: bool = false) -> void:
 	_shadow_light.light_energy = 1.75
 	_shadow_light.light_specular = 0.5
 	_shadow_light.shadow_opacity = 0.92
-	_shadow_light.shadow_enabled = not stage_intel_sun
+	_shadow_light.shadow_enabled = true
 	_rim_light.visible = false
 	match _lighting_style_index:
 		1, 2:
@@ -2200,8 +2177,9 @@ func _apply_lighting_style(stage_intel_sun: bool = false) -> void:
 			_world_environment.adjustment_brightness = 0.98
 			_world_environment.adjustment_contrast = 0.96
 			_world_environment.adjustment_saturation = 0.90
-			# SSAO and four-cascade sun shadows stay available on supported adapters.
-			# Intel macOS stages one orthogonal sun-shadow map without SSAO.
+			# Intel keeps SSAO off, but reproduces the known-good first
+			# post-downgrade ordering: quality-1 cascades are already active before
+			# the city presentation meshes enter the scene tree.
 			_world_environment.ssao_enabled = not _intel_safe_lighting
 			_world_environment.ssao_radius = 1.6
 			_world_environment.ssao_intensity = 1.0
@@ -2211,17 +2189,14 @@ func _apply_lighting_style(stage_intel_sun: bool = false) -> void:
 			_sun_light.light_color = Color(1.0, 0.965, 0.90)
 			_sun_light.light_energy = 1.65
 			_sun_light.light_specular = 0.8
-			_sun_light.shadow_enabled = not stage_intel_sun
+			_sun_light.shadow_enabled = true
 			_sun_light.shadow_opacity = 0.88
 			_sun_light.light_angular_distance = 0.65
 			_sun_light.shadow_blur = 1.0
 			_sun_light.shadow_bias = 0.035
 			_sun_light.shadow_normal_bias = 1.1
-			if _intel_safe_lighting:
-				_sun_light.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-			else:
-				_sun_light.directional_shadow_mode = \
-					DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+			_sun_light.directional_shadow_mode = \
+				DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 			_sun_light.directional_shadow_max_distance = 165.0
 			_sun_light.directional_shadow_split_1 = 0.08
 			_sun_light.directional_shadow_split_2 = 0.22
@@ -2231,7 +2206,7 @@ func _apply_lighting_style(stage_intel_sun: bool = false) -> void:
 			_shadow_light.light_energy = 1.45
 			_shadow_light.light_specular = 0.5
 			_shadow_light.shadow_opacity = 0.72
-			_shadow_light.visible = false
+			_shadow_light.visible = true
 		_:
 			_world_environment.background_color = Color("10171d")
 			_world_environment.ambient_light_color = Color("b6cad3")
@@ -2247,8 +2222,8 @@ func _apply_lighting_style(stage_intel_sun: bool = false) -> void:
 
 
 func _effective_city_lighting_style() -> int:
-	# The single directional-map experiment needs the sunlit buildings to cast.
-	# Other Intel presets retain the accepted receiver-only fallback behavior.
+	# The startup-active shadow probe needs the sunlit buildings to cast. Other
+	# Intel presets retain the accepted receiver-only fallback behavior.
 	if _intel_safe_lighting and _lighting_style_index != 4:
 		return 0
 	return _lighting_style_index

@@ -23,18 +23,22 @@ func _init() -> void:
 		and "_world_environment.ssr_enabled = false" in source \
 		and "_world_environment.sdfgi_enabled = false" in source,
 		"unaccepted expensive screen-space and GI effects remain disabled")
-	_check("_sun_light.shadow_enabled = not stage_intel_sun" in source \
+	_check("_sun_light.shadow_enabled = true" in source \
 		and "DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS" in source \
 		and "lights_and_shadows/directional_shadow/size=2048" in project,
 		"the default sun uses the accepted cascaded shadow configuration")
 	_check("func _should_use_intel_safe_lighting()" in source \
-		and "func _finish_intel_lighting()" in source \
-		and source.count("await RenderingServer.frame_post_draw") >= 2 \
+		and "func _finish_intel_lighting()" not in source \
+		and "stage_intel_sun" not in source \
 		and "_world_environment.ssao_enabled = not _intel_safe_lighting" in source \
-		and "DirectionalLight3D.SHADOW_ORTHOGONAL" in source \
-		and 'RENDER_LIGHTING_READY mode=single_directional' in source \
-		and "_shadow_light.visible = false" in source,
-		"Intel stages one directional shadow map without SSAO or cascades")
+		and "DirectionalLight3D.SHADOW_ORTHOGONAL" not in source \
+		and "lights_and_shadows/directional_shadow/soft_shadow_filter_quality=1" in project \
+		and "lights_and_shadows/positional_shadow/soft_shadow_filter_quality=1" in project \
+		and 'RENDER_SHADOW_MODE mode=startup_quality1 ssao=off cascades=4 spotlight=on' in source \
+		and 'RENDER_LIGHTING_READY mode=startup_quality1' in source \
+		and "_shadow_light.shadow_blur = 0.0" in source \
+		and "_shadow_light.visible = true" in source,
+		"Intel restores the known-good startup-active quality-1 shadows without SSAO")
 	_check("if _intel_safe_lighting and _lighting_style_index != 4:" in source \
 		and "return _lighting_style_index" in source,
 		"the Intel sunlit experiment restores city shadow casters only for preset 5")
@@ -43,7 +47,7 @@ func _init() -> void:
 		and "soft_blob_shadow" not in source \
 		and 'config/custom_user_dir_name="Car Fight/godot-4.6"' not in project,
 		"abandoned cache, pipeline batching, and blob fixes are removed")
-	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5 intel=single_sun_no_ssao")
+	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5 intel=startup_quality1_no_ssao")
 	quit(0)
 
 
