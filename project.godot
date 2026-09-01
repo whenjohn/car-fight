@@ -5,8 +5,6 @@ config_version=5
 
 config/name="Car Fight"
 config/description="Server-authoritative multiplayer Jeep bumping prototype."
-config/use_custom_user_dir=true
-config/custom_user_dir_name="Car Fight/godot-4.6"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 

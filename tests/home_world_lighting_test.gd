@@ -16,39 +16,30 @@ func _init() -> void:
 	_check('renderer/rendering_method="forward_plus"' in project \
 		and 'renderer/rendering_method.mobile="forward_plus"' in project,
 		"desktop and mobile use the accepted Forward+ renderer")
-	_check('config/use_custom_user_dir=true' in project \
-		and 'config/custom_user_dir_name="Car Fight/godot-4.6"' in project,
-		"Godot 4.6 does not share its Vulkan pipeline cache with other engines")
-	_check("_world_environment.ssao_enabled = true" in source \
+	_check("_world_environment.ssao_enabled = not _intel_safe_lighting" in source \
 		and "environment/ssao/quality=0" in project,
-		"the default Forward+ preset retains low SSAO for supported adapters")
+		"the default Forward+ preset enables the accepted low SSAO pass")
 	_check("_world_environment.ssil_enabled = false" in source \
 		and "_world_environment.ssr_enabled = false" in source \
 		and "_world_environment.sdfgi_enabled = false" in source,
 		"unaccepted expensive screen-space and GI effects remain disabled")
-	_check("_sun_light.shadow_enabled = true" in source \
+	_check("_sun_light.shadow_enabled = not _intel_safe_lighting" in source \
 		and "DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS" in source \
 		and "lights_and_shadows/directional_shadow/size=2048" in project,
 		"the default sun uses the accepted cascaded shadow configuration")
-	_check("func _finish_staged_rendered_startup()" in source \
-		and source.count("await RenderingServer.frame_post_draw") >= 2 \
-		and "_world_environment.ssao_enabled = not stage_expensive" in source \
-		and "_sun_light.shadow_enabled = not stage_expensive" in source,
-		"the costly default lighting passes are split across startup frames")
-	_check('call("begin_staged_presentation")' in source \
-		and 'call("add_next_presentation_batch")' in source \
-		and "_finish_startup_pipeline_batch" in source,
-		"city mesh families enter Forward+ through the presented-frame startup queue")
-	_check("func _should_use_intel_shadow_fallback()" in source \
-		and "spotlight_light_begin" in source \
-		and "spotlight_shadows_begin" in source \
-		and "directional_shadows_skipped_intel" in source \
-		and "ssao_skipped_intel" in source \
-		and "_shadow_light.shadow_blur = 1.0 if _intel_shadow_fallback" in source \
-		and "_intel_shadow_fallback and not stage_expensive" in source \
-		and 'preload("res://fx/soft_blob_shadow.gdshader")' in source,
-		"Intel macOS uses a bounded soft spotlight without cascades or SSAO")
-	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5 intel=soft_spot_no_ssao")
+	_check("func _should_use_intel_safe_lighting()" in source \
+		and "func _finish_intel_lighting()" in source \
+		and source.count("await RenderingServer.frame_post_draw") >= 3 \
+		and "_world_environment.ssao_enabled = not _intel_safe_lighting" in source \
+		and "_sun_light.shadow_enabled = not _intel_safe_lighting" in source \
+		and "_shadow_light.shadow_blur = 1.0 if _intel_safe_lighting" in source,
+		"Intel uses staged filtered spotlight shadows without SSAO or cascades")
+	_check("_pipeline_compilation_counts" not in source \
+		and "begin_staged_presentation" not in source \
+		and "soft_blob_shadow" not in source \
+		and 'config/custom_user_dir_name="Car Fight/godot-4.6"' not in project,
+		"abandoned cache, pipeline batching, and blob fixes are removed")
+	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5 intel=staged_spot_no_ssao")
 	quit(0)
 
 

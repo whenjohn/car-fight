@@ -34,8 +34,6 @@ func _init() -> void:
 		elif record.get("event", "") == "sample":
 			saw_sample = record.has("fps") and record.has("draw_calls") \
 				and record.has("maximum_frame_ms") and record.has("window_focused") \
-				and record.has("pipeline_compilations_surface") \
-				and record.has("pipeline_compilations_specialization") \
 				and record.has("maximum_network_loop_ms") \
 				and record.has("maximum_rollback_loop_ms") \
 				and record.has("maximum_network_ticks") \

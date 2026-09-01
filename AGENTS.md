@@ -11,12 +11,14 @@ Keep renderer changes small and auditable.
   secondary map. The old Arena and standalone Overcast City worlds are retired.
 - The accepted Forward+ sunlit preset is the default. Preserve the other four
   lighting presets and measure any additional effect independently.
+- On Intel macOS, keep SSAO and the four-cascade sun shadow disabled. Present
+  the full scene with the player-following spotlight hidden, then enable the
+  light and its filtered shadow on separate frames. Keep city meshes as shadow
+  receivers, not casters. Do not restore the discarded cache isolation,
+  pipeline batching/default-vehicle prewarm, PCSS, or shader-blob fallback
+  experiments.
 
 - Run with `/Applications/Godot.app/Contents/MacOS/Godot` (Godot 4.6.3).
-- Keep `application/config/custom_user_dir_name` on the dedicated
-  `Car Fight/godot-4.6` directory. Godot names its Vulkan pipeline cache by
-  rendering method and adapter, not engine version; pointing 4.6 and 4.7 at the
-  same `user://` cache allowed alternating engines to rewrite one Intel cache.
 - Server authority and ENet lifecycle live in `Main.gd`.
 - Deterministic FOLLOW math lives in `player/follow_controller.gd`; presentation must not affect it.
 - Player input authority belongs to its owning client; body/state authority stays with server peer 1.
@@ -50,22 +52,3 @@ Keep renderer changes small and auditable.
   neutral controls. Do not repeat OpenGL, ANGLE, Vulkan, or edge-coverage
   diagnostics merely to reconfirm them. Read
   `MAC_INTEL_FULLSCREEN_FINDINGS.md` before changing display policy.
-- Keep the default Forward+ feature-first startup queue: present the base
-  environment and, only on supported adapters, cascaded shadows and SSAO
-  before attaching the bulk of the render scene, then add custom shaders, the
-  default Jeep, city mesh-resource
-  families, and street trees in bounded presented-frame batches. Visibility
-  is not a substitute for this queue; Godot 4.6 precompiles surfaces as soon
-  as even an invisible MeshInstance3D enters the scene tree. Preserve the
-  pipeline-compilation telemetry. Raising either soft-shadow filter above
-  quality 1, or attaching the complete cold city before frame one, produced a
-  captured Intel RCS hardware-ring hang and kernel GPU restart; do not repeat
-  either rendered probe without a new bounded mitigation.
-- On this Intel macOS machine, never enable SSAO or the four-cascade directional
-  shadow pass. The monitored `bc60072` run completed its base phase with every
-  compiler worker idle, then hung the command buffer submitted immediately
-  after enabling that sun shadow. The earlier accepted player-following
-  positional shadow is allowed as a bounded alternative: keep city buildings
-  out of its caster set, stage light visibility and its shadow map on separate
-  frames after the base frame, keep filter quality at 1, and do not enable PCSS
-  `light_size`. The shader contact blob remains an explicit emergency fallback.

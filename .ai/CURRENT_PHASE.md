@@ -99,9 +99,8 @@
   therefore does not isolate the positional shadow submission. The correction
   keeps the spotlight hidden for base, presents light-only next, then enables
   its filtered shadow on a third frame. PCSS `light_size` is removed; ordinary
-  shadow blur supplies the softer edge at lower cost. The shader contact blob
-  remains available through
-  `CAR_FIGHT_FORCE_BLOB_SHADOWS=1`. Supported non-Intel adapters retain the
+  shadow blur supplies the softer edge at lower cost. Supported non-Intel
+  adapters retain the
   staged four-cascade sun and low SSAO. After the corrected staging, clean
   import, focused lighting tests, the forced-Intel presentation smoke, and the
   complete permission-correct suite all pass (`ALL_TESTS PASS`). Monitored run
@@ -109,6 +108,16 @@
   `spotlight_light`, `spotlight_shadows`, every bounded city batch, and
   `complete` with no Vulkan/Metal error. This is the first clean rendered
   Forward+ run with the restored filtered spotlight shadow.
+- After that isolation, the user requested removal of the dead-end fixes. The
+  dedicated user cache, pipeline compilation counters, full-scene prewarm,
+  staged city/tree insertion, 120 ms compiler settling, PCSS attempt, and blob
+  fallback are removed. The retained fix is small: build the ordinary complete
+  city, keep Intel SSAO/cascades off, show the player-following spotlight after
+  the first presented frame, and enable its filtered shadow after the next.
+  Supported adapters still use the original cascades and low SSAO. Clean import,
+  focused lighting/city/telemetry checks, the forced-Intel presentation smoke,
+  and the complete permission-correct suite pass (`ALL_TESTS PASS`). The cleaned
+  runtime still needs one monitored rendered confirmation.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 

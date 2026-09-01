@@ -4,22 +4,22 @@
 
 The rendered car-fight client has two captured macOS/Intel graphics failure
 classes: the older fullscreen/WindowServer watchdog and a current Forward+
-cold-pipeline Intel render-ring hang that makes Godot abort after device loss.
+Intel lighting-submission hang that makes Godot abort after device loss.
 Do not automatically run `./scripts/play.sh`, open the project in a rendered
 editor, or perform a rendered soak. Headless tests are appropriate. Every
 rendered attempt requires the user's explicit approval and must use the ordinary
-window monitored launcher so pipeline phases and the kernel boundary are saved.
+window monitored launcher so lighting phases and the kernel boundary are saved.
 The kernel has successfully restarted the GPU after the recent Forward+ hangs;
 do not prescribe a reboot as the routine diagnostic or recovery step.
 
-## 2026-09-01 Forward+ cold-pipeline device loss
+## 2026-09-01 Forward+ lighting device loss
 
 ### 01:59 corrected spotlight staging is clean
 
 - Run `.crash-runs/20260901-015950`, commit `709013b`, PID 89277.
 - `base`, `spotlight_light`, and `spotlight_shadows` each presented
   successfully. Directional cascades and SSAO were explicitly skipped on Intel.
-- Startup then completed all shader, vehicle, prop, and 51 city batches and
+- The diagnostic startup then completed all shader, vehicle, prop, and 51 city batches and
   emitted `OFFLINE_READY`. The monitor reported `clean`; no Vulkan device loss
   or Metal timeout appears in the evidence.
 
@@ -54,10 +54,9 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
   does not prove every shadow type is unsafe. SSAO remains prohibited. After the
   user confirmed shadowless run `.crash-runs/20260901-014020` stayed up, they
   clarified that the earlier player-following spotlight shadow worked on this
-  machine. The next bounded probe restores only that positional shadow after
-  the base frame, keeps city buildings out of its caster set, and retains the
-  shader contact blob as an explicit emergency fallback. Other adapters retain
-  cascades and low SSAO.
+  machine. The successful configuration restores only that positional shadow
+  after the base frame and keeps city buildings out of its caster set. Other
+  adapters retain cascades and low SSAO.
 
 - Prior incident: 2026-09-01 01:07:23 -0500, Godot incident
   `8BC7CC15-C22E-4A57-A609-BE718EA5400D`, PID 84825, Godot 4.6.3 x86_64.
@@ -81,12 +80,11 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
 - Earlier quality-2 and valid untouched-4.6 controls produced the same class on
   contexts 715 and 726. Quality 2 was an initial trigger, but the latest isolated
   quality-1 cold-cache incident proves shadow softness is not the only trigger.
-- Root-cause boundary: Godot 4.6 automatically schedules Forward+ surface
-  pipelines when meshes enter the scene tree, even while invisible. The old
-  startup attached the entire city/material set before its effect-only staging
-  coroutine could run. The current candidate stages actual scene-tree insertion
-  and records pipeline counts; it has passed the complete headless regression
-  suite but has not yet received an approved rendered validation.
+- Diagnostic scene insertion and pipeline counters helped expose the lighting
+  boundary but were not part of the final fix. They were removed after the
+  clean 01:59 run. The retained runtime order is ordinary complete-scene build,
+  one hidden-spotlight frame, one light-only frame, then filtered spotlight
+  shadows; Intel SSAO and directional cascades remain disabled.
 
 ## Confirmed incidents
 

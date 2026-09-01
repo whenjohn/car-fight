@@ -20,8 +20,6 @@ const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
 const CONTROLLER_INPUT := preload("res://player/controller_input.gd")
 const SPEED_CAMERA_SCRIPT := preload("res://fx/speed_camera.gd")
-const SOFT_BLOB_SHADOW_SCRIPT := preload("res://fx/soft_blob_shadow.gd")
-const SOFT_BLOB_SHADOW_SHADER := preload("res://fx/soft_blob_shadow.gdshader")
 const OCCLUDED_SUPPORT_HINTS_SCRIPT := preload("res://fx/occluded_support_hints.gd")
 const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
@@ -323,7 +321,6 @@ var _network_last_target_msec := -1.0
 var _network_last_mode := ""
 var _network_tier_notice_remaining := 0.0
 var _shader_prewarm: Node3D
-var _vehicle_pipeline_prewarm: Node3D
 var _driving_course: Node3D
 var _occluded_support_hints: Node3D
 var _jump_gates: Node3D
@@ -337,8 +334,8 @@ var _join_stall_after_ms := 0
 var _join_stall_started := false
 var _persisted_oil_tuning := {}
 var _persisted_oil_tuning_pending := false
-var _lighting_startup_staged := false
-var _intel_shadow_fallback := false
+var _intel_safe_lighting := false
+var _intel_lighting_staged := false
 
 func _ready() -> void:
 	_parse_args()
@@ -376,11 +373,11 @@ func _ready() -> void:
 		return
 	_connect_network_events()
 	_build_world()
-	if not _is_headless():
+	if not _is_headless() and _intel_lighting_staged:
 		if DisplayServer.get_name() == "headless":
-			_finish_rendered_startup_without_frames()
+			_finish_intel_lighting_without_frames()
 		else:
-			await _finish_staged_rendered_startup()
+			await _finish_intel_lighting()
 	NetworkTime.on_tick.connect(_on_tick)
 	NetworkRollback.after_loop.connect(_send_settled_authority_probes)
 	NetworkTime.after_sync.connect(_inject_join_stall_for_test)
@@ -389,6 +386,13 @@ func _ready() -> void:
 	elif _role == "offline":
 		await _start_offline()
 	else:
+		if DisplayServer.get_name() != "headless" and _shader_prewarm != null:
+			# Compile the cloak pipelines before ENet/netfox starts its clock. Doing
+			# this after spawn can consume the rollback history on Intel Compatibility.
+			# Presentation gates still use a headless display and cannot produce the
+			# frame_post_draw signal even though they build presentation nodes.
+			await RenderingServer.frame_post_draw
+			_shader_prewarm.visible = false
 		_start_client()
 
 
@@ -1246,10 +1250,7 @@ func _build_world() -> void:
 	_shield_drone.position = SHIELD_DRONE_SCRIPT.CITY_POSITION
 	add_child(_shield_drone)
 	if not _is_headless():
-		# Register the environment, lights, MSAA, and camera before the majority
-		# of meshes enter the scene tree. Godot's Forward+ precompiler uses the
-		# features it has already observed to select each surface pipeline.
-		_build_presentation()
+		_shield_drone.call("build_presentation")
 	_build_home_world()
 	_driving_course = Node3D.new()
 	_driving_course.name = "DrivingCourse"
@@ -1272,10 +1273,29 @@ func _build_world() -> void:
 	add_child(_troop_delivery)
 	_build_combat_targets()
 	if not _is_headless():
-		# Render-only families are attached by _finish_staged_rendered_startup().
-		# This is intentionally later than collision/network construction: an
-		# invisible MeshInstance3D still starts Forward+ surface compilation.
-		pass
+		# Oil decals and grass remain presentation-only and never add rollback bodies.
+		var oil_slicks := Node3D.new()
+		oil_slicks.name = "OilSlicks"
+		oil_slicks.set_script(OIL_SLICKS_SCRIPT)
+		oil_slicks.call("setup", _players)
+		add_child(oil_slicks)
+		var grass := Node3D.new()
+		grass.name = "InteractiveGrass"
+		grass.set_script(INTERACTIVE_GRASS_SCRIPT)
+		grass.call("setup", _players, _combat_bolts)
+		grass.position = Vector3(58.0, 0.0, 18.0)
+		add_child(grass)
+		_driving_course.call("build_presentation")
+		_jump_gates.call("build_presentation")
+		_build_presentation()
+		_build_prop_auditions()
+		_build_city_presentation()
+		if _motion_trace_enabled:
+			_motion_trace = Node.new()
+			_motion_trace.name = "PresentedMotionTrace"
+			_motion_trace.set_script(MOTION_TRACE_SCRIPT)
+			add_child(_motion_trace)
+			_motion_trace.call("setup", self, _players, _camera)
 
 func _spawn_player(data: Variant) -> Node:
 	var info: Dictionary = data if data is Dictionary else {"id": int(data), "slot": 0}
@@ -1555,23 +1575,6 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	rope.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	rope.visible = false
 	body.add_child(rope)
-	if _uses_soft_blob_shadow():
-		_add_soft_blob_shadow(body)
-
-
-func _add_soft_blob_shadow(body: RigidBody3D) -> void:
-	var blob := MeshInstance3D.new()
-	blob.name = "IntelSoftContactShadow"
-	blob.set_script(SOFT_BLOB_SHADOW_SCRIPT)
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(4.4, 5.8)
-	blob.mesh = plane
-	var material := ShaderMaterial.new()
-	material.shader = SOFT_BLOB_SHADOW_SHADER
-	blob.material_override = material
-	blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	blob.set_meta("arena_presentation", true)
-	body.add_child(blob)
 
 func _build_home_world() -> void:
 	_build_city_space()
@@ -1822,7 +1825,7 @@ func _build_presentation() -> void:
 	_camera.current = true
 	add_child(_camera)
 	_speed_camera = SPEED_CAMERA_SCRIPT.new()
-	_create_shader_prewarm_container()
+	_build_shader_prewarm()
 	_impact_fx = Node3D.new()
 	_impact_fx.name = "ImpactFX"
 	_impact_fx.set_script(IMPACT_FX_SCRIPT)
@@ -1849,7 +1852,7 @@ func _build_presentation() -> void:
 
 
 func _build_city_lighting() -> void:
-	_intel_shadow_fallback = _should_use_intel_shadow_fallback()
+	_intel_safe_lighting = _should_use_intel_safe_lighting()
 	var environment := WorldEnvironment.new()
 	_world_environment = Environment.new()
 	_world_environment.background_mode = Environment.BG_COLOR
@@ -1899,9 +1902,7 @@ func _build_city_lighting() -> void:
 	_rim_light.shadow_enabled = false
 	_rim_light.visible = false
 	add_child(_rim_light)
-	# ANGLE's compatibility path does not consistently expose directional
-	# shadows on this Intel Mac. A broad real-time spotlight supplies a shadow
-	# map that the ground grid, roads, supports, cars, and ball all receive.
+	# A broad player-following spotlight supplies the bounded Intel shadow path.
 	_shadow_light = SpotLight3D.new()
 	_shadow_light.name = "CityShadowLight"
 	_shadow_light.position = Vector3(-32.0, 40.0, 34.0)
@@ -1910,44 +1911,29 @@ func _build_city_lighting() -> void:
 	_shadow_light.spot_range = 100.0
 	_shadow_light.spot_angle = 66.0
 	_shadow_light.spot_attenuation = 0.1
-	# Stage the Intel Forward+ spotlight after the base frame so a failure remains
-	# attributable. Other presets/adapters keep their established behavior.
-	_shadow_light.shadow_enabled = not (_intel_shadow_fallback \
-		and _lighting_style_index == 4) and not _uses_soft_blob_shadow()
+	_intel_lighting_staged = _intel_safe_lighting and _lighting_style_index == 4
+	_shadow_light.shadow_enabled = not _intel_lighting_staged
 	_shadow_light.shadow_opacity = 0.92
 	_shadow_light.shadow_bias = 0.12
 	_shadow_light.shadow_normal_bias = 1.25
-	# The Intel fallback keeps this caster set to gameplay actors only. Use the
-	# ordinary filter for soft edges without the extra PCSS cost of light_size.
 	_shadow_light.light_size = 0.0
-	_shadow_light.shadow_blur = 1.0 if _intel_shadow_fallback else 0.0
+	_shadow_light.shadow_blur = 1.0 if _intel_safe_lighting else 0.0
 	# Closed box meshes can cast from their back faces without shadow acne.
 	_shadow_light.shadow_reverse_cull_face = true
 	add_child(_shadow_light)
 	_shadow_light.look_at(Vector3.ZERO, Vector3.UP)
-	# The Intel Iris driver can hang its render ring when sky processing, four
-	# shadow cascades, every city caster, and SSAO first appear in one submission.
-	# Keep the chosen grade, but let the first frame establish its base pipelines.
-	_lighting_startup_staged = _lighting_style_index == 4
-	_apply_lighting_style(_lighting_startup_staged)
-	if _uses_soft_blob_shadow():
-		_log("RENDER_SHADOW_MODE mode=soft_blob reason=forced_fallback")
-	elif _intel_shadow_fallback:
-		_log("RENDER_SHADOW_MODE mode=soft_spotlight reason=intel_macos_directional_timeout")
+	_apply_lighting_style(_intel_lighting_staged)
+	if _intel_safe_lighting:
+		_log("RENDER_SHADOW_MODE mode=filtered_spotlight ssao=off cascades=off")
 
 
-func _should_use_intel_shadow_fallback() -> bool:
+func _should_use_intel_safe_lighting() -> bool:
 	if OS.get_environment("CAR_FIGHT_FORCE_SAFE_INTEL_LIGHTING") == "1":
 		return true
 	if DisplayServer.get_name() == "headless":
 		return false
 	var adapter := str(RenderingServer.get_video_adapter_name()).to_lower()
 	return OS.has_feature("macos") and "intel" in adapter
-
-
-func _uses_soft_blob_shadow() -> bool:
-	return _intel_shadow_fallback \
-		and OS.get_environment("CAR_FIGHT_FORCE_BLOB_SHADOWS") == "1"
 
 
 func _build_hud(hud: CanvasLayer) -> void:
@@ -2044,200 +2030,36 @@ func _build_prop_auditions() -> void:
 	add_child(props)
 
 
-func _build_city_presentation(staged: bool = false) -> void:
+func _build_city_presentation() -> void:
 	_city_presentation = Node3D.new()
 	_city_presentation.name = "LowPolyCity"
 	_city_presentation.set_script(CITY_PRESENTATION_SCRIPT)
 	_city_presentation.call("setup", _players)
 	add_child(_city_presentation)
-	if staged:
-		_city_presentation.call("begin_staged_presentation")
-	else:
-		_city_presentation.call("build_presentation")
+	_city_presentation.call("build_presentation")
 	_city_presentation.call("set_lighting_style", _effective_city_lighting_style())
 
 
-func _build_oil_slick_presentation() -> void:
-	# Oil decals and grass remain presentation-only and never add rollback bodies.
-	var oil_slicks := Node3D.new()
-	oil_slicks.name = "OilSlicks"
-	oil_slicks.set_script(OIL_SLICKS_SCRIPT)
-	oil_slicks.call("setup", _players)
-	add_child(oil_slicks)
-
-
-func _build_grass_presentation() -> void:
-	var grass := Node3D.new()
-	grass.name = "InteractiveGrass"
-	grass.set_script(INTERACTIVE_GRASS_SCRIPT)
-	grass.call("setup", _players, _combat_bolts)
-	grass.position = Vector3(58.0, 0.0, 18.0)
-	add_child(grass)
-
-
-func _build_motion_trace_presentation() -> void:
-	if not _motion_trace_enabled:
-		return
-	_motion_trace = Node.new()
-	_motion_trace.name = "PresentedMotionTrace"
-	_motion_trace.set_script(MOTION_TRACE_SCRIPT)
-	add_child(_motion_trace)
-	_motion_trace.call("setup", self, _players, _camera)
-
-
-## Forward+ automatically compiles a surface pipeline when a mesh first enters
-## the scene tree, including invisible meshes. On this Intel Iris Mac, attaching
-## the complete city before frame one can saturate the background compiler and
-## hang the hardware render ring. Keep networking stopped while we introduce one
-## material/mesh family per presented frame, with a short cold-cache settling
-## window only when that family actually increased the compilation counters.
-func _finish_staged_rendered_startup() -> void:
-	var before := _pipeline_compilation_counts()
-	await _finish_startup_pipeline_batch("base", before)
-	if _lighting_startup_staged and _lighting_style_index == 4:
-		if _intel_shadow_fallback:
-			if _uses_soft_blob_shadow():
-				_record_render_startup_phase("spotlight_shadows_skipped_blob",
-					_pipeline_compilation_counts(), 0)
-			else:
-				before = _pipeline_compilation_counts()
-				_record_render_startup_phase("spotlight_light_begin", before, 0)
-				_shadow_light.visible = true
-				await _finish_startup_pipeline_batch("spotlight_light", before)
-				before = _pipeline_compilation_counts()
-				_record_render_startup_phase("spotlight_shadows_begin", before, 0)
-				_shadow_light.shadow_enabled = true
-				await _finish_startup_pipeline_batch("spotlight_shadows", before)
-			_record_render_startup_phase("directional_shadows_skipped_intel",
-				_pipeline_compilation_counts(), 0)
-		else:
-			before = _pipeline_compilation_counts()
-			_record_render_startup_phase("directional_shadows_begin", before, 0)
-			_sun_light.shadow_enabled = true
-			await _finish_startup_pipeline_batch("directional_shadows", before)
-		if _intel_shadow_fallback:
-			_record_render_startup_phase("ssao_skipped_intel",
-				_pipeline_compilation_counts(), 0)
-		else:
-			before = _pipeline_compilation_counts()
-			_record_render_startup_phase("ssao_begin", before, 0)
-			_world_environment.ssao_enabled = true
-			await _finish_startup_pipeline_batch("ssao", before)
-
-	before = _pipeline_compilation_counts()
-	_shield_drone.call("build_presentation")
-	await _finish_startup_pipeline_batch("shield_drone", before)
-	before = _pipeline_compilation_counts()
-	_build_oil_slick_presentation()
-	await _finish_startup_pipeline_batch("oil_slicks", before)
-	before = _pipeline_compilation_counts()
-	_build_grass_presentation()
-	await _finish_startup_pipeline_batch("interactive_grass", before)
-	before = _pipeline_compilation_counts()
-	_driving_course.call("build_presentation")
-	await _finish_startup_pipeline_batch("driving_course", before)
-	before = _pipeline_compilation_counts()
-	_jump_gates.call("build_presentation")
-	await _finish_startup_pipeline_batch("jump_gates", before)
-
-	for shader_index in range(_startup_prewarm_shaders().size()):
-		before = _pipeline_compilation_counts()
-		_add_shader_prewarm(_startup_prewarm_shaders()[shader_index])
-		await _finish_startup_pipeline_batch("custom_shader_%d" % shader_index, before)
-	before = _pipeline_compilation_counts()
-	_build_vehicle_pipeline_prewarm()
-	await _finish_startup_pipeline_batch("default_vehicle", before)
-
-	before = _pipeline_compilation_counts()
-	_build_prop_auditions()
-	await _finish_startup_pipeline_batch("prop_auditions", before)
-	_build_city_presentation(true)
-	var city_batch := 0
-	while bool(_city_presentation.call("has_pending_presentation_batches")):
-		before = _pipeline_compilation_counts()
-		_city_presentation.call("add_next_presentation_batch")
-		await _finish_startup_pipeline_batch("city_batch_%02d" % city_batch, before)
-		city_batch += 1
-
-	_lighting_startup_staged = false
-	if _shader_prewarm != null:
-		_shader_prewarm.visible = false
-	if _vehicle_pipeline_prewarm != null:
-		_vehicle_pipeline_prewarm.queue_free()
-		_vehicle_pipeline_prewarm = null
-	_build_motion_trace_presentation()
-	_record_render_startup_phase("complete", _pipeline_compilation_counts(), 0)
-
-
-func _finish_rendered_startup_without_frames() -> void:
-	# Presentation smoke gates intentionally force 3D nodes under the headless
-	# display driver, which never emits frame_post_draw. Preserve their complete
-	# scene contract without pretending they exercise the GPU startup path.
-	if _lighting_startup_staged and _lighting_style_index == 4:
-		_sun_light.shadow_enabled = not _intel_shadow_fallback
-		_world_environment.ssao_enabled = not _intel_shadow_fallback
-		_shadow_light.shadow_enabled = not _uses_soft_blob_shadow()
-	_shield_drone.call("build_presentation")
-	_build_oil_slick_presentation()
-	_build_grass_presentation()
-	_driving_course.call("build_presentation")
-	_jump_gates.call("build_presentation")
-	_build_shader_prewarm()
-	_build_vehicle_pipeline_prewarm()
-	_build_prop_auditions()
-	_build_city_presentation()
-	_lighting_startup_staged = false
-	if _shader_prewarm != null:
-		_shader_prewarm.visible = false
-	if _vehicle_pipeline_prewarm != null:
-		_vehicle_pipeline_prewarm.queue_free()
-		_vehicle_pipeline_prewarm = null
-	_build_motion_trace_presentation()
-
-
-func _finish_startup_pipeline_batch(phase: String, before: Dictionary) -> void:
+func _finish_intel_lighting() -> void:
+	# The stable Intel Forward+ order is full scene with the spotlight hidden,
+	# then light-only, then its filtered shadow map on the following frame.
 	await RenderingServer.frame_post_draw
-	var after := _pipeline_compilation_counts()
-	var compiled := _pipeline_compilation_total(after) - _pipeline_compilation_total(before)
-	var adapter := str(RenderingServer.get_video_adapter_name()).to_lower()
-	if compiled > 0 and "intel" in adapter:
-		await get_tree().create_timer(0.12).timeout
-		await RenderingServer.frame_post_draw
-		after = _pipeline_compilation_counts()
-	_record_render_startup_phase(phase, after, maxi(compiled, 0))
+	if not _intel_lighting_staged or _lighting_style_index != 4:
+		return
+	_shadow_light.visible = true
+	await RenderingServer.frame_post_draw
+	if not _intel_lighting_staged or _lighting_style_index != 4:
+		return
+	_shadow_light.shadow_enabled = true
+	await RenderingServer.frame_post_draw
+	_intel_lighting_staged = false
+	_log("RENDER_LIGHTING_READY mode=filtered_spotlight")
 
 
-func _pipeline_compilation_counts() -> Dictionary:
-	return {
-		"canvas": RenderingServer.get_rendering_info(
-			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS),
-		"mesh": RenderingServer.get_rendering_info(
-			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH),
-		"surface": RenderingServer.get_rendering_info(
-			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE),
-		"draw": RenderingServer.get_rendering_info(
-			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW),
-		"specialization": RenderingServer.get_rendering_info(
-			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION),
-	}
-
-
-func _pipeline_compilation_total(counts: Dictionary) -> int:
-	var total := 0
-	for value in counts.values():
-		total += int(value)
-	return total
-
-
-func _record_render_startup_phase(phase: String, counts: Dictionary, compiled: int) -> void:
-	_log("RENDER_STARTUP phase=%s compiled=%d pipelines=%s" % [
-		phase, compiled, JSON.stringify(counts)])
-	if _crash_telemetry != null:
-		_crash_telemetry.call("record_event", "render_startup_phase", {
-			"phase": phase,
-			"compiled": compiled,
-			"pipeline_compilations": counts,
-		})
+func _finish_intel_lighting_without_frames() -> void:
+	_shadow_light.visible = true
+	_shadow_light.shadow_enabled = true
+	_intel_lighting_staged = false
 
 func _on_debug_menu_item_pressed(id: int) -> void:
 	if id == DEBUG_COLLISION_MENU_ID:
@@ -2301,13 +2123,12 @@ func _on_scenery_menu_pressed(id: int) -> void:
 		return
 	var lighting_index := id - LIGHTING_STYLE_MENU_ID_BASE
 	if lighting_index >= 0 and lighting_index < LIGHTING_STYLE_NAMES.size():
-		_lighting_startup_staged = false
 		_lighting_style_index = lighting_index
 		_apply_lighting_style()
 		_refresh_scenery_menu()
 
 
-func _apply_lighting_style(stage_expensive: bool = false) -> void:
+func _apply_lighting_style(stage_intel_spotlight: bool = false) -> void:
 	if _world_environment == null or _sun_light == null \
 			or _rim_light == null or _shadow_light == null:
 		return
@@ -2329,8 +2150,7 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 	_shadow_light.light_energy = 1.75
 	_shadow_light.light_specular = 0.5
 	_shadow_light.shadow_opacity = 0.92
-	_shadow_light.shadow_enabled = not (stage_expensive and _intel_shadow_fallback) \
-		and not _uses_soft_blob_shadow()
+	_shadow_light.shadow_enabled = not stage_intel_spotlight
 	_rim_light.visible = false
 	match _lighting_style_index:
 		1, 2:
@@ -2383,11 +2203,9 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_world_environment.adjustment_brightness = 0.98
 			_world_environment.adjustment_contrast = 0.96
 			_world_environment.adjustment_saturation = 0.90
-			# Keep Forward+ deliberately lean. Supported adapters retain low SSAO and
-			# cascaded sun shadows; affected Intel macOS uses the bounded spotlight.
-			# SSIL/SSR/SDFGI and TAA remain disabled for this baseline.
-			_world_environment.ssao_enabled = not stage_expensive \
-				and not _intel_shadow_fallback
+			# SSAO and cascaded sun shadows stay available on supported adapters.
+			# Intel macOS uses the staged filtered spotlight below instead.
+			_world_environment.ssao_enabled = not _intel_safe_lighting
 			_world_environment.ssao_radius = 1.6
 			_world_environment.ssao_intensity = 1.0
 			_world_environment.ssao_power = 1.2
@@ -2396,8 +2214,7 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_sun_light.light_color = Color(1.0, 0.965, 0.90)
 			_sun_light.light_energy = 1.65
 			_sun_light.light_specular = 0.8
-			_sun_light.shadow_enabled = not stage_expensive \
-				and not _intel_shadow_fallback
+			_sun_light.shadow_enabled = not _intel_safe_lighting
 			_sun_light.shadow_opacity = 0.88
 			_sun_light.light_angular_distance = 0.65
 			_sun_light.shadow_blur = 1.0
@@ -2413,7 +2230,7 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_shadow_light.light_energy = 1.45
 			_shadow_light.light_specular = 0.5
 			_shadow_light.shadow_opacity = 0.72
-			_shadow_light.visible = _intel_shadow_fallback and not stage_expensive
+			_shadow_light.visible = _intel_safe_lighting and not stage_intel_spotlight
 		_:
 			_world_environment.background_color = Color("10171d")
 			_world_environment.ambient_light_color = Color("b6cad3")
@@ -2429,9 +2246,8 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 
 
 func _effective_city_lighting_style() -> int:
-	# Keep the Intel spotlight bounded to gameplay actors. City buildings receive
-	# their shadows but do not enter the moving positional shadow pass.
-	return 0 if _intel_shadow_fallback else _lighting_style_index
+	# The Intel spotlight casts gameplay actors only; city meshes remain receivers.
+	return 0 if _intel_safe_lighting else _lighting_style_index
 
 
 func _build_vehicle_model_menu() -> void:
@@ -2875,61 +2691,29 @@ func _poll_presentation_control(delta: float) -> void:
 		return
 	RemotePositionTransport.set_presentation_mode(command)
 
-func _startup_prewarm_shaders() -> Array:
-	return [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER, HOMING_MISSILE_SHADER]
-
-
-func _create_shader_prewarm_container() -> void:
-	if _shader_prewarm != null:
-		return
+func _build_shader_prewarm() -> void:
 	_shader_prewarm = Node3D.new()
 	_shader_prewarm.name = "ShaderPrewarm"
 	_camera.add_child(_shader_prewarm)
 	_shader_prewarm.position = Vector3(0.0, 0.0, -2.0)
-
-
-func _build_shader_prewarm() -> void:
-	_create_shader_prewarm_container()
-	for shader in _startup_prewarm_shaders():
-		_add_shader_prewarm(shader)
-
-
-func _add_shader_prewarm(shader: Shader) -> void:
-	var instance := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.001
-	sphere.height = 0.002
-	instance.mesh = sphere
-	var material := ShaderMaterial.new()
-	material.shader = shader
-	if shader == CLOAK_DISSOLVE_SHADER:
-		material.set_shader_parameter("cut_position", -999.0)
-	elif shader == CLOAK_GHOST_SHADER:
-		material.set_shader_parameter("cloak_strength", 0.0)
-	elif shader == SHIELD_SHADER:
-		material.set_shader_parameter("shield_strength", 0.0)
-		material.set_shader_parameter("impact_age", 1.2)
-	instance.material_override = material
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_shader_prewarm.add_child(instance)
-
-
-func _build_vehicle_pipeline_prewarm() -> void:
-	if _vehicle_pipeline_prewarm != null:
-		return
-	_vehicle_pipeline_prewarm = Node3D.new()
-	_vehicle_pipeline_prewarm.name = "DefaultVehiclePipelinePrewarm"
-	_vehicle_pipeline_prewarm.visible = false
-	_vehicle_pipeline_prewarm.process_mode = Node.PROCESS_MODE_DISABLED
-	add_child(_vehicle_pipeline_prewarm)
-	# Use the real local presentation builder so the Jeep vertex formats, cloak,
-	# shield, coverage overlay, markers, skid trails, and speed effects are all
-	# registered before networking starts. The disabled hidden body never enters
-	# the spawner or rollback world and is discarded once compilation is staged.
-	var dummy_owner := multiplayer.get_unique_id()
-	var dummy := _spawn_player({"id": dummy_owner, "slot": 0})
-	dummy.process_mode = Node.PROCESS_MODE_DISABLED
-	_vehicle_pipeline_prewarm.add_child(dummy)
+	for shader in [CLOAK_DISSOLVE_SHADER, CLOAK_GHOST_SHADER, SHIELD_SHADER, HOMING_MISSILE_SHADER]:
+		var instance := MeshInstance3D.new()
+		var sphere := SphereMesh.new()
+		sphere.radius = 0.001
+		sphere.height = 0.002
+		instance.mesh = sphere
+		var material := ShaderMaterial.new()
+		material.shader = shader
+		if shader == CLOAK_DISSOLVE_SHADER:
+			material.set_shader_parameter("cut_position", -999.0)
+		elif shader == CLOAK_GHOST_SHADER:
+			material.set_shader_parameter("cloak_strength", 0.0)
+		elif shader == SHIELD_SHADER:
+			material.set_shader_parameter("shield_strength", 0.0)
+			material.set_shader_parameter("impact_age", 1.2)
+		instance.material_override = material
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_shader_prewarm.add_child(instance)
 
 func _update_editor_presentation(local: Node3D) -> void:
 	if local == null or _editor_stage == null:
