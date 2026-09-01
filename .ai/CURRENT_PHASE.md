@@ -7,6 +7,12 @@
   `/Users/johnnguyen/Projects/car-fight-godot46-integration`, and the pushed tag
   `pre-godot-46-2026-08-31` permanently preserves the pre-migration Godot 4.7
   head `2c8a710`.
+- The old Godot 4.7 project is preserved by that tag, not by a currently checked
+  out worktree. If a future session needs an isolated rollback/control copy,
+  create it non-destructively with
+  `git worktree add /Users/johnnguyen/Projects/car-fight-godot47-old pre-godot-46-2026-08-31`.
+  Do not reset current `master` or production to inspect it. The Godot 4.7 app
+  remains installed; this migration did not uninstall it.
 - The candidate merges `codex/forwardplus-46-rendering` once. It includes the
   sunlit city work without independently merging the earlier experiment branch.
   Preserve current gameplay, vendored netfox patches, server authority, ENet,

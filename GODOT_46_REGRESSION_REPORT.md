@@ -12,6 +12,9 @@ Status: accepted and promoted to `master`; production macai2 smoke passed.
   `f6477144bccf8002c71647193444bd540ed648204d84e6e69919f4affafbf414`
 - Preserved canonical head: `2c8a710`, pushed tag
   `pre-godot-46-2026-08-31`
+- No separate old-project worktree is currently checked out. Recreate an
+  isolated Godot 4.7 control without changing `master` using
+  `git worktree add /Users/johnnguyen/Projects/car-fight-godot47-old pre-godot-46-2026-08-31`.
 - `master` was fast-forwarded to tested candidate `e1923ab` and pushed after
   every required row below passed. Production macai2 was then deployed through
   `scripts/deploy_macai2.sh` and verified on Godot 4.6.3 + Rapier 0.8.35.
