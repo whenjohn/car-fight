@@ -14,6 +14,21 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
 
 ## 2026-09-01 Forward+ lighting device loss
 
+### Single directional-shadow probe prepared, not rendered
+
+- Worktree `/Users/johnnguyen/Projects/car-fight-intel-single-shadow`, branch
+  `codex/intel-single-shadow-test`, starts from accepted baseline `f672aec`.
+- The Intel sunlit preset stages one orthogonal directional shadow map after
+  the first presented frame and restores city meshes as casters. It does not
+  enable SSAO or the four-cascade mode implicated by the 01:28 incident. The
+  player-following spotlight is hidden for this preset so the probe isolates a
+  single shadow source; the other lighting presets remain available.
+- Clean import, focused lighting/city tests, forced-Intel headless presentation,
+  and the complete permission-correct suite pass (`ALL_TESTS PASS`). No
+  rendered launch has occurred, so this is not yet evidence that the Intel GPU
+  accepts the new submission. The next attempt must be an explicitly approved
+  ordinary-window monitored run.
+
 ### 02:13 simplified retained fix is clean
 
 - Run `.crash-runs/20260901-021324`, cleanup commit `376c26b`, PID 90320.

@@ -123,6 +123,19 @@
   cascades=off`, reached `RENDER_LIGHTING_READY` and `OFFLINE_READY`, continued
   through tick 480, and exited `clean` with no timeout or device loss. This is
   the accepted Intel Forward+ baseline; no further crash workaround is pending.
+- A separate directional-shadow probe is isolated on
+  `codex/intel-single-shadow-test` in
+  `/Users/johnnguyen/Projects/car-fight-intel-single-shadow`, based on the
+  accepted `f672aec` baseline. The default Intel sunlit preset now stages one
+  orthogonal directional shadow map after the first presented frame, restores
+  city meshes as casters for that preset, and hides the player spotlight so the
+  result has a single shadow source. SSAO remains off and the known-failing
+  four-cascade mode remains off; alternate lighting presets are retained. Clean
+  import, focused lighting/city checks, forced-Intel headless presentation, and
+  the complete permission-correct suite pass (`ALL_TESTS PASS`). This probe has
+  not been rendered yet. Its next step is one explicitly approved monitored
+  ordinary-window run; it does not replace the accepted spotlight baseline
+  unless that visual/crash boundary is accepted.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
