@@ -215,8 +215,8 @@ func transmit_state(tick: int) -> void:
 
 	_latest_state_tick = max(_latest_state_tick, tick)
 
-	var is_sending_diffs := NetworkRollback.enable_diff_states
-	var is_full_state_tick := (is_coordinated_key or not is_sending_diffs
+	var is_sending_diffs: bool = bool(NetworkRollback.enable_diff_states)
+	var is_full_state_tick: bool = (is_coordinated_key or not is_sending_diffs
 		or (full_state_interval > 0 and tick > _next_full_state_tick))
 
 	if is_full_state_tick:

@@ -1,5 +1,34 @@
 # Current phase
 
+## SSAO-off canonical-master renderer control
+
+- A diagnostic control is isolated on `codex/master-no-ssao-control` in
+  `/Users/johnnguyen/Projects/car-fight-master-no-ssao-control`, based exactly
+  on canonical `master` commit `573e5fc`. Its only rendering change is to keep
+  lighting style 4's quality-1 four-cascade sun shadows while forcing SSAO off;
+  the style-4 spotlight remains hidden. A runtime record reports
+  `mode=master_quality1 ssao=off cascades=4 spotlight=off`.
+- A fresh empty `.godot` import exposed five Godot 4.6 inferred-type parse
+  errors in three vendored netfox files that canonical master's existing import
+  cache had masked. Explicit `bool`/`int` annotations and casts preserve the
+  same values and make the control independently importable. The clean Godot
+  4.6.3 import now exits 0.
+- The permission-correct complete suite passed every gate through tractor, then
+  hit the already documented timing-sensitive course rebound sample at 0.000.
+  Its immediate isolated retry passed with the established 1.651-unit rebound.
+  No failure implicated the SSAO control or the type-only compatibility edits.
+- The remembered clean shadow run and every recent crash reproduction were
+  launched with `--offline`; the server simulation was embedded in that same
+  Godot process. No run connected to macai2 or another common game server, so a
+  shared remote server cannot explain the Vulkan/Metal failures.
+- The regenerated 3.59 MB Forward+ pipeline cache, 38 MB Godot shader cache,
+  and 15 MB macOS Metal cache have been moved, not deleted, to named
+  `/private/tmp` quarantine locations recorded in `.ai/CRASH_LOG.md`. The next
+  launch will therefore be cold across all three cache layers.
+- No rendered client has been launched from this control. The next step is one
+  explicitly approved ordinary-window `scripts/play_forwardplus_46.sh` run.
+  Do not enable SSAO, and do not launch until the user explicitly says to start.
+
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
 - Godot 4.6.3 + Rapier 0.8.35 is now promoted on canonical `master` at

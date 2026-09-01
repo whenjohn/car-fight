@@ -2204,10 +2204,10 @@ func _apply_lighting_style() -> void:
 			_world_environment.adjustment_brightness = 0.98
 			_world_environment.adjustment_contrast = 0.96
 			_world_environment.adjustment_saturation = 0.90
-			# Keep this first Intel Forward+ pass deliberately lean: real clustered
-			# rendering, low SSAO, and cascaded sun shadows, but no SSIL/SSR/SDFGI or
-			# TAA until the driving baseline proves stable and fast enough.
-			_world_environment.ssao_enabled = true
+			# Keep this Intel Forward+ control deliberately lean: real clustered
+			# rendering and cascaded sun shadows, but no SSAO/SSIL/SSR/SDFGI or TAA.
+			# Intel control: preserve master lighting and shadows, but never enable SSAO.
+			_world_environment.ssao_enabled = false
 			_world_environment.ssao_radius = 1.6
 			_world_environment.ssao_intensity = 1.0
 			_world_environment.ssao_power = 1.2
@@ -2233,6 +2233,7 @@ func _apply_lighting_style() -> void:
 			_shadow_light.light_specular = 0.5
 			_shadow_light.shadow_opacity = 0.72
 			_shadow_light.visible = false
+			_log("RENDER_SHADOW_MODE mode=master_quality1 ssao=off cascades=4 spotlight=off")
 		_:
 			_world_environment.background_color = Color("10171d")
 			_world_environment.ambient_light_color = Color("b6cad3")

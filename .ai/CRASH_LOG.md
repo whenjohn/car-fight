@@ -2,9 +2,51 @@
 
 ## Safety status
 
-The rendered car-fight client is a probable reproducible trigger for a macOS/Intel graphics stack failure. Do not automatically run `./scripts/play.sh`, open the project in a rendered editor, or perform a rendered soak test while investigating this issue. Headless tests are still appropriate. Get the user's explicit approval before a rendered reproduction attempt because the failure can kill WindowServer and disrupt the whole login session.
+The rendered car-fight client has two captured macOS/Intel graphics failure
+classes: the older fullscreen/WindowServer watchdog and a current Forward+
+Intel command-buffer timeout that makes Godot abort after device loss. Do not
+automatically run `./scripts/play.sh`, open the project in a rendered editor, or
+perform a rendered soak. Headless tests are appropriate. Every rendered attempt
+requires the user's explicit approval and must use the ordinary-window monitored
+launcher. SSAO is prohibited on this machine. The kernel has recovered from the
+recent Forward+ failures; do not prescribe another reboot as routine recovery.
 
-No renderer, lighting, shader, gameplay, or launch-script change has been made in response. The user explicitly chose to log the evidence and continue development unchanged.
+## 2026-09-01 Forward+ offline controls and shared caches
+
+- All three canonical-master controls were ordinary 1280 x 720 windows at clean
+  commit `573e5fc`, and their recorded commands include `--offline`. The first
+  run `.crash-runs/20260901-032143` used the existing shared caches and failed
+  with the same Metal GPU timeout. The second run
+  `.crash-runs/20260901-032557` followed Forward+ pipeline-cache quarantine and
+  failed again. The third run `.crash-runs/20260901-032949` also followed
+  macOS Metal-cache quarantine; cold compilation delayed the timeout to about
+  55 seconds but did not prevent it.
+- These controls did not contact the production/common game server. Offline
+  mode embeds authority and presentation in one Godot process, while each
+  incident ends in Vulkan/Metal command-buffer execution/presentation. Remote
+  server state is therefore ruled out as the shared cause.
+- Canonical master's style 4 enables SSAO, so those three launches are not a
+  valid SSAO-free directional-shadow control on this Intel machine. Do not
+  repeat them. The pending `codex/master-no-ssao-control` preserves the same
+  quality-1 four-cascade shadows and hidden spotlight while forcing SSAO off.
+- Every worktree uses `config/name="Car Fight"`, so they share Godot app data at
+  `/Users/johnnguyen/Library/Application Support/Godot/app_userdata/Car Fight`.
+  Godot versions also share the bundle-level Metal cache at
+  `/private/var/folders/nt/tp7j7qtx2cgc39ftxymn6kfw0000gn/C/org.godotengine.godot/com.apple.metal`.
+- Nothing was deleted. The original 8.55 MB pipeline cache remains at
+  `/private/tmp/car-fight-forwardplus-pipeline-cache-20260901-669da34a.cache`;
+  the first rebuilt failed cache remains at
+  `/private/tmp/car-fight-forwardplus-pipeline-cache-rebuilt-failed-20260901-032611.cache`;
+  and the original 97 MB Metal cache remains at
+  `/private/tmp/godot-metal-cache-org.godotengine.godot-20260901-0326`.
+- Before the pending fully cold control, the second regenerated caches were
+  moved to
+  `/private/tmp/car-fight-forwardplus-pipeline-cache-metal-cold-failed-20260901-033039.cache`
+  (3.59 MB),
+  `/private/tmp/car-fight-godot-shader-cache-20260901-full-cold` (38 MB), and
+  `/private/tmp/godot-metal-cache-rebuilt-failed-20260901-033043` (15 MB).
+  Their live source paths are currently absent and will be recreated only by a
+  later approved rendered launch.
 
 ## Confirmed incidents
 
