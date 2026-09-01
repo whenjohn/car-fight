@@ -14,6 +14,15 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
 
 ## 2026-09-01 Forward+ cold-pipeline device loss
 
+### 01:59 corrected spotlight staging is clean
+
+- Run `.crash-runs/20260901-015950`, commit `709013b`, PID 89277.
+- `base`, `spotlight_light`, and `spotlight_shadows` each presented
+  successfully. Directional cascades and SSAO were explicitly skipped on Intel.
+- Startup then completed all shader, vehicle, prop, and 51 city batches and
+  emitted `OFFLINE_READY`. The monitor reported `clean`; no Vulkan device loss
+  or Metal timeout appears in the evidence.
+
 ### 01:52 spotlight attempt did not reach its shadow toggle
 
 - Run `.crash-runs/20260901-015158`, commit `4a40704`, PID 88441, exited 134.

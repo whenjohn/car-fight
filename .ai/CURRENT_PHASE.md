@@ -104,8 +104,11 @@
   `CAR_FIGHT_FORCE_BLOB_SHADOWS=1`. Supported non-Intel adapters retain the
   staged four-cascade sun and low SSAO. After the corrected staging, clean
   import, focused lighting tests, the forced-Intel presentation smoke, and the
-  complete permission-correct suite all pass (`ALL_TESTS PASS`). It has not had
-  another rendered run.
+  complete permission-correct suite all pass (`ALL_TESTS PASS`). Monitored run
+  `.crash-runs/20260901-015950` at `709013b` then completed `base`,
+  `spotlight_light`, `spotlight_shadows`, every bounded city batch, and
+  `complete` with no Vulkan/Metal error. This is the first clean rendered
+  Forward+ run with the restored filtered spotlight shadow.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
