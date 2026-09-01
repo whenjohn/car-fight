@@ -14,20 +14,32 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
 
 ## 2026-09-01 Forward+ lighting device loss
 
-### Single directional-shadow probe prepared, not rendered
+### 02:49 staged single directional-shadow probe fails
 
 - Worktree `/Users/johnnguyen/Projects/car-fight-intel-single-shadow`, branch
-  `codex/intel-single-shadow-test`, starts from accepted baseline `f672aec`.
+  `codex/intel-single-shadow-test`, commit `dea4c3f`, starts from accepted
+  baseline `f672aec`. Monitored run `.crash-runs/20260901-024906`, PID 92607,
+  used the ordinary 1280 x 720 window and ended `client-exit-134` after about ten
+  seconds. Crash incident: `9B367261-2C94-41A4-BD9E-6859315E0551`.
 - The Intel sunlit preset stages one orthogonal directional shadow map after
   the first presented frame and restores city meshes as casters. It does not
   enable SSAO or the four-cascade mode implicated by the 01:28 incident. The
   player-following spotlight is hidden for this preset so the probe isolates a
   single shadow source; the other lighting presets remain available.
 - Clean import, focused lighting/city tests, forced-Intel headless presentation,
-  and the complete permission-correct suite pass (`ALL_TESTS PASS`). No
-  rendered launch has occurred, so this is not yet evidence that the Intel GPU
-  accepts the new submission. The next attempt must be an explicitly approved
-  ordinary-window monitored run.
+  and the complete permission-correct suite passed (`ALL_TESTS PASS`) before
+  launch. The rendered log reached `RENDER_LIGHTING_READY
+  mode=single_directional`; the following Jeep mesh-surface transfer then
+  received Metal `kIOAccelCommandBufferCallbackErrorTimeout`, Vulkan device
+  loss, and Godot's deliberate abort. WindowServer PID 214 remained unchanged.
+- This incident rejects the post-base directional toggle, not every possible
+  directional setup. The user's remembered jagged-shadow run is preserved at
+  `.crash-runs/20260901-003326`, clean commit `b20bb6a`: quality-1 cascades and
+  the existing spotlight were already enabled before city presentation meshes
+  entered the tree. It ran for 8 minutes 53 seconds, ended on monitor interrupt
+  (`130`), and its final samples held 60 FPS without a graphics error. The next
+  probe should reproduce that startup-active ordering and quality 1 while
+  keeping SSAO disabled. Do not relaunch the failed staged-single-map commit.
 
 ### 02:13 simplified retained fix is clean
 

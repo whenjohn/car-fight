@@ -132,10 +132,22 @@
   result has a single shadow source. SSAO remains off and the known-failing
   four-cascade mode remains off; alternate lighting presets are retained. Clean
   import, focused lighting/city checks, forced-Intel headless presentation, and
-  the complete permission-correct suite pass (`ALL_TESTS PASS`). This probe has
-  not been rendered yet. Its next step is one explicitly approved monitored
-  ordinary-window run; it does not replace the accepted spotlight baseline
-  unless that visual/crash boundary is accepted.
+  the complete permission-correct suite pass (`ALL_TESTS PASS`). Monitored run
+  `.crash-runs/20260901-024906` at `dea4c3f` reached
+  `RENDER_LIGHTING_READY mode=single_directional`, then its next mesh-surface
+  transfer returned the same Metal timeout and Vulkan device loss. This rejects
+  enabling even one directional map after the base city frame; it does not show
+  that a directional map active before geometry enters the scene is unsafe.
+- Historical evidence confirms the user's remembered jagged-shadow run was the
+  first post-downgrade launch: `.crash-runs/20260901-003326` at clean commit
+  `b20bb6a`. Filter-quality-1 directional cascades and the existing spotlight
+  were active before the city presentation entered the tree. The client ran for
+  8 minutes 53 seconds, ended only on monitor interrupt (`130`), and its final
+  telemetry samples held 60 FPS with no Vulkan/Metal error. The immediately
+  following uncommitted softness experiment raised global shadow filtering and
+  crashed in about twelve seconds. The next bounded probe should restore the
+  known-good startup-active ordering and quality 1 while keeping SSAO off; it
+  must not reuse the failed post-frame directional toggle.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 
