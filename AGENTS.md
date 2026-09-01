@@ -61,9 +61,10 @@ Keep renderer changes small and auditable.
   quality 1, or attaching the complete cold city before frame one, produced a
   captured Intel RCS hardware-ring hang and kernel GPU restart; do not repeat
   either rendered probe without a new bounded mitigation.
-- On this Intel macOS machine, never enable realtime directional/positional
-  shadow maps or SSAO. The monitored `bc60072` run completed its base phase
-  with every compiler worker idle, then hung the command buffer submitted
-  immediately after enabling the four-cascade sun. Use the tracked shader-based
-  soft contact shadow fallback here. Preserve cascades and low SSAO only for
-  supported non-Intel adapters.
+- On this Intel macOS machine, never enable SSAO or the four-cascade directional
+  shadow pass. The monitored `bc60072` run completed its base phase with every
+  compiler worker idle, then hung the command buffer submitted immediately
+  after enabling that sun shadow. The earlier accepted player-following
+  positional shadow is allowed as a bounded alternative: keep city buildings
+  out of its caster set, stage it after the base frame, and keep filter quality
+  at 1. The shader contact blob remains an explicit emergency fallback.

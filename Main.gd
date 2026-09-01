@@ -1555,7 +1555,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	rope.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	rope.visible = false
 	body.add_child(rope)
-	if _intel_shadow_fallback:
+	if _uses_soft_blob_shadow():
 		_add_soft_blob_shadow(body)
 
 
@@ -1910,14 +1910,17 @@ func _build_city_lighting() -> void:
 	_shadow_light.spot_range = 100.0
 	_shadow_light.spot_angle = 66.0
 	_shadow_light.spot_attenuation = 0.1
-	_shadow_light.shadow_enabled = not _intel_shadow_fallback
+	# Stage the Intel Forward+ spotlight after the base frame so a failure remains
+	# attributable. Other presets/adapters keep their established behavior.
+	_shadow_light.shadow_enabled = not (_intel_shadow_fallback \
+		and _lighting_style_index == 4) and not _uses_soft_blob_shadow()
 	_shadow_light.shadow_opacity = 0.92
 	_shadow_light.shadow_bias = 0.12
 	_shadow_light.shadow_normal_bias = 1.25
-	# Compatibility's soft positional-shadow filter uses a rotating sample
-	# pattern that crawls across plain walls. project.godot selects hard filtering
-	# with a 32-bit depth atlas; keep per-light blur disabled to match it.
-	_shadow_light.shadow_blur = 0.0
+	# The Intel fallback keeps this caster set to gameplay actors only. A modest
+	# area size supplies the soft shadow edges the prior hard filter lacked.
+	_shadow_light.light_size = 1.25 if _intel_shadow_fallback else 0.0
+	_shadow_light.shadow_blur = 1.0 if _intel_shadow_fallback else 0.0
 	# Closed box meshes can cast from their back faces without shadow acne.
 	_shadow_light.shadow_reverse_cull_face = true
 	add_child(_shadow_light)
@@ -1927,8 +1930,10 @@ func _build_city_lighting() -> void:
 	# Keep the chosen grade, but let the first frame establish its base pipelines.
 	_lighting_startup_staged = _lighting_style_index == 4
 	_apply_lighting_style(_lighting_startup_staged)
-	if _intel_shadow_fallback:
-		_log("RENDER_SHADOW_MODE mode=soft_blob reason=intel_macos_realtime_timeout")
+	if _uses_soft_blob_shadow():
+		_log("RENDER_SHADOW_MODE mode=soft_blob reason=forced_fallback")
+	elif _intel_shadow_fallback:
+		_log("RENDER_SHADOW_MODE mode=soft_spotlight reason=intel_macos_directional_timeout")
 
 
 func _should_use_intel_shadow_fallback() -> bool:
@@ -1938,6 +1943,11 @@ func _should_use_intel_shadow_fallback() -> bool:
 		return false
 	var adapter := str(RenderingServer.get_video_adapter_name()).to_lower()
 	return OS.has_feature("macos") and "intel" in adapter
+
+
+func _uses_soft_blob_shadow() -> bool:
+	return _intel_shadow_fallback \
+		and OS.get_environment("CAR_FIGHT_FORCE_BLOB_SHADOWS") == "1"
 
 
 func _build_hud(hud: CanvasLayer) -> void:
@@ -2086,6 +2096,14 @@ func _finish_staged_rendered_startup() -> void:
 	await _finish_startup_pipeline_batch("base", before)
 	if _lighting_startup_staged and _lighting_style_index == 4:
 		if _intel_shadow_fallback:
+			if _uses_soft_blob_shadow():
+				_record_render_startup_phase("spotlight_shadows_skipped_blob",
+					_pipeline_compilation_counts(), 0)
+			else:
+				before = _pipeline_compilation_counts()
+				_record_render_startup_phase("spotlight_shadows_begin", before, 0)
+				_shadow_light.shadow_enabled = true
+				await _finish_startup_pipeline_batch("spotlight_shadows", before)
 			_record_render_startup_phase("directional_shadows_skipped_intel",
 				_pipeline_compilation_counts(), 0)
 		else:
@@ -2154,6 +2172,7 @@ func _finish_rendered_startup_without_frames() -> void:
 	if _lighting_startup_staged and _lighting_style_index == 4:
 		_sun_light.shadow_enabled = not _intel_shadow_fallback
 		_world_environment.ssao_enabled = not _intel_shadow_fallback
+		_shadow_light.shadow_enabled = not _uses_soft_blob_shadow()
 	_shield_drone.call("build_presentation")
 	_build_oil_slick_presentation()
 	_build_grass_presentation()
@@ -2306,6 +2325,8 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 	_shadow_light.light_energy = 1.75
 	_shadow_light.light_specular = 0.5
 	_shadow_light.shadow_opacity = 0.92
+	_shadow_light.shadow_enabled = not (stage_expensive and _intel_shadow_fallback) \
+		and not _uses_soft_blob_shadow()
 	_rim_light.visible = false
 	match _lighting_style_index:
 		1, 2:
@@ -2359,7 +2380,7 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_world_environment.adjustment_contrast = 0.96
 			_world_environment.adjustment_saturation = 0.90
 			# Keep Forward+ deliberately lean. Supported adapters retain low SSAO and
-			# cascaded sun shadows; affected Intel macOS uses the blob-only fallback.
+			# cascaded sun shadows; affected Intel macOS uses the bounded spotlight.
 			# SSIL/SSR/SDFGI and TAA remain disabled for this baseline.
 			_world_environment.ssao_enabled = not stage_expensive \
 				and not _intel_shadow_fallback
@@ -2388,7 +2409,7 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_shadow_light.light_energy = 1.45
 			_shadow_light.light_specular = 0.5
 			_shadow_light.shadow_opacity = 0.72
-			_shadow_light.visible = false
+			_shadow_light.visible = _intel_shadow_fallback
 		_:
 			_world_environment.background_color = Color("10171d")
 			_world_environment.ambient_light_color = Color("b6cad3")
@@ -2404,8 +2425,8 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 
 
 func _effective_city_lighting_style() -> int:
-	# Do not ask Godot to precompile shadow-caster surface variants when this
-	# adapter cannot safely submit the corresponding realtime shadow pass.
+	# Keep the Intel spotlight bounded to gameplay actors. City buildings receive
+	# their shadows but do not enter the moving positional shadow pass.
 	return 0 if _intel_shadow_fallback else _lighting_style_index
 
 

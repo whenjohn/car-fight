@@ -40,11 +40,14 @@ func _init() -> void:
 		and "_finish_startup_pipeline_batch" in source,
 		"city mesh families enter Forward+ through the presented-frame startup queue")
 	_check("func _should_use_intel_shadow_fallback()" in source \
+		and "spotlight_shadows_begin" in source \
 		and "directional_shadows_skipped_intel" in source \
 		and "ssao_skipped_intel" in source \
+		and "_shadow_light.light_size = 1.25" in source \
+		and "_shadow_light.visible = _intel_shadow_fallback" in source \
 		and 'preload("res://fx/soft_blob_shadow.gdshader")' in source,
-		"Intel macOS avoids realtime shadow maps and SSAO and uses soft contact blobs")
-	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5 intel=blob_no_ssao")
+		"Intel macOS uses a bounded soft spotlight without cascades or SSAO")
+	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5 intel=soft_spot_no_ssao")
 	quit(0)
 
 

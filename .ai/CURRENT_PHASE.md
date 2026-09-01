@@ -85,16 +85,21 @@
   stack is now the ordinary chained frame/swap path, not transfer-worker or
   pipeline creation. This isolates the current trigger to the Intel realtime
   cascaded-shadow submission rather than city size or compilation concurrency.
-- The affected Intel macOS path now keeps Forward+ sky/key lighting and 2x MSAA
-  but disables both realtime shadow maps and SSAO. SSAO was already known to be
-  unusable on this machine from its severe performance collapse and must not be
-  reintroduced. A small unshaded radial contact-shadow plane follows each Jeep,
-  giving the desired soft grounding without a shadow atlas. Supported non-Intel
-  adapters retain the staged four-cascade sun and low SSAO. Clean 4.6.3 import
-  and the forced-Intel five-tick presentation smoke pass. The complete
-  permission-correct suite again ends in `ALL_TESTS PASS`, including the new
-  moving soft-contact-shadow regression. No rendered retry of this fallback has
-  been launched.
+- The affected Intel macOS path keeps Forward+ sky/key lighting and 2x MSAA but
+  never enables SSAO or the four-cascade directional sun shadow. SSAO was
+  already known to be unusable on this machine from its severe performance
+  collapse and must not be reintroduced. The user confirmed the shadowless
+  monitored run `.crash-runs/20260901-014020` stayed up, then clarified that
+  realtime shadows themselves are not forbidden: the prior player-following
+  spotlight shadow worked on this machine. The next bounded configuration
+  therefore stages only that spotlight after the base frame, limits city
+  buildings to receivers rather than casters, and uses a modest area size for
+  soft edges. The shader contact blob remains available through
+  `CAR_FIGHT_FORCE_BLOB_SHADOWS=1`. Supported non-Intel adapters retain the
+  staged four-cascade sun and low SSAO. Clean import, focused lighting tests,
+  the forced-Intel presentation smoke, and the complete permission-correct
+  suite pass (`ALL_TESTS PASS`). This revised spotlight path has not yet had a
+  rendered run.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 

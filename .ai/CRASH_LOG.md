@@ -29,10 +29,14 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
   transfer workers. This rules out ongoing compilation concurrency as the
   immediate trigger for this incident and isolates the realtime directional
   shadow submission.
-- The safe Intel policy is now no realtime directional/positional shadow maps
-  and no SSAO. Forward+ sky/key lighting remains, while an unshaded radial plane
-  supplies a soft Jeep contact shadow without using the shadow atlas. Other
-  adapters retain cascades and low SSAO.
+- The incident proves this four-cascade directional submission is unsafe; it
+  does not prove every shadow type is unsafe. SSAO remains prohibited. After the
+  user confirmed shadowless run `.crash-runs/20260901-014020` stayed up, they
+  clarified that the earlier player-following spotlight shadow worked on this
+  machine. The next bounded probe restores only that positional shadow after
+  the base frame, keeps city buildings out of its caster set, and retains the
+  shader contact blob as an explicit emergency fallback. Other adapters retain
+  cascades and low SSAO.
 
 - Prior incident: 2026-09-01 01:07:23 -0500, Godot incident
   `8BC7CC15-C22E-4A57-A609-BE718EA5400D`, PID 84825, Godot 4.6.3 x86_64.
