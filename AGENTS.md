@@ -51,8 +51,9 @@ Keep renderer changes small and auditable.
   diagnostics merely to reconfirm them. Read
   `MAC_INTEL_FULLSCREEN_FINDINGS.md` before changing display policy.
 - Keep the default Forward+ feature-first startup queue: present the base
-  environment, cascaded shadows, and SSAO before attaching the bulk of the
-  render scene, then add custom shaders, the default Jeep, city mesh-resource
+  environment and, only on supported adapters, cascaded shadows and SSAO
+  before attaching the bulk of the render scene, then add custom shaders, the
+  default Jeep, city mesh-resource
   families, and street trees in bounded presented-frame batches. Visibility
   is not a substitute for this queue; Godot 4.6 precompiles surfaces as soon
   as even an invisible MeshInstance3D enters the scene tree. Preserve the
@@ -60,3 +61,9 @@ Keep renderer changes small and auditable.
   quality 1, or attaching the complete cold city before frame one, produced a
   captured Intel RCS hardware-ring hang and kernel GPU restart; do not repeat
   either rendered probe without a new bounded mitigation.
+- On this Intel macOS machine, never enable realtime directional/positional
+  shadow maps or SSAO. The monitored `bc60072` run completed its base phase
+  with every compiler worker idle, then hung the command buffer submitted
+  immediately after enabling the four-cascade sun. Use the tracked shader-based
+  soft contact shadow fallback here. Preserve cascades and low SSAO only for
+  supported non-Intel adapters.

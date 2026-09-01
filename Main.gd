@@ -20,6 +20,8 @@ const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
 const CONTROLLER_INPUT := preload("res://player/controller_input.gd")
 const SPEED_CAMERA_SCRIPT := preload("res://fx/speed_camera.gd")
+const SOFT_BLOB_SHADOW_SCRIPT := preload("res://fx/soft_blob_shadow.gd")
+const SOFT_BLOB_SHADOW_SHADER := preload("res://fx/soft_blob_shadow.gdshader")
 const OCCLUDED_SUPPORT_HINTS_SCRIPT := preload("res://fx/occluded_support_hints.gd")
 const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
@@ -336,6 +338,7 @@ var _join_stall_started := false
 var _persisted_oil_tuning := {}
 var _persisted_oil_tuning_pending := false
 var _lighting_startup_staged := false
+var _intel_shadow_fallback := false
 
 func _ready() -> void:
 	_parse_args()
@@ -1552,6 +1555,23 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	rope.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	rope.visible = false
 	body.add_child(rope)
+	if _intel_shadow_fallback:
+		_add_soft_blob_shadow(body)
+
+
+func _add_soft_blob_shadow(body: RigidBody3D) -> void:
+	var blob := MeshInstance3D.new()
+	blob.name = "IntelSoftContactShadow"
+	blob.set_script(SOFT_BLOB_SHADOW_SCRIPT)
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(4.4, 5.8)
+	blob.mesh = plane
+	var material := ShaderMaterial.new()
+	material.shader = SOFT_BLOB_SHADOW_SHADER
+	blob.material_override = material
+	blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	blob.set_meta("arena_presentation", true)
+	body.add_child(blob)
 
 func _build_home_world() -> void:
 	_build_city_space()
@@ -1829,6 +1849,7 @@ func _build_presentation() -> void:
 
 
 func _build_city_lighting() -> void:
+	_intel_shadow_fallback = _should_use_intel_shadow_fallback()
 	var environment := WorldEnvironment.new()
 	_world_environment = Environment.new()
 	_world_environment.background_mode = Environment.BG_COLOR
@@ -1889,7 +1910,7 @@ func _build_city_lighting() -> void:
 	_shadow_light.spot_range = 100.0
 	_shadow_light.spot_angle = 66.0
 	_shadow_light.spot_attenuation = 0.1
-	_shadow_light.shadow_enabled = true
+	_shadow_light.shadow_enabled = not _intel_shadow_fallback
 	_shadow_light.shadow_opacity = 0.92
 	_shadow_light.shadow_bias = 0.12
 	_shadow_light.shadow_normal_bias = 1.25
@@ -1906,6 +1927,17 @@ func _build_city_lighting() -> void:
 	# Keep the chosen grade, but let the first frame establish its base pipelines.
 	_lighting_startup_staged = _lighting_style_index == 4
 	_apply_lighting_style(_lighting_startup_staged)
+	if _intel_shadow_fallback:
+		_log("RENDER_SHADOW_MODE mode=soft_blob reason=intel_macos_realtime_timeout")
+
+
+func _should_use_intel_shadow_fallback() -> bool:
+	if OS.get_environment("CAR_FIGHT_FORCE_SAFE_INTEL_LIGHTING") == "1":
+		return true
+	if DisplayServer.get_name() == "headless":
+		return false
+	var adapter := str(RenderingServer.get_video_adapter_name()).to_lower()
+	return OS.has_feature("macos") and "intel" in adapter
 
 
 func _build_hud(hud: CanvasLayer) -> void:
@@ -2012,7 +2044,7 @@ func _build_city_presentation(staged: bool = false) -> void:
 		_city_presentation.call("begin_staged_presentation")
 	else:
 		_city_presentation.call("build_presentation")
-	_city_presentation.call("set_lighting_style", _lighting_style_index)
+	_city_presentation.call("set_lighting_style", _effective_city_lighting_style())
 
 
 func _build_oil_slick_presentation() -> void:
@@ -2053,12 +2085,22 @@ func _finish_staged_rendered_startup() -> void:
 	var before := _pipeline_compilation_counts()
 	await _finish_startup_pipeline_batch("base", before)
 	if _lighting_startup_staged and _lighting_style_index == 4:
-		before = _pipeline_compilation_counts()
-		_sun_light.shadow_enabled = true
-		await _finish_startup_pipeline_batch("directional_shadows", before)
-		before = _pipeline_compilation_counts()
-		_world_environment.ssao_enabled = true
-		await _finish_startup_pipeline_batch("ssao", before)
+		if _intel_shadow_fallback:
+			_record_render_startup_phase("directional_shadows_skipped_intel",
+				_pipeline_compilation_counts(), 0)
+		else:
+			before = _pipeline_compilation_counts()
+			_record_render_startup_phase("directional_shadows_begin", before, 0)
+			_sun_light.shadow_enabled = true
+			await _finish_startup_pipeline_batch("directional_shadows", before)
+		if _intel_shadow_fallback:
+			_record_render_startup_phase("ssao_skipped_intel",
+				_pipeline_compilation_counts(), 0)
+		else:
+			before = _pipeline_compilation_counts()
+			_record_render_startup_phase("ssao_begin", before, 0)
+			_world_environment.ssao_enabled = true
+			await _finish_startup_pipeline_batch("ssao", before)
 
 	before = _pipeline_compilation_counts()
 	_shield_drone.call("build_presentation")
@@ -2110,8 +2152,8 @@ func _finish_rendered_startup_without_frames() -> void:
 	# display driver, which never emits frame_post_draw. Preserve their complete
 	# scene contract without pretending they exercise the GPU startup path.
 	if _lighting_startup_staged and _lighting_style_index == 4:
-		_sun_light.shadow_enabled = true
-		_world_environment.ssao_enabled = true
+		_sun_light.shadow_enabled = not _intel_shadow_fallback
+		_world_environment.ssao_enabled = not _intel_shadow_fallback
 	_shield_drone.call("build_presentation")
 	_build_oil_slick_presentation()
 	_build_grass_presentation()
@@ -2316,10 +2358,11 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_world_environment.adjustment_brightness = 0.98
 			_world_environment.adjustment_contrast = 0.96
 			_world_environment.adjustment_saturation = 0.90
-			# Keep this first Intel Forward+ pass deliberately lean: real clustered
-			# rendering, low SSAO, and cascaded sun shadows, but no SSIL/SSR/SDFGI or
-			# TAA until the driving baseline proves stable and fast enough.
-			_world_environment.ssao_enabled = not stage_expensive
+			# Keep Forward+ deliberately lean. Supported adapters retain low SSAO and
+			# cascaded sun shadows; affected Intel macOS uses the blob-only fallback.
+			# SSIL/SSR/SDFGI and TAA remain disabled for this baseline.
+			_world_environment.ssao_enabled = not stage_expensive \
+				and not _intel_shadow_fallback
 			_world_environment.ssao_radius = 1.6
 			_world_environment.ssao_intensity = 1.0
 			_world_environment.ssao_power = 1.2
@@ -2328,7 +2371,8 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_sun_light.light_color = Color(1.0, 0.965, 0.90)
 			_sun_light.light_energy = 1.65
 			_sun_light.light_specular = 0.8
-			_sun_light.shadow_enabled = not stage_expensive
+			_sun_light.shadow_enabled = not stage_expensive \
+				and not _intel_shadow_fallback
 			_sun_light.shadow_opacity = 0.88
 			_sun_light.light_angular_distance = 0.65
 			_sun_light.shadow_blur = 1.0
@@ -2356,7 +2400,13 @@ func _apply_lighting_style(stage_expensive: bool = false) -> void:
 			_sun_light.light_energy = 0.28
 			_shadow_light.visible = true
 	if _city_presentation != null:
-		_city_presentation.call("set_lighting_style", _lighting_style_index)
+		_city_presentation.call("set_lighting_style", _effective_city_lighting_style())
+
+
+func _effective_city_lighting_style() -> int:
+	# Do not ask Godot to precompile shadow-caster surface variants when this
+	# adapter cannot safely submit the corresponding realtime shadow pass.
+	return 0 if _intel_shadow_fallback else _lighting_style_index
 
 
 func _build_vehicle_model_menu() -> void:

@@ -75,6 +75,26 @@
   No rendered client has been launched with this replacement yet; the next step
   is one explicitly approved ordinary-window monitored run, not a reboot or an
   unmonitored retry.
+- That approved run, `.crash-runs/20260901-012757` at `bc60072`, provided the
+  missing isolation. The base phase presented successfully with only 19 total
+  compilations (11 surface, 7 specialization, 1 canvas). All eight compiler
+  workers were idle in the crash report. Immediately after the base completion
+  record, startup enabled the four-cascade directional sun and submitted the
+  next frame; that command buffer remained stuck for about five seconds and
+  returned the same Metal `kIOAccelCommandBufferCallbackErrorTimeout`. The main
+  stack is now the ordinary chained frame/swap path, not transfer-worker or
+  pipeline creation. This isolates the current trigger to the Intel realtime
+  cascaded-shadow submission rather than city size or compilation concurrency.
+- The affected Intel macOS path now keeps Forward+ sky/key lighting and 2x MSAA
+  but disables both realtime shadow maps and SSAO. SSAO was already known to be
+  unusable on this machine from its severe performance collapse and must not be
+  reintroduced. A small unshaded radial contact-shadow plane follows each Jeep,
+  giving the desired soft grounding without a shadow atlas. Supported non-Intel
+  adapters retain the staged four-cascade sun and low SSAO. Clean 4.6.3 import
+  and the forced-Intel five-tick presentation smoke pass. The complete
+  permission-correct suite again ends in `ALL_TESTS PASS`, including the new
+  moving soft-contact-shadow regression. No rendered retry of this fallback has
+  been launched.
 
 ## Godot 4.6.3 + Rapier 0.8.35 integration candidate
 

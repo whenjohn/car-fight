@@ -14,7 +14,27 @@ do not prescribe a reboot as the routine diagnostic or recovery step.
 
 ## 2026-09-01 Forward+ cold-pipeline device loss
 
-- Latest incident: 2026-09-01 01:07:23 -0500, Godot incident
+### 01:28 incident isolates cascaded shadows
+
+- Incident `F302FC55-105C-45CD-BFC6-24A021C422F6`, PID 86070, run
+  `.crash-runs/20260901-012757`, commit `bc60072`.
+- The new startup telemetry completed `base` at 01:28:02 with 19 compilations:
+  11 surface, 7 specialization, 1 canvas, and zero mesh/draw. Startup then
+  enabled the four-cascade directional shadow before awaiting its next frame.
+  That frame never completed; Metal reported the command-buffer timeout at
+  01:28:07.
+- Every Godot worker thread was idle in `WorkerThreadPool::_thread_function` at
+  capture. The main thread was in `execute_chained_cmds` / `_execute_frame` /
+  `swap_buffers`, unlike the prior capture with active pipeline-creation and
+  transfer workers. This rules out ongoing compilation concurrency as the
+  immediate trigger for this incident and isolates the realtime directional
+  shadow submission.
+- The safe Intel policy is now no realtime directional/positional shadow maps
+  and no SSAO. Forward+ sky/key lighting remains, while an unshaded radial plane
+  supplies a soft Jeep contact shadow without using the shadow atlas. Other
+  adapters retain cascades and low SSAO.
+
+- Prior incident: 2026-09-01 01:07:23 -0500, Godot incident
   `8BC7CC15-C22E-4A57-A609-BE718EA5400D`, PID 84825, Godot 4.6.3 x86_64.
 - Evidence bundle: `.crash-runs/20260901-010710`, project commit `626ee8b`,
   ordinary 1280 x 720 window, Forward+ Vulkan/MoltenVK on Intel Iris Plus.

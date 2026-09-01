@@ -21,7 +21,7 @@ func _init() -> void:
 		"Godot 4.6 does not share its Vulkan pipeline cache with other engines")
 	_check("_world_environment.ssao_enabled = true" in source \
 		and "environment/ssao/quality=0" in project,
-		"the default Forward+ preset enables the accepted low SSAO pass")
+		"the default Forward+ preset retains low SSAO for supported adapters")
 	_check("_world_environment.ssil_enabled = false" in source \
 		and "_world_environment.ssr_enabled = false" in source \
 		and "_world_environment.sdfgi_enabled = false" in source,
@@ -39,7 +39,12 @@ func _init() -> void:
 		and 'call("add_next_presentation_batch")' in source \
 		and "_finish_startup_pipeline_batch" in source,
 		"city mesh families enter Forward+ through the presented-frame startup queue")
-	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5")
+	_check("func _should_use_intel_shadow_fallback()" in source \
+		and "directional_shadows_skipped_intel" in source \
+		and "ssao_skipped_intel" in source \
+		and 'preload("res://fx/soft_blob_shadow.gdshader")' in source,
+		"Intel macOS avoids realtime shadow maps and SSAO and uses soft contact blobs")
+	print("HOME_WORLD_LIGHTING_TEST PASS default=forward_plus_sunlit presets=5 intel=blob_no_ssao")
 	quit(0)
 
 
