@@ -209,6 +209,9 @@ if [[ "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
 	client_user_args+=(--network-hud --network-profile "${CAR_FIGHT_NETWORK_PROFILE:-unshaped}" \
 		--net-telemetry)
 fi
+if [[ "${CAR_FIGHT_CLIENT_CRUISE:-0}" == "1" ]]; then
+	client_user_args+=(--client-cruise)
+fi
 if [[ "${CAR_FIGHT_HIDE_HOTKEY_HINTS:-0}" == "1" ]]; then
 	client_user_args+=(--hide-hotkey-hints)
 fi

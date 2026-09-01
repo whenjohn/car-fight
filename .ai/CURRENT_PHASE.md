@@ -61,6 +61,39 @@
   retained two active same-map remotes, observed advancing peer positions, and
   reported `malformed=0`; the user confirmed visibility worked. The temporary
   isolated macai2 service was stopped, and production remains unchanged.
+- Clean native two-human-client regression also passes. Run
+  `.crash-runs/two-client-20260831-210742` used an isolated macai2 server with
+  no server-driven fixture; reciprocal movement, collision, and special
+  weapons were human-approved. Closing Bravo reduced Alpha to one player and
+  zero active remotes. Rejoined Bravo in `.crash-runs/rejoin-20260831-212100`
+  received a fresh peer ID, restored Alpha to two players with a clean
+  membership enter, and moved normally. No script, rollback-history, Vulkan,
+  or device-loss error was found. The isolated server was stopped.
+- The 120 ms one-way two-native human row passes at
+  `.crash-runs/two-client-20260831-211639`. Both peers remained present and
+  functional; the user observed mild constant remote cadence but no sharp
+  pullback and accepted it as expected under roughly 265 ms RTT. Ordinary
+  moving corrections were about 0.30 units and remained below the established
+  2-unit ceiling. The generic monitored launcher now forwards the existing
+  opt-in `CAR_FIGHT_CLIENT_CRUISE=1` setting to `--client-cruise`.
+- Interactive WebRTC soak review found a harness-only conflict: any positive
+  soak duration appended `script=idle`, while ordinary input intentionally
+  returns early in scripted mode. The browser therefore could not drive or
+  toggle `P`. Automated soaks retain `script=idle`; interactive browser soaks
+  now omit it. The Chrome control helper can also dispatch the existing cruise
+  toggle through the dedicated DevTools profile for reproducible tests.
+- The first sustained dual-render Mac+Chrome attempt
+  `.network-runs/20260901T022018Z-42079-14213-webrtc-latency120` was rejected
+  when both local renderers fell near 15 FPS; its WebRTC channels remained
+  open, matching the already measured same-machine load limitation. The
+  separated browser-rendered forced-TURN run
+  `.network-runs/20260901T023352Z-47692-32167-webrtc-latency120` then passed
+  about 6.5 minutes of human driving plus refresh/rejoin. Chrome averaged
+  43.62 FPS (24.79 minimum), had zero recoveries, kept its maximum channel
+  queue to 3,896 bytes, and carried 110,724 shaped TURN packets without loss.
+  The only SCTP send failure coincided with the user's final browser close and
+  was immediately followed by the expected peer leave. Isolated services were
+  cleaned up.
 
 ## Trees, foliage, and lighting audition ready for human review
 

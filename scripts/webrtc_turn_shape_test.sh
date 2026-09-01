@@ -448,13 +448,15 @@ elif [[ "$interactive_browser" != "1" ]]; then
 fi
 
 browser_script_query=""
-if (( soak_seconds > 0 )); then
+if (( soak_seconds > 0 )) && [[ "$interactive_browser" != "1" ]]; then
+	# Automated soaks stay parked so topology is stable. Human browser soaks
+	# must keep ordinary input active, including the opt-in P cruise control.
 	browser_script_query="&script=idle"
 fi
 browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&runId=$run_id&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1$browser_stack_query$browser_script_query"
 if [[ "$interactive_browser" == "1" ]]; then
 	chrome_bin="${CHROME_BIN:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
-	echo "browser control: node scripts/set_networking1_browser_mode.mjs '$chrome_profile' fixed|adaptive|predictive|proxy"
+	echo "browser control: node scripts/set_networking1_browser_mode.mjs '$chrome_profile' fixed|adaptive|predictive|proxy|cruise"
 	"$chrome_bin" --remote-debugging-port=0 --user-data-dir="$chrome_profile" \
 		--no-first-run --no-default-browser-check --disable-extensions \
 		--disable-background-timer-throttling --disable-backgrounding-occluded-windows \
