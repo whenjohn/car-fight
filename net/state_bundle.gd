@@ -428,10 +428,6 @@ func _is_adapting_peer(peer: int) -> bool:
 	# base == 1 means there is nothing to back off TO, so ENet is structurally inert.
 	return _cad_adaptive and _base_divisor_for(peer) > 1
 
-## Public: the divisor this peer is currently served at (telemetry/gates).
-func peer_divisor(peer: int) -> int:
-	return _divisor_for(peer)
-
 ## Public: divisor changes this peer has seen — the "did it flap?" number, so a noisy trigger can be
 ## demoted later with data instead of vibes.
 func peer_cadence_flaps(peer: int) -> int:

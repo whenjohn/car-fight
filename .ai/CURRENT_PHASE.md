@@ -93,6 +93,12 @@ Completed branch commits:
   described the retired tree/prop auditions, old arena size, sphere collider,
   ramps/map gates, and an outdated vehicle-mesh contract. Fast structural and
   exact stale-phrase checks pass; no runtime files changed.
+- Network/rollback layer: removed three uncalled, side-effect-free transport/
+  cadence query getters while preserving MultiplayerPeer overrides, transport
+  ownership, routing, internal cadence decisions, state, and wire behavior.
+  Focused StateBundle/codec/remote-position checks pass; the owner confirmed
+  normal ENet play, and the monitor ended cleanly. Dormant recovery/failure
+  injection seams remain protected on CH-022 hold.
 
 Validation for the import-verifier cleanup:
 

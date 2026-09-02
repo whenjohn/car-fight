@@ -450,3 +450,39 @@ behavior.
   search finds none of the replaced stale claims.
 - Status: **Resolved** on this branch; no rendered check required for prose and
   comments only.
+
+### CH-022 — Dormant network fault-injection and failure-log seams
+
+- Classification: apparently obsolete test code at a protected boundary.
+- Evidence: the StateBundle stale-key, delayed-envelope, and key-suppression
+  setters have no current repository caller, as does WebRTC's expected-failure
+  logging setter. Their backing fields and branches remain embedded in recovery,
+  coalescing, delayed release, and failure handling from the G2 stack port.
+- Proposed change: trace the original G2 gates and confirm no external/manual
+  harness contract before removing the complete seams. Do not leave permanently
+  false branches by deleting only their setters.
+- Validation: focused StateBundle recovery/coalescing and WebRTC lifecycle
+  characterization, reconnect/join gates, and the complete integration boundary.
+- Risk/rollback: high relative to ordinary cleanup because the branches sit in
+  protected stale-history recovery and transport failure paths.
+- Status: **Hold** for separate historical characterization.
+
+### CH-023 — Uncalled network telemetry/query getters
+
+- Classification: definitely dead API surface.
+- Evidence: repository-wide symbol and string-call searches find no caller for
+  `MuxMultiplayerPeer.peer_uses_webrtc()`, `has_webrtc_peer()`, or
+  `StateBundle.peer_divisor()`. They are not MultiplayerPeer virtual overrides.
+  The live `has_enet_peer()` send guard, generic transport ownership query,
+  first-peer lookup, internal `_divisor_for()`, and cadence telemetry remain.
+- Change: remove only the three side-effect-free getters. Preserve transport
+  ownership/lifecycle, routing, cadence decisions, fields, and wire behavior.
+- Validation: focused mux and StateBundle cadence tests, fast import/manifest/
+  UID checks, then owner normal ENet play verification.
+- Risk/rollback: low; no executable path references the removed methods, but
+  this remains inside the protected network layer.
+- Result: focused StateBundle coalescing, state codec, remote-position transport,
+  fast import/manifest/UID, and diff checks pass. The owner confirmed normal
+  ENet join, driving, city objects, and networked interactions in monitored
+  local server/client play. The monitor ended cleanly.
+- Status: **Resolved** on this branch with owner play approval.

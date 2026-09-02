@@ -43,17 +43,8 @@ func transport_for_peer(peer_id: int) -> String:
 	return str(_owners.get(peer_id, ""))
 
 
-func peer_uses_webrtc(peer_id: int) -> bool:
-	return transport_for_peer(peer_id) == TRANSPORT_WEBRTC
-
-
 func has_enet_peer(peer_id: int) -> bool:
 	return transport_for_peer(peer_id) == TRANSPORT_ENET
-
-
-func has_webrtc_peer(peer_id: int) -> bool:
-	return transport_for_peer(peer_id) == TRANSPORT_WEBRTC
-
 
 func first_peer_for_transport(transport: String) -> int:
 	for peer_variant in _owners:
