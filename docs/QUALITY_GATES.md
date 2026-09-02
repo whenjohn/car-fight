@@ -17,6 +17,10 @@ Documentation-only changes need `git diff --check` and verification of the
 links or commands they change. They do not require a Godot import or gameplay
 test.
 
+The fast check verifies that every standalone `tests/*_test.gd` appears exactly
+once in the comprehensive runner. It checks the manifest without executing all
+of those feature tests.
+
 ## Gate selection
 
 | Change | Required validation | Add when integration changed |

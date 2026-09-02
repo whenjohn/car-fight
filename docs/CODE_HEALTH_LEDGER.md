@@ -194,4 +194,5 @@ behavior.
   test name is reported.
 - Risk/rollback: low; the rule must exclude helper/replay scripts that are not
   standalone `*_test.gd` programs.
-- Status: **Approved**.
+- Status: **Resolved** on this branch. The structural check covers all 32
+  current standalone GDScript tests without executing them.

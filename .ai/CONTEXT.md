@@ -43,8 +43,8 @@ rules.
 
 ## Validation
 
-- `./scripts/check.sh`: quiet two-pass import, shell/Node syntax, orphan UID,
-  and staged/unstaged diff checks.
+- `./scripts/check.sh`: quiet two-pass import, shell/Node syntax, complete-suite
+  test-manifest coverage, orphan UID, and staged/unstaged diff checks.
 - `docs/QUALITY_GATES.md`: choose the smallest tests that cover a change.
 - `./scripts/test.sh`: expensive comprehensive milestone gate; do not run it
   after every localized change.

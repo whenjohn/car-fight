@@ -29,6 +29,8 @@ for script in "$project_root"/scripts/*.mjs; do
 	fi
 done
 
+CAR_FIGHT_MANIFEST_QUIET=1 "$project_root/scripts/test_manifest_check.sh"
+
 orphan_uids=()
 while IFS= read -r uid_file; do
 	resource_file="${uid_file%.uid}"
@@ -46,4 +48,4 @@ fi
 
 git -C "$project_root" diff --check
 git -C "$project_root" diff --cached --check
-echo "FAST_CHECK PASS import=2 shell=ok node=ok uid=ok diff=ok"
+echo "FAST_CHECK PASS import=2 shell=ok node=ok tests=listed uid=ok diff=ok"

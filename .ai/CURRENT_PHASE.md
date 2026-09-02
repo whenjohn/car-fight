@@ -55,10 +55,9 @@ Validation for the import-verifier cleanup:
    exact deletion manifest and separate owner approval. Its old `gate_test.sh`
    still consumes the constant-zero course/gate `RESULT` fields, so retain that
    output contract until deployment state is resolved.
-3. Add a structural full-suite manifest check without executing every test.
-4. Produce a keep/delete ledger for merged and diagnostic branches; delete no
+3. Produce a keep/delete ledger for merged and diagnostic branches; delete no
    branch without separate owner approval.
-5. Characterize one low-coupling `Main.gd` boundary before considering any
+4. Characterize one low-coupling `Main.gd` boundary before considering any
    structural extraction.
 
 The complete former phase log is preserved at
