@@ -30,9 +30,11 @@
   fixed them without changing any calculation, packet, state, or control flow.
   The second fresh-cache parse and focused offline/network checks pass.
 - All obsolete 4.6 Car Fight launchd services were removed from macai2. No Car
-  Fight server is currently running there. Human offline city review is next;
-  after approval, promote this resurrection to canonical `car-fight`/master,
-  then deploy a fresh Godot 4.7 server from that exact code.
+  Fight server remained during resurrection work. The approved build is now
+  canonical `master` and deployed as the sole Car Fight service using Godot
+  4.7.1 and Rapier 0.8.39. Human validation passed first offline, then with one
+  native ENet client and one browser WebRTC client together in Low Poly City;
+  macai2 reported two synchronized players in the same mux world.
 
 ## Archived context below (superseded by the resurrection decision)
 
