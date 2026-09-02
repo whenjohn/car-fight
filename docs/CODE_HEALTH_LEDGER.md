@@ -211,3 +211,27 @@ behavior.
   standalone `*_test.gd` programs.
 - Status: **Resolved** on this branch. The structural check covers all 33
   current standalone GDScript tests without executing them.
+
+### CH-011 — Authority-probe gates cannot receive queued samples
+
+- Classification: pre-existing network-test correctness defect.
+- Evidence: the pre-merge suite and two focused reruns of
+  `scripts/network_test.sh` produced no client `CORRECTION` lines. The matching
+  `scripts/mixed_transport_test.sh` assertion also reported a missing sample.
+  Both focused gates fail identically on untouched `master@d949ba7`.
+  `_send_settled_authority_probes()` appends samples to
+  `_authority_probe_queue`, but the current repository contains no consumer of
+  that queue and therefore no call that delivers those samples to
+  `_receive_authority_probe()`.
+- History: determine when the queue consumer was removed or stopped running
+  before changing delivery timing or RPC behavior.
+- Proposed change: handle as a separate networking bugfix. Restore or replace
+  the intended delayed delivery seam, then prove same-tick coverage under ENet
+  and mixed ENet/WebRTC transport without changing simulation authority.
+- Validation: focused `network_test.sh` and `mixed_transport_test.sh`, followed
+  by late-join and reconnect gates; run the complete suite once at that
+  bugfix's integration boundary.
+- Risk/rollback: high. Authority-probe delivery is diagnostic, but its timing
+  crosses rollback and transport behavior.
+- Status: **Hold** for a separate characterized networking fix; not caused or
+  changed by this cleanup branch.

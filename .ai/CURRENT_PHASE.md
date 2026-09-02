@@ -46,16 +46,16 @@ Completed branch commits:
   No remote file was changed.
 - `f73ff79` — added a structural manifest guard; it now covers all 33 standalone
   GDScript tests without executing them during the fast check.
-- The macai2 deployment helper now defaults to a read-only preview, requires an
-  explicit `apply` from a clean `master`, and preserves generated/local state.
+- `bcf13d9` — the macai2 deployment helper now defaults to a read-only preview,
+  requires an explicit `apply` from a clean `master`, and preserves
+  generated/local state.
   Its preview matched the exact 33 stale files plus two empty directories;
   nothing has been deleted remotely.
-- `docs/BRANCH_LEDGER.md` records the protected recovery refs, both active
-  worktrees, and 20 merged local plus 20 merged remote cleanup candidates. No
-  branch, tag, worktree, or archive was deleted.
-- The server `RESULT` schema is characterized in the focused offline smoke, and
-  its pure 32-field formatter now lives outside `Main.gd`. Metric collection,
-  report timing, gameplay, authority, RPCs, and transport behavior are unchanged.
+- `17b2068` — recorded protected recovery refs, both active worktrees, and 20
+  merged local plus 20 merged remote cleanup candidates. No ref was deleted.
+- `a38b91c` / `ba2b903` — characterized the server `RESULT` schema and moved
+  its pure 32-field formatter outside `Main.gd`. Metric collection, report
+  timing, gameplay, authority, RPCs, and transport behavior are unchanged.
 
 Validation for the import-verifier cleanup:
 
@@ -63,8 +63,20 @@ Validation for the import-verifier cleanup:
 - `./scripts/server_daemon.sh import` passes.
 - A bounded Web Offline debug export passes.
 - The test-manifest positive check and omitted-test negative control pass.
-- The complete gameplay/network suite was not run because the change affects
-  validation tooling only.
+- At that import-only checkpoint, the complete gameplay/network suite was not
+  run because the change affected validation tooling only.
+
+Accumulated cleanup-boundary validation:
+
+- All 33 focused GDScript tests, the WebRTC harness lifecycle, offline smoke,
+  late-join recovery, reconnect, ball, tractor, reverse, combat, RC-orb,
+  shield, and det gates pass.
+- `network_test.sh` and `mixed_transport_test.sh` fail because no queued
+  authority probe reaches clients. Both failures reproduce on untouched
+  `master@d949ba7`, so they are recorded as pre-existing CH-011 network-test
+  debt rather than a cleanup regression.
+- The first sandboxed WebRTC lifecycle attempt failed with loopback
+  `listen EPERM`; its required unsandboxed rerun passed.
 
 ## Next
 
@@ -79,6 +91,8 @@ Validation for the import-verifier cleanup:
    approval and a fresh merged/ancestor check.
 4. Treat the characterized result-report boundary as the limit of this cleanup;
    argument parsing and any further `Main.gd` extraction remain on hold.
+5. Fix CH-011 authority-probe delivery only as a separate networking task with
+   focused ENet and mixed-transport characterization.
 
 The complete former phase log is preserved at
 `docs/history/CURRENT_PHASE_THROUGH_2026-09-02.md`.
