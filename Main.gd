@@ -1569,14 +1569,10 @@ func _build_shader_ground(node_name: String, center: Vector3, half_extent: float
 
 func _add_static_box(node_name: String, size: Vector3, position: Vector3, color: Color,
 		yaw: float = 0.0, visible: bool = true) -> void:
-	_add_static_oriented_box(node_name, size, position, color, Vector3(0.0, yaw, 0.0), visible)
-
-func _add_static_oriented_box(node_name: String, size: Vector3, position: Vector3,
-		color: Color, rotation: Vector3, visible: bool = true) -> void:
 	var body := StaticBody3D.new()
 	body.name = node_name
 	body.position = position
-	body.rotation = rotation
+	body.rotation = Vector3(0.0, yaw, 0.0)
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = size

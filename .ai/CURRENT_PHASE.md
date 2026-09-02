@@ -74,6 +74,10 @@ Completed branch commits:
   audition package. Focused tree, city, lighting, and fast checks pass; the
   owner confirmed the complete street-tree lining and normal play, and the
   monitor ended cleanly.
+- World/construction layer: folded the obsolete arbitrary-rotation static-box
+  helper into the live yaw-only city builder after tracing its removed ramp and
+  upper-road callers. Focused city and reverse/wall checks pass; the owner
+  confirmed building and outer-wall collision, and the monitor ended cleanly.
 
 Validation for the import-verifier cleanup:
 

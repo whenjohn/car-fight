@@ -348,3 +348,24 @@ behavior.
   unchanged alongside normal city, dots, driving, and lighting in monitored
   local server/client play. The monitor ended cleanly.
 - Status: **Resolved** on this branch with owner play approval.
+
+### CH-017 — Removed elevated course leaves arbitrary-rotation box wrapper
+
+- Classification: definitely dead world-construction indirection.
+- Evidence: `_add_static_oriented_box()` was introduced in `58f6f9c` for the
+  former launch ramp and upper roads. Those were removed by the city-only
+  resurrection. Its only remaining caller is `_add_static_box()`, which merely
+  converts its yaw to `Vector3(0, yaw, 0)` and forwards every argument.
+- Change: keep the live yaw-only helper and move the unchanged static-body,
+  collision, and optional presentation construction into it.
+- Validation: city presentation/lighting and fast import checks, the focused
+  reverse/wall collision gate, then owner driving verification against city
+  buildings and walls.
+- Risk/rollback: very low; node construction and order are unchanged, and the
+  same yaw vector is assigned directly.
+- Result: city presentation, lighting, fast import/manifest/UID, diff, and the
+  focused reverse/wall collision gate pass. The first reverse-gate attempt was
+  sandbox-blocked from opening ENet; its required unrestricted rerun passed.
+  The owner confirmed normal collision against a city building and outer wall,
+  and the monitored local server/client run ended cleanly.
+- Status: **Resolved** on this branch with owner play approval.
