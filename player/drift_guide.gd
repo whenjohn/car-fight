@@ -21,6 +21,7 @@ const BRAKE_COLOR := Color("fff1b8")
 const BOOST_COLOR := Color("ff742e")
 const LEFT_ZONE_COLOR := Color("67e8b1")
 const RIGHT_ZONE_COLOR := Color("d688ff")
+const GROUND_OVERLAY_PRIORITY := 4
 
 var _body: RigidBody3D
 var _base_ring: MeshInstance3D
@@ -43,11 +44,11 @@ var _last_charge_step := -1
 
 func _ready() -> void:
 	_body = get_parent() as RigidBody3D
-	_base_material = _material(Color(SPEED_COLOR, 0.13), 0.20)
-	_speed_material = _material(Color(SPEED_COLOR, 0.72), 1.1)
-	_boost_material = _material(Color(BOOST_COLOR, 0.86), 1.8)
-	_left_zone_material = _material(Color(LEFT_ZONE_COLOR, 0.075), 0.20)
-	_right_zone_material = _material(Color(RIGHT_ZONE_COLOR, 0.075), 0.20)
+	_base_material = _material(Color(SPEED_COLOR, 0.13), 0.20, true)
+	_speed_material = _material(Color(SPEED_COLOR, 0.72), 1.1, true)
+	_boost_material = _material(Color(BOOST_COLOR, 0.86), 1.8, true)
+	_left_zone_material = _material(Color(LEFT_ZONE_COLOR, 0.075), 0.20, true)
+	_right_zone_material = _material(Color(RIGHT_ZONE_COLOR, 0.075), 0.20, true)
 	_base_ring = _mesh_node("SpeedRingBase",
 		_arc_mesh(RING_RADIUS, RING_THICKNESS, SPEED_ARC_START, SPEED_ARC_END, 1.0),
 		_base_material)
@@ -62,9 +63,9 @@ func _ready() -> void:
 			-ZONE_START, -ZONE_END),
 		_right_zone_material)
 	_left_meter = _mesh_node("LeftDriftMeter", ImmediateMesh.new(),
-		_material(Color(LEFT_ZONE_COLOR, 0.88), 2.0))
+		_material(Color(LEFT_ZONE_COLOR, 0.88), 2.0, true))
 	_right_meter = _mesh_node("RightDriftMeter", ImmediateMesh.new(),
-		_material(Color(RIGHT_ZONE_COLOR, 0.88), 2.0))
+		_material(Color(RIGHT_ZONE_COLOR, 0.88), 2.0, true))
 	_max_label = Label3D.new()
 	_max_label.name = "DriftMaxLabel"
 	_max_label.text = "MAX  →  GAS"
@@ -223,7 +224,8 @@ func _sector_mesh(inner_radius: float, outer_radius: float, start_angle: float,
 func _arc_point(radius: float, angle: float) -> Vector3:
 	return Vector3(-sin(angle) * radius, 0.02, -cos(angle) * radius)
 
-func _material(color: Color, emission_energy: float) -> StandardMaterial3D:
+func _material(color: Color, emission_energy: float,
+		ground_overlay: bool = false) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -232,4 +234,6 @@ func _material(color: Color, emission_energy: float) -> StandardMaterial3D:
 	material.emission = Color(color.r, color.g, color.b)
 	material.emission_energy_multiplier = emission_energy
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.no_depth_test = ground_overlay
+	material.render_priority = GROUND_OVERLAY_PRIORITY if ground_overlay else 0
 	return material

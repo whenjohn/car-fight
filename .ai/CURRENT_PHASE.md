@@ -148,9 +148,12 @@ Active visual-fix branch: `codex/city-draw-order` in
 - The local trajectory line, endpoint, and max-speed marker now share an
   unshaded depth-independent overlay material so city geometry cannot hide
   direct control feedback.
+- The speed/burst rings, both drift-assist areas and meters, and the opt-in
+  firing cones now also use depth-independent overlay materials. The owner
+  visually reviewed this combined pass in a monitored offline instance.
 - Focused skid/presentation tests, `./scripts/check.sh`, and
-  `./scripts/offline_test.sh` pass. A monitored visual acceptance pass remains
-  optional and requires owner approval.
+  `./scripts/offline_test.sh` pass. The owner accepted the combined draw-order
+  result in a monitored offline visual pass.
 
 1. Fix CH-011 authority-probe delivery only as a separate networking task with
    focused ENet and mixed-transport characterization.
