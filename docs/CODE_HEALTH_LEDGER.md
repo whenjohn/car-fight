@@ -103,11 +103,18 @@ behavior.
 - Characterization: the focused offline smoke now locks the server `RESULT`
   report's exact 32-field names and order before its formatting is separated
   from the coordinator.
+- Change: the stable field order and numeric formatting now live in
+  `diagnostics/server_result.gd`; `Main.gd` still owns when the report is
+  emitted and how every metric is collected.
 - Validation: depends on the extracted boundary; shared authority or RPC work
   requires the relevant network gate and the complete suite once before merge.
 - Risk/rollback: high. File size alone is not deletion or rewrite evidence.
-- Status: **Hold** until lower-risk cleanup and characterization coverage are
-  complete.
+- Result: the pure formatter test and focused offline smoke pass with the exact
+  prior result schema. This completes one low-coupling boundary without moving
+  gameplay, authority, RPC, or transport behavior.
+- Status: result-report boundary **Resolved** on this branch; argument parsing
+  and any broader coordinator extraction remain **Hold** for separate
+  characterization and review.
 
 ### CH-006 — Volatile agent state contains archived workstreams
 
@@ -202,5 +209,5 @@ behavior.
   test name is reported.
 - Risk/rollback: low; the rule must exclude helper/replay scripts that are not
   standalone `*_test.gd` programs.
-- Status: **Resolved** on this branch. The structural check covers all 32
+- Status: **Resolved** on this branch. The structural check covers all 33
   current standalone GDScript tests without executing them.

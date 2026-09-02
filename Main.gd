@@ -60,6 +60,7 @@ const OIL_SLICKS_SCRIPT := preload("res://world/oil_slicks.gd")
 const OVERCAST_HDRI_PATH := "res://assets/environment/kloofendal_overcast_puresky_2k.hdr"
 const CRASH_TELEMETRY_SCRIPT := preload("res://diagnostics/crash_telemetry.gd")
 const MOTION_TRACE_SCRIPT := preload("res://diagnostics/motion_trace.gd")
+const SERVER_RESULT := preload("res://diagnostics/server_result.gd")
 const WINDOW_SAFETY_POLICY_SCRIPT := preload("res://platform/window_safety_policy.gd")
 const RAPIER_DRIVER_SCRIPT := preload("res://addons/netfox.extras/physics/rapier_driver_3d.gd")
 const WEBRTC_TRANSPORT_SCRIPT := preload("res://net/webrtc_transport.gd")
@@ -3105,7 +3106,25 @@ func _on_tick(delta: float, tick: int) -> void:
 				_log("CLIENT_TICK tick=%d id=%d players=%d world=%s pos=(%.3f,%.3f) speed=%.3f map=%d cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), _players.get_child_count(), _client_world_positions(), local.position.x, local.position.z, local.speed(), int(local.get("map_id")), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
-			_log("RESULT players=%d minpair=%.3f contact=%d escapes=%d bumps=%d ballmax=%.3f maxy=%.3f landed=%d grounded=%d rebound=%.3f tilt=%.3f maxtilt=%.3f minx=%.3f cloaked=%d shields=%d boosting=%d tractorgrabs=%d tractorticks=%d shots=%d hits=%d ballhits=%d droneshots=%d dets=%d impacthits=%d shieldhits=%d impactmax=%.3f rcshots=%d rcdets=%d rchits=%d coursemaps=%d courseoff=%d gatetransitions=%d" % [_players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0, _server_escape_count(), _server_bump_count(), _maximum_ball_speed, _maximum_player_y, 1 if _course_landed else 0, 1 if _course_ground_landed else 0, _course_rebound_speed, _course_landing_tilt, _maximum_player_tilt, _minimum_player_x, _server_cloaked_count(), _server_shield_count(), _server_boosting_count(), _server_tractor_grabs(), _server_tractor_ticks(), _combat_shot_count, _combat_hit_count, _combat_ball_hit_count, _drone_shot_count, _det_nullification_count, _server_impact_hits(), _server_shield_hits(), _maximum_impact_speed, _rc_shot_count, _rc_detonation_count, _rc_hit_count, _server_course_map_count(), _server_course_off_count(), _server_gate_transition_count()])
+			_log(SERVER_RESULT.format_line({
+				"players": _players.get_child_count(), "minpair": _minimum_pair_distance,
+				"contact": 1 if _contact_seen else 0, "escapes": _server_escape_count(),
+				"bumps": _server_bump_count(), "ballmax": _maximum_ball_speed,
+				"maxy": _maximum_player_y, "landed": 1 if _course_landed else 0,
+				"grounded": 1 if _course_ground_landed else 0,
+				"rebound": _course_rebound_speed, "tilt": _course_landing_tilt,
+				"maxtilt": _maximum_player_tilt, "minx": _minimum_player_x,
+				"cloaked": _server_cloaked_count(), "shields": _server_shield_count(),
+				"boosting": _server_boosting_count(), "tractorgrabs": _server_tractor_grabs(),
+				"tractorticks": _server_tractor_ticks(), "shots": _combat_shot_count,
+				"hits": _combat_hit_count, "ballhits": _combat_ball_hit_count,
+				"droneshots": _drone_shot_count, "dets": _det_nullification_count,
+				"impacthits": _server_impact_hits(), "shieldhits": _server_shield_hits(),
+				"impactmax": _maximum_impact_speed, "rcshots": _rc_shot_count,
+				"rcdets": _rc_detonation_count, "rchits": _rc_hit_count,
+				"coursemaps": _server_course_map_count(), "courseoff": _server_course_off_count(),
+				"gatetransitions": _server_gate_transition_count(),
+			}))
 		get_tree().quit()
 
 

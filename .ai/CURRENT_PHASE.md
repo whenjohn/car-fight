@@ -44,7 +44,7 @@ Completed branch commits:
 - `2268137` — recorded the stale files retained on macai2 by non-deleting
   deployment sync; its original manual count of 31 was later corrected to 33.
   No remote file was changed.
-- `f73ff79` — added a structural manifest guard covering all 32 standalone
+- `f73ff79` — added a structural manifest guard; it now covers all 33 standalone
   GDScript tests without executing them during the fast check.
 - The macai2 deployment helper now defaults to a read-only preview, requires an
   explicit `apply` from a clean `master`, and preserves generated/local state.
@@ -53,6 +53,9 @@ Completed branch commits:
 - `docs/BRANCH_LEDGER.md` records the protected recovery refs, both active
   worktrees, and 20 merged local plus 20 merged remote cleanup candidates. No
   branch, tag, worktree, or archive was deleted.
+- The server `RESULT` schema is characterized in the focused offline smoke, and
+  its pure 32-field formatter now lives outside `Main.gd`. Metric collection,
+  report timing, gameplay, authority, RPCs, and transport behavior are unchanged.
 
 Validation for the import-verifier cleanup:
 
@@ -74,8 +77,8 @@ Validation for the import-verifier cleanup:
    fields, so retain that output contract until deployment state is resolved.
 3. Review the branch-ledger candidates; delete no ref without separate owner
    approval and a fresh merged/ancestor check.
-4. Characterize one low-coupling `Main.gd` boundary before considering any
-   structural extraction.
+4. Treat the characterized result-report boundary as the limit of this cleanup;
+   argument parsing and any further `Main.gd` extraction remain on hold.
 
 The complete former phase log is preserved at
 `docs/history/CURRENT_PHASE_THROUGH_2026-09-02.md`.
