@@ -23,7 +23,7 @@ static func source_available() -> bool:
 func build_audition() -> Node3D:
 	var root := Node3D.new()
 	root.name = "LocalPropAuditions"
-	root.set_meta("arena_presentation", true)
+	root.set_meta("world_presentation", true)
 	var house := _build_house()
 	if house != null:
 		root.add_child(house)
@@ -53,7 +53,7 @@ func _build_house() -> Node3D:
 	visual.transform = relative_transform
 	_center_and_ground(visual, bounds)
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	visual.set_meta("arena_presentation", true)
+	visual.set_meta("world_presentation", true)
 	for surface_index in range(visual.mesh.get_surface_count()):
 		var imported_material := visual.mesh.surface_get_material(surface_index)
 		var material_name := imported_material.resource_name if imported_material != null else "Wall"
@@ -61,7 +61,7 @@ func _build_house() -> Node3D:
 	var root := Node3D.new()
 	root.name = "RuinHouseAudition"
 	root.rotation_degrees.y = 10.0
-	root.set_meta("arena_presentation", true)
+	root.set_meta("world_presentation", true)
 	root.set_meta("audition_dimensions", bounds.size)
 	root.add_child(visual)
 	source.free()
@@ -75,7 +75,7 @@ func _build_stones() -> Node3D:
 	var source := packed.instantiate()
 	var root := Node3D.new()
 	root.name = "StoneAuditions"
-	root.set_meta("arena_presentation", true)
+	root.set_meta("world_presentation", true)
 	var material := _stone_material()
 	var maximum_height := 0.0
 	for index in range(STONE_LAYOUT.size()):
@@ -92,12 +92,12 @@ func _build_stones() -> Node3D:
 		_center_and_ground(visual, bounds)
 		visual.material_override = material
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		visual.set_meta("arena_presentation", true)
+		visual.set_meta("world_presentation", true)
 		var holder := Node3D.new()
 		holder.name = "Stone%d" % (index + 1)
 		holder.position = STONE_LAYOUT[index]["position"]
 		holder.rotation_degrees.y = float(STONE_LAYOUT[index]["yaw"])
-		holder.set_meta("arena_presentation", true)
+		holder.set_meta("world_presentation", true)
 		holder.add_child(visual)
 		root.add_child(holder)
 	root.set_meta("stone_count", root.get_child_count())

@@ -27,7 +27,7 @@ func _process(_delta: float) -> void:
 		visible = true
 		return
 	var local := _players.get_node_or_null(str(multiplayer.get_unique_id()))
-	visible = local == null or int(local.get("map_id")) == MAP_LAYOUT.ARENA
+	visible = local == null or int(local.get("map_id")) == MAP_LAYOUT.CITY
 
 
 func _build_decal(slick: Dictionary) -> void:
@@ -47,5 +47,5 @@ func _build_decal(slick: Dictionary) -> void:
 	material.render_priority = 1
 	decal.material_override = material
 	decal.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	decal.set_meta("arena_presentation", true)
+	decal.set_meta("world_presentation", true)
 	add_child(decal)

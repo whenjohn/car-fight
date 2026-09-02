@@ -2,6 +2,7 @@ extends SceneTree
 
 const DOTS_SCRIPT_PATH := "res://world/dots.gd"
 const DOTS_SCRIPT := preload("res://world/dots.gd")
+const MAP_LAYOUT := preload("res://world/map_layout.gd")
 
 var _failures: Array[String] = []
 
@@ -16,6 +17,7 @@ func _init() -> void:
 		_check(not "Area3D" in source, "dots use a data proximity check, not colliders")
 		_check("best_distance" in source, "server resolves contested dots to one nearest car")
 	_test_all_hidden_field()
+	_test_city_placement()
 	if _failures.is_empty():
 		print("DOTS_TEST PASS")
 		quit(0)
@@ -37,4 +39,18 @@ func _test_all_hidden_field() -> void:
 	dots._rebuild_field()
 	_check(dots._mesh.get_surface_count() == 0,
 		"an all-hidden prediction field remains an empty mesh without committing a surface")
+	dots.free()
+
+
+func _test_city_placement() -> void:
+	var dots := DOTS_SCRIPT.new()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xC0FFEE
+	for _index in DOTS_SCRIPT.DOT_COUNT:
+		var position: Vector3 = dots._random_spot(rng)
+		_check(maxf(absf(position.x), absf(position.z)) \
+			< MAP_LAYOUT.CITY_HALF_EXTENT - DOTS_SCRIPT.WALL_INSET + 0.01,
+			"every dot remains inside the city boundary")
+		_check(not dots._inside_building(position),
+			"no dot spawns inside a city building footprint")
 	dots.free()

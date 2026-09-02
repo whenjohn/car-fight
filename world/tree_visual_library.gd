@@ -82,17 +82,17 @@ func build_visual(style_index: int, landmark_index: int, target_height: float) -
 	visual.transform = relative_transform
 	var center := bounds.position + bounds.size * 0.5
 	# Strip the source pack's overview-grid placement, center the trunk footprint,
-	# and put the lowest vertex on the existing arena ground.
+	# and put the lowest vertex on the existing city ground.
 	visual.position -= Vector3(center.x, bounds.position.y, center.z)
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	visual.set_meta("arena_presentation", true)
+	visual.set_meta("world_presentation", true)
 	visual.set_meta("tree_visual", true)
 	visual.set_meta("tree_asset_name", asset_name)
 	visual.set_meta("tree_asset_pack", pack_name)
 	var root := Node3D.new()
 	root.name = "TreeVisual"
 	root.scale = Vector3.ONE * (target_height / bounds.size.y)
-	root.set_meta("arena_presentation", true)
+	root.set_meta("world_presentation", true)
 	root.set_meta("tree_visual", true)
 	root.add_child(visual)
 	return root

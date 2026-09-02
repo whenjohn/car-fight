@@ -61,7 +61,7 @@ if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script' \
 fi
 
 stack_args="--state-bundles --packed-input --packed-state --input-broadcast 0 --state-rate-divisor 1 --net-telemetry --remote-state-transport batch --remote-state-rate 30 --remote-state-relevance same-map --remote-state-include-self 0"
-remote_pid="$(ssh "$remote_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --port '$remote_port' --no-drone --no-ball --no-ramps --server-driver $stack_args > '$remote_run/server.log' 2>&1 & echo \$!")"
+remote_pid="$(ssh "$remote_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --port '$remote_port' --no-drone --no-ball --server-driver $stack_args > '$remote_run/server.log' 2>&1 & echo \$!")"
 sleep 1
 ssh "$remote_ssh" "kill -0 '$remote_pid'"
 

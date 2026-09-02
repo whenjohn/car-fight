@@ -23,14 +23,14 @@ func _init() -> void:
 	var first_yaw := float(slicks[0]["yaw"])
 	var outside_direction := Vector2(1.0, 0.0).rotated(first_yaw) \
 		* (OIL.RADIUS * first_stretch.x + 0.1)
-	_expect_close(OIL.footprint_strength(MAP_LAYOUT.ARENA,
+	_expect_close(OIL.footprint_strength(MAP_LAYOUT.CITY,
 		center + Vector3.UP * 1.5), 1.0, 0.0001, "slick center has full effect")
-	_expect_close(OIL.footprint_strength(MAP_LAYOUT.ARENA,
+	_expect_close(OIL.footprint_strength(MAP_LAYOUT.CITY,
 		center + Vector3(outside_direction.x, 1.5, outside_direction.y)), 0.0, 0.0001,
 		"outside the visible footprint is dry")
-	_expect_close(OIL.footprint_strength(MAP_LAYOUT.DRIVING_COURSE,
-		center + Vector3.UP * 1.5), 0.0, 0.0001, "another map cannot touch arena oil")
-	_expect_close(OIL.footprint_strength(MAP_LAYOUT.ARENA,
+	_expect_close(OIL.footprint_strength(MAP_LAYOUT.CITY + 1,
+		center + Vector3.UP * 1.5), 0.0, 0.0001, "another map cannot touch city oil")
+	_expect_close(OIL.footprint_strength(MAP_LAYOUT.CITY,
 		center + Vector3.UP * 5.0), 0.0, 0.0001, "an elevated road stays above ground oil")
 
 	var amount := OIL.next_amount(0.0, 1.0, true, 18.0, 1.0 / 60.0)
@@ -99,7 +99,7 @@ func _init() -> void:
 	var visual_source := FileAccess.get_file_as_string("res://world/oil_slicks.gd")
 	var shader_source := FileAccess.get_file_as_string("res://fx/oil_slick_decal.gdshader")
 	_check("OIL_SLICKS_SCRIPT" in main_source,
-		"the arena builds the presentation-only decals")
+		"the city builds the presentation-only decals")
 	_check("oil_slick_amount" in body_source \
 		and "_sync.add_state(self, \"oil_slick_amount\")" in body_source,
 		"the per-car residue participates in rollback")

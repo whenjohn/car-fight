@@ -21,7 +21,7 @@ func _init() -> void:
 	_check("_heading_angle" in source and "_camera.unproject_position" in source,
 		"player heading is projected through the active camera")
 	_check("KIND_BALL" in source and "_diamond" in source,
-		"the arena ball is a distance-only objective marker")
+		"the city ball is a distance-only objective marker")
 	if _failures.is_empty():
 		print("OFFSCREEN_INDICATORS_TEST PASS")
 		quit(0)

@@ -74,19 +74,19 @@ player_capsule_arg="--player-capsule"
 if [[ "$player_capsule_enabled" == "0" ]]; then
 	player_capsule_arg="--no-player-capsule"
 fi
-network_test_arena="${CAR_FIGHT_NETWORK_TEST_ARENA:-0}"
-server_arena_arg=""
-native_arena_args=()
-browser_arena_query=""
-if [[ "$network_test_arena" == "1" ]]; then
-	server_arena_arg="--network-test-arena"
-	native_arena_args=(--network-test-arena)
-	browser_arena_query="&networkTestArena=1"
+expanded_city="${CAR_FIGHT_EXPANDED_CITY:-0}"
+server_world_arg=""
+native_world_args=()
+browser_world_query=""
+if [[ "$expanded_city" == "1" ]]; then
+	server_world_arg="--expanded-city"
+	native_world_args=(--expanded-city)
+	browser_world_query="&expandedCity=1"
 fi
 client_cruise_enabled="${CAR_FIGHT_CLIENT_CRUISE:-0}"
 if [[ "$client_cruise_enabled" == "1" ]]; then
-	native_arena_args+=(--client-cruise)
-	browser_arena_query+="&clientCruise=1"
+	native_world_args+=(--client-cruise)
+	browser_world_query+="&clientCruise=1"
 fi
 motion_trace_enabled="${CAR_FIGHT_MOTION_TRACE:-0}"
 native_motion_args=()
@@ -126,7 +126,7 @@ fi
 native_stack_args+=(--remote-interp-mode "$presentation_mode" \
 	--remote-interp "$presentation_min" --remote-interp-max "$presentation_max")
 browser_stack_query+="&remoteInterpMode=$presentation_mode&remoteInterpMs=$presentation_min&remoteInterpMaxMs=$presentation_max&networkProfile=$profile"
-browser_stack_query+="$browser_arena_query"
+browser_stack_query+="$browser_world_query"
 browser_stack_query+="$browser_motion_query"
 if [[ -n "${CAR_FIGHT_JOIN_STALL_MS:-}" ]]; then
 	browser_stack_query+="&joinStallMs=$CAR_FIGHT_JOIN_STALL_MS&joinStallAfterMs=${CAR_FIGHT_JOIN_STALL_AFTER_MS:-0}"
@@ -363,7 +363,7 @@ server_ticks_arg="--ticks $server_ticks"
 if [[ "$interactive_browser" == "1" ]]; then
 	server_ticks_arg=""
 fi
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' --no-drone $server_driver_arg $player_capsule_arg $server_arena_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' --no-drone $server_driver_arg $player_capsule_arg $server_world_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
@@ -411,7 +411,7 @@ if [[ "$interactive_native" == "1" ]]; then
 		--client --transport enet --host "$server_ip" --port "$remote_enet_port" \
 		--name macos-enet --session-label networking2-mixed --run-id "$run_id" \
 		--network-hud --network-profile "$profile" --net-telemetry --hide-hotkey-hints \
-		"${native_stack_args[@]}" "${native_arena_args[@]}" "${native_motion_args[@]}" \
+		"${native_stack_args[@]}" "${native_world_args[@]}" "${native_motion_args[@]}" \
 		> "$run_dir/native.log" 2>&1 &
 	native_pid=$!
 	native_ready=0
@@ -491,7 +491,7 @@ if [[ "$interactive_browser" == "1" ]]; then
 	if [[ "$interactive_native" == "1" ]]; then
 		peer_mode="macos-enet-direct+browser-webrtc-turn"
 	fi
-	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 arena_half=$((network_test_arena == 1 ? 240 : 84)) client_cruise=$client_cruise_enabled motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
+	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 world_half=$((expanded_city == 1 ? 240 : 165)) client_cruise=$client_cruise_enabled motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
 	echo "mode will remain $presentation_mode until you explicitly change it; close Chrome to stop"
 	wait "$chrome_pid"
 	exit $?

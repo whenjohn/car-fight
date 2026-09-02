@@ -49,7 +49,7 @@ var wall_bump_count := 0
 var was_supported := false
 var landing_fall_speed := 0.0
 var landing_jostle_cooldown := 0.0
-var map_id := MAP_LAYOUT.ARENA
+var map_id := MAP_LAYOUT.CITY
 var remote_state_generation := 0
 var gate_cooldown := 0.0
 var gate_transition_count := 0
@@ -247,8 +247,6 @@ func _ready() -> void:
 func _physics_rollback_tick(delta: float, tick: int) -> void:
 	if direct_state == null:
 		return
-	if _service_jump_gate(delta):
-		return
 	var queued_linear_impulse := Vector3.ZERO
 	var queued_torque_impulse := Vector3.ZERO
 	_service_cloak_toggle(bool(_input.cloak_held))
@@ -416,39 +414,6 @@ func _physics_rollback_tick(delta: float, tick: int) -> void:
 		direct_state.apply_torque_impulse(queued_torque_impulse)
 
 
-func _service_jump_gate(delta: float) -> bool:
-	gate_cooldown = maxf(gate_cooldown - delta, 0.0)
-	if gate_cooldown > 0.0:
-		return false
-	var transition := MAP_LAYOUT.transition(map_id,
-		direct_state.transform.origin, direct_state.transform.origin.y)
-	if transition.is_empty():
-		return false
-	var transform: Transform3D = direct_state.transform
-	transform.origin = transition["position"]
-	transform.basis = Basis(Vector3.UP, float(transition["yaw"]))
-	direct_state.transform = transform
-	direct_state.linear_velocity = Vector3.ZERO
-	direct_state.angular_velocity = Vector3.ZERO
-	map_id = int(transition["map_id"])
-	_last_map_transition_tick = _current_network_tick()
-	gate_cooldown = MAP_LAYOUT.GATE_COOLDOWN
-	gate_transition_count += 1
-	burst_turn_sign = 0.0
-	boost_active = false
-	brake_skid_amount = 0.0
-	drift_assist_amount = 0.0
-	drift_assist_charge = 0.0
-	drift_assist_side = 0.0
-	drift_assist_hold = 0.0
-	drift_assist_latched = false
-	drift_assist_rearm_ready = true
-	oil_slick_amount = 0.0
-	collision_stall_time = 0.0
-	collision_escape_time = 0.0
-	wall_bump_cooldown = 0.0
-	return true
-
 func _static_contact_normal() -> Vector3:
 	for index in range(direct_state.get_contact_count()):
 		var collider := direct_state.get_contact_collider_object(index)
@@ -564,7 +529,7 @@ func area_gesture_preview() -> Dictionary:
 
 ## Cross-body hit commands arrive after this body's current tick. Queue them
 ## until its own rollback simulation owns a live direct_state, as the tractor
-## already does for the arena ball.
+## already does for the city ball.
 func apply_external_impact(linear_impulse: Vector3, torque_impulse: Vector3,
 		recovery_time: float, shielded: bool) -> void:
 	_pending_linear_impulse += linear_impulse
@@ -605,7 +570,7 @@ func set_rc_pilot_active(active: bool) -> void:
 	if active:
 		tractor_ball_held = false
 
-func _arena_ball() -> Node:
+func _city_ball() -> Node:
 	var balls := get_node_or_null("/root/Main/Balls")
 	if balls == null or balls.get_child_count() == 0:
 		return null
@@ -1012,7 +977,7 @@ func _process(_delta: float) -> void:
 func _update_tractor_rope() -> void:
 	if _tractor_rope == null:
 		return
-	var ball := _arena_ball()
+	var ball := _city_ball()
 	_tractor_rope.visible = tractor_ball_held and not is_cloaked and ball != null
 	if not _tractor_rope.visible:
 		return

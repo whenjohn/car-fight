@@ -1250,9 +1250,9 @@ func _route_for(sync_root: Node) -> int:
 			push_error("State bundle player root does not have a positive numeric id: %s" % sync_root.get_path())
 			return 0
 		return body_id
-	# Car Fight has one authoritative arena ball. Keep its route in the negative
+	# Car Fight has one authoritative city ball. Keep its route in the negative
 	# namespace so it cannot collide with a multiplayer peer id.
-	if sync_root.get_parent().name == &"Balls" and sync_root.name == &"ArenaBall":
+	if sync_root.get_parent().name == &"Balls" and sync_root.name == &"CityBall":
 		return -1
 	push_error("State bundle root is outside Players/Balls: %s" % sync_root.get_path())
 	return 0

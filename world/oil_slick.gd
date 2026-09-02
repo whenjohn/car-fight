@@ -46,7 +46,7 @@ static func slicks() -> Array[Dictionary]:
 ## Soft edges keep the handling transition readable while the visible puddle's
 ## irregular edge remains presentation-only.
 static func footprint_strength(map_id: int, body_position: Vector3) -> float:
-	if map_id != MAP_LAYOUT.ARENA or body_position.y > MAX_GROUND_BODY_Y:
+	if map_id != MAP_LAYOUT.CITY or body_position.y > MAX_GROUND_BODY_Y:
 		return 0.0
 	var best := 0.0
 	for slick in slicks():

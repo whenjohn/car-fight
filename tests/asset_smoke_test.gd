@@ -417,8 +417,8 @@ func _init() -> void:
 		quit(1)
 		return
 	var drone_range: float = SHIELD_DRONE.BOLT_SPEED * SHIELD_DRONE.BOLT_LIFETIME
-	var central_spawn_distance := Vector2(SHIELD_DRONE.ARENA_POSITION.x,
-		SHIELD_DRONE.ARENA_POSITION.z).length()
+	var central_spawn_distance := Vector2(SHIELD_DRONE.CITY_POSITION.x,
+		SHIELD_DRONE.CITY_POSITION.z).length()
 	if drone_range <= central_spawn_distance:
 		push_error("SHIELD_DRONE_TEST FAIL: bolts must cross the expanded west clearing")
 		quit(1)
@@ -481,12 +481,12 @@ func _init() -> void:
 		return
 	if bool(ProjectSettings.get_setting(
 			"rendering/lights_and_shadows/positional_shadow/atlas_16_bits", true)):
-		push_error("SHADOW_DEPTH_TEST FAIL: long-range arena shadows need a 32-bit depth atlas")
+		push_error("SHADOW_DEPTH_TEST FAIL: long-range city shadows need a 32-bit depth atlas")
 		quit(1)
 		return
 	if int(ProjectSettings.get_setting(
 			"rendering/lights_and_shadows/positional_shadow/atlas_size", 4096)) != 2048:
-		push_error("SHADOW_ATLAS_TEST FAIL: arena shadow atlas must stay within the 2048 budget")
+		push_error("SHADOW_ATLAS_TEST FAIL: city shadow atlas must stay within the 2048 budget")
 		quit(1)
 		return
 	var rendering_method := str(ProjectSettings.get_setting(

@@ -1,5 +1,35 @@
 # Current phase
 
+## Active: Godot 4.7 resurrection, city-only production world
+
+- Active worktree: `/Users/johnnguyen/Projects/car-fight-godot47-resurrection`
+  on `codex/godot47-resurrection`. This restores Godot 4.7.1 Compatibility
+  with Rapier 0.8.39; do not port the 4.6 renderer or Rapier downgrade into it.
+- The preserved 4.7 `Sunlit aerial (Intel-safe)` Compatibility preset is the
+  default. It approximates the accepted Forward+ look with the stable
+  positional spotlight, 2048 shadow atlas, MSAA, sky reflections, and Filmic
+  grade. SSAO, SSIL, SSR, SDFGI, Vulkan Forward+, and directional shadows stay
+  disabled on the Intel Iris Plus.
+- Low Poly City is now the sole authoritative world and map ID `0`. The old
+  arena, overcast standalone world, driving course, elevated road, teleport
+  pads/jump gates, occluded-road presentation helper, tests, and launchers were
+  physically removed. Recipient-map validation accepts only city ID `0` (or
+  the established unknown-map sentinel). Dormant synchronized map/gate fields
+  remain only to preserve the proven network state schema.
+- City source and Collection trees are local physical copies under
+  `assets/local/`, not symlinks or shared worktree resources. Gameplay and
+  networking were ported from the archived 4.7 code; they were not rewritten.
+- Short verification passes: Godot 4.7 editor parse, city composition, Intel
+  lighting policy, oil map isolation, remote-position map validation, shell
+  syntax, and the 240-tick offline drive smoke. Do not run the long gate suite
+  unless specifically requested.
+- All obsolete 4.6 Car Fight launchd services were removed from macai2. No Car
+  Fight server is currently running there. Human offline city review is next;
+  after approval, promote this resurrection to canonical `car-fight`/master,
+  then deploy a fresh Godot 4.7 server from that exact code.
+
+## Archived context below (superseded by the resurrection decision)
+
 ## Approved next session: merge Godot 4.6.3 Forward+ into master
 
 - The owner approved planning the canonical move from Godot 4.7 + Rapier
