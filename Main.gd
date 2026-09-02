@@ -21,6 +21,7 @@ const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
 const CONTROLLER_INPUT := preload("res://player/controller_input.gd")
 const SPEED_CAMERA_SCRIPT := preload("res://fx/speed_camera.gd")
 const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
+const LIGHTING_EDITOR_SCRIPT := preload("res://ui/lighting_editor.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
@@ -257,6 +258,7 @@ var _oil_popup: PopupMenu
 var _oil_submenus := {}
 var _vehicle_model_popup: PopupMenu
 var _scenery_popup: PopupMenu
+var _lighting_editor: Node
 var _vehicle_model_scales := {}
 var _city_presentation: Node3D
 var _lighting_style_index := 4
@@ -276,6 +278,7 @@ const VEHICLE_MODEL_COLLIDER_INFO_MENU_ID := 2102
 const VEHICLE_MODEL_CURRENT_INFO_MENU_ID := 2103
 const LIGHTING_STYLE_MENU_ID_BASE := 3100
 const SCENERY_LIGHTING_INFO_MENU_ID := 3201
+const SCENERY_LIGHTING_EDITOR_MENU_ID := 3202
 const LIGHTING_STYLE_NAMES := [
 	"Current warm shadow",
 	"G2 warm key + cool fill",
@@ -1730,6 +1733,7 @@ func _build_hud(hud: CanvasLayer) -> void:
 	_build_vehicle_model_menu()
 	_build_oil_tuning_menu()
 	_build_scenery_menu()
+	_build_lighting_editor()
 	_status_label = Label.new()
 	_status_label.position = Vector2(18.0, 16.0)
 	_status_label.add_theme_font_size_override("font_size", 18)
@@ -1814,7 +1818,9 @@ func _build_scenery_menu() -> void:
 	_scenery_popup.name = "Scenery"
 	_scenery_popup.title = "Scenery"
 	_system_menu_bar.add_child(_scenery_popup)
-	_scenery_popup.add_item("Lighting", SCENERY_LIGHTING_INFO_MENU_ID)
+	_scenery_popup.add_item("Lighting Editor…", SCENERY_LIGHTING_EDITOR_MENU_ID)
+	_scenery_popup.add_separator()
+	_scenery_popup.add_item("Lighting presets", SCENERY_LIGHTING_INFO_MENU_ID)
 	_scenery_popup.set_item_disabled(
 		_scenery_popup.get_item_index(SCENERY_LIGHTING_INFO_MENU_ID), true)
 	for index in range(LIGHTING_STYLE_NAMES.size()):
@@ -1833,11 +1839,62 @@ func _refresh_scenery_menu() -> void:
 
 
 func _on_scenery_menu_pressed(id: int) -> void:
+	if id == SCENERY_LIGHTING_EDITOR_MENU_ID:
+		_lighting_editor.call("open")
+		return
 	var lighting_index := id - LIGHTING_STYLE_MENU_ID_BASE
 	if lighting_index >= 0 and lighting_index < LIGHTING_STYLE_NAMES.size():
 		_lighting_style_index = lighting_index
 		_apply_lighting_style()
 		_refresh_scenery_menu()
+
+
+func _build_lighting_editor() -> void:
+	_lighting_editor = Node.new()
+	_lighting_editor.name = "LightingEditor"
+	_lighting_editor.set_script(LIGHTING_EDITOR_SCRIPT)
+	add_child(_lighting_editor)
+	_lighting_editor.call("setup", _current_lighting_editor_values(),
+		LIGHTING_STYLE_NAMES[_lighting_style_index])
+	_lighting_editor.connect("values_changed", _on_lighting_editor_values_changed)
+	_lighting_editor.connect("reset_requested", _on_lighting_editor_reset_requested)
+
+
+func _current_lighting_editor_values() -> Dictionary:
+	return {
+		"sun_color": _sun_light.light_color,
+		"sun_energy": _sun_light.light_energy,
+		"sun_elevation": -_sun_light.rotation_degrees.x,
+		"sun_azimuth": _sun_light.rotation_degrees.y,
+		"ambient_energy": _world_environment.ambient_light_energy,
+		"exposure": _world_environment.tonemap_exposure,
+		"saturation": _world_environment.adjustment_saturation,
+		"contact_shadows": _shadow_light.visible,
+		"shadow_opacity": _shadow_light.shadow_opacity,
+	}
+
+
+func _on_lighting_editor_values_changed(values: Dictionary) -> void:
+	_sun_light.light_color = values.get("sun_color", _sun_light.light_color) as Color
+	_sun_light.light_energy = clampf(float(values.get("sun_energy", 1.0)), 0.0, 3.0)
+	var rotation := _sun_light.rotation_degrees
+	rotation.x = -clampf(float(values.get("sun_elevation", 45.0)), 5.0, 85.0)
+	rotation.y = clampf(float(values.get("sun_azimuth", 0.0)), -180.0, 180.0)
+	_sun_light.rotation_degrees = rotation
+	_world_environment.ambient_light_energy = clampf(
+		float(values.get("ambient_energy", 1.0)), 0.0, 2.0)
+	_world_environment.tonemap_exposure = clampf(
+		float(values.get("exposure", 1.0)), 0.25, 2.0)
+	_world_environment.adjustment_enabled = true
+	_world_environment.adjustment_saturation = clampf(
+		float(values.get("saturation", 1.0)), 0.0, 2.0)
+	_shadow_light.visible = bool(values.get("contact_shadows", true))
+	_shadow_light.shadow_opacity = clampf(
+		float(values.get("shadow_opacity", 0.8)), 0.0, 1.0)
+
+
+func _on_lighting_editor_reset_requested() -> void:
+	_apply_lighting_style()
 
 
 func _apply_lighting_style() -> void:
@@ -1850,6 +1907,9 @@ func _apply_lighting_style() -> void:
 	_world_environment.ssr_enabled = false
 	_world_environment.sdfgi_enabled = false
 	_world_environment.adjustment_enabled = false
+	_world_environment.adjustment_brightness = 1.0
+	_world_environment.adjustment_contrast = 1.0
+	_world_environment.adjustment_saturation = 1.0
 	_world_environment.background_mode = Environment.BG_COLOR
 	_world_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	_world_environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
@@ -1950,6 +2010,9 @@ func _apply_lighting_style() -> void:
 			_shadow_light.visible = true
 	if _city_presentation != null:
 		_city_presentation.call("set_lighting_style", _lighting_style_index)
+	if _lighting_editor != null:
+		_lighting_editor.call("set_values", _current_lighting_editor_values(),
+			LIGHTING_STYLE_NAMES[_lighting_style_index])
 
 
 func _build_vehicle_model_menu() -> void:

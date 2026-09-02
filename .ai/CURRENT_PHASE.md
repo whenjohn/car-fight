@@ -16,6 +16,24 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
+## Active work: live lighting editor
+
+- Worktree: `/Users/johnnguyen/Projects/car-fight-lighting-editor` on
+  `codex/lighting-editor`, based on `master@353f824`.
+- The native `Scenery` system menu now opens a transient `Lighting Editor`
+  window modeled on G2's live tuning UI. It starts from the selected lighting
+  preset and updates the local presentation in real time.
+- The editor is deliberately limited to nine high-impact choices: sun color,
+  brightness, height, and direction; world fill; exposure; saturation; and
+  positional contact-shadow visibility/darkness. It does not expose SSAO,
+  directional shadows, renderer selection, or other unsafe/low-value knobs.
+- `Reset to selected preset` discards experimental edits. Selecting another
+  existing Scenery preset also refreshes the open editor to that preset.
+- Validation passes: `./scripts/check.sh`,
+  `tests/home_world_lighting_test.gd`, and `./scripts/offline_test.sh`.
+- Still needed: one owner-approved monitored visual pass in an ordinary inset
+  window to judge layout and whether the chosen controls produce useful looks.
+
 ## Completed work: code health
 
 - The owner approved and `master` was fast-forwarded from

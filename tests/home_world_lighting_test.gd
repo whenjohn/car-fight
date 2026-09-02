@@ -3,12 +3,23 @@ extends SceneTree
 func _init() -> void:
 	var source := FileAccess.get_file_as_string("res://Main.gd")
 	var project := FileAccess.get_file_as_string("res://project.godot")
+	var editor := FileAccess.get_file_as_string("res://ui/lighting_editor.gd")
 	_check("var _lighting_style_index := 4" in source,
 		"Intel-safe sunlit lighting is the built-in default")
 	_check("Sunlit aerial (Intel-safe)" in source,
 		"the accepted Compatibility preset remains selectable")
 	_check("Overcast city HDRI" in source,
 		"the overcast HDRI remains an alternate city lighting preset")
+	_check("Lighting Editor…" in source and "_on_lighting_editor_values_changed" in source,
+		"the Scenery system menu opens a live lighting editor")
+	for field in ["sun_energy", "sun_elevation", "sun_azimuth", "ambient_energy",
+			"exposure", "saturation", "shadow_opacity"]:
+		_check(('"%s"' % field) in editor,
+			"the lighting editor exposes the high-impact %s control" % field)
+	_check("sun_color" in editor and "contact_shadows" in editor,
+		"sun color and safe contact-shadow visibility are live controls")
+	_check("ssao" not in editor.to_lower() and "directional_shadow" not in editor.to_lower(),
+		"the editor does not expose unsafe or expensive lighting paths")
 	_check("--overcast-world" not in source and "_build_world_menu" not in source,
 		"obsolete standalone world switching is removed")
 	_check("_build_home_world" not in source and "\t_build_city_space()" in source,
@@ -29,7 +40,7 @@ func _init() -> void:
 		and "_shadow_light.visible = true" in source \
 		and "lights_and_shadows/positional_shadow/atlas_size=2048" in project,
 		"the default uses the accepted Compatibility spotlight shadows")
-	print("HOME_WORLD_LIGHTING_TEST PASS default=intel_safe_sunlit presets=5")
+	print("HOME_WORLD_LIGHTING_TEST PASS default=intel_safe_sunlit presets=5 live_editor=9")
 	quit(0)
 
 
