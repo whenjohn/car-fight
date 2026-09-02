@@ -18,6 +18,16 @@ if ! rg -q 'RESULT players=1 .*boosting=1' "$log_file"; then
 	tail -100 "$log_file" >&2
 	exit 1
 fi
+result_line="$(rg 'RESULT players=1' "$log_file" | tail -1)"
+result_fields="$(printf '%s\n' "$result_line" \
+	| sed -E 's/^.*RESULT //; s/=[^ ]+//g')"
+expected_fields="players minpair contact escapes bumps ballmax maxy landed grounded rebound tilt maxtilt minx cloaked shields boosting tractorgrabs tractorticks shots hits ballhits droneshots dets impacthits shieldhits impactmax rcshots rcdets rchits coursemaps courseoff gatetransitions"
+if [[ "$result_fields" != "$expected_fields" ]]; then
+	echo "offline RESULT schema changed; log: $log_file" >&2
+	echo "expected: $expected_fields" >&2
+	echo "actual:   $result_fields" >&2
+	exit 1
+fi
 if rg -q 'Could not connect|Could not listen|SCRIPT ERROR|Parse Error|Compile Error|stale rollback origin' \
 		"$log_file"; then
 	echo "offline world attempted transport/rollback startup or produced a script error; log: $log_file" >&2

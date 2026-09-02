@@ -100,6 +100,9 @@ behavior.
 - Proposed change: first characterize argument parsing and one low-coupling
   boundary. Extract one responsibility per commit without changing node paths,
   RPC names, authority, state, or runtime ordering.
+- Characterization: the focused offline smoke now locks the server `RESULT`
+  report's exact 32-field names and order before its formatting is separated
+  from the coordinator.
 - Validation: depends on the extracted boundary; shared authority or RPC work
   requires the relevant network gate and the complete suite once before merge.
 - Risk/rollback: high. File size alone is not deletion or rewrite evidence.
