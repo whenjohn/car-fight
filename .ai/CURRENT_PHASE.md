@@ -56,6 +56,11 @@ Completed branch commits:
 - `a38b91c` / `ba2b903` — characterized the server `RESULT` schema and moved
   its pure 32-field formatter outside `Main.gd`. Metric collection, report
   timing, gameplay, authority, RPCs, and transport behavior are unchanged.
+- World/spawn layer: removed the city-only `_build_home_world()` forwarding
+  wrapper. Focused checks pass, and the owner confirmed the complete city and
+  dots during monitored local server/client play; the monitor ended cleanly.
+- CH-013 records that offline startup does not seed dots. This predates the
+  cleanup and remains separate gameplay bug debt.
 
 Validation for the import-verifier cleanup:
 

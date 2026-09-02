@@ -1225,7 +1225,7 @@ func _build_world() -> void:
 	add_child(_shield_drone)
 	if not _is_headless():
 		_shield_drone.call("build_presentation")
-	_build_home_world()
+	_build_city_space()
 	_dots = Node3D.new()
 	_dots.name = "Dots"
 	_dots.set_script(DOTS_SCRIPT)
@@ -1531,10 +1531,6 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	rope.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	rope.visible = false
 	body.add_child(rope)
-
-func _build_home_world() -> void:
-	_build_city_space()
-
 
 func _build_city_space() -> void:
 	var center := MAP_LAYOUT.CITY_CENTER

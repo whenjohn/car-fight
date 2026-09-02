@@ -11,8 +11,8 @@ func _init() -> void:
 		"the overcast HDRI remains an alternate city lighting preset")
 	_check("--overcast-world" not in source and "_build_world_menu" not in source,
 		"obsolete standalone world switching is removed")
-	_check("_build_home_world()" in source and "_build_city_space()" in source,
-		"Low Poly City owns the default world build")
+	_check("_build_home_world" not in source and "\t_build_city_space()" in source,
+		"the world shell builds Low Poly City directly")
 	_check('renderer/rendering_method="gl_compatibility"' in project \
 		and 'renderer/rendering_method.mobile="gl_compatibility"' in project,
 		"desktop and mobile use the stable Godot 4.7 Compatibility renderer")

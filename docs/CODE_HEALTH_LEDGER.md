@@ -235,3 +235,40 @@ behavior.
   crosses rollback and transport behavior.
 - Status: **Hold** for a separate characterized networking fix; not caused or
   changed by this cleanup branch.
+
+### CH-012 — Redundant city-only world-build wrapper
+
+- Classification: definitely dead indirection in the world/spawn layer.
+- Evidence: `_build_home_world()` was introduced by the city-only resurrection
+  in `3ccd8fe`. It contains only `_build_city_space()`, has one direct caller in
+  `_build_world()`, has no signal, callable, string, scene, or dynamic entry
+  point, and cannot select another world.
+- Change: call `_build_city_space()` directly and make the focused world test
+  preserve that direct city-only contract rather than the obsolete wrapper.
+- Validation: fast structural/import check, `home_world_lighting_test.gd`, then
+  owner play through monitored local server/client world startup before commit.
+- Risk/rollback: very low; call order and city construction are unchanged.
+- Result: focused world/import checks passed. The first offline visual run
+  correctly exposed missing ignored local art in the cleanup worktree; after an
+  independent local-art copy and import, the owner confirmed the complete city
+  and server-generated dots in a monitored local server/client run. The monitor
+  ended cleanly.
+- Status: **Resolved** on this branch with owner play approval.
+
+### CH-013 — Offline mode does not seed dots
+
+- Classification: pre-existing gameplay-mode wiring defect discovered during
+  the world/spawn play check.
+- Evidence: the monitored offline run loaded the city scene but displayed no
+  dots, and its log contained no `DOTS gen` event. `_start_server()` calls
+  `_dots.generate()`, while `_start_offline()` does not. The focused dots test
+  invokes `generate()` directly, so it does not cover offline startup wiring.
+- Proposed change: handle as a separate gameplay bugfix after the current
+  behavior-neutral cleanup slice. Add startup characterization, seed the same
+  deterministic 72-dot set in offline mode, and confirm collection/rendering.
+- Validation: focused dots test, offline startup test, and owner offline play
+  through dot visibility and collection.
+- Risk/rollback: medium; dot authority, score state, and RPC behavior must remain
+  unchanged for server/client play.
+- Status: **Hold** for a separate owner-approved gameplay bugfix; not caused by
+  the current cleanup change.
