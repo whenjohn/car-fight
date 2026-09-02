@@ -2,13 +2,13 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 log_file="$(mktemp "${TMPDIR:-/tmp}/car-fight-offline.XXXXXX")"
 
 "$godot_bin" --headless --path "$project_root" -- \
 	--offline --script burst-right --ticks 240 >"$log_file" 2>&1
 
-if ! rg -q 'OFFLINE_READY id=1 players=1 balls=1' "$log_file"; then
+if ! rg -q 'OFFLINE_READY id=1 players=1 balls=1 map=0' "$log_file"; then
 	echo "offline world did not seed its local player and ball; log: $log_file" >&2
 	tail -100 "$log_file" >&2
 	exit 1

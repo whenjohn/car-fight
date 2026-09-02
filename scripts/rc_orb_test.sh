@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 port="${CAR_FIGHT_RC_ORB_PORT:-10880}"
 log_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-rc-orb.XXXXXX")"
 server_pid=""

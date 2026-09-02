@@ -1,5 +1,5 @@
 extends "res://addons/netfox.extras/physics/network-rigid-body-3d.gd"
-## One server-owned rollback body that cars can shove around the arena.
+## One server-owned rollback body that cars can shove around the city.
 
 const RADIUS := 1.15
 const MASS := 0.85
@@ -14,22 +14,19 @@ var pending_impulse := Vector3.ZERO
 
 
 func _ready() -> void:
-	# The server owns the physical state. Clients predict the same simple sphere
-	# and reconcile through NetworkRigidBody3D.physics_state.
 	set_multiplayer_authority(1)
 	if _rollback_sync != null:
 		_rollback_sync.root = self
 		_rollback_sync.enable_prediction = true
-		# Keep this at netfox's project-wide/default setting, matching g2's prop
-		# bodies. The ball has no input properties, so it sends no input traffic.
 		_rollback_sync.enable_input_broadcast = true
 		_rollback_sync.add_state(self, "physics_state")
 		_rollback_sync.process_settings()
 	if _interpolator != null:
 		_interpolator.root = self
 		_interpolator.add_property(self, "global_transform")
-	add_to_group("arena_ball")
+	add_to_group("city_ball")
 	add_to_group("tractorable")
+
 
 func _physics_rollback_tick(_delta: float, _tick: int) -> void:
 	if direct_state == null:
@@ -38,10 +35,10 @@ func _physics_rollback_tick(_delta: float, _tick: int) -> void:
 		direct_state.apply_central_impulse(pending_impulse)
 		pending_impulse = Vector3.ZERO
 
-## Cross-body physics writes are queued and drained in the ball's own rollback
-## tick, matching g2's tractorable prop contract.
+
 func apply_external_impulse(impulse: Vector3) -> void:
 	pending_impulse += impulse
+
 
 func tractor_radius() -> float:
 	return RADIUS

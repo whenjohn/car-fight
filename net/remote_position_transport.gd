@@ -554,7 +554,7 @@ func _push_batch(sequence: int, publication: int, tick: int, recipient_map: int,
 		recipient_map, ids.size(), generations.size(), positions.size(), rotations.size(),
 		linear_velocities.size(), angular_velocities.size())
 	if disposition == "accept" and not Validation.valid_recipient_map(recipient_map,
-			MapLayout.CITY_AUDITION + 1):
+			1):
 		disposition = "malformed"
 	if disposition == "accept" \
 			and not Validation.has_valid_unique_membership(ids, generations):

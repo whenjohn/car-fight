@@ -5,29 +5,16 @@ set -euo pipefail
 unsetopt BG_NICE
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 remote_ssh="${CAR_FIGHT_SSH_HOST:-macai2-ts}"
 remote_root="${CAR_FIGHT_NETWORKING1_REMOTE_ROOT:-/Users/macai2/Projects/car-fight-networking-1}"
-remote_godot="${CAR_FIGHT_REMOTE_GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
+remote_godot="${CAR_FIGHT_REMOTE_GODOT:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 remote_port="${CAR_FIGHT_NETWORKING1_SERVER_PORT:-12680}"
 proxy_port="${CAR_FIGHT_NETWORKING1_PROXY_PORT:-12681}"
 profile="${1:-latency120}"
 presentation_mode="${2:-adaptive}"
 source "$project_root/scripts/network_profiles.sh"
 car_fight_network_profile "$profile"
-
-server_fixture_args="--no-drone --no-ball --no-ramps --server-driver"
-local_no_drone=1
-local_no_ball=1
-local_no_ramps=1
-fixture_description="server-driven Jeep: macai2 peer 1; local process: one rendered observer"
-if [[ "${CAR_FIGHT_NETWORKING1_DRONE:-0}" == "1" ]]; then
-	server_fixture_args=""
-	local_no_drone=0
-	local_no_ball=0
-	local_no_ramps=0
-	fixture_description="full Arena drone: macai2 authority; local process: one rendered human player"
-fi
 
 if [[ "$presentation_mode" != "fixed" && "$presentation_mode" != "adaptive" && "$presentation_mode" != "predictive" && "$presentation_mode" != "proxy" ]]; then
 	echo "presentation mode must be fixed, adaptive, predictive, or proxy" >&2
@@ -74,7 +61,7 @@ if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script' \
 fi
 
 stack_args="--state-bundles --packed-input --packed-state --input-broadcast 0 --state-rate-divisor 1 --net-telemetry --remote-state-transport batch --remote-state-rate 30 --remote-state-relevance same-map --remote-state-include-self 0"
-remote_pid="$(ssh "$remote_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --port '$remote_port' $server_fixture_args $stack_args > '$remote_run/server.log' 2>&1 & echo \$!")"
+remote_pid="$(ssh "$remote_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --port '$remote_port' --no-drone --no-ball --server-driver $stack_args > '$remote_run/server.log' 2>&1 & echo \$!")"
 sleep 1
 ssh "$remote_ssh" "kill -0 '$remote_pid'"
 
@@ -98,7 +85,7 @@ kill -0 "$proxy_pid"
 } > "$run_root/condition.txt"
 
 echo "Networking 1 ENet: $profile / $presentation_mode"
-echo "$fixture_description"
+echo "server-driven Jeep: macai2 peer 1; local process: one rendered observer"
 echo "evidence: $run_root"
 monitor_args=(--host 127.0.0.1 --name observer)
 headless_ticks="${CAR_FIGHT_NETWORKING1_HEADLESS_TICKS:-0}"
@@ -113,8 +100,7 @@ CAR_FIGHT_REMOTE_INTERP_MS="${CAR_FIGHT_REMOTE_INTERP_MS:-75}" \
 CAR_FIGHT_REMOTE_INTERP_MAX_MS="${CAR_FIGHT_REMOTE_INTERP_MAX_MS:-150}" \
 CAR_FIGHT_PRESENTATION_TRACE_SECONDS="${CAR_FIGHT_PRESENTATION_TRACE_SECONDS:-120}" \
 CAR_FIGHT_PRESENTATION_CONTROL_PATH="$presentation_control" \
-CAR_FIGHT_NO_RAMPS="$local_no_ramps" CAR_FIGHT_NO_DRONE="$local_no_drone" \
-CAR_FIGHT_NO_BALL="$local_no_ball" \
+CAR_FIGHT_NO_RAMPS=1 CAR_FIGHT_NO_DRONE=1 CAR_FIGHT_NO_BALL=1 \
 CAR_FIGHT_HIDE_PEER_MARKERS=1 CAR_FIGHT_PORT="$proxy_port" \
 CAR_FIGHT_MONITOR_ROOT="$run_root/client" \
 CAR_FIGHT_SESSION_LABEL="networking1-$profile-$presentation_mode" \

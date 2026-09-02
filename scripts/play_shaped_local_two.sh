@@ -5,7 +5,7 @@ set -euo pipefail
 unsetopt BG_NICE
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 source "$project_root/scripts/network_profiles.sh"
 profile="${1:-latency120}"
 car_fight_network_profile "$profile"

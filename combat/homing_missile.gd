@@ -6,7 +6,7 @@ const ACQUIRE_RANGE := 18.0
 const TURN_DEGREES_PER_SECOND := 180.0
 # Car Fight fires the slot directly instead of G2's separate aim/arm gesture:
 # maintain G2's capped turn, but give a confirmed target a reliable 360-degree
-# lock and enough authority to cross this larger arena before lifetime expires.
+# lock and enough authority to cross this larger city before lifetime expires.
 const STEERING_RANGE := 24.0
 const CONE_DEGREES := 180.0
 # Car Fight's dummies/ball are sub-unit collision targets. G2's 6.5-unit

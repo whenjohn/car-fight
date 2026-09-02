@@ -1,13 +1,11 @@
 # Car Fight project notes
 
-This worktree is the protected Godot 4.6.3 + Rapier 0.8.35 Forward+
-integration candidate. Canonical `master` remains on Godot 4.7 until the
-automated and human Mac/Web regression matrix in
-`GODOT_46_REGRESSION_REPORT.md` is accepted. Read
-`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md` before changing the engine, renderer,
-Rapier version, or migration boundary. Keep it small and auditable.
+This is currently a clean Godot 4.7 experiment. The approved next migration is
+Godot 4.6.3 + Rapier 0.8.35 with real Forward+; read
+`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md` before changing the engine, renderer, or
+Rapier version. Keep it small and auditable.
 
-- Run with `/Applications/Godot.app/Contents/MacOS/Godot` (Godot 4.6.3).
+- Run with `/Applications/Godot47.app/Contents/MacOS/Godot`.
 - Server authority and ENet lifecycle live in `Main.gd`.
 - Deterministic FOLLOW math lives in `player/follow_controller.gd`; presentation must not affect it.
 - Player input authority belongs to its owning client; body/state authority stays with server peer 1.

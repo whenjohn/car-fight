@@ -3,7 +3,7 @@ set -euo pipefail
 unsetopt BG_NICE
 
 project_root="${CAR_FIGHT_PROJECT_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 port="${CAR_FIGHT_PORT:-10080}"
 monitor_root="${CAR_FIGHT_MONITOR_ROOT:-$project_root/.crash-runs}"
 headless=0
@@ -18,7 +18,6 @@ client_name="monitored"
 client_position=""
 start_local_server=0
 offline=0
-overcast_world=0
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -71,10 +70,6 @@ while (( $# > 0 )); do
 		--name)
 			client_name="${2:?--name requires a value}"
 			shift 2
-			;;
-		--overcast-world)
-			overcast_world=1
-			shift
 			;;
 		--position)
 			client_position="${2:?--position requires X,Y}"
@@ -145,7 +140,6 @@ initial_windowserver_pid="${initial_windowserver_pid:-unknown}"
 	echo "client_position=${client_position:-default}"
 	echo "start_local_server=$start_local_server"
 	echo "offline=$offline"
-	echo "overcast_world=$overcast_world"
 	echo "headless=$headless"
 	echo "fullscreen_requested=$fullscreen"
 	echo "fake_stall=$fake_stall"
@@ -209,9 +203,6 @@ if [[ "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
 	client_user_args+=(--network-hud --network-profile "${CAR_FIGHT_NETWORK_PROFILE:-unshaped}" \
 		--net-telemetry)
 fi
-if [[ "${CAR_FIGHT_CLIENT_CRUISE:-0}" == "1" ]]; then
-	client_user_args+=(--client-cruise)
-fi
 if [[ "${CAR_FIGHT_HIDE_HOTKEY_HINTS:-0}" == "1" ]]; then
 	client_user_args+=(--hide-hotkey-hints)
 fi
@@ -251,7 +242,6 @@ fi
 server_pid=""
 if (( start_local_server == 1 )); then
 	CAR_FIGHT_TELEMETRY_FILE="$run_dir/server.telemetry.jsonl" \
-		CAR_FIGHT_OVERCAST_WORLD="$overcast_world" \
 		"$godot_bin" "${driver_args[@]}" --headless --path "$project_root" -- \
 		--server --port "$port" "${network_stack_args[@]}" \
 		"${server_fixture_args[@]}" > "$run_dir/server.log" 2>&1 &
@@ -271,7 +261,6 @@ if (( start_local_server == 1 )); then
 	fi
 fi
 CAR_FIGHT_TELEMETRY_FILE="$run_dir/client.telemetry.jsonl" \
-	CAR_FIGHT_OVERCAST_WORLD="$overcast_world" \
 	CAR_FIGHT_FAKE_STALL_AFTER_SECONDS="$fake_stall_after" \
 	CAR_FIGHT_FAKE_STALL_DURATION_SECONDS="$fake_stall_duration" \
 	"$godot_bin" "${driver_args[@]}" "${client_display_args[@]}" \

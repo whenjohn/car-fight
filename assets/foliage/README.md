@@ -44,7 +44,7 @@ FBX, its texture atlas, and the optional forest HDRI. Run
 `tools/extract_city_audition.gd` through headless Godot to produce a small local
 district under `assets/local/city_audition/extracted/`. Runtime presentation
 loads only that extraction, keeps it shadowless and collision-free, and shows
-it only after using the arena's `LOW POLY CITY` teleport pad. The dedicated
+it in the default `LOW POLY CITY` home world. The dedicated
 city floor, walls, fourteen building-footprint colliders, and two-way transition
 remain available in clean checkouts. Its 3x3 road grid plus entrance avenue is
 continuous and drivable even though the source meshes themselves stay visual.

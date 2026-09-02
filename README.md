@@ -12,16 +12,15 @@
 > branches into this gameplay branch or rerun known-risk
 > fullscreen/edge-to-edge probes merely to reconfirm them.
 
-> **Engine migration candidate:** This integration worktree uses Godot 4.6.3 +
-> Rapier 0.8.35 and the tested Vulkan Forward+ sunlit-city baseline. Canonical
-> `master` remains on 4.7 until the complete automated and human Mac/Web matrix
-> passes. Follow
+> **Next-session engine migration:** The approved but not yet applied plan is
+> to move `master` to Godot 4.6.3 + Rapier 0.8.35 and the tested Vulkan
+> Forward+ sunlit-city baseline. Follow
 > [`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`](GODOT_46_FORWARD_PLUS_MERGE_PLAN.md);
 > do not independently merge both rendering experiment branches.
 
-A deliberately small Godot 4.6.3 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
+A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
-Native networking remains ENet with g2's proven netfox 1.35.3 + Rapier 0.8.35 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. An isolated localhost cross-play path adds browser WebRTC without moving native clients off ENet; a server-side mux exposes both transports as one authoritative world. The vendored netfox includes G2's D-040 stale-history recovery patch: after a client stall advances beyond retained rollback history, impossible origins are skipped with a bounded warning while the client waits for fresh authority. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
+Native networking remains ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. An isolated localhost cross-play path now adds browser WebRTC without moving native clients off ENet; a server-side mux exposes both transports as one authoritative world. The vendored netfox includes G2's D-040 stale-history recovery patch: after a client stall advances beyond retained rollback history, impossible origins are skipped with a bounded warning while the client waits for fresh authority. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
 
 ## Play
 
@@ -44,8 +43,8 @@ ports and do not contact macai2.
 ## Offline Web build
 
 The browser checkpoint is intentionally offline: it spawns one local Jeep and
-the arena without opening ENet, changing the native server, or adding a browser
-transport. Godot 4.6.3's matching Web export templates are required.
+the city without opening ENet, changing the native server, or adding a browser
+transport. Godot 4.7.1's matching Web export templates are required.
 
 ```bash
 ./scripts/web_build.sh release    # export build/web/index.html
@@ -128,7 +127,7 @@ Controls:
 - Hold `Space` to burst at 28 units/s with stronger acceleration and a wider, committed turn.
 - Press `Q` to toggle the vehicle shield. It absorbs 85% of an incoming drone bolt's shove while a localized glass ripple shows where the shot landed.
 - Press `R` to toggle cloak. Cloak and shield are mutually exclusive: cloaking lowers the shield, and the shield cannot be raised while cloaked.
-- Hold `Shift` to vacuum the arena ball toward the Jeep. The field does not change normal mouse steering.
+- Hold `Shift` to vacuum the city ball toward the Jeep. The field does not change normal mouse steering.
 - Hold `Tab` to reverse at low speed.
 - Steering behaves like a ground vehicle: the Jeep cannot pivot while stopped, yaw builds with road speed, and the turning circle widens at high speed. The close cursor band has stronger, faster steering for carving; pulling farther away progressively trades that rotation for acceleration and speed.
 - If a collision holds the Jeep nearly stationary while movement is still requested, a short side bump and forced steer peel it away. Cursor steering chooses the escape side; a stable per-player side handles a perfectly straight impact. There is no automatic reverse mode.
@@ -205,20 +204,20 @@ written once per second as `NETWORKHUD` JSON. Set
 trace, then replay it with:
 
 ```bash
-/Applications/Godot.app/Contents/MacOS/Godot --headless --path . \
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
   --script res://tests/adaptive_presentation_replay.gd -- \
   --trace path/to/presentation-trace.jsonl
 ```
 
 `play_shaped_local.sh` is the visual smoothness harness. It owns an isolated
 local server and relay, enables the G2 profile, and spawns peer 1 as a
-server-authoritative Jeep following long straight runs around the arena's open
-perimeter, joined by short chamfered corners. The observer spawns beside it, the route stays clear of the driving-course
+server-authoritative Jeep following long straight runs around the city's open
+perimeter, joined by short chamfered corners. The observer spawns beside it, and the route stays clear of city fixtures
 gate, and the harness removes the elevated ramps on both server and client to
-leave a flat arena for the moving test target. It also disables the physical
-arena ball, shield-test drone presentation, and the orange marker mounted above
+leave a flat expanded city for the moving test target. It also disables the physical
+city ball, shield-test drone presentation, and the orange marker mounted above
 each peer, leaving only the two Jeeps. A
-server guard restores the moving Jeep if it ever leaves the arena. The single rendered client can chase it; closing
+server guard restores the moving Jeep if it ever leaves the city. The single rendered client can chase it; closing
 that client window stops only the processes launched by the harness. For local browser/native
 comparison, run `CAR_FIGHT_G2_STACK=1 ./scripts/play_web_network_local.sh`; its
 server-driven car is enabled by default as well.
@@ -275,7 +274,7 @@ browser bytes with 15,166 still queued; the server's ordered channel exceeded
 
 ## Structure
 
-- `Main.gd` — role/transport router, ENet/WebRTC lifecycle, spawn authority, arena, camera, and HUD.
+- `Main.gd` — role/transport router, ENet/WebRTC lifecycle, spawn authority, city, camera, and HUD.
 - `net/mux_multiplayer_peer.gd` — server-side ENet/WebRTC peer merger.
 - `net/webrtc_transport.gd` — WebSocket signaling and WebRTC peer lifecycle.
 - `player/follow_controller.gd` — pure deterministic mouse steering math.
@@ -336,14 +335,12 @@ The first two-rendered-client trial exposed the stale-history loop later fixed b
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.
 
-The optional Low Poly City audition has its own map. Drive onto the
-`LOW POLY CITY` pad on the south side of the arena; the destination has a
-separate `RETURN TO ARENA` pad. Local source art stays under
+Low Poly City is the sole production world. Its local source art stays under
 `assets/local/city_audition/`. To regenerate the lightweight 63-piece district
 after changing the source selection, run:
 
 ```sh
-/Applications/Godot.app/Contents/MacOS/Godot --headless --path . \
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
   --script res://tools/extract_city_audition.gd
 ```
 

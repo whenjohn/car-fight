@@ -54,7 +54,7 @@ func physics_close(a: Array, b: Array, origin_tol := 0.0056, vel_tol := 0.0031) 
 	return true
 
 func _init() -> void:
-	# -- physics block roundtrip: arena, far-map, spinning, fast --------------------------------------
+	# -- physics block roundtrip: city, far-map, spinning, fast ---------------------------------------
 	var cases := [
 		make_state(Vector3.ZERO, Quaternion.IDENTITY, Vector3.ZERO, Vector3.ZERO, false),
 		make_state(Vector3(42.37, 0.5, -61.02), Quaternion(Vector3.UP, 1.234), Vector3(18.3, 0.0, -9.7),

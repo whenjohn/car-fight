@@ -858,7 +858,7 @@ func _receive_state_bundle(tick: int, is_key: bool, routes: PackedInt64Array, ki
 		# jitter-inflated-lead hypothesis says THIS is what differs native-vs-browser.
 		_probe_arrivals += 1
 		_probe_depths.append(NetworkTime.tick - tick)
-		var lead: int = int(NetworkTime.tick) - int(NetworkTime.remote_tick)
+		var lead := NetworkTime.tick - NetworkTime.remote_tick
 		_probe_lead_sum += lead
 		_probe_lead_max = maxi(_probe_lead_max, lead)
 	NetworkPerformance.record_app_state_bundle("in", [tick, is_key, routes, kinds, references, payloads], payloads.size())
@@ -1150,7 +1150,7 @@ func _apply_recovery_key(bundle: Dictionary) -> bool:
 	if not _is_complete_key(bundle):
 		return false
 	var source_tick := int(bundle["tick"])
-	var target_tick: int = int(NetworkTime.tick)
+	var target_tick := NetworkTime.tick
 	var sender := int(bundle["sender"])
 	var routes: PackedInt64Array = bundle["routes"]
 	var payloads: Array = bundle["payloads"]
@@ -1216,7 +1216,7 @@ func _bundle_age(bundle: Dictionary) -> int:
 	return maxi(0, NetworkTime.tick - int(bundle["tick"]))
 
 func _update_pending_age() -> void:
-	var oldest: int = int(NetworkTime.tick)
+	var oldest := NetworkTime.tick
 	var has_pending := false
 	if not _pending_key.is_empty():
 		oldest = mini(oldest, int(_pending_key["tick"]))
@@ -1250,9 +1250,9 @@ func _route_for(sync_root: Node) -> int:
 			push_error("State bundle player root does not have a positive numeric id: %s" % sync_root.get_path())
 			return 0
 		return body_id
-	# Car Fight has one authoritative arena ball. Keep its route in the negative
+	# Car Fight has one authoritative city ball. Keep its route in the negative
 	# namespace so it cannot collide with a multiplayer peer id.
-	if sync_root.get_parent().name == &"Balls" and sync_root.name == &"ArenaBall":
+	if sync_root.get_parent().name == &"Balls" and sync_root.name == &"CityBall":
 		return -1
 	push_error("State bundle root is outside Players/Balls: %s" % sync_root.get_path())
 	return 0

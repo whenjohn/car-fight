@@ -1,138 +1,51 @@
 # Current phase
 
-## Godot 4.6.3 + Rapier 0.8.35 integration candidate
+## Active: Godot 4.7 resurrection, city-only production world
 
-- Godot 4.6.3 + Rapier 0.8.35 is now promoted on canonical `master` at
-  `e1923ab`. The accepted integration remains available at
-  `/Users/johnnguyen/Projects/car-fight-godot46-integration`, and the pushed tag
-  `pre-godot-46-2026-08-31` permanently preserves the pre-migration Godot 4.7
-  head `2c8a710`.
-- The old Godot 4.7 project is preserved by that tag, not by a currently checked
-  out worktree. If a future session needs an isolated rollback/control copy,
-  create it non-destructively with
-  `git worktree add /Users/johnnguyen/Projects/car-fight-godot47-old pre-godot-46-2026-08-31`.
-  Do not reset current `master` or production to inspect it. The Godot 4.7 app
-  remains installed; this migration did not uninstall it.
-- The candidate merges `codex/forwardplus-46-rendering` once. It includes the
-  sunlit city work without independently merging the earlier experiment branch.
-  Preserve current gameplay, vendored netfox patches, server authority, ENet,
-  WebRTC, and mux code; this is not authorization for a networking rewrite.
-- The candidate pins Godot 4.6 Forward+ and the official Rapier 0.8.35
-  enhanced-determinism/API 4.6 bundle. The verified release archive SHA-256 is
-  `f6477144bccf8002c71647193444bd540ed648204d84e6e69919f4affafbf414`.
-- The accepted lean native baseline is clustered Forward+, 2048 cascaded sun
-  shadows, low SSAO, and 2x MSAA at 1280x720, with SSIL, SSR, SDFGI, and TAA
-  disabled. The earlier monitored Intel run reported Vulkan Forward+, averaged
-  58.8 FPS after shader warm-up, exited cleanly, and was visually approved.
-- Complete automated regression and fresh human native Mac/Web cross-play
-  acceptance pass. The final permission-correct `./scripts/test.sh` run ended
-  with `ALL_TESTS PASS`; `master` was fast-forwarded and pushed, production
-  macai2 was deployed through the normal helper, and the final connection /
-  leave / reconnect smoke passed. Lighting work may now resume as a separate
-  measured workstream.
-- The first clean 4.6 import found 4.7-only inferred typing in current
-  networking telemetry, StateBundle, and two preserved netfox code paths.
-  Explicit numeric annotations/casts restore 4.6 parsing without changing
-  values or behavior. Clean import now passes, and reconnect passes with all
-  topology assertions while separately reporting three instances of the exact
-  known shutdown-only resource warning.
-- The complete seven-profile native ENet matrix passes after extending only
-  its post-handshake observation window for slower 4.6 startup; retained
-  assertions and thresholds are unchanged. Offline Web passes with Rapier
-  0.8.35, 60 FPS steady, normal movement, and zero browser errors.
-- Browser/native lifecycle, refresh/replacement, movement, and queue checks
-  pass. Earlier same-machine dual-render samples were variable and an immediate
-  preserved-4.7 control failed under the same load. Human acceptance therefore
-  retained the existing gate and used separated sustained-render evidence:
-  forced-TURN impairment/refresh and full-scene browser/native combat now pass.
-- Human offline macOS gameplay was accepted at candidate `7463b5f`; monitored
-  evidence `.crash-runs/20260831-183253` exited cleanly. The first local
-  Mac+Chrome human cross-play run was rejected for severe jerk/pullback. Its
-  native client fell to about 7 FPS with 150--190 ms network/rollback loops,
-  but an identical untouched-4.7 control was no better at about 5 FPS and
-  185--200 ms, identifying the dual-window local load as baseline-equivalent.
-  An isolated candidate server was then synced to macai2's non-production
-  checkout. One local 4.6 Forward+ attempt hit an Intel Metal/Vulkan
-  `VK_TIMEOUT` before ENet readiness. After reboot, native remote play passed;
-  clean Mac+Chrome forced-TURN play plus browser leave/rejoin also passed, and
-  a 120 ms forced-TURN retry was playable with bounded corrections. The later
-  long stability/soak and cross-platform combat passes close those promotion
-  blockers; production remains untouched pending the final promotion step.
-- Two-native human review found and resolved a real LOW POLY CITY presentation
-  regression. The batch receiver's live map validation duplicated only Arena
-  and Driving Course, rejected every city (`map=2`) envelope as malformed, and
-  therefore hid the other Jeep even though authoritative state was correct.
-  The live receiver now uses the shared bounded validator through
-  `CITY_AUDITION`, with focused regression coverage. Clean G2 ENet, mixed
-  ENet/WebRTC, and gate harnesses pass. In human rerun
-  `.crash-runs/two-client-20260831-205007`, both clients accepted city batches,
-  retained two active same-map remotes, observed advancing peer positions, and
-  reported `malformed=0`; the user confirmed visibility worked. The temporary
-  isolated macai2 service was stopped, and production remains unchanged.
-- Clean native two-human-client regression also passes. Run
-  `.crash-runs/two-client-20260831-210742` used an isolated macai2 server with
-  no server-driven fixture; reciprocal movement, collision, and special
-  weapons were human-approved. Closing Bravo reduced Alpha to one player and
-  zero active remotes. Rejoined Bravo in `.crash-runs/rejoin-20260831-212100`
-  received a fresh peer ID, restored Alpha to two players with a clean
-  membership enter, and moved normally. No script, rollback-history, Vulkan,
-  or device-loss error was found. The isolated server was stopped.
-- The 120 ms one-way two-native human row passes at
-  `.crash-runs/two-client-20260831-211639`. Both peers remained present and
-  functional; the user observed mild constant remote cadence but no sharp
-  pullback and accepted it as expected under roughly 265 ms RTT. Ordinary
-  moving corrections were about 0.30 units and remained below the established
-  2-unit ceiling. The generic monitored launcher now forwards the existing
-  opt-in `CAR_FIGHT_CLIENT_CRUISE=1` setting to `--client-cruise`.
-- Interactive WebRTC soak review found a harness-only conflict: any positive
-  soak duration appended `script=idle`, while ordinary input intentionally
-  returns early in scripted mode. The browser therefore could not drive or
-  toggle `P`. Automated soaks retain `script=idle`; interactive browser soaks
-  now omit it. The Chrome control helper can also dispatch the existing cruise
-  toggle through the dedicated DevTools profile for reproducible tests.
-- The first sustained dual-render Mac+Chrome attempt
-  `.network-runs/20260901T022018Z-42079-14213-webrtc-latency120` was rejected
-  when both local renderers fell near 15 FPS; its WebRTC channels remained
-  open, matching the already measured same-machine load limitation. The
-  separated browser-rendered forced-TURN run
-  `.network-runs/20260901T023352Z-47692-32167-webrtc-latency120` then passed
-  about 6.5 minutes of human driving plus refresh/rejoin. Chrome averaged
-  43.62 FPS (24.79 minimum), had zero recoveries, kept its maximum channel
-  queue to 3,896 bytes, and carried 110,724 shaped TURN packets without loss.
-  The only SCTP send failure coincided with the user's final browser close and
-  was immediately followed by the expected peer leave. Isolated services were
-  cleaned up.
-- Native Forward+ stability now passes. Monitored offline run
-  `.crash-runs/20260831-215500` remained open for 27 minutes in the ordinary
-  1280x720 Vulkan Forward+ window on Godot 4.6.3 with Rapier 0.8.35. Across
-  1,600 one-second samples it averaged 59.73 FPS (34 minimum) with only three
-  isolated slow frames, then exited cleanly at the user's request. There was
-  no recovery, crash report, Vulkan device loss, GPU reset, watchdog, thermal,
-  or display fault. An earlier clean 7:45 run also averaged 59.43 FPS but was
-  retained only as supporting evidence because it did not meet the explicit
-  ten-minute duration gate.
-- Cross-platform human combat review now passes with separated full-scene
-  rendering. The correct isolated macai2 Godot 4.6.3/Rapier 0.8.35 mux server
-  was first verified with exactly two simultaneous Mac/Web peers, but rendering
-  the complete Arena in both local clients reduced native to about 15 FPS while
-  Chrome stayed around 39--47 FPS. Network identities and initial RTT were
-  correct, and native physics remained about 0.21 ms; this was rejected as the
-  already established local dual-render load class. Browser-only full-Arena run
-  `.network-runs/20260901T034649Z-70505-5429-webrtc-clean` then averaged 59.08
-  FPS over 99 HUD samples with zero recoveries. Native-only full-Arena run
-  `.crash-runs/networking1-enet-clean-proxy-20260831-225014` averaged 59.41 FPS
-  over 181 samples and exited cleanly. The user accepted authoritative drone
-  hits/jostle, shield ripple and reduced shove, shield/cloak exclusion, and
-  cloak stopping targeting on both rendered platforms. The remote harnesses now
-  expose opt-in real-drone/humans-only modes while preserving their lean default
-  fixtures.
-- Production promotion is complete. The macai2 launchd service restarted as
-  PID 77154 using Godot 4.6.3 and Rapier 0.8.35, listening on production UDP
-  10080 and TCP 10181. In `/private/tmp/car-fight-production-smoke.3vu3BK`, one
-  survivor remained connected while two fresh peer IDs joined and left in
-  sequence; all clients exited cleanly, the server returned to zero players,
-  and the post-smoke error scan found no script, parse, Vulkan, device-loss,
-  panic, or runtime error. Keep `pre-godot-46-2026-08-31` as the rollback tag.
+- Active worktree: `/Users/johnnguyen/Projects/car-fight-godot47-resurrection`
+  on `codex/godot47-resurrection`. This restores Godot 4.7.1 Compatibility
+  with Rapier 0.8.39; do not port the 4.6 renderer or Rapier downgrade into it.
+- The preserved 4.7 `Sunlit aerial (Intel-safe)` Compatibility preset is the
+  default. It approximates the accepted Forward+ look with the stable
+  positional spotlight, 2048 shadow atlas, MSAA, sky reflections, and Filmic
+  grade. SSAO, SSIL, SSR, SDFGI, Vulkan Forward+, and directional shadows stay
+  disabled on the Intel Iris Plus.
+- Low Poly City is now the sole authoritative world and map ID `0`. The old
+  arena, overcast standalone world, driving course, elevated road, teleport
+  pads/jump gates, occluded-road presentation helper, tests, and launchers were
+  physically removed. Recipient-map validation accepts only city ID `0` (or
+  the established unknown-map sentinel). Dormant synchronized map/gate fields
+  remain only to preserve the proven network state schema.
+- City source and Collection trees are local physical copies under
+  `assets/local/`, not symlinks or shared worktree resources. Gameplay and
+  networking were ported from the archived 4.7 code; they were not rewritten.
+- Short verification passes: Godot 4.7 editor parse, city composition, Intel
+  lighting policy, oil map isolation, remote-position map validation, shell
+  syntax, and the 240-tick offline drive smoke. Do not run the long gate suite
+  unless specifically requested.
+- All obsolete 4.6 Car Fight launchd services were removed from macai2. No Car
+  Fight server is currently running there. Human offline city review is next;
+  after approval, promote this resurrection to canonical `car-fight`/master,
+  then deploy a fresh Godot 4.7 server from that exact code.
+
+## Archived context below (superseded by the resurrection decision)
+
+## Approved next session: merge Godot 4.6.3 Forward+ into master
+
+- The owner approved planning the canonical move from Godot 4.7 + Rapier
+  0.8.39 to the Intel-tested Godot 4.6.3 + official Rapier 0.8.35 enhanced
+  determinism/API 4.6 baseline. No project downgrade has been applied to
+  `master` yet.
+- Use `codex/forwardplus-46-rendering` at approved head `6f9e6aa` as the single
+  integration source. It already contains `codex/sunlit-aerial-rendering`; do
+  not merge both branches separately.
+- The complete rationale, exact commits, measured Forward+ evidence, known
+  reconnect shutdown warning, conflict policy, and acceptance gates are in
+  `GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`. Read it before changing the engine,
+  Rapier addon, project metadata, launchers, or documentation.
+- Preserve current gameplay, vendored netfox patches, server authority, ENet,
+  WebRTC, and mux code. This is an engine/renderer/Rapier compatibility merge,
+  not authorization for a networking rewrite.
 
 ## Trees, foliage, and lighting audition ready for human review
 

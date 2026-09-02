@@ -176,7 +176,7 @@ async function run() {
   const steadyFpsValues = fpsValues.slice(-5);
   const speedValues = samples.map(record => Number(record.player_speed || 0));
   const rapierReady = consoleMessages.some(message =>
-    message.text.includes("PHYSICS ENGINE 3D: Rapier3D v0.8.35"));
+    message.text.includes("PHYSICS ENGINE 3D: Rapier3D v0.8.39"));
   const report = {
     url,
     chrome_version: browserVersion.product || null,

@@ -3,7 +3,7 @@ set -euo pipefail
 unsetopt BG_NICE
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 web_port="${CAR_FIGHT_WEB_NETWORK_PORT:-18088}"
 enet_port="${CAR_FIGHT_MUX_ENET_PORT:-12380}"
 signal_port="${CAR_FIGHT_MUX_SIGNAL_PORT:-12381}"
@@ -110,10 +110,7 @@ if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index|Node not found
 		"$log_dir"/*.log >&2
 	exit 1
 fi
-# Netfox writes each warning once through Godot's WARNING line and once through
-# its own logger. Count the actual warning emission, not both textual copies.
-stale_count="$(rg -c '^WARNING: .*Skipping stale rollback origin' \
-	"$log_dir/server.log" || true)"
+stale_count="$(rg -c 'Skipping stale rollback origin' "$log_dir/server.log" || true)"
 if (( stale_count > 4 )); then
 	echo "Browser refresh produced a stale-history warning flood ($stale_count); logs: $log_dir" >&2
 	exit 1

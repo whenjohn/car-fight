@@ -74,4 +74,4 @@ func _process(_delta: float) -> void:
 	if _players == null:
 		return
 	var local := _players.get_node_or_null(str(multiplayer.get_unique_id()))
-	visible = local != null and int(local.get("map_id")) == MAP_LAYOUT.CITY_AUDITION
+	visible = local != null and int(local.get("map_id")) == MAP_LAYOUT.CITY

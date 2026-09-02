@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const profile = process.argv[2];
-const action = process.argv[3];
-if (!profile || !["fixed", "adaptive", "predictive", "proxy", "cruise"].includes(action)) {
-  throw new Error("usage: set_networking1_browser_mode.mjs CHROME_PROFILE fixed|adaptive|predictive|proxy|cruise");
+const mode = process.argv[3];
+if (!profile || !["fixed", "adaptive", "predictive", "proxy"].includes(mode)) {
+  throw new Error("usage: set_networking1_browser_mode.mjs CHROME_PROFILE fixed|adaptive|predictive|proxy");
 }
 
 const [port, browserPath] = readFileSync(join(profile, "DevToolsActivePort"), "utf8")
@@ -47,29 +47,9 @@ const { sessionId } = await send("Target.attachToTarget", {
   targetId: page.targetId,
   flatten: true,
 });
-if (action === "cruise") {
-  await send("Runtime.evaluate", {
-    expression: "document.querySelector('canvas')?.focus()",
-    returnByValue: true,
-  }, sessionId);
-  const key = {
-    key: "p",
-    code: "KeyP",
-    text: "p",
-    unmodifiedText: "p",
-    keyIdentifier: "U+0050",
-    windowsVirtualKeyCode: 80,
-    nativeVirtualKeyCode: 35,
-  };
-  await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key }, sessionId);
-  await send("Input.dispatchKeyEvent", { type: "keyUp", ...key }, sessionId);
-} else {
-  await send("Runtime.evaluate", {
-    expression: `window.localStorage.setItem('carFightPresentationMode', ${JSON.stringify(action)})`,
-    returnByValue: true,
-  }, sessionId);
-}
+await send("Runtime.evaluate", {
+  expression: `window.localStorage.setItem('carFightPresentationMode', ${JSON.stringify(mode)})`,
+  returnByValue: true,
+}, sessionId);
 socket.close();
-console.log(action === "cruise"
-  ? "BROWSER_CONTROL cruise=toggle"
-  : `PRESENTATION_BROWSER_CONTROL mode=${action}`);
+console.log(`PRESENTATION_BROWSER_CONTROL mode=${mode}`);

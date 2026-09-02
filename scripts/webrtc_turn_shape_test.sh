@@ -22,7 +22,7 @@ turn_image="coturn/coturn:4.6.3-r3"
 turn_user="car-fight"
 turn_credential="car-fight-shape"
 remote_root="${CAR_FIGHT_SHAPE_REMOTE_ROOT:-/Users/macai2/Projects/car-fight-network-shaping}"
-remote_godot="${CAR_FIGHT_SHAPE_REMOTE_GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
+remote_godot="${CAR_FIGHT_SHAPE_REMOTE_GODOT:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 remote_enet_port="${CAR_FIGHT_SHAPE_REMOTE_ENET_PORT:-12480}"
 remote_signal_port="${CAR_FIGHT_SHAPE_REMOTE_SIGNAL_PORT:-12481}"
 local_signal_port="${CAR_FIGHT_SHAPE_LOCAL_SIGNAL_PORT:-12581}"
@@ -69,34 +69,24 @@ if [[ "${CAR_FIGHT_SERVER_DRIVER_LANE:-0}" == "1" ]]; then
 	server_driver_arg="--server-driver-lane"
 	driver_mode="slow-left-lane"
 fi
-if [[ "${CAR_FIGHT_SHAPE_HUMANS_ONLY:-0}" == "1" ]]; then
-	server_driver_arg=""
-	driver_mode="none"
-fi
-server_drone_arg="--no-drone"
-native_no_drone=1
-if [[ "${CAR_FIGHT_SHAPE_DRONE:-0}" == "1" ]]; then
-	server_drone_arg=""
-	native_no_drone=0
-fi
 player_capsule_enabled="${CAR_FIGHT_PLAYER_CAPSULE:-1}"
 player_capsule_arg="--player-capsule"
 if [[ "$player_capsule_enabled" == "0" ]]; then
 	player_capsule_arg="--no-player-capsule"
 fi
-network_test_arena="${CAR_FIGHT_NETWORK_TEST_ARENA:-0}"
-server_arena_arg=""
-native_arena_args=()
-browser_arena_query=""
-if [[ "$network_test_arena" == "1" ]]; then
-	server_arena_arg="--network-test-arena"
-	native_arena_args=(--network-test-arena)
-	browser_arena_query="&networkTestArena=1"
+expanded_city="${CAR_FIGHT_EXPANDED_CITY:-0}"
+server_world_arg=""
+native_world_args=()
+browser_world_query=""
+if [[ "$expanded_city" == "1" ]]; then
+	server_world_arg="--expanded-city"
+	native_world_args=(--expanded-city)
+	browser_world_query="&expandedCity=1"
 fi
 client_cruise_enabled="${CAR_FIGHT_CLIENT_CRUISE:-0}"
 if [[ "$client_cruise_enabled" == "1" ]]; then
-	native_arena_args+=(--client-cruise)
-	browser_arena_query+="&clientCruise=1"
+	native_world_args+=(--client-cruise)
+	browser_world_query+="&clientCruise=1"
 fi
 motion_trace_enabled="${CAR_FIGHT_MOTION_TRACE:-0}"
 native_motion_args=()
@@ -136,7 +126,7 @@ fi
 native_stack_args+=(--remote-interp-mode "$presentation_mode" \
 	--remote-interp "$presentation_min" --remote-interp-max "$presentation_max")
 browser_stack_query+="&remoteInterpMode=$presentation_mode&remoteInterpMs=$presentation_min&remoteInterpMaxMs=$presentation_max&networkProfile=$profile"
-browser_stack_query+="$browser_arena_query"
+browser_stack_query+="$browser_world_query"
 browser_stack_query+="$browser_motion_query"
 if [[ -n "${CAR_FIGHT_JOIN_STALL_MS:-}" ]]; then
 	browser_stack_query+="&joinStallMs=$CAR_FIGHT_JOIN_STALL_MS&joinStallAfterMs=${CAR_FIGHT_JOIN_STALL_AFTER_MS:-0}"
@@ -295,7 +285,7 @@ if (( soak_seconds > 0 )); then
 	echo "soak: ${soak_seconds}s with one browser leave/rejoin; server_ticks=$server_ticks native_ticks=$native_ticks"
 fi
 if [[ "$interactive_browser" == "1" ]]; then
-	echo "interactive browser: driver=$driver_mode; drone=${CAR_FIGHT_SHAPE_DRONE:-0}; player_capsule=$player_capsule_enabled; failsafe=${failsafe_seconds}s; close Chrome to stop"
+	echo "interactive browser: server-driven Jeep enabled; driver=$driver_mode; player_capsule=$player_capsule_enabled; failsafe=${failsafe_seconds}s; close Chrome to stop"
 fi
 
 if [[ "${CAR_FIGHT_HARNESS_LIFECYCLE_TEST:-0}" == "1" ]]; then
@@ -373,7 +363,7 @@ server_ticks_arg="--ticks $server_ticks"
 if [[ "$interactive_browser" == "1" ]]; then
 	server_ticks_arg=""
 fi
-ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' $server_drone_arg $server_driver_arg $player_capsule_arg $server_arena_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
+ssh "$server_ssh" "nohup '$remote_godot' --headless --path '$remote_root' -- --server --transport mux --port '$remote_enet_port' --signal-port '$remote_signal_port' --run-id '$run_id' --no-drone $server_driver_arg $player_capsule_arg $server_world_arg --webrtc-telemetry $server_ticks_arg $server_stack_args > '$remote_log' 2>&1 & echo \$! > '$remote_pidfile'"
 server_started=1
 server_ready=0
 for _attempt in {1..100}; do
@@ -415,13 +405,13 @@ curl -fs -o /dev/null "http://127.0.0.1:$web_port/"
 if [[ "$interactive_native" == "1" ]]; then
 	mkdir -p "$run_dir/native-client"
 	CAR_FIGHT_TELEMETRY_FILE="$run_dir/native-client/telemetry.jsonl" \
-	CAR_FIGHT_NO_DRONE="$native_no_drone" CAR_FIGHT_NETWORK_HUD=1 \
-		"${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}" \
+	CAR_FIGHT_NO_DRONE=1 CAR_FIGHT_NETWORK_HUD=1 \
+		"${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}" \
 		--windowed --position 80,80 --path "$project_root" -- \
 		--client --transport enet --host "$server_ip" --port "$remote_enet_port" \
 		--name macos-enet --session-label networking2-mixed --run-id "$run_id" \
 		--network-hud --network-profile "$profile" --net-telemetry --hide-hotkey-hints \
-		"${native_stack_args[@]}" "${native_arena_args[@]}" "${native_motion_args[@]}" \
+		"${native_stack_args[@]}" "${native_world_args[@]}" "${native_motion_args[@]}" \
 		> "$run_dir/native.log" 2>&1 &
 	native_pid=$!
 	native_ready=0
@@ -448,7 +438,7 @@ elif [[ "$interactive_browser" != "1" ]]; then
 		# soak instead of letting the scripted drive eventually enter a map gate.
 		native_script_args=()
 	fi
-	"${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}" --headless \
+	"${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}" --headless \
 		--path "$project_root" -- --client --transport enet --host "$server_ip" \
 		--port "$remote_enet_port" --name native-survivor "${native_script_args[@]}" --ticks "$native_ticks" \
 		"${native_stack_args[@]}" \
@@ -458,15 +448,13 @@ elif [[ "$interactive_browser" != "1" ]]; then
 fi
 
 browser_script_query=""
-if (( soak_seconds > 0 )) && [[ "$interactive_browser" != "1" ]]; then
-	# Automated soaks stay parked so topology is stable. Human browser soaks
-	# must keep ordinary input active, including the opt-in P cruise control.
+if (( soak_seconds > 0 )); then
 	browser_script_query="&script=idle"
 fi
 browser_url="http://127.0.0.1:$web_port/?signal=ws%3A%2F%2F127.0.0.1%3A$local_signal_port&name=browser&runId=$run_id&webrtcTelemetry=1&turn=turn%3A$turn_ip%3A3478&turnUser=$turn_user&turnCredential=$turn_credential&relay=1$browser_stack_query$browser_script_query"
 if [[ "$interactive_browser" == "1" ]]; then
 	chrome_bin="${CHROME_BIN:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
-	echo "browser control: node scripts/set_networking1_browser_mode.mjs '$chrome_profile' fixed|adaptive|predictive|proxy|cruise"
+	echo "browser control: node scripts/set_networking1_browser_mode.mjs '$chrome_profile' fixed|adaptive|predictive|proxy"
 	"$chrome_bin" --remote-debugging-port=0 --user-data-dir="$chrome_profile" \
 		--no-first-run --no-default-browser-check --disable-extensions \
 		--disable-background-timer-throttling --disable-backgrounding-occluded-windows \
@@ -503,7 +491,7 @@ if [[ "$interactive_browser" == "1" ]]; then
 	if [[ "$interactive_native" == "1" ]]; then
 		peer_mode="macos-enet-direct+browser-webrtc-turn"
 	fi
-	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 arena_half=$((network_test_arena == 1 ? 240 : 84)) client_cruise=$client_cruise_enabled motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
+	echo "PLAYABLE_READY run_id=$run_id profile=$profile one_way=${CAR_FIGHT_SHAPE_LATENCY_MS}ms peers=$peer_mode driver=$driver_mode capsule=radius1.05_length3.40 presentation=$presentation_mode state_divisor=${state_rate_divisor:-legacy} forced_turn=1 world_half=$((expanded_city == 1 ? 240 : 165)) client_cruise=$client_cruise_enabled motion_trace=$motion_trace_enabled local_presentation=$local_presentation_enabled"
 	echo "mode will remain $presentation_mode until you explicitly change it; close Chrome to stop"
 	wait "$chrome_pid"
 	exit $?

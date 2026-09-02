@@ -2,7 +2,8 @@ extends Node3D
 ## Server-authoritative, lightweight auto-pickups. Each dot is shared data and
 ## rendered through one mesh; it is never a physics body, collider, or rollback state.
 
-const ARENA_CONFIG := preload("res://world/arena_config.gd")
+const MAP_LAYOUT := preload("res://world/map_layout.gd")
+const CITY_LAYOUT := preload("res://world/city_layout.gd")
 const DOT_COUNT := 72
 const DOT_ID_BASE := 700001
 const DOT_RADIUS := 0.30
@@ -103,12 +104,24 @@ func _on_tick(_delta: float, _tick: int) -> void:
 		_collect_local(ids, collectors)
 
 func _random_spot(rng: RandomNumberGenerator) -> Vector3:
-	var limit := ARENA_CONFIG.HALF_EXTENT - WALL_INSET
-	for _attempt in 12:
+	var limit := MAP_LAYOUT.CITY_HALF_EXTENT - WALL_INSET
+	for _attempt in 48:
 		var point := Vector3(rng.randf_range(-limit, limit), 0.0, rng.randf_range(-limit, limit))
-		if point.length() >= SPAWN_CLEAR_RADIUS:
+		if point.length() >= SPAWN_CLEAR_RADIUS and not _inside_building(point):
 			return point
 	return Vector3(limit, 0.0, limit)
+
+
+func _inside_building(point: Vector3) -> bool:
+	for building in CITY_LAYOUT.BUILDINGS:
+		var footprint: Vector2 = building["footprint"] * CITY_LAYOUT.SCALE
+		if is_equal_approx(fposmod(float(building["yaw"]), 180.0), 90.0):
+			footprint = Vector2(footprint.y, footprint.x)
+		var center: Vector3 = building["position"] * CITY_LAYOUT.SCALE
+		if absf(point.x - center.x) <= footprint.x * 0.5 + DOT_RADIUS \
+				and absf(point.z - center.z) <= footprint.y * 0.5 + DOT_RADIUS:
+			return true
+	return false
 
 func _broadcast_full() -> void:
 	var ids := PackedInt32Array()

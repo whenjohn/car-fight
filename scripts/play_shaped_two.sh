@@ -3,7 +3,7 @@ set -euo pipefail
 unsetopt BG_NICE
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 source "$project_root/scripts/network_profiles.sh"
 profile="${1:-combined}"
 server_host="${2:-${CAR_FIGHT_HOST:-100.113.2.60}}"

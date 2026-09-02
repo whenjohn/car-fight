@@ -2,8 +2,8 @@ extends Node3D
 ## Stationary shield-test fixture. Main owns targeting and projectile authority;
 ## this node deliberately has no collider and is never a player weapon target.
 
-# Isolated west clearing: no red targets or arena structures beside it.
-const ARENA_POSITION := Vector3(-32.0, 2.35, -8.0)
+# Isolated west clearing: no red targets or city structures beside it.
+const CITY_POSITION := Vector3(-32.0, 2.35, -8.0)
 const MUZZLE_HEIGHT := 0.15
 const ARM_TICKS := 60
 const FIRE_INTERVAL_TICKS := 120
