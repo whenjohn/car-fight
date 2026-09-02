@@ -1,5 +1,10 @@
 # Car Fight
 
+The project briefly shipped a Godot 4.6.3 Forward+ baseline before returning
+to Godot 4.7.1 Compatibility for Intel stability. Read
+[`GODOT_46_TO_47_HISTORY.md`](GODOT_46_TO_47_HISTORY.md) before changing the
+engine, Rapier version, renderer, shadows, SSAO, caches, or world architecture.
+
 > **Project status:** This Godot implementation is again the active Car Fight
 > project. The Unity handoff was superseded after its browser transport proved
 > non-reproducible from tracked source and its Editor/build iteration conflicted

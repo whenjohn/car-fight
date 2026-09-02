@@ -1,10 +1,14 @@
 # Current phase
 
-## Active: Godot 4.7 resurrection, city-only production world
+## Active: Godot 4.7 city-only production world
 
-- Active worktree: `/Users/johnnguyen/Projects/car-fight-godot47-resurrection`
-  on `codex/godot47-resurrection`. This restores Godot 4.7.1 Compatibility
-  with Rapier 0.8.39; do not port the 4.6 renderer or Rapier downgrade into it.
+- Canonical worktree: `/Users/johnnguyen/Projects/car-fight` on `master`.
+  It runs Godot 4.7.1 Compatibility with Rapier 0.8.39; do not port the 4.6
+  renderer or Rapier downgrade back into it.
+- `GODOT_46_TO_47_HISTORY.md` now records the complete 4.6 Forward+ experiment:
+  why it was attempted, what passed, both crash families, the isolation and
+  clean-room work, abandoned fixes, and the final return to 4.7. Future engine,
+  renderer, shadow, SSAO, cache, world, or Rapier changes must start there.
 - The preserved 4.7 `Sunlit aerial (Intel-safe)` Compatibility preset is the
   default. It approximates the accepted Forward+ look with the stable
   positional spotlight, 2048 shadow atlas, MSAA, sky reflections, and Filmic

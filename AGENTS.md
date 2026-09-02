@@ -1,11 +1,14 @@
 # Car Fight project notes
 
-This is currently a clean Godot 4.7 experiment. The approved next migration is
-Godot 4.6.3 + Rapier 0.8.35 with real Forward+; read
-`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md` before changing the engine, renderer, or
-Rapier version. Keep it small and auditable.
+This is the canonical Godot 4.7.1 Compatibility + Rapier 0.8.39 project. The
+completed Godot 4.6.3 Forward+ experiment is historical, not the next migration.
+Read `GODOT_46_TO_47_HISTORY.md` before changing the engine, renderer, shadows,
+SSAO, caches, world architecture, or Rapier version. Keep changes small and
+auditable.
 
 - Run with `/Applications/Godot47.app/Contents/MacOS/Godot`.
+- On this Intel Mac, keep Compatibility rendering, SSAO off, and directional
+  shadow maps off. The default sunlit grade uses the stable positional shadow.
 - Server authority and ENet lifecycle live in `Main.gd`.
 - Deterministic FOLLOW math lives in `player/follow_controller.gd`; presentation must not affect it.
 - Player input authority belongs to its owning client; body/state authority stays with server peer 1.
