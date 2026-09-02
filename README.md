@@ -4,6 +4,9 @@ The project briefly shipped a Godot 4.6.3 Forward+ baseline before returning
 to Godot 4.7.1 Compatibility for Intel stability. Read
 [`GODOT_46_TO_47_HISTORY.md`](GODOT_46_TO_47_HISTORY.md) before changing the
 engine, Rapier version, renderer, shadows, SSAO, caches, or world architecture.
+For agent-assisted auditing, dead-code removal, and behavior-preserving
+refactoring, follow
+[`CODE_HEALTH_CLEANUP_PLAYBOOK.md`](CODE_HEALTH_CLEANUP_PLAYBOOK.md).
 
 > **Project status:** This Godot implementation is again the active Car Fight
 > project. The Unity handoff was superseded after its browser transport proved
@@ -17,11 +20,10 @@ engine, Rapier version, renderer, shadows, SSAO, caches, or world architecture.
 > branches into this gameplay branch or rerun known-risk
 > fullscreen/edge-to-edge probes merely to reconfirm them.
 
-> **Next-session engine migration:** The approved but not yet applied plan is
-> to move `master` to Godot 4.6.3 + Rapier 0.8.35 and the tested Vulkan
-> Forward+ sunlit-city baseline. Follow
-> [`GODOT_46_FORWARD_PLUS_MERGE_PLAN.md`](GODOT_46_FORWARD_PLUS_MERGE_PLAN.md);
-> do not independently merge both rendering experiment branches.
+> **Historical engine migration:** The Godot 4.6.3 + Rapier 0.8.35 Forward+
+> plan was completed, investigated, and ultimately superseded by the current
+> Godot 4.7.1 Compatibility baseline. It is evidence, not current authorization.
+> See [`GODOT_46_TO_47_HISTORY.md`](GODOT_46_TO_47_HISTORY.md).
 
 A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 

@@ -6,6 +6,11 @@ Read `GODOT_46_TO_47_HISTORY.md` before changing the engine, renderer, shadows,
 SSAO, caches, world architecture, or Rapier version. Keep changes small and
 auditable.
 
+Before any broad code cleanup, dead-code removal, simplification campaign, or
+agent-led refactor, read `CODE_HEALTH_CLEANUP_PLAYBOOK.md`. Begin with its
+read-only evidence ledger; cleanup is not authorization to rewrite gameplay,
+networking, rollback, transports, or synchronized state.
+
 - Run with `/Applications/Godot47.app/Contents/MacOS/Godot`.
 - On this Intel Mac, keep Compatibility rendering, SSAO off, and directional
   shadow maps off. The default sunlit grade uses the stable positional shadow.

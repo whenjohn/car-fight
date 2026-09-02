@@ -9,6 +9,13 @@
   why it was attempted, what passed, both crash families, the isolation and
   clean-room work, abandoned fixes, and the final return to 4.7. Future engine,
   renderer, shadow, SSAO, cache, world, or Rapier changes must start there.
+- `CODE_HEALTH_CLEANUP_PLAYBOOK.md` records the approved future cleanup method:
+  preserve `master`, perform a read-only evidence audit first, review the ledger
+  with the owner, then apply small reversible behavior-preserving slices with
+  short focused validation. Networking/rollback/transports/state schema are
+  protected and audited last; cleanup and performance optimization remain
+  separate evidence-driven jobs. No cleanup implementation is currently
+  authorized merely by this documentation.
 - The preserved 4.7 `Sunlit aerial (Intel-safe)` Compatibility preset is the
   default. It approximates the accepted Forward+ look with the stable
   positional spotlight, 2048 shadow atlas, MSAA, sky reflections, and Filmic
