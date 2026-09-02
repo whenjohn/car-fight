@@ -82,7 +82,13 @@ behavior.
   its parser assertions.
 - Risk/rollback: low internally, but unknown external log consumers may depend
   on the stable field names.
-- Status: **Hold**.
+- Result: local source and automation contain no consumer, but the deployed
+  macai2 checkout still contains a historical `scripts/gate_test.sh` that
+  parses all three fields. The same checkout's current city-only `Main.gd`
+  always reports them as zero, so that historical gate is already incompatible
+  with the accepted world; it must not be silently treated as a live gate.
+- Status: **Retain** until stale deployed files are reconciled and the external
+  result-line contract is deliberately retired.
 
 ### CH-005 — Oversized application coordinator
 
@@ -151,3 +157,41 @@ behavior.
 - Risk/rollback: branch deletion can remove convenient recovery names even when
   commits remain reachable elsewhere.
 - Status: **Hold** pending a separate destructive-action approval.
+
+### CH-009 — Deployment retains removed project files
+
+- Classification: stale deployment content and operational correctness risk.
+- Evidence: `scripts/deploy_macai2.sh` uses rsync without `--delete`. A read-only
+  comparison found 31 files under `/Users/macai2/Projects/car-fight` that no
+  longer exist in the canonical repository, including removed arena, driving
+  course, elevated course, jump-gate, overcast-world, and occlusion-hint code,
+  tests, and launchers. `scripts/gate_test.sh` is one of those leftovers.
+- History: the city-only resurrection in `7027700`/`3ccd8fe` intentionally
+  removed these worlds and tests; later deployment copied current files without
+  reconciling removed paths.
+- Proposed change: design a deployment reconciliation step that preserves
+  explicit runtime/cache/local-asset exclusions, previews deletions, and removes
+  only files absent from the canonical deployment source. Verify the exact
+  31-file inventory before applying it to macai2.
+- Validation: rsync dry-run/deletion manifest, remote service status before and
+  after, current file-list comparison, native connection smoke, and browser
+  connection smoke. Deployment remains a separate explicit operation.
+- Risk/rollback: high operational impact. A broad `--delete` can remove remote
+  state or locally supplied assets unless exclusions and targets are exact.
+- Status: **Hold** pending owner approval of the deletion manifest and deploy
+  behavior.
+
+### CH-010 — Full-suite GDScript manifest is manually maintained
+
+- Classification: quality-gate drift risk.
+- Evidence: `scripts/test.sh` lists every focused GDScript test manually. All
+  current `tests/*_test.gd` files are listed, but adding a new test file does not
+  mechanically require adding it to the comprehensive suite.
+- Proposed change: make the fast structural check compare the test files with
+  the full-suite manifest without executing them. Continue selecting only
+  focused tests during ordinary work.
+- Validation: fast check, plus a bounded negative control proving an omitted
+  test name is reported.
+- Risk/rollback: low; the rule must exclude helper/replay scripts that are not
+  standalone `*_test.gd` programs.
+- Status: **Approved**.

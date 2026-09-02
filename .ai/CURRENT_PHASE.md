@@ -51,11 +51,14 @@ Validation for the import-verifier cleanup:
 1. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
-2. Confirm whether any external log parser consumes the obsolete constant-zero
-   course/gate `RESULT` fields before removing them.
-3. Produce a keep/delete ledger for merged and diagnostic branches; delete no
+2. Reconcile the 31 stale files retained by macai2 deployment only after an
+   exact deletion manifest and separate owner approval. Its old `gate_test.sh`
+   still consumes the constant-zero course/gate `RESULT` fields, so retain that
+   output contract until deployment state is resolved.
+3. Add a structural full-suite manifest check without executing every test.
+4. Produce a keep/delete ledger for merged and diagnostic branches; delete no
    branch without separate owner approval.
-4. Characterize one low-coupling `Main.gd` boundary before considering any
+5. Characterize one low-coupling `Main.gd` boundary before considering any
    structural extraction.
 
 The complete former phase log is preserved at
