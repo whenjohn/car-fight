@@ -46,7 +46,6 @@ const AREA_STRIKE_VISUAL_SCRIPT := preload("res://fx/area_strike_visual.gd")
 const AREA_BURN_VISUAL_SCRIPT := preload("res://fx/area_burn_visual.gd")
 const AREA_TARGET_PREVIEW_SCRIPT := preload("res://fx/area_target_preview.gd")
 const TREE_VISUAL_LIBRARY := preload("res://world/tree_visual_library.gd")
-const PROP_AUDITION_LIBRARY := preload("res://world/prop_audition_library.gd")
 const CITY_PRESENTATION_SCRIPT := preload("res://world/city_audition.gd")
 const CITY_LAYOUT := preload("res://world/city_layout.gd")
 const BALL_SCRIPT := preload("res://world/city_ball.gd")
@@ -260,7 +259,6 @@ var _oil_submenus := {}
 var _vehicle_model_popup: PopupMenu
 var _scenery_popup: PopupMenu
 var _vehicle_model_scales := {}
-var _prop_audition_library
 var _city_presentation: Node3D
 var _lighting_style_index := 4
 var _gameplay_collision_debug_enabled := false
@@ -329,7 +327,6 @@ func _ready() -> void:
 	# the exact procedural baseline without warnings or missing dependencies.
 	# Normal headless servers/gates do not even probe the optional FBX path.
 	if not _is_headless():
-		_prop_audition_library = PROP_AUDITION_LIBRARY.new()
 		var requested_lighting_style := OS.get_environment("CAR_FIGHT_LIGHTING_STYLE")
 		if requested_lighting_style.is_valid_int():
 			_lighting_style_index = clampi(int(requested_lighting_style), 0,
@@ -1238,7 +1235,6 @@ func _build_world() -> void:
 		grass.position = Vector3(58.0, 0.0, 18.0)
 		add_child(grass)
 		_build_presentation()
-		_build_prop_auditions()
 		_build_city_presentation()
 		if _motion_trace_enabled:
 			_motion_trace = Node.new()
@@ -1791,19 +1787,6 @@ func _build_hud(hud: CanvasLayer) -> void:
 	_network_tier_label.add_theme_constant_override("shadow_offset_y", 2)
 	_network_tier_label.visible = false
 	hud.add_child(_network_tier_label)
-
-
-func _build_prop_auditions() -> void:
-	if _prop_audition_library == null:
-		return
-	var props := _prop_audition_library.build_audition() as Node3D
-	if props == null:
-		return
-	# Just north of the east-side tree corridor, with about 20 m of clear space
-	# before the city wall. Native source dimensions already read correctly
-	# beside the roughly four-meter vehicles.
-	props.position = Vector3(100.0, 0.0, -210.0)
-	add_child(props)
 
 
 func _build_city_presentation() -> void:

@@ -295,3 +295,25 @@ behavior.
   section is gone, and the retained lighting controls work in monitored local
   server/client play. The monitor ended cleanly.
 - Status: **Resolved** on this branch with owner play approval.
+
+### CH-015 — Off-map local prop audition still loads at runtime
+
+- Classification: obsolete presentation experiment and avoidable startup work.
+- Evidence: the 2026-08-30 prop audition has one caller and no gameplay,
+  collision, network, menu, or dynamic entry point. It builds optional local
+  meshes at `(100, 0, -210)`, beyond the accepted city wall at `z=-165`; the
+  player cannot reach or normally see them. Its only other consumer is its own
+  implementation test. The city-only resurrection retained it but did not move
+  it into the accepted district.
+- Change: remove the Main loader/call, audition implementation and self-test,
+  and stale foliage README claims. Retain ignored source art and the unrelated
+  city/tree assets.
+- Validation: city audition and home-world lighting tests, fast manifest/import
+  checks, then owner local play verification that the accepted city is visually
+  unchanged.
+- Risk/rollback: low; the removed nodes are presentation-only and off-map.
+- Result: focused city, lighting, import/manifest, UID, and diff checks pass.
+  The owner confirmed the accepted city, street trees, dots, driving, and
+  lighting remain normal in monitored local server/client play. The monitor
+  ended cleanly.
+- Status: **Resolved** on this branch with owner play approval.

@@ -20,7 +20,6 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/home_world_lighting_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/sense_of_speed_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/tree_visual_library_test.gd
-"$godot_bin" --headless --path "$project_root" --script res://tests/prop_audition_library_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/city_audition_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/crash_telemetry_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/server_result_test.gd

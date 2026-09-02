@@ -64,6 +64,11 @@ Completed branch commits:
 - World/presentation layer: removed the unreachable proximity-landmark tree
   builders and their no-op Tree model menu. The owner confirmed city trees and
   retained lighting controls in monitored local play; the monitor ended cleanly.
+- World/presentation layer: removed the obsolete local prop audition, which
+  spawned visual-only props beyond the accepted north city wall. Focused city,
+  lighting, and fast checks pass; the owner confirmed normal city, street-tree,
+  dot, driving, and lighting behavior in monitored local play, and the monitor
+  ended cleanly.
 
 Validation for the import-verifier cleanup:
 

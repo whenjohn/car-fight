@@ -26,16 +26,10 @@ with Git LFS under:
 
 - `assets/foliage/shapespark/`
 
-The Scenery menu exposes the three four-tree families separately and loads only
-the selected source pack.
-
-## Local prop auditions
-
-Optional stones and ruined-house trials live under ignored
-`assets/local/prop_auditions/`. Their working textures are reduced to 1024px
-for this Intel laptop. The game places one native-scale house and all six
-vehicle-scale stones just north of the tree corridor; they are visual-only and
-shadow-disabled.
+The current Low Poly City uses its accepted fixed Collection 121–130 street-tree
+lining. The former runtime tree-family selector and off-map local prop audition
+have been retired; the Shapespark source remains preserved while its use is
+reviewed separately.
 
 ## Local city audition
 
