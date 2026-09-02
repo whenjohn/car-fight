@@ -37,12 +37,21 @@ Completed branch commits:
 - `6cb93cd` — code-health evidence ledger.
 - `37ff6eb` — one shared two-pass Godot import verifier used by the fast check,
   complete suite, deployment import, and Web build.
+- `177e7f2` — reduced the auto-read phase handoff to current information and
+  preserved the former 890-line phase history under `docs/history/`.
+- `668dc96` — added stable project architecture/context; the matching
+  `claude-comms` registry repair is commit `234335f`.
+- `2268137` — recorded the 31 stale files retained on macai2 by non-deleting
+  deployment sync; no remote file was changed.
+- `f73ff79` — added a structural manifest guard covering all 32 standalone
+  GDScript tests without executing them during the fast check.
 
 Validation for the import-verifier cleanup:
 
 - `./scripts/check.sh` passes.
 - `./scripts/server_daemon.sh import` passes.
 - A bounded Web Offline debug export passes.
+- The test-manifest positive check and omitted-test negative control pass.
 - The complete gameplay/network suite was not run because the change affects
   validation tooling only.
 
