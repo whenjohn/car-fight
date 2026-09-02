@@ -272,3 +272,26 @@ behavior.
   unchanged for server/client play.
 - Status: **Hold** for a separate owner-approved gameplay bugfix; not caused by
   the current cleanup change.
+
+### CH-014 — Removed-landmark code leaves a no-op tree selector
+
+- Classification: definitely dead world presentation and UI code.
+- Evidence: `_add_proximity_landmark()` has no caller after the city-only
+  resurrection. It is the only function that can populate `_tree_landmarks`,
+  so `_rebuild_tree_visuals()` always iterates an empty array and the Scenery
+  menu's Tree model choices cannot change anything. The accepted city street
+  trees are built independently by `world/city_audition.gd` with fixed
+  Collection 121–130 art.
+- Change: remove the unreachable proximity landmark/tree builders, their dead
+  state and environment option, and the no-op Tree model menu section. Retain
+  `tree_visual_library.gd` because the live city presentation uses it.
+- Validation: city audition, tree visual library, home-world lighting, fast
+  structural/import checks, then owner play verification that city trees remain
+  visible and the Scenery menu contains only working lighting controls.
+- Risk/rollback: low; no live node can reach the removed path. Revert this slice
+  if the city lining or lighting menu changes unexpectedly.
+- Result: all three focused world/presentation tests and the fast check pass.
+  The owner confirmed the city street trees remain visible, the dead Tree model
+  section is gone, and the retained lighting controls work in monitored local
+  server/client play. The monitor ended cleanly.
+- Status: **Resolved** on this branch with owner play approval.

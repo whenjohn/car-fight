@@ -61,6 +61,9 @@ Completed branch commits:
   dots during monitored local server/client play; the monitor ended cleanly.
 - CH-013 records that offline startup does not seed dots. This predates the
   cleanup and remains separate gameplay bug debt.
+- World/presentation layer: removed the unreachable proximity-landmark tree
+  builders and their no-op Tree model menu. The owner confirmed city trees and
+  retained lighting controls in monitored local play; the monitor ended cleanly.
 
 Validation for the import-verifier cleanup:
 

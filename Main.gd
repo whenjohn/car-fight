@@ -260,11 +260,8 @@ var _oil_submenus := {}
 var _vehicle_model_popup: PopupMenu
 var _scenery_popup: PopupMenu
 var _vehicle_model_scales := {}
-var _tree_visual_library
 var _prop_audition_library
 var _city_presentation: Node3D
-var _tree_landmarks: Array[StaticBody3D] = []
-var _tree_style_index := 0
 var _lighting_style_index := 4
 var _gameplay_collision_debug_enabled := false
 var _gameplay_text_visible := true
@@ -280,9 +277,8 @@ const VEHICLE_MODEL_RESET_MENU_ID := 2100
 const VEHICLE_MODEL_AUTOSAVE_INFO_MENU_ID := 2101
 const VEHICLE_MODEL_COLLIDER_INFO_MENU_ID := 2102
 const VEHICLE_MODEL_CURRENT_INFO_MENU_ID := 2103
-const TREE_STYLE_MENU_ID_BASE := 3000
 const LIGHTING_STYLE_MENU_ID_BASE := 3100
-const SCENERY_INFO_MENU_ID := 3200
+const SCENERY_LIGHTING_INFO_MENU_ID := 3201
 const LIGHTING_STYLE_NAMES := [
 	"Current warm shadow",
 	"G2 warm key + cool fill",
@@ -333,15 +329,7 @@ func _ready() -> void:
 	# the exact procedural baseline without warnings or missing dependencies.
 	# Normal headless servers/gates do not even probe the optional FBX path.
 	if not _is_headless():
-		_tree_visual_library = TREE_VISUAL_LIBRARY.new()
 		_prop_audition_library = PROP_AUDITION_LIBRARY.new()
-		_tree_style_index = TREE_VISUAL_LIBRARY.default_style_index()
-		var requested_tree_style := OS.get_environment("CAR_FIGHT_TREE_STYLE")
-		if requested_tree_style.is_valid_int():
-			_tree_style_index = clampi(int(requested_tree_style), 0,
-				TREE_VISUAL_LIBRARY.STYLE_NAMES.size() - 1)
-			if not TREE_VISUAL_LIBRARY.style_available(_tree_style_index):
-				_tree_style_index = 0
 		var requested_lighting_style := OS.get_environment("CAR_FIGHT_LIGHTING_STYLE")
 		if requested_lighting_style.is_valid_int():
 			_lighting_style_index = clampi(int(requested_lighting_style), 0,
@@ -1613,115 +1601,6 @@ func _add_static_oriented_box(node_name: String, size: Vector3, position: Vector
 	add_child(body)
 
 
-func _add_proximity_landmark(info: Dictionary) -> void:
-	var body := StaticBody3D.new()
-	body.name = str(info["name"])
-	body.position = info["position"]
-	var tree_landmark := str(info["kind"]) == "tree"
-	var radius := 0.58 if tree_landmark else 0.28
-	var height_scale := float(info.get("height_scale", 1.0))
-	var crown_scale := float(info.get("crown_scale", 1.0))
-	var height := (5.2 if tree_landmark else 6.6) * height_scale
-	var collision := CollisionShape3D.new()
-	var shape := CylinderShape3D.new()
-	shape.radius = radius
-	shape.height = height
-	collision.shape = shape
-	collision.position.y = height * 0.5
-	body.add_child(collision)
-	if not _is_headless():
-		if tree_landmark:
-			body.set_meta("tree_height_scale", height_scale)
-			body.set_meta("tree_crown_scale", crown_scale)
-			body.set_meta("tree_collision_height", height)
-			body.set_meta("tree_collision_radius", radius)
-			var tree_index := _tree_landmarks.size()
-			_tree_landmarks.append(body)
-			_build_tree_visual(body, tree_index)
-		else:
-			var pole := MeshInstance3D.new()
-			pole.name = "Pole"
-			var pole_mesh := CylinderMesh.new()
-			pole_mesh.top_radius = radius * 0.8
-			pole_mesh.bottom_radius = radius
-			pole_mesh.height = height
-			pole_mesh.radial_segments = 8
-			pole.mesh = pole_mesh
-			pole.position.y = height * 0.5
-			pole.material_override = _material(Color("313c42"))
-			pole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			pole.set_meta("world_presentation", true)
-			body.add_child(pole)
-			var lamp := MeshInstance3D.new()
-			lamp.name = "Lamp"
-			var lamp_mesh := SphereMesh.new()
-			lamp_mesh.radius = 0.48
-			lamp_mesh.height = 0.82
-			lamp_mesh.radial_segments = 10
-			lamp_mesh.rings = 5
-			lamp.mesh = lamp_mesh
-			lamp.position.y = height + 0.18
-			var lamp_material := _material(Color("ffd889"), true)
-			lamp_material.emission_enabled = true
-			lamp_material.emission = Color("ffb950")
-			lamp_material.emission_energy_multiplier = 2.2
-			lamp.material_override = lamp_material
-			lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			lamp.set_meta("world_presentation", true)
-			body.add_child(lamp)
-	add_child(body)
-
-
-func _build_tree_visual(body: StaticBody3D, tree_index: int) -> void:
-	var crown_scale := float(body.get_meta("tree_crown_scale", 1.0))
-	var trunk_height := float(body.get_meta("tree_collision_height", 5.2))
-	var radius := float(body.get_meta("tree_collision_radius", 0.58))
-	var target_height := trunk_height + 3.519 * crown_scale
-	var imported := _tree_visual_library.build_visual(
-		_tree_style_index, tree_index, target_height) as Node3D
-	if imported != null:
-		body.add_child(imported)
-		return
-	var pole := MeshInstance3D.new()
-	pole.name = "Trunk"
-	var pole_mesh := CylinderMesh.new()
-	pole_mesh.top_radius = radius * 0.72
-	pole_mesh.bottom_radius = radius
-	pole_mesh.height = trunk_height
-	pole_mesh.radial_segments = 7
-	pole.mesh = pole_mesh
-	pole.position.y = trunk_height * 0.5
-	pole.material_override = _material(Color("594638"))
-	pole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	pole.set_meta("world_presentation", true)
-	pole.set_meta("tree_visual", true)
-	body.add_child(pole)
-	var crown := MeshInstance3D.new()
-	crown.name = "Crown"
-	var crown_mesh := SphereMesh.new()
-	crown_mesh.radius = 2.15
-	crown_mesh.height = 4.1
-	crown_mesh.radial_segments = 8
-	crown_mesh.rings = 5
-	crown.mesh = crown_mesh
-	crown.position.y = trunk_height + 1.1 * crown_scale
-	crown.scale = Vector3(crown_scale, crown_scale * 1.18, crown_scale)
-	crown.material_override = _material(Color("345a3e"))
-	crown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	crown.set_meta("world_presentation", true)
-	crown.set_meta("tree_visual", true)
-	body.add_child(crown)
-
-
-func _rebuild_tree_visuals() -> void:
-	for tree_index in range(_tree_landmarks.size()):
-		var body := _tree_landmarks[tree_index]
-		for child in body.get_children():
-			if bool(child.get_meta("tree_visual", false)):
-				body.remove_child(child)
-				child.queue_free()
-		_build_tree_visual(body, tree_index)
-
 func _build_presentation() -> void:
 	_build_city_lighting()
 	_camera = Camera3D.new()
@@ -1957,19 +1836,9 @@ func _build_scenery_menu() -> void:
 	_scenery_popup.name = "Scenery"
 	_scenery_popup.title = "Scenery"
 	_system_menu_bar.add_child(_scenery_popup)
-	_scenery_popup.add_item("Tree model", SCENERY_INFO_MENU_ID)
+	_scenery_popup.add_item("Lighting", SCENERY_LIGHTING_INFO_MENU_ID)
 	_scenery_popup.set_item_disabled(
-		_scenery_popup.get_item_index(SCENERY_INFO_MENU_ID), true)
-	for index in range(TREE_VISUAL_LIBRARY.STYLE_NAMES.size()):
-		_scenery_popup.add_radio_check_item(TREE_VISUAL_LIBRARY.STYLE_NAMES[index],
-			TREE_STYLE_MENU_ID_BASE + index)
-		if not TREE_VISUAL_LIBRARY.style_available(index):
-			_scenery_popup.set_item_disabled(_scenery_popup.get_item_index(
-				TREE_STYLE_MENU_ID_BASE + index), true)
-	_scenery_popup.add_separator()
-	_scenery_popup.add_item("Lighting", SCENERY_INFO_MENU_ID + 1)
-	_scenery_popup.set_item_disabled(
-		_scenery_popup.get_item_index(SCENERY_INFO_MENU_ID + 1), true)
+		_scenery_popup.get_item_index(SCENERY_LIGHTING_INFO_MENU_ID), true)
 	for index in range(LIGHTING_STYLE_NAMES.size()):
 		_scenery_popup.add_radio_check_item(LIGHTING_STYLE_NAMES[index],
 			LIGHTING_STYLE_MENU_ID_BASE + index)
@@ -1980,22 +1849,12 @@ func _build_scenery_menu() -> void:
 func _refresh_scenery_menu() -> void:
 	if _scenery_popup == null:
 		return
-	for index in range(TREE_VISUAL_LIBRARY.STYLE_NAMES.size()):
-		_scenery_popup.set_item_checked(_scenery_popup.get_item_index(
-			TREE_STYLE_MENU_ID_BASE + index), index == _tree_style_index)
 	for index in range(LIGHTING_STYLE_NAMES.size()):
 		_scenery_popup.set_item_checked(_scenery_popup.get_item_index(
 			LIGHTING_STYLE_MENU_ID_BASE + index), index == _lighting_style_index)
 
 
 func _on_scenery_menu_pressed(id: int) -> void:
-	var tree_index := id - TREE_STYLE_MENU_ID_BASE
-	if tree_index >= 0 and tree_index < TREE_VISUAL_LIBRARY.STYLE_NAMES.size():
-		if TREE_VISUAL_LIBRARY.style_available(tree_index):
-			_tree_style_index = tree_index
-			_rebuild_tree_visuals()
-			_refresh_scenery_menu()
-		return
 	var lighting_index := id - LIGHTING_STYLE_MENU_ID_BASE
 	if lighting_index >= 0 and lighting_index < LIGHTING_STYLE_NAMES.size():
 		_lighting_style_index = lighting_index

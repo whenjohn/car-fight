@@ -13,6 +13,9 @@ func _init() -> void:
 		"obsolete standalone world switching is removed")
 	_check("_build_home_world" not in source and "\t_build_city_space()" in source,
 		"the world shell builds Low Poly City directly")
+	_check("_add_proximity_landmark" not in source \
+		and "TREE_STYLE_MENU_ID_BASE" not in source and "Tree model" not in source,
+		"the scenery menu contains no controls for removed proximity landmarks")
 	_check('renderer/rendering_method="gl_compatibility"' in project \
 		and 'renderer/rendering_method.mobile="gl_compatibility"' in project,
 		"desktop and mobile use the stable Godot 4.7 Compatibility renderer")
