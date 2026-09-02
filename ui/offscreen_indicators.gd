@@ -1,6 +1,6 @@
 extends Control
 ## Client-local rim awareness.  This deliberately marks only the nearest few
-## opposing cars plus the arena ball: dots, bolts, troops, targets, and scenery
+## opposing cars plus the city ball: dots, bolts, troops, targets, and scenery
 ## are plentiful enough that marking them would turn the rim into decoration.
 
 const KIND_PLAYER := 0

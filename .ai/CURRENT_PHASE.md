@@ -89,6 +89,10 @@ Completed branch commits:
   current fixture orientation. Focused asset and shield runtime checks pass;
   the owner confirmed the drone shot and shield interaction, and the monitor
   ended cleanly.
+- Documentation checkpoint: updated README and nearby comments that still
+  described the retired tree/prop auditions, old arena size, sphere collider,
+  ramps/map gates, and an outdated vehicle-mesh contract. Fast structural and
+  exact stale-phrase checks pass; no runtime files changed.
 
 Validation for the import-verifier cleanup:
 

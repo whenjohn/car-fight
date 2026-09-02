@@ -122,13 +122,12 @@ Controls:
 - The native `Vehicle Model` system menu scales your selected local vehicle from
   100% to 500% and autosaves a separate choice for every vehicle. This is a
   presentation debug control; the authoritative gameplay collider remains unchanged.
-- On the foliage audition branch, the native `Scenery` menu switches between
-  the procedural trees and locally installed collection ranges, and compares
-  four no-SSAO lighting setups. These controls change presentation only; tree
-  count, trunk collision, physics, and networking remain unchanged.
-- Locally installed stone and ruined-house auditions sit just north of the
-  east tree corridor near `(100, -210)`. They retain vehicle-relative source
-  scale and are visual-only, with no collision or network state.
+- The native `Scenery` menu compares five Intel-safe, no-SSAO lighting setups.
+  These controls change presentation only; collision, physics, and networking
+  remain unchanged.
+- When the owner-supplied local tree pack is installed, the city uses its fixed
+  Collection 121–130 street-tree lining. Clean checkouts remain functional
+  without the optional marketplace source.
 - Cursor distance continuously controls speed and acceleration: inside 1 world unit is stopped; at 20 units it requests 18 units/s and the strongest normal acceleration. The wider control radius and softened small-angle steering provide room for precise throttle and racing-line adjustments.
 - Braking and drifting need no extra button. At road speed, pull the cursor inward to fully lock the wheels and preserve an exaggerated forward skid; the chassis snaps into a pronounced 18-degree dive. Add a sharp direction change to rotate that same skid into an assisted powerslide. Keep the cursor far away for a broad planted turn, or point along the exit to recover grip.
 - Hold `Space` to burst at 28 units/s with stronger acceleration and a wider, committed turn.
@@ -142,9 +141,14 @@ Controls:
 - Drive mode keeps a deliberately faint coverage debug around the local Jeep. A firing zone flashes briefly; press `C` to hide or show the debug.
 - One stationary drone by itself in the empty west clearing arms after a short delay and fires once every two seconds at the nearest visible driving player. Its bolts lightly jostle and deflect an unshielded Jeep; cloak prevents targeting. The drone is a non-colliding shield-test fixture and cannot be targeted or destroyed.
 
-The 168-unit-wide floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Its obstacles, outer targets, and shield-test clearing are spread across longer driving lines. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
+The 330-unit-wide city floor uses a muted world-space shader grid with one-unit subdivisions, subtle four-unit lines, and quiet centre axes. Its building collision proxies, outer targets, and shield-test clearing are spread across longer driving lines. Because the grid is fixed in world space while the camera follows the Jeep, speed and direction remain readable without competing with the vehicles.
 
-Four small fixed weapon mounts show the side zones. At runtime every combined CC0 vehicle-pack mesh is split into a chassis and four wheel assemblies: only the chassis leans under turning load, the front tires visibly steer, and all tires spin with signed road speed. This rig and the `V` selection are presentation-only; collision always uses the same server-authoritative, equal-mass sphere on every peer.
+Four small fixed weapon mounts show the side zones. At runtime the vehicle
+presentation normalizes several imported model layouts. Models with separable
+wheel geometry animate chassis lean, front-wheel steering, and signed wheel
+spin; atlas-baked models retain intact geometry with contact anchors for their
+skid trails. This rig and the `V` selection are presentation-only; ordinary
+play uses the same server-authoritative, equal-mass capsule on every peer.
 
 ## Tests
 
@@ -152,7 +156,7 @@ Four small fixed weapon mounts show the side zones. At runtime every combined CC
 ./scripts/test.sh
 ```
 
-The gate checks FOLLOW movement, coverage geometry and budget enforcement, presentation assets and shaders, collision recovery, ball physics, ramps, reverse, boost, cloak, tractor, and shields. It runs real headless servers and clients, including a deterministic 120 ms one-way UDP relay, then verifies automatic combat, drone hits, shield absorption, and cloak/shield exclusion. The mixed-transport gate places ENet and WebRTC peers in one world and covers leave draining, peer-ID collisions, and either transport leg closing. The join-transient gate deliberately blocks a synchronized client for 1.5 seconds—longer than the 64-tick history—and requires bounded recovery without impossible rollback or stale-packet log flooding.
+The complete suite checks FOLLOW movement, coverage geometry and budget enforcement, presentation assets and shaders, collision recovery, city-ball physics, reverse, boost, cloak, tractor, and shields. It runs real headless servers and clients, including a deterministic 120 ms one-way UDP relay, then verifies automatic combat, drone hits, shield absorption, and cloak/shield exclusion. The mixed-transport gate places ENet and WebRTC peers in one world and covers leave draining, peer-ID collisions, and either transport leg closing. The join-transient gate deliberately blocks a synchronized client for 1.5 seconds—longer than the 64-tick history—and requires bounded recovery without impossible rollback or stale-packet log flooding.
 
 ## Network shaping
 
@@ -219,9 +223,9 @@ trace, then replay it with:
 `play_shaped_local.sh` is the visual smoothness harness. It owns an isolated
 local server and relay, enables the G2 profile, and spawns peer 1 as a
 server-authoritative Jeep following long straight runs around the city's open
-perimeter, joined by short chamfered corners. The observer spawns beside it, and the route stays clear of city fixtures
-gate, and the harness removes the elevated ramps on both server and client to
-leave a flat expanded city for the moving test target. It also disables the physical
+perimeter, joined by short chamfered corners. The observer spawns beside it,
+and the route stays clear of city fixtures. The harness uses the flat expanded
+city for the moving test target and disables the physical
 city ball, shield-test drone presentation, and the orange marker mounted above
 each peer, leaving only the two Jeeps. A
 server guard restores the moving Jeep if it ever leaves the city. The single rendered client can chase it; closing

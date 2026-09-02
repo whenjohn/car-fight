@@ -435,7 +435,7 @@ elif [[ "$interactive_browser" != "1" ]]; then
 	native_script_args=(--script right)
 	if (( soak_seconds > 0 )); then
 		# The survivor proves mux topology only. Keep it in map 0 during a long
-		# soak instead of letting the scripted drive eventually enter a map gate.
+		# soak instead of letting scripted driving eventually leave the test route.
 		native_script_args=()
 	fi
 	"${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}" --headless \

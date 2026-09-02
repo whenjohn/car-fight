@@ -23,9 +23,9 @@ func _init() -> void:
 			continue
 		var mesh := visual.get_child(0) as MeshInstance3D
 		_check(mesh != null and mesh.mesh != null,
-			"the audition visual retains its imported mesh")
+			"the accepted city visual retains its imported mesh")
 		_check(mesh.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
-			"tree audition meshes stay out of the real-time shadow pass")
+			"city tree meshes stay out of the real-time shadow pass")
 		_check(visual.scale.x > 0.0 and is_finite(visual.scale.x),
 			"source trees normalize to the accepted city height")
 		visual.free()

@@ -429,3 +429,24 @@ behavior.
   west-clearing drone shot and shield interaction remain normal in monitored
   local server/client play. The monitor ended cleanly.
 - Status: **Resolved** on this branch with owner play approval.
+
+### CH-021 — Accepted-state documentation describes removed systems
+
+- Classification: stale user and maintainer documentation.
+- Evidence: README still advertised the retired tree selector and off-map prop
+  audition, described the former 168-unit arena and sphere collider, claimed
+  the suite tested removed ramps, and described shaped play as removing those
+  ramps. Nearby UI, player, WebRTC-harness, and tree-test comments also used
+  arena/audition/map-gate/upper-road terminology for current city-only paths.
+- Change: update wording to the accepted 330-unit city, fixed optional tree
+  lining, five lighting presets, capsule collider, current suite, and flat
+  expanded-city shaping route. No command, assertion, constant, or runtime code
+  changes.
+- Validation: stale-term search, shell syntax through the fast check, and diff
+  review. Rendered play is unnecessary for comments/documentation only.
+- Risk/rollback: minimal; preserve historical terms in the evidence documents
+  that intentionally describe old incidents.
+- Result: fast import/syntax/manifest/UID and diff checks pass, and an exact
+  search finds none of the replaced stale claims.
+- Status: **Resolved** on this branch; no rendered check required for prose and
+  comments only.

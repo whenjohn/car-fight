@@ -419,8 +419,8 @@ func _static_contact_normal() -> Vector3:
 		var collider := direct_state.get_contact_collider_object(index)
 		if collider is StaticBody3D:
 			var normal: Vector3 = direct_state.get_contact_local_normal(index)
-			# Floor, ramp, and upper-road contacts support the car vertically; only
-			# near-vertical faces are walls that should produce a horizontal bump.
+			# Ground and upward-facing city geometry support the car vertically; only
+			# near-vertical faces should produce a horizontal wall bump.
 			if absf(normal.y) > 0.45:
 				continue
 			normal.y = 0.0
