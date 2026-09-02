@@ -64,7 +64,7 @@ echo "server open-area car: peer 1"
 echo "one-way: ${CAR_FIGHT_SHAPE_LATENCY_MS}ms jitter=+/-${CAR_FIGHT_SHAPE_JITTER_MS}ms loss=${CAR_FIGHT_SHAPE_LOSS_PCT}%"
 echo "evidence: $run_root"
 
-CAR_FIGHT_G2_STACK=1 CAR_FIGHT_NO_RAMPS=1 CAR_FIGHT_NO_DRONE=1 \
+CAR_FIGHT_G2_STACK=1 CAR_FIGHT_NO_DRONE=1 \
 CAR_FIGHT_NO_BALL=1 CAR_FIGHT_HIDE_PEER_MARKERS=1 CAR_FIGHT_PORT="$proxy_port" \
 CAR_FIGHT_MONITOR_ROOT="$run_root/client" \
 CAR_FIGHT_SESSION_LABEL="network-$profile-server-driver" \

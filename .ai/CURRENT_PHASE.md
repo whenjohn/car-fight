@@ -99,6 +99,10 @@ Completed branch commits:
   Focused StateBundle/codec/remote-position checks pass; the owner confirmed
   normal ENet play, and the monitor ended cleanly. Dormant recovery/failure
   injection seams remain protected on CH-022 hold.
+- Scripts/tooling layer: removed the historical sunlit-aerial launcher after
+  tracing the lighting/map selections that once distinguished it, and removed
+  two unconsumed no-ramp environment assignments. Distinct Networking 1,
+  Networking 2 mixed, and shaped one/two-client direct-entry harnesses remain.
 
 Validation for the import-verifier cleanup:
 

@@ -486,3 +486,25 @@ behavior.
   ENet join, driving, city objects, and networked interactions in monitored
   local server/client play. The monitor ended cleanly.
 - Status: **Resolved** on this branch with owner play approval.
+
+### CH-024 — Obsolete world-study launcher configuration
+
+- Classification: redundant script and no-op harness configuration.
+- Evidence: `play_sunlit_aerial.sh` originally selected lighting style 4 and
+  the city study map, but the city-only resurrection removed both selections;
+  the remaining wrapper merely launched ordinary monitored offline play under
+  a historical name. `CAR_FIGHT_NO_RAMPS` also remained in two shaped-network
+  client environments after ramp construction and its environment parser were
+  removed. Repository-wide searches find no remaining reader or caller.
+- Change: remove the redundant study wrapper and the two no-op environment
+  assignments. Retain the Networking 1, Networking 2 mixed, and shaped local
+  one/two-client harnesses because each remains a distinct direct-entry manual
+  diagnostic even when no other tracked script calls it.
+- Validation: shell syntax for every retained script, two-pass import,
+  test-manifest/UID/diff checks, and an exact stale-token search. No gameplay,
+  network argument, process topology, or runtime behavior changes.
+- Risk/rollback: very low; generic offline play remains available through
+  `play_monitored.sh --offline`, while the deleted wrapper no longer supplied
+  either feature named by it.
+- Status: **Resolved** on this branch; rendered play is unnecessary for a
+  redundant wrapper deletion and removal of unconsumed environment values.
