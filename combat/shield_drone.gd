@@ -54,11 +54,6 @@ func build_presentation() -> void:
 func muzzle_position() -> Vector3:
 	return global_position + Vector3.UP * MUZZLE_HEIGHT
 
-func aim_at(target: Vector3) -> void:
-	var flat_target := Vector3(target.x, global_position.y, target.z)
-	if global_position.distance_squared_to(flat_target) > 0.001:
-		look_at(flat_target, Vector3.UP, true)
-
 func _process(delta: float) -> void:
 	if _ring != null:
 		_ring.rotation.z += delta * 0.65

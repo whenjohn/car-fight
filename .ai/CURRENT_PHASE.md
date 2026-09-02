@@ -84,6 +84,11 @@ Completed branch commits:
   Focused vehicle, area-weapon, correction, and fast checks pass; the owner
   confirmed driving, vehicle cycling, and area targeting, and the monitor ended
   cleanly. CH-018 records removed-gate state that remains protected on hold.
+- Combat layer: removed the uncalled shield-drone aiming method while preserving
+  Main-owned targeting, projectile authority, timing, muzzle position, and
+  current fixture orientation. Focused asset and shield runtime checks pass;
+  the owner confirmed the drone shot and shield interaction, and the monitor
+  ended cleanly.
 
 Validation for the import-verifier cleanup:
 

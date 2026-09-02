@@ -410,3 +410,22 @@ behavior.
   driving, vehicle cycling, and the area-target gesture in monitored local
   server/client play. The monitor ended cleanly.
 - Status: **Resolved** on this branch with owner play approval.
+
+### CH-020 — Uncalled shield-drone aiming method
+
+- Classification: definitely dead combat-presentation code.
+- Evidence: repository-wide symbol and string-call searches find no caller for
+  `ShieldDrone.aim_at()`. Main owns drone target selection and projectile
+  authority and calls only `muzzle_position()`; the fixture has never rotated
+  through this method in the current runtime path.
+- Change: remove the orphan method only. Preserve targeting, fire cadence,
+  muzzle position, bolt state, shield interactions, and current presentation.
+- Validation: shield-drone asset/contract check, focused shield runtime gate,
+  fast import/manifest/UID checks, then owner play through one drone shot and
+  shield interaction.
+- Risk/rollback: very low; no executable path references the method.
+- Result: shield-drone presentation/assets, focused shield runtime behavior,
+  fast import/manifest/UID, and diff checks pass. The owner confirmed the
+  west-clearing drone shot and shield interaction remain normal in monitored
+  local server/client play. The monitor ended cleanly.
+- Status: **Resolved** on this branch with owner play approval.
