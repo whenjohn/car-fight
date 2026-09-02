@@ -124,31 +124,35 @@ Validation for the import-verifier cleanup:
 
 Accumulated cleanup-boundary validation:
 
-- All 33 focused GDScript tests, the WebRTC harness lifecycle, offline smoke,
-  late-join recovery, reconnect, ball, tractor, reverse, combat, RC-orb,
-  shield, and det gates pass.
+- After the final layer audit, all 33 focused GDScript contracts pass once.
+  The WebRTC harness lifecycle, offline smoke, late-join recovery, reconnect,
+  ball, tractor, reverse, combat, RC-orb, shield, and det gates also pass once
+  at the final milestone.
 - `network_test.sh` and `mixed_transport_test.sh` fail because no queued
   authority probe reaches clients. Both failures reproduce on untouched
   `master@d949ba7`, so they are recorded as pre-existing CH-011 network-test
-  debt rather than a cleanup regression.
+  debt rather than a cleanup regression and were not wastefully rerun at the
+  final milestone.
 - The first sandboxed WebRTC lifecycle attempt failed with loopback
   `listen EPERM`; its required unsandboxed rerun passed.
 
 ## Next
 
-1. Decide separately whether tracked `.ai` state should move into the shared
+1. Review this completed cleanup branch and merge it to `master` only with
+   explicit owner approval. Do not deploy as an implicit part of the merge.
+2. Fix CH-011 authority-probe delivery only as a separate networking task with
+   focused ENet and mixed-transport characterization.
+3. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
-2. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
+4. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
    owner approval and after this branch is merged to clean `master`. Its old
    remote `gate_test.sh` still consumes the constant-zero course/gate `RESULT`
    fields, so retain that output contract until deployment state is resolved.
-3. Review the branch-ledger candidates; delete no ref without separate owner
+5. Review the branch-ledger candidates; delete no ref without separate owner
    approval and a fresh merged/ancestor check.
-4. Treat the characterized result-report boundary as the limit of this cleanup;
+6. Treat the characterized result-report boundary as the limit of this cleanup;
    argument parsing and any further `Main.gd` extraction remain on hold.
-5. Fix CH-011 authority-probe delivery only as a separate networking task with
-   focused ENet and mixed-transport characterization.
 
 The complete former phase log is preserved at
 `docs/history/CURRENT_PHASE_THROUGH_2026-09-02.md`.

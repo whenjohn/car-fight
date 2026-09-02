@@ -548,3 +548,27 @@ behavior.
 - Risk/rollback: minimal; historical results stay intact and only their active
   interpretation/routing changes.
 - Status: **Resolved** on this branch; no runtime validation is required.
+
+### CH-027 — Final tests, tools, and tracked-asset reachability audit
+
+- Classification: retained live coverage and project support material.
+- Evidence: all 32 `tests/*_test.gd` files exercise a current production
+  contract or the deliberately retained CH-004/CH-018 compatibility seams;
+  `net/state_codec_selftest.gd` covers the wire codec. The city extractor and
+  vehicle-animation lab both have documented direct entry points, and the lab
+  also has contract coverage. Every tracked runtime asset outside metadata and
+  license files has a direct `res://` consumer. The large monitored-play
+  harness remains cohesive crash-safety tooling with a documented collector
+  and focused lifecycle test.
+- Decision: retain these tests, tools, assets, and safety harnesses. Do not add
+  splits or wrappers merely to reduce file length; no duplicate executable
+  contract or unreachable tracked asset was found.
+- Validation: all 33 focused GDScript contracts (the 32 test files plus the
+  state codec self-test) pass. All 11 currently green runtime/lifecycle gates
+  pass once: WebRTC harness lifecycle, offline, late join, reconnect, ball,
+  tractor, reverse, combat, RC orb, shield, and det.
+- Known debt: `network_test.sh` and `mixed_transport_test.sh` were deliberately
+  not rerun at this boundary. Their missing authority-probe delivery is CH-011
+  and was already reproduced identically on untouched `master@d949ba7`; hiding
+  or weakening their assertions is not part of cleanup.
+- Status: **Retain**; the layer-by-layer code-health audit is complete.
