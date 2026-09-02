@@ -78,6 +78,12 @@ Completed branch commits:
   helper into the live yaw-only city builder after tracing its removed ramp and
   upper-road callers. Focused city and reverse/wall checks pass; the owner
   confirmed building and outer-wall collision, and the monitor ended cleanly.
+- Player layer: removed three uncalled helper methods while preserving their
+  live backing state, setters, gesture fields, rollback schema, and correction
+  sampling; corrected the stale sphere-collider comment to the accepted capsule.
+  Focused vehicle, area-weapon, correction, and fast checks pass; the owner
+  confirmed driving, vehicle cycling, and area targeting, and the monitor ended
+  cleanly. CH-018 records removed-gate state that remains protected on hold.
 
 Validation for the import-verifier cleanup:
 

@@ -369,3 +369,44 @@ behavior.
   The owner confirmed normal collision against a city building and outer wall,
   and the monitored local server/client run ended cleanly.
 - Status: **Resolved** on this branch with owner play approval.
+
+### CH-018 — Removed gates leave rollback and correction-schema state
+
+- Classification: obsolete state with protected compatibility implications.
+- Evidence: `gate_cooldown` and `gate_transition_count` remain registered
+  rollback state after the sole-city resurrection removed jump gates. The
+  associated `_last_map_transition_tick` is never written, so
+  `correction_map_transition_age()` always returns `-1`; nevertheless Main's
+  correction samples and `CorrectionClassifier` still carry and classify the
+  map-transition field. Main also resets `gate_cooldown` during its surviving
+  city recovery path.
+- Proposed change: retire this only with explicit rollback-state and diagnostic
+  schema review, alongside CH-004's obsolete result fields and the stale
+  deployed gate consumer. Do not mix it into behavior-neutral cleanup.
+- Validation: state-schema characterization, focused correction-classifier and
+  recovery tests, native/mixed transport gates, and a full integration boundary.
+- Risk/rollback: high; removing apparently dormant variables changes registered
+  synchronized state and potentially external diagnostic contracts.
+- Status: **Hold** for a separately characterized state/schema cleanup.
+
+### CH-019 — Uncalled player helper methods
+
+- Classification: definitely dead code and stale architecture comment.
+- Evidence: repository-wide symbol and string-call searches find no caller for
+  `GroundVehicleHull.model_scale_multiplier()`,
+  `PlayerBody.area_gesture_preview()`, or `PlayerBody._current_network_tick()`.
+  Their live state is consumed through the scale setter/backing value, direct
+  gesture fields, and Main's correction sampler respectively. The hull header
+  also describes the former sphere rather than the accepted capsule collider.
+- Change: remove only the three orphan methods and correct the comment. Preserve
+  all fields, setters, rollback registration, gesture behavior, input, movement,
+  and diagnostic sampling.
+- Validation: vehicle animation/assets, area weapon, correction classifier,
+  fast import/manifest/UID checks, then owner play through normal driving and
+  one vehicle-cycle/area-target smoke.
+- Risk/rollback: very low; no executable path references the removed methods.
+- Result: focused vehicle animation/assets, area weapon, correction classifier,
+  fast import/manifest/UID, and diff checks pass. The owner confirmed normal
+  driving, vehicle cycling, and the area-target gesture in monitored local
+  server/client play. The monitor ended cleanly.
+- Status: **Resolved** on this branch with owner play approval.

@@ -457,13 +457,6 @@ func correction_map_transition_age(current_tick: int) -> int:
 		current_tick - _last_map_transition_tick)
 
 
-func _current_network_tick() -> int:
-	var tree := get_tree()
-	if tree == null:
-		return -1
-	var network_time := tree.root.get_node_or_null("NetworkTime")
-	return -1 if network_time == null else int(network_time.get("tick"))
-
 func _service_cloak_toggle(held: bool) -> void:
 	# The wire carries a held level. Only real input transitions write the
 	# rollback edge detector, so holding R produces exactly one toggle.
@@ -523,9 +516,6 @@ func _service_area_weapon() -> void:
 		# Splash is a one-shot call-in. Stow it on release so the regular
 		# coverage/auto-fire weapon resumes while the aircraft is still inbound.
 		area_weapon_armed = false
-
-func area_gesture_preview() -> Dictionary:
-	return {"start": area_gesture_start, "end": area_gesture_end} if area_gesture_active else {}
 
 ## Cross-body hit commands arrive after this body's current tick. Queue them
 ## until its own rollback simulation owns a live direct_state, as the tractor

@@ -1,6 +1,6 @@
 extends Node3D
 ## Presentation-only vehicle models. Chassis lean and wheel animation are
-## derived locally; the rollback collider remains one equal-mass sphere.
+## derived locally; the rollback collider remains one equal-mass capsule.
 
 const VEHICLE_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
@@ -638,9 +638,6 @@ static func sanitized_model_scale(value: Variant) -> float:
 	if value is not float and value is not int:
 		return 1.0
 	return clampf(float(value), MODEL_SCALE_MIN, MODEL_SCALE_MAX)
-
-func model_scale_multiplier() -> float:
-	return _model_scale_multiplier
 
 func set_model_scale_multiplier(value: Variant) -> void:
 	var next_scale := sanitized_model_scale(value)
