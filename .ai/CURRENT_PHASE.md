@@ -41,10 +41,15 @@ Completed branch commits:
   preserved the former 890-line phase history under `docs/history/`.
 - `668dc96` — added stable project architecture/context; the matching
   `claude-comms` registry repair is commit `234335f`.
-- `2268137` — recorded the 31 stale files retained on macai2 by non-deleting
-  deployment sync; no remote file was changed.
+- `2268137` — recorded the stale files retained on macai2 by non-deleting
+  deployment sync; its original manual count of 31 was later corrected to 33.
+  No remote file was changed.
 - `f73ff79` — added a structural manifest guard covering all 32 standalone
   GDScript tests without executing them during the fast check.
+- The macai2 deployment helper now defaults to a read-only preview, requires an
+  explicit `apply` from a clean `master`, and preserves generated/local state.
+  Its preview matched the exact 33 stale files plus two empty directories;
+  nothing has been deleted remotely.
 
 Validation for the import-verifier cleanup:
 
@@ -60,10 +65,10 @@ Validation for the import-verifier cleanup:
 1. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
-2. Reconcile the 31 stale files retained by macai2 deployment only after an
-   exact deletion manifest and separate owner approval. Its old `gate_test.sh`
-   still consumes the constant-zero course/gate `RESULT` fields, so retain that
-   output contract until deployment state is resolved.
+2. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
+   owner approval and after this branch is merged to clean `master`. Its old
+   remote `gate_test.sh` still consumes the constant-zero course/gate `RESULT`
+   fields, so retain that output contract until deployment state is resolved.
 3. Produce a keep/delete ledger for merged and diagnostic branches; delete no
    branch without separate owner approval.
 4. Characterize one low-coupling `Main.gd` boundary before considering any

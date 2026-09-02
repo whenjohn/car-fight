@@ -300,13 +300,21 @@ The Jeep source and license are in `assets/ground_vehicle/`. Vendored add-on ver
 
 ## macai2
 
-The isolated Car Fight server is deployed on macai2. Redeploy it explicitly with:
+The isolated Car Fight server is deployed on macai2. Preview the exact sync and
+deletion manifest first:
 
 ```bash
-./scripts/deploy_macai2.sh
+./scripts/deploy_macai2.sh preview
+./scripts/deploy_macai2.sh apply   # only after reviewing the preview
 ```
 
-It uses `ssh macai2-ts`, installs the isolated launchd label `com.whenjohn.car-fight-server`, keeps native ENet on UDP `10080`, and listens for WebRTC signaling on TCP `10181`. It does not touch g2 or Starter. This is game-service support only; a public browser client still needs HTTPS/WSS hosting and TURN acceptance.
+Preview is the safe default when no argument is supplied. Apply reconciles files
+removed from the canonical source while preserving remote `.godot/`, generated
+run/build evidence, and ignored `assets/local/`. It then installs the isolated
+launchd label `com.whenjohn.car-fight-server`, keeps native ENet on UDP `10080`,
+and listens for WebRTC signaling on TCP `10181`. It does not touch g2 or Starter.
+This is game-service support only; a public browser client still needs HTTPS/WSS
+hosting and TURN acceptance.
 
 # Monitored local play
 

@@ -161,25 +161,28 @@ behavior.
 ### CH-009 — Deployment retains removed project files
 
 - Classification: stale deployment content and operational correctness risk.
-- Evidence: `scripts/deploy_macai2.sh` uses rsync without `--delete`. A read-only
-  comparison found 31 files under `/Users/macai2/Projects/car-fight` that no
+- Evidence: the former `scripts/deploy_macai2.sh` used rsync without `--delete`.
+  A read-only comparison found 33 files under
+  `/Users/macai2/Projects/car-fight` that no
   longer exist in the canonical repository, including removed arena, driving
   course, elevated course, jump-gate, overcast-world, and occlusion-hint code,
   tests, and launchers. `scripts/gate_test.sh` is one of those leftovers.
 - History: the city-only resurrection in `7027700`/`3ccd8fe` intentionally
   removed these worlds and tests; later deployment copied current files without
   reconciling removed paths.
-- Proposed change: design a deployment reconciliation step that preserves
+- Change: the deployment helper now defaults to a dry-run deletion preview,
+  requires an explicit `apply`, preserves
   explicit runtime/cache/local-asset exclusions, previews deletions, and removes
-  only files absent from the canonical deployment source. Verify the exact
-  31-file inventory before applying it to macai2.
+  only files absent from the canonical deployment source. The read-only preview
+  verified the exact 33-file inventory plus two empty directories on
+  macai2; applying it remains a separate owner-approved operation.
 - Validation: rsync dry-run/deletion manifest, remote service status before and
   after, current file-list comparison, native connection smoke, and browser
   connection smoke. Deployment remains a separate explicit operation.
 - Risk/rollback: high operational impact. A broad `--delete` can remove remote
   state or locally supplied assets unless exclusions and targets are exact.
-- Status: **Hold** pending owner approval of the deletion manifest and deploy
-  behavior.
+- Status: deployment guard **Resolved** on this branch; remote cleanup **Hold**
+  pending review of the generated manifest and explicit approval to apply it.
 
 ### CH-010 — Full-suite GDScript manifest is manually maintained
 
