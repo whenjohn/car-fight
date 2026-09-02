@@ -362,3 +362,16 @@ three-million-vertex FBX. The supplied forest EXR is currently omitted because
 Godot cannot decode its compression. The entire city composition is presented
 at 150% source scale—including its street spacing, collision footprints, and
 map boundary—while vehicle scale remains unchanged.
+
+Because `assets/local/` is intentionally ignored, Git does not populate it in
+a new worktree. Immediately after `git worktree add`, bootstrap an independent
+physical copy of the required city and Collection tree art from another
+registered Car Fight worktree:
+
+```sh
+./scripts/sync_local_assets.sh
+```
+
+Use `./scripts/sync_local_assets.sh --check` when only verifying readiness.
+The helper never symlinks the art, never deletes target files, and never copies
+the retired prop or Shapespark audition packages.

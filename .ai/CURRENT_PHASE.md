@@ -35,13 +35,19 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 - The editor is a compact 470x540 native child window. It remains at native
   pixel size instead of growing with the game's fixed-viewport canvas stretch
   when the main window is resized.
+- New Car Fight worktrees must run `./scripts/sync_local_assets.sh` immediately
+  after creation. The tracked `AGENTS.md` rule and helper physically copy only
+  the required ignored city and Collection tree families from a registered
+  donor worktree; no symlinks, destructive sync, or retired audition packs.
 - The Intel Mac window guard no longer imposes its former fixed 1280x720 cap.
   Ordinary decorated windows can be resized freely while they remain within
   the 48-pixel safe inset; fullscreen, maximized, borderless, and edge-to-edge
   presentation remain blocked.
 - Validation passes: `./scripts/check.sh`,
   `tests/home_world_lighting_test.gd`, `tests/window_safety_policy_test.gd`, and
-  `./scripts/offline_test.sh`.
+  `./scripts/offline_test.sh`. The local-asset bootstrap also passes its own
+  `--check` plus the focused city-audition and tree-library tests from a
+  previously empty feature worktree.
 - Still needed: one owner-approved monitored visual pass in an ordinary inset
   window to judge layout and whether the chosen controls produce useful looks.
 

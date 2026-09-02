@@ -12,6 +12,12 @@ read-only evidence ledger; cleanup is not authorization to rewrite gameplay,
 networking, rollback, transports, or synchronized state.
 
 - Run with `/Applications/Godot47.app/Contents/MacOS/Godot`.
+- Immediately after creating any Car Fight Git worktree, run
+  `./scripts/sync_local_assets.sh` from the new worktree before importing,
+  testing, or rendered play. It physically copies the required ignored Low
+  Poly City and Collection tree assets from another registered Car Fight
+  worktree. Never symlink `assets/local/`; if no donor is found, stop and
+  report the missing local art instead of accepting the procedural fallback.
 - On this Intel Mac, keep Compatibility rendering, SSAO off, and directional
   shadow maps off. The default sunlit grade uses the stable positional shadow.
 - Server authority and ENet lifecycle live in `Main.gd`.
