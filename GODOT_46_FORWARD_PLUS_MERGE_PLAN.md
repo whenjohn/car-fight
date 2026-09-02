@@ -1,6 +1,8 @@
 # Godot 4.6.3 Forward+ merge plan
 
-Status: approved direction, not yet applied to `master`.
+Status: **historical and superseded**. This plan was applied, investigated, and
+then reversed. Do not execute it as current work; use
+`GODOT_46_TO_47_HISTORY.md` for the accepted Godot 4.7.1 Compatibility outcome.
 
 This document is the handoff for moving the canonical Car Fight project from
 Godot 4.7 + Rapier 0.8.39 to the Intel-Mac-tested Godot 4.6.3 + Rapier 0.8.35

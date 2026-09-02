@@ -1,5 +1,10 @@
 # Networking 2: Durability and Adverse-Path Validation
 
+Status: **historical completed investigation**. The soak and two-player work
+below were accepted. Its harness-only capsule/default statements describe the
+baseline at that time and are not current product instructions. Use
+`NETWORK_SHAPING_FINDINGS.md` for evidence and `README.md` for supported runs.
+
 ## Baseline
 
 Networking 2 starts at accepted Networking-1 commit `a535364`. Preserve the

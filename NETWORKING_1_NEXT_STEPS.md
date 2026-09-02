@@ -1,5 +1,10 @@
 # Networking 1: Jump and Teleport Follow-up
 
+Status: **historical completed investigation (2026-08-22)**. The ordered work
+below is preserved as evidence, not as a current session checklist. The later
+accepted product baseline uses the horizontal capsule in ordinary gameplay;
+use `README.md` and `.ai/CONTEXT.md` for current behavior.
+
 ## Completed 2026-08-22
 
 The ordered investigation below is complete. Harness identity/lifecycle was

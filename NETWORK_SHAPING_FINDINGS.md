@@ -1,6 +1,8 @@
 # Network shaping findings
 
-Status: Networking-1 120 ms forced-TURN jump/teleport fix accepted on `feature/networking-1`
+Status: historical evidence through Networking 2 acceptance. Statements about
+the then-default sphere or unmerged branches describe their dated experiment;
+ordinary gameplay now uses the accepted horizontal capsule.
 Last updated: 2026-08-22
 
 ## Scope
@@ -758,9 +760,9 @@ zero active remote bodies. The actual proxy collider was disabled; only its
 debug MeshInstance failed to follow presentation visibility. The debug visual
 now hides and reappears with the hull.
 
-The detailed handoff for harness hardening, correction attribution, controlled
-reproduction, evidence-directed fixes, and the 120 ms acceptance gate is in
-`NETWORKING_1_NEXT_STEPS.md`. Treat it as the next-session execution order.
+The historical handoff for harness hardening, correction attribution,
+controlled reproduction, evidence-directed fixes, and the 120 ms acceptance
+gate is preserved in `NETWORKING_1_NEXT_STEPS.md`.
 
 ## Networking 2 forced-TURN reconnect soak
 

@@ -1,9 +1,11 @@
 # Web and platform plan
 
-Status: Phases 0 and 1 are merged. The Phase 2 localhost cross-play proof is
-implemented on `feature/browser-networking`; remote/TURN impairment acceptance
-and production deployment have not started. Native ENet remains the accepted
-production baseline.
+Status: **historical rollout plan**. Local Web export/cross-play, remote
+forced-TURN testing, reconnect soak, and two-player acceptance were completed
+after this plan was written. The deployed service now keeps native ENet and
+adds WebRTC through the server mux. Public browser HTTPS/WSS hosting and TURN
+remain separate future work. Do not use the phase checklists below as current
+session authorization; use `README.md` and `.ai/CONTEXT.md` for current state.
 
 ## Decision
 

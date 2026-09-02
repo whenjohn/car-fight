@@ -15,8 +15,8 @@ refactoring, follow
 > [`MAC_INTEL_FULLSCREEN_FINDINGS.md`](MAC_INTEL_FULLSCREEN_FINDINGS.md) for the
 > canonical affected-Intel-Mac evidence and windowed policy, and
 > [`MIGRATION_TO_UNITY.md`](MIGRATION_TO_UNITY.md) for the engine-decision
-> history. The next platform roadmap is in
-> [`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md). Do not merge the diagnostic
+> history. The completed browser rollout sequence is preserved in the
+> historical [`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md). Do not merge the diagnostic
 > branches into this gameplay branch or rerun known-risk
 > fullscreen/edge-to-edge probes merely to reconfirm them.
 
@@ -27,7 +27,7 @@ refactoring, follow
 
 A deliberately small Godot 4.7 multiplayer prototype: configure automatic firing coverage, drive CC0 Jeeps with high-fidelity FOLLOW mouse control, carry momentum through automatic powerslides, physically bump other equal-mass vehicles, and test a glass vehicle shield against a slow stationary firing drone.
 
-Native networking remains ENet with g2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. An isolated localhost cross-play path now adds browser WebRTC without moving native clients off ENet; a server-side mux exposes both transports as one authoritative world. The vendored netfox includes G2's D-040 stale-history recovery patch: after a client stall advances beyond retained rollback history, impossible origins are skipped with a bounded warning while the client waits for fresh authority. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
+Native networking remains ENet with G2's proven netfox 1.35.3 + Rapier 0.8.39 core: server-owned physics and automatic target combat, client-owned input, local prediction, rollback reconciliation, and interpolation for remote bodies. Browser WebRTC joins the same authoritative world through the server-side mux without moving native clients off ENet. The vendored netfox includes G2's D-040 stale-history recovery patch: after a client stall advances beyond retained rollback history, impossible origins are skipped with a bounded warning while the client waits for fresh authority. Vehicle damage, health, bots, resources, alternate maps, and progression remain out of scope.
 
 ## Play
 
@@ -100,8 +100,8 @@ draining WebRTC queue, and records a JSON report plus screenshot in its printed
 temporary directory. The current same-machine capacity floor is 30 FPS minimum
 and 45 FPS average over the final browser samples. Repeated final-window
 averages were 47.6-57.2 FPS; the final accepted run held a 49 FPS minimum and
-57.2 FPS average. Remote/TURN impairment and a production cutover remain future work in
-[`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md).
+57.2 FPS average. Remote forced-TURN reconnect and two-player acceptance are
+recorded in [`NETWORK_SHAPING_FINDINGS.md`](NETWORK_SHAPING_FINDINGS.md).
 
 Controls:
 
@@ -253,9 +253,8 @@ CAR_FIGHT_G2_STACK=1 CAR_FIGHT_REMOTE_INTERP_MODE=adaptive \
 
 The browser smoke and forced-TURN harness accept the same
 `CAR_FIGHT_REMOTE_INTERP_MODE`, `CAR_FIGHT_REMOTE_INTERP_MS`, and
-`CAR_FIGHT_REMOTE_INTERP_MAX_MS` controls as ENet. WebRTC remains the second
-stage: adaptive presentation is opt-in while the remote forced-TURN ICE gate is
-still unresolved.
+`CAR_FIGHT_REMOTE_INTERP_MAX_MS` controls as ENet. Adaptive presentation
+remains opt-in.
 
 The harness serves the current Web build locally, syncs only to the isolated
 `/Users/macai2/Projects/car-fight-network-shaping` checkout, starts the mux on
@@ -267,21 +266,16 @@ Cleanup targets only those harness resources and a remote failsafe removes TURN
 if the local runner disappears. The production Car Fight UDP 10080/TCP 10181
 service is not modified.
 
-The local exported browser/native G2-stack smoke now requires proof of a
-non-empty remote-position batch. Its accepted run survived browser replacement,
-held 59.2 steady FPS, peaked at 678 queued bytes, drained the queue, and emitted
-zero browser errors. The latest isolated `latency120` TURN attempt did not reach
-gameplay: ICE remained `connecting` and the browser join timed out, while the
-native ENet peer remained healthy. That is a harness/ICE failure, not a passing
-or failing desynchronization result, so the shaped browser matrix remains open.
-
-The earlier remote measurements intentionally remain failing evidence. A clean
-forced-TURN row reached both browser generations but peaked at 106,560 queued
-browser bytes and emitted buffer-full errors. The combined 120 +/- 40 ms plus
-1% loss row proved 2,998 qdisc packets and 24 drops, held 60.2 average browser
-FPS with no script errors, and survived refresh/rejoin, but peaked at 125,197
-browser bytes with 15,166 still queued; the server's ordered channel exceeded
-600 KiB. Do not raise the 64 KiB acceptance ceiling to make these rows pass.
+The local exported browser/native G2-stack smoke requires proof of a non-empty
+remote-position batch. Its accepted run survived browser replacement, held
+59.2 steady FPS, peaked at 678 queued bytes, drained the queue, and emitted zero
+browser errors. The accepted 600-second forced-TURN reconnect soak recorded
+zero recoveries, a 0.000887-unit worst correction, a 3,558-byte peak browser
+queue, and 194,333 shaped packets. A later native/Chrome two-player session was
+accepted as smooth in both driving directions with zero stale recoveries.
+Combined impairment and adaptive cadence remain separate experiments; earlier
+failed rows and the complete measurements remain in
+[`NETWORK_SHAPING_FINDINGS.md`](NETWORK_SHAPING_FINDINGS.md).
 
 ## Structure
 
@@ -350,7 +344,7 @@ before proposing any new display experiment.
 
 For multiplayer feel testing without hosting the server on this Mac, deploy the isolated macai2 service and run `./scripts/play_macai2_two.sh`. It opens two named 1280 x 720 native clients side by side, both through the same telemetry and Intel-display monitor used above. An unfocused client deliberately sends neutral controls, so its Jeep brakes instead of following the focused window's macOS cursor. The server remains on macai2 UDP `10080`; G2 remains separate on UDP `9950`.
 
-The first two-rendered-client trial exposed the stale-history loop later fixed by D-040. Subsequent pairs remain in one shared world and play smoothly. In the latest accepted run, accidentally enlarging one client from 1280 x 720 to 2800 x 1518 briefly reduced it to 6-8 FPS while physics stayed inexpensive; reducing the window restored performance. Keep both clients at the launcher's safe inset size. See [`WEB_PLATFORM_PLAN.md`](WEB_PLATFORM_PLAN.md) for the evidence and next platform sequence.
+The first two-rendered-client trial exposed the stale-history loop later fixed by D-040. Subsequent pairs remain in one shared world and play smoothly. In the latest accepted run, accidentally enlarging one client from 1280 x 720 to 2800 x 1518 briefly reduced it to 6-8 FPS while physics stayed inexpensive; reducing the window restored performance. Keep both clients at the launcher's safe inset size. See [`NETWORK_SHAPING_FINDINGS.md`](NETWORK_SHAPING_FINDINGS.md) for the networking evidence.
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.
 

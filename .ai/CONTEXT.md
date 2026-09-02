@@ -62,10 +62,11 @@ rules.
 - `MAC_INTEL_FULLSCREEN_FINDINGS.md`: affected Intel Mac display/GPU evidence
   and the ordinary-window safety policy.
 - `MIGRATION_TO_UNITY.md`: superseded Unity migration decision.
-- `NETWORK_SHAPING_FINDINGS.md` and `NETWORKING_1_NEXT_STEPS.md`: transport,
-  rollback, presentation, and impairment evidence.
-- `WEB_PLATFORM_PLAN.md` and `NETWORKING_2_PLAN.md`: browser/WebRTC roadmap and
-  completed reconnect-soak design.
+- `NETWORK_SHAPING_FINDINGS.md`: transport, rollback, presentation, impairment,
+  reconnect-soak, and two-player acceptance evidence.
+- `NETWORKING_1_NEXT_STEPS.md`, `NETWORKING_2_PLAN.md`, and
+  `WEB_PLATFORM_PLAN.md`: historical execution plans; never treat their old
+  baselines or “next” sections as current authorization.
 - `VEHICLE_ANIMATION_LAB.md`: presentation-only vehicle animation workflow.
 - `docs/history/CURRENT_PHASE_THROUGH_2026-09-02.md`: archived session history;
   never treat its old “Next” sections as current authorization.

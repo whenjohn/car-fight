@@ -528,3 +528,23 @@ behavior.
 - Risk/rollback: minimal; instructions and one failure string change, with no
   assertion, constant, parser, scene, or runtime behavior modified.
 - Status: **Resolved** on this branch; no rendered play is required.
+
+### CH-026 — Completed plans presented as current session direction
+
+- Classification: stale agent routing and project documentation.
+- Evidence: the Forward+ merge plan still said it was approved and unapplied;
+  the Web roadmap said remote/TURN and production work had not started; the
+  Networking 1/2 plans still called the capsule harness-only and directed later
+  sessions to integrate it. Active README/context links described those dated
+  plans as the next roadmap despite the accepted capsule, completed forced-TURN
+  soak/two-player work, and deployed ENet/WebRTC mux baseline.
+- Change: preserve every investigation document and its dated details, but add
+  explicit historical/superseded banners; route current sessions through the
+  README and stable context; replace obsolete README failure status with the
+  recorded accepted soak/two-player results. Public browser hosting/TURN and
+  opt-in combined/adaptive experiments remain clearly unfinished.
+- Validation: link/command review, exact current-status searches, and
+  `git diff --check`. No scripts, assertions, scenes, or runtime code change.
+- Risk/rollback: minimal; historical results stay intact and only their active
+  interpretation/routing changes.
+- Status: **Resolved** on this branch; no runtime validation is required.

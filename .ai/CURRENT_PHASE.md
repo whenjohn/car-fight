@@ -107,6 +107,11 @@ Completed branch commits:
   language to match the accepted capsule, existing bounded weapons, and the
   opt-in G2 lab stack. `CLAUDE.md` remains its relative symlink so both agent
   clients receive one project policy.
+- Documentation-routing layer: marked the completed engine, Web, and Networking
+  1/2 plans as historical snapshots; current sessions now route through README
+  and stable context. README reflects accepted forced-TURN reconnect/two-player
+  evidence and the deployed ENet/WebRTC mux while retaining unfinished public
+  browser hosting/TURN and opt-in experiment boundaries.
 
 Validation for the import-verifier cleanup:
 
