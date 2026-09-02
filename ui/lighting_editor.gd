@@ -65,7 +65,7 @@ func setup(initial_values: Dictionary, preset_name: String) -> void:
 
 
 func open() -> void:
-	_window.popup_centered(Vector2i(560, 700))
+	_window.popup_centered(Vector2i(470, 540))
 
 
 func set_values(values: Dictionary, preset_name: String) -> void:
@@ -94,6 +94,10 @@ func _build_window() -> void:
 	_window.visible = false
 	_window.transient = true
 	_window.exclusive = false
+	# Car Fight stretches its embedded 1280x720 canvas with the game window.
+	# Keep this tool in native pixels so resizing the game does not also magnify
+	# the editor into a giant overlay.
+	_window.force_native = true
 	_window.close_requested.connect(_window.hide)
 	add_child(_window)
 

@@ -23,6 +23,9 @@ func _init() -> void:
 	_check("user://lighting_looks.cfg" in editor and "Saved looks" in editor \
 		and "_save_named_look" in editor and "_load_selected_look" in editor,
 		"named lighting looks can be saved and loaded")
+	_check("_window.force_native = true" in editor \
+		and "popup_centered(Vector2i(470, 540))" in editor,
+		"the compact editor stays independent of game-window canvas scaling")
 	_check("ssao" not in editor.to_lower() and "directional_shadow" not in editor.to_lower(),
 		"the editor does not expose unsafe or expensive lighting paths")
 	_check("--overcast-world" not in source and "_build_world_menu" not in source,

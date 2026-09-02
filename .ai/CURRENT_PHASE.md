@@ -32,6 +32,9 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 - Each edit now autosaves a working look under `user://`; the look and its
   built-in base preset restore on the next launch. The same window can save,
   load, overwrite, and delete named look snapshots.
+- The editor is a compact 470x540 native child window. It remains at native
+  pixel size instead of growing with the game's fixed-viewport canvas stretch
+  when the main window is resized.
 - The Intel Mac window guard no longer imposes its former fixed 1280x720 cap.
   Ordinary decorated windows can be resized freely while they remain within
   the 48-pixel safe inset; fullscreen, maximized, borderless, and edge-to-edge
