@@ -508,3 +508,23 @@ behavior.
   either feature named by it.
 - Status: **Resolved** on this branch; rendered play is unnecessary for a
   redundant wrapper deletion and removal of unconsumed environment values.
+
+### CH-025 — Shared agent policy describes superseded gameplay state
+
+- Classification: stale project scaffolding and test wording.
+- Evidence: `AGENTS.md` still called the gameplay collider a sphere and framed
+  weapons and the G2 transport/bundle stack as things not yet added. Ordinary
+  play now defaults to the accepted horizontal equal-mass capsule, while
+  bounded weapons and an opt-in G2-derived lab profile already exist. Because
+  `CLAUDE.md` is a relative symlink to `AGENTS.md`, the stale statements reached
+  both Claude and Codex. One FOLLOW assertion failure also retained the old
+  sphere wording even though its numeric yaw bound is collider-independent.
+- Change: correct the shared policy to the accepted capsule and make its scope
+  guard apply to new weapons/systems and expansion of the existing lab stack;
+  correct only the assertion message. Preserve the relative `CLAUDE.md` symlink
+  so the two clients cannot silently drift.
+- Validation: verify the symlink target/content, run the unchanged FOLLOW
+  assertions, the fast import/manifest/UID checks, and diff review.
+- Risk/rollback: minimal; instructions and one failure string change, with no
+  assertion, constant, parser, scene, or runtime behavior modified.
+- Status: **Resolved** on this branch; no rendered play is required.

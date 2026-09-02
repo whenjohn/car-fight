@@ -103,6 +103,10 @@ Completed branch commits:
   tracing the lighting/map selections that once distinguished it, and removed
   two unconsumed no-ramp environment assignments. Distinct Networking 1,
   Networking 2 mixed, and shaped one/two-client direct-entry harnesses remain.
+- Agent-scaffolding layer: corrected the shared `AGENTS.md` collider and scope
+  language to match the accepted capsule, existing bounded weapons, and the
+  opt-in G2 lab stack. `CLAUDE.md` remains its relative symlink so both agent
+  clients receive one project policy.
 
 Validation for the import-verifier cleanup:
 

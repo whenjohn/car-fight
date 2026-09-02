@@ -26,8 +26,10 @@ networking, rollback, transports, or synchronized state.
 - Do not port G2's half-handshake-RTT initial time seed. In Car Fight's 120 ms
   two-client A/B it caused 3.16-3.46 unit startup corrections in two of three
   runs; the unseeded control passed three of three at 1.178 units or less.
-- The Jeep and turret are presentation only. The equal-mass sphere is the gameplay collider.
-- Do not add weapons, damage, resources, bots, maps, or g2's custom transport/bundle stack without a new explicit scope decision.
+- The Jeep, selectable vehicle meshes, and turret are presentation only. The
+  accepted horizontal equal-mass capsule is the ordinary gameplay collider.
+- Do not add new weapons, damage, resources, bots, or maps, or expand the
+  G2-derived transport/bundle stack, without a new explicit scope decision.
 - Do not make every new gameplay object a rollback-synchronized body by
   default. Before adding an object family, classify it as static/seeded,
   event-driven, lightweight replicated, or full rollback state, then add a
