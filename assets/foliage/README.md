@@ -18,18 +18,9 @@ The committed game falls back to its procedural trees when these files are
 absent. Imported meshes are presentation-only; the deterministic trunk
 colliders, object count, and network state remain unchanged.
 
-The audition also supports Shapespark's
-[Low Poly Exterior Plants Kit](https://www.cgtrader.com/free-3d-models/plant/bush/shapespark-low-poly-plants-kit-free-low-poly-3d-model)
-(model ID 3523647). It contains 12 trees plus smaller plants and is published
-under CC0 1.0. Its double-sided FBX, extracted textures, and license are tracked
-with Git LFS under:
-
-- `assets/foliage/shapespark/`
-
 The current Low Poly City uses its accepted fixed Collection 121–130 street-tree
 lining. The former runtime tree-family selector and off-map local prop audition
-have been retired; the Shapespark source remains preserved while its use is
-reviewed separately.
+have been retired.
 
 ## Local city audition
 

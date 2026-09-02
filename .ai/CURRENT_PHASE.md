@@ -69,6 +69,11 @@ Completed branch commits:
   lighting, and fast checks pass; the owner confirmed normal city, street-tree,
   dot, driving, and lighting behavior in monitored local play, and the monitor
   ended cleanly.
+- World/presentation layer: reduced the tree visual library to the sole accepted
+  Collection 121–130 family and removed the unreachable 37 MB Shapespark
+  audition package. Focused tree, city, lighting, and fast checks pass; the
+  owner confirmed the complete street-tree lining and normal play, and the
+  monitor ended cleanly.
 
 Validation for the import-verifier cleanup:
 

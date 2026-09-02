@@ -317,3 +317,34 @@ behavior.
   lighting remain normal in monitored local server/client play. The monitor
   ended cleanly.
 - Status: **Resolved** on this branch with owner play approval.
+
+### CH-016 — Retired tree selector leaves unused art families and tracked source
+
+- Classification: obsolete presentation experiment, code complexity, and
+  repository/import weight.
+- Evidence: the accepted city calls only Collection 121–130 from the optional
+  owner-supplied local pack. After CH-014 removed the no-op Tree model selector,
+  no runtime caller can select the five other collection families or the three
+  Shapespark families; only the general-purpose library's self-test exercises
+  them. The unreachable Shapespark package contains 47 tracked files, including
+  23 Git LFS payloads, and occupies 37 MB in a checkout. `Main.gd` also retains
+  a second tree-library preload with no caller.
+- History: Shapespark was added in `2f6fc30` as an optional audition selectable
+  through the former Scenery menu. The city-only resurrection fixed the live
+  street lining to Collection 121–130, and CH-014 removed the last selector.
+- Change: reduce the tree library and its test to the accepted Collection
+  121–130 contract, remove the unused Main preload, retire the tracked
+  Shapespark source/import metadata/license and now-empty LFS attributes, and
+  update the foliage note. The removed CC0 source remains recoverable from Git
+  history.
+- Validation: all ten accepted collection variants, city presentation, home
+  lighting, two-pass import/manifest/UID checks, and owner local play through
+  the complete street-tree lining.
+- Risk/rollback: low but visually significant; the city still uses the same
+  source meshes, normalization, placement, rotation, and shadow policy. Revert
+  this slice if any accepted street tree changes or disappears.
+- Result: focused tree, city, lighting, import/manifest, UID, and diff checks
+  pass. The owner confirmed the complete street-tree lining remains present and
+  unchanged alongside normal city, dots, driving, and lighting in monitored
+  local server/client play. The monitor ended cleanly.
+- Status: **Resolved** on this branch with owner play approval.
