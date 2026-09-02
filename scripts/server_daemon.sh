@@ -18,20 +18,7 @@ case "${1:-status}" in
 			--transport "$transport" --port "$port" --signal-port "$signal_port"
 		;;
 	import)
-		# A fresh netfox checkout registers its plugin globals during the first
-		# editor pass. Verify a second pass so deployment cannot report success
-		# merely because Godot returned zero while still printing parse errors.
-		first_log="$(mktemp "${TMPDIR:-/tmp}/car-fight-import-first.XXXXXX")"
-		verify_log="$(mktemp "${TMPDIR:-/tmp}/car-fight-import-verify.XXXXXX")"
-		"$godot_bin" --headless --path "$project_root" --editor --quit \
-			>"$first_log" 2>&1
-		"$godot_bin" --headless --path "$project_root" --editor --quit \
-			>"$verify_log" 2>&1
-		if /usr/bin/grep -Eq 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script' \
-				"$verify_log"; then
-			cat "$verify_log" >&2
-			exit 1
-		fi
+		CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 		;;
 	install)
 		mkdir -p "$(dirname "$log_file")"

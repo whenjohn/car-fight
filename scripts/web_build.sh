@@ -17,21 +17,9 @@ if [[ ! -x "$godot_bin" ]]; then
 fi
 
 mkdir -p "$output_dir"
-first_log="$(mktemp "${TMPDIR:-/tmp}/car-fight-web-import-first.XXXXXX")"
-verify_log="$(mktemp "${TMPDIR:-/tmp}/car-fight-web-import-verify.XXXXXX")"
 export_log="$(mktemp "${TMPDIR:-/tmp}/car-fight-web-export.XXXXXX")"
 
-"$godot_bin" --headless --path "$project_root" --editor --quit \
-	>"$first_log" 2>&1
-"$godot_bin" --headless --path "$project_root" --editor --quit \
-	>"$verify_log" 2>&1
-if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script' \
-		"$verify_log"; then
-	echo "Web import verification failed: $verify_log" >&2
-	rg 'SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script' \
-		"$verify_log" >&2
-	exit 1
-fi
+CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 
 export_flag="--export-debug"
 if [[ "$mode" == "release" ]]; then

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 log_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-fast-check.XXXXXX")"
 
 cleanup() {
@@ -10,30 +9,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-if [[ ! -x "$godot_bin" ]]; then
-	echo "Godot not found: $godot_bin" >&2
-	exit 2
-fi
-
-# A fresh netfox checkout registers plugin globals during its first editor
-# pass. Godot can return zero while that pass still prints transient parse
-# errors, so only a clean second pass proves the imported project is ready.
-for pass in first verify; do
-	log_file="$log_dir/import-$pass.log"
-	if ! "$godot_bin" --headless --path "$project_root" --editor --quit \
-			>"$log_file" 2>&1; then
-		echo "Godot $pass import failed: $log_file" >&2
-		tail -120 "$log_file" >&2
-		exit 1
-	fi
-done
-
-parse_pattern='SCRIPT ERROR|Parse Error|Compile Error|ERROR: Failed to load script'
-if rg -q "$parse_pattern" "$log_dir/import-verify.log"; then
-	echo "Godot verification import reported script errors:" >&2
-	rg "$parse_pattern" "$log_dir/import-verify.log" >&2
-	exit 1
-fi
+CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 
 for script in "$project_root"/scripts/*.sh; do
 	syntax_log="$log_dir/zsh-syntax.log"

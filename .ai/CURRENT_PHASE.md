@@ -52,6 +52,11 @@
   with risk-based gates, adds a quiet two-pass import/syntax/UID/diff check,
   and removes three proven orphan UID sidecars. Gameplay, networking, rollback,
   assets, and synchronized state are unchanged.
+- The code-health evidence ledger is now in `docs/CODE_HEALTH_LEDGER.md`.
+  Finding CH-002 consolidated the duplicated two-pass Godot import check across
+  the fast check, complete suite, deployment import, and Web build. The fast
+  check, deployment import, and a bounded Web Offline debug export pass; no
+  gameplay/network gate was needed for this tooling-only slice.
 
 ## Archived context below (superseded by the resurrection decision)
 

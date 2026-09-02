@@ -42,7 +42,7 @@ behavior.
     none.
 - History: the one-pass runner dates to `a503d8c`; deployment gained its
   two-pass guard in `12ac367`; Web build added a separate copy in `578ab7a`.
-- Proposed change: one quiet `scripts/godot_import_check.sh` used by the fast,
+- Change: one quiet `scripts/godot_import_check.sh` is used by the fast,
   full-suite, deployment, and Web-build paths. Keep caller-specific export and
   runtime behavior outside the helper.
 - Validation: `scripts/check.sh`, `scripts/server_daemon.sh import`, a bounded
@@ -51,7 +51,10 @@ behavior.
 - Risk/rollback: low; failure reporting and the known two-pass requirement must
   remain visible. Revert the single cleanup commit if any caller loses its
   import failure signal.
-- Status: **Approved**.
+- Result: `scripts/check.sh`, `scripts/server_daemon.sh import`, and a bounded
+  Web Offline debug export all pass. The broad gameplay/network suite was not
+  run because no game behavior or runtime gate changed.
+- Status: **Resolved** on this branch; validation is recorded in the commit.
 
 ### CH-003 — Orphan Godot UID sidecars
 
