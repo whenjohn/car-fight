@@ -19,6 +19,7 @@ const TRACTOR_CONTROLLER := preload("res://player/tractor_controller.gd")
 const IMPACT_CONTROLLER := preload("res://player/impact_controller.gd")
 const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
 const CONTROLLER_INPUT := preload("res://player/controller_input.gd")
+const DRIVE_CURSOR_VISUAL := preload("res://player/drive_cursor_visual.gd")
 const SPEED_CAMERA_SCRIPT := preload("res://fx/speed_camera.gd")
 const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
@@ -1450,7 +1451,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	marker_mesh.bottom_radius = 0.28
 	marker_mesh.height = 0.04
 	marker.mesh = marker_mesh
-	marker.material_override = _material(Color(color, 0.85), true)
+	marker.material_override = DRIVE_CURSOR_VISUAL.material(Color(color, 0.85))
 	marker.visible = is_local
 	body.add_child(marker)
 	var max_speed_marker := MeshInstance3D.new()
@@ -1461,7 +1462,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	max_speed_mesh.bottom_radius = 0.15
 	max_speed_mesh.height = 0.045
 	max_speed_marker.mesh = max_speed_mesh
-	max_speed_marker.material_override = _material(Color("fff1b8"), true)
+	max_speed_marker.material_override = DRIVE_CURSOR_VISUAL.material(Color("fff1b8"))
 	max_speed_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	max_speed_marker.visible = is_local
 	body.add_child(max_speed_marker)
@@ -1472,7 +1473,7 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	var line_mesh := BoxMesh.new()
 	line_mesh.size = Vector3(0.045, 0.025, 1.0)
 	line.mesh = line_mesh
-	line.material_override = _material(Color(color, 0.7), true)
+	line.material_override = DRIVE_CURSOR_VISUAL.material(Color(color, 0.7))
 	line.visible = is_local
 	body.add_child(line)
 

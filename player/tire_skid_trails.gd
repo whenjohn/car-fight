@@ -4,6 +4,10 @@ extends Node3D
 ## stamping a trail from the vehicle's center.
 
 const SKID_SHADER := preload("res://fx/tire_skid_trail.gdshader")
+## The imported Low Poly City road cap reaches roughly 0.184 units above the
+## flat gameplay collision plane. Keep the presentation ribbon just above it
+## while retaining normal depth testing against vehicles and buildings.
+const CITY_SURFACE_OFFSET := 0.205
 const MIN_STRENGTH := 0.055
 const MIN_SAMPLE_DISTANCE := 0.16
 const MAX_CONNECT_DISTANCE := 2.4
@@ -23,6 +27,10 @@ var _segments: Array[Dictionary] = []
 var _elapsed := 0.0
 var _redraw_elapsed := 0.0
 var _mesh_dirty := false
+
+
+static func surface_point(contact: Vector3, normal: Vector3) -> Vector3:
+	return contact + normal.normalized() * CITY_SURFACE_OFFSET
 
 
 func _ready() -> void:

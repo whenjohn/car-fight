@@ -484,7 +484,8 @@ func _tire_ground_contact(anchor: Node3D) -> Dictionary:
 	if hit.is_empty():
 		return {}
 	var normal: Vector3 = hit["normal"]
-	return {"point": (hit["position"] as Vector3) + normal * 0.026,
+	return {"point": TIRE_SKID_TRAILS_SCRIPT.surface_point(
+		hit["position"] as Vector3, normal),
 		"normal": normal.normalized()}
 
 ## The standalone animation lab uses this seam to exercise presentation without

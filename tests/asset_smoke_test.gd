@@ -15,6 +15,7 @@ const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
 const HOMING_VISUAL := preload("res://combat/homing_missile_visual.gd")
 const RC_ORB_VISUAL := preload("res://combat/rc_orb_visual.gd")
 const PLAYER_BODY := preload("res://player/player_body.gd")
+const DRIVE_CURSOR_VISUAL := preload("res://player/drive_cursor_visual.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -430,6 +431,16 @@ func _init() -> void:
 		return
 	if "MaxSpeedMarker" not in main_source:
 		push_error("CURSOR_SPEED_MARKER_TEST FAIL: local cursor path must show its max-speed point")
+		quit(1)
+		return
+	if main_source.count("DRIVE_CURSOR_VISUAL.material(") != 3:
+		push_error("CURSOR_DRAW_ORDER_TEST FAIL: line and both cursor markers must share overlay policy")
+		quit(1)
+		return
+	var cursor_material := DRIVE_CURSOR_VISUAL.material(Color.WHITE)
+	if cursor_material == null or not cursor_material.no_depth_test \
+			or cursor_material.render_priority <= 2:
+		push_error("CURSOR_DRAW_ORDER_TEST FAIL: drive cursor must render over city geometry")
 		quit(1)
 		return
 	if "DisplayServer.window_set_title(\"Car Fight — %s\" % _player_name)" not in main_source \
