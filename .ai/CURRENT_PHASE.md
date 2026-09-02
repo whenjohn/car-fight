@@ -46,6 +46,12 @@
   4.7.1 and Rapier 0.8.39. Human validation passed first offline, then with one
   native ENet client and one browser WebRTC client together in Low Poly City;
   macai2 reported two synchronized players in the same mux world.
+- Code-health work is isolated in `/Users/johnnguyen/Projects/car-fight-code-health`
+  on `codex/code-health-audit`. Its first approved slice makes `AGENTS.md` the
+  shared Claude/Codex policy, replaces mandatory per-commit full-suite runs
+  with risk-based gates, adds a quiet two-pass import/syntax/UID/diff check,
+  and removes three proven orphan UID sidecars. Gameplay, networking, rollback,
+  assets, and synchronized state are unchanged.
 
 ## Archived context below (superseded by the resurrection decision)
 

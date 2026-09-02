@@ -35,7 +35,15 @@ networking, rollback, transports, or synchronized state.
   wire fan-out, scripting, and presentation costs can make a larger world
   chug even when a small peer-only test is smooth.
 - Add a focused regression before changing movement or collision behavior.
-- Run `./scripts/test.sh` before committing.
+- Before committing code or script changes, run `./scripts/check.sh` plus the
+  smallest focused tests that cover the changed behavior. Use
+  `docs/QUALITY_GATES.md` to select them and report why they are sufficient.
+- Do not run `./scripts/test.sh` after every small change. It is the broad
+  milestone gate: reserve it for high-risk integration, deployment/release
+  checkpoints, accumulated cleanup boundaries, or an explicit owner request.
+  Do not rerun a passing gate unless relevant code changed. If a
+  timing-sensitive gate fails, rerun that isolated gate once and record a
+  recurring failure as test debt instead of restarting the complete suite.
 - Use Tailscale (`ssh macai2-ts`) for macai2. This server owns UDP 10080 and launchd label `com.whenjohn.car-fight-server`.
 - On the affected Intel Mac, never launch Godot in native fullscreen,
   borderless fullscreen, an exact edge-to-edge window, or edge-to-edge
