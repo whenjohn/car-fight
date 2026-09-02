@@ -1854,10 +1854,11 @@ func _build_lighting_editor() -> void:
 	_lighting_editor.name = "LightingEditor"
 	_lighting_editor.set_script(LIGHTING_EDITOR_SCRIPT)
 	add_child(_lighting_editor)
+	_lighting_editor.connect("values_changed", _on_lighting_editor_values_changed)
+	_lighting_editor.connect("look_loaded", _on_lighting_editor_look_loaded)
+	_lighting_editor.connect("reset_requested", _on_lighting_editor_reset_requested)
 	_lighting_editor.call("setup", _current_lighting_editor_values(),
 		LIGHTING_STYLE_NAMES[_lighting_style_index])
-	_lighting_editor.connect("values_changed", _on_lighting_editor_values_changed)
-	_lighting_editor.connect("reset_requested", _on_lighting_editor_reset_requested)
 
 
 func _current_lighting_editor_values() -> Dictionary:
@@ -1895,6 +1896,15 @@ func _on_lighting_editor_values_changed(values: Dictionary) -> void:
 
 func _on_lighting_editor_reset_requested() -> void:
 	_apply_lighting_style()
+
+
+func _on_lighting_editor_look_loaded(base_preset: String, values: Dictionary) -> void:
+	var preset_index := LIGHTING_STYLE_NAMES.find(base_preset)
+	if preset_index >= 0:
+		_lighting_style_index = preset_index
+		_apply_lighting_style()
+		_refresh_scenery_menu()
+	_on_lighting_editor_values_changed(values)
 
 
 func _apply_lighting_style() -> void:

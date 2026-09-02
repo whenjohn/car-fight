@@ -29,8 +29,16 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   directional shadows, renderer selection, or other unsafe/low-value knobs.
 - `Reset to selected preset` discards experimental edits. Selecting another
   existing Scenery preset also refreshes the open editor to that preset.
+- Each edit now autosaves a working look under `user://`; the look and its
+  built-in base preset restore on the next launch. The same window can save,
+  load, overwrite, and delete named look snapshots.
+- The Intel Mac window guard no longer imposes its former fixed 1280x720 cap.
+  Ordinary decorated windows can be resized freely while they remain within
+  the 48-pixel safe inset; fullscreen, maximized, borderless, and edge-to-edge
+  presentation remain blocked.
 - Validation passes: `./scripts/check.sh`,
-  `tests/home_world_lighting_test.gd`, and `./scripts/offline_test.sh`.
+  `tests/home_world_lighting_test.gd`, `tests/window_safety_policy_test.gd`, and
+  `./scripts/offline_test.sh`.
 - Still needed: one owner-approved monitored visual pass in an ordinary inset
   window to judge layout and whether the chosen controls produce useful looks.
 

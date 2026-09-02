@@ -19,12 +19,17 @@ func _init() -> void:
 	if bool(ordinary["changed"]):
 		_fail("ordinary inset window was changed: %s" % ordinary)
 		return
+	var manually_resized := POLICY.desired_state(DisplayServer.WINDOW_MODE_WINDOWED,
+		false, usable, Vector2i(2000, 1100), Vector2i(100, 100))
+	if bool(manually_resized["changed"]):
+		_fail("large manual resize inside the safe inset was changed: %s" % manually_resized)
+		return
 
 	var expanded := POLICY.desired_state(DisplayServer.WINDOW_MODE_MAXIMIZED,
 		true, usable, Vector2i(2800, 1518), Vector2i(0, 25))
 	if int(expanded["mode"]) != DisplayServer.WINDOW_MODE_WINDOWED \
 			or bool(expanded["borderless"]) \
-			or Vector2i(expanded["size"]) != Vector2i(1280, 720) \
+			or Vector2i(expanded["size"]) != Vector2i(2784, 1518) \
 			or Vector2i(expanded["position"]) != Vector2i(48, 73):
 		_fail("expanded window did not return to the safe inset: %s" % expanded)
 		return

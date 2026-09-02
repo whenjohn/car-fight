@@ -18,6 +18,11 @@ func _init() -> void:
 			"the lighting editor exposes the high-impact %s control" % field)
 	_check("sun_color" in editor and "contact_shadows" in editor,
 		"sun color and safe contact-shadow visibility are live controls")
+	_check("user://lighting_working.cfg" in editor and "_restore_working" in editor,
+		"the current working look is autosaved and restored")
+	_check("user://lighting_looks.cfg" in editor and "Saved looks" in editor \
+		and "_save_named_look" in editor and "_load_selected_look" in editor,
+		"named lighting looks can be saved and loaded")
 	_check("ssao" not in editor.to_lower() and "directional_shadow" not in editor.to_lower(),
 		"the editor does not expose unsafe or expensive lighting paths")
 	_check("--overcast-world" not in source and "_build_world_menu" not in source,
@@ -40,7 +45,8 @@ func _init() -> void:
 		and "_shadow_light.visible = true" in source \
 		and "lights_and_shadows/positional_shadow/atlas_size=2048" in project,
 		"the default uses the accepted Compatibility spotlight shadows")
-	print("HOME_WORLD_LIGHTING_TEST PASS default=intel_safe_sunlit presets=5 live_editor=9")
+	print("HOME_WORLD_LIGHTING_TEST PASS default=intel_safe_sunlit presets=5 " \
+		+ "live_editor=9 autosave=working named_looks=yes")
 	quit(0)
 
 
