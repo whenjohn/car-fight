@@ -138,10 +138,35 @@ Accumulated cleanup-boundary validation:
 - The first sandboxed WebRTC lifecycle attempt failed with loopback
   `listen EPERM`; its required unsandboxed rerun passed.
 
+## Completed work: CH-011 authority-probe delivery
+
+- Worktree: `/Users/johnnguyen/Projects/car-fight-ch011`; branch:
+  `codex/ch-011-authority-probe` from `master@353f824`.
+- Historical tracing found the intended consumer in sibling city commit
+  `b20bb6a`. Promotion commit `3ccd8fe` retained the 20-tick delay constant,
+  queue producer, and client receiver but omitted the loop that dequeued mature
+  samples and sent them to their owning peers.
+- Restored that exact bounded delivery seam before new samples are scheduled.
+  It rechecks the live peer list at delivery time, preserving the existing
+  disconnect-race guard, unreliable RPC contract, cadence, and authority model.
+- Added `tests/authority_probe_delivery_test.gd` to prevent another partial
+  promotion from leaving the queue without its delayed consumer.
+- Focused validation passes: authority-probe delivery contract, fast check,
+  ENet `network_test.sh` (1.674-unit worst correction), mixed ENet/WebRTC
+  `mixed_transport_test.sh` (0.300), late join, and reconnect.
+- The required integration-boundary `./scripts/test.sh` passes completely. Its
+  ENet run reported a 1.834-unit worst correction and mixed transport reported
+  0.300; all lifecycle and gameplay gates passed. The initial sandboxed ENet
+  attempt failed only because local UDP bind was denied, and the required
+  unsandboxed run passed.
+- No deployment or rendered/manual validation was performed; this repair is
+  exercised by headless transport and lifecycle gates and does not change
+  presentation or feel.
+
 ## Next
 
-1. Fix CH-011 authority-probe delivery only as a separate networking task with
-   focused ENet and mixed-transport characterization.
+1. Review and merge the validated `codex/ch-011-authority-probe` branch; deploy
+   only as a separate explicit production action.
 2. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
