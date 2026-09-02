@@ -122,14 +122,18 @@ behavior.
   the archived `car-fight-unity` entry, and active Car Fight lacks the required
   `.ai/CONTEXT.md`. Its `.ai` is a tracked directory rather than the usual
   `claude-comms` symlink.
-- Proposed change: add a short stable context index, register the active Godot
+- Change: add a short stable context index and register the active Godot
   repository, then decide separately whether to migrate `.ai` into
   `claude-comms`. Preserve all tracked history during any migration.
 - Validation: project resolution, symlink/status checks, and clean Git state in
   both repositories.
 - Risk/rollback: medium because changing `.ai` storage affects multiple agent
   clients and concurrent worktrees.
-- Status: **Approved** for context and registry repair; **Hold** for converting
+- Result: `.ai/CONTEXT.md` provides the stable architecture/index. The command
+  `cc-projects info car-fight` resolves the active Godot repository and its
+  cleanup worktree, and `car-fight-unity` is marked archived. The registry
+  change is recorded in `claude-comms` commit `234335f`.
+- Status: **Resolved** for context and registry repair; **Hold** for converting
   `.ai` to a shared symlink.
 
 ### CH-008 — Historical branch clutter

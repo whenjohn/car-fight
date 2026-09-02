@@ -21,6 +21,10 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 - Worktree: `/Users/johnnguyen/Projects/car-fight-code-health`.
 - Branch: `codex/code-health-audit`.
 - Evidence ledger: `docs/CODE_HEALTH_LEDGER.md`.
+- Stable architecture/index context now lives in `.ai/CONTEXT.md`. The shared
+  project registry resolves `car-fight` to the active Godot repository and
+  marks `car-fight-unity` archived. `.ai` intentionally remains tracked locally
+  until its separate shared-storage decision.
 - Cleanup must remain separate from gameplay, visual tuning, bug fixes, engine
   changes, and optimization.
 - Networking, rollback, transports, RPC/state schema, physics feel, rendering
@@ -44,16 +48,14 @@ Validation for the import-verifier cleanup:
 
 ## Next
 
-1. Add the missing stable `.ai/CONTEXT.md` architecture/index document and
-   register the active Godot project in `claude-comms`.
-2. Decide separately whether tracked `.ai` state should move into the shared
+1. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
-3. Confirm whether any external log parser consumes the obsolete constant-zero
+2. Confirm whether any external log parser consumes the obsolete constant-zero
    course/gate `RESULT` fields before removing them.
-4. Produce a keep/delete ledger for merged and diagnostic branches; delete no
+3. Produce a keep/delete ledger for merged and diagnostic branches; delete no
    branch without separate owner approval.
-5. Characterize one low-coupling `Main.gd` boundary before considering any
+4. Characterize one low-coupling `Main.gd` boundary before considering any
    structural extraction.
 
 The complete former phase log is preserved at
