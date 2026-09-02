@@ -858,7 +858,7 @@ func _receive_state_bundle(tick: int, is_key: bool, routes: PackedInt64Array, ki
 		# jitter-inflated-lead hypothesis says THIS is what differs native-vs-browser.
 		_probe_arrivals += 1
 		_probe_depths.append(NetworkTime.tick - tick)
-		var lead := NetworkTime.tick - NetworkTime.remote_tick
+		var lead: int = NetworkTime.tick - NetworkTime.remote_tick
 		_probe_lead_sum += lead
 		_probe_lead_max = maxi(_probe_lead_max, lead)
 	NetworkPerformance.record_app_state_bundle("in", [tick, is_key, routes, kinds, references, payloads], payloads.size())
@@ -1150,7 +1150,7 @@ func _apply_recovery_key(bundle: Dictionary) -> bool:
 	if not _is_complete_key(bundle):
 		return false
 	var source_tick := int(bundle["tick"])
-	var target_tick := NetworkTime.tick
+	var target_tick: int = NetworkTime.tick
 	var sender := int(bundle["sender"])
 	var routes: PackedInt64Array = bundle["routes"]
 	var payloads: Array = bundle["payloads"]
@@ -1216,7 +1216,7 @@ func _bundle_age(bundle: Dictionary) -> int:
 	return maxi(0, NetworkTime.tick - int(bundle["tick"]))
 
 func _update_pending_age() -> void:
-	var oldest := NetworkTime.tick
+	var oldest: int = NetworkTime.tick
 	var has_pending := false
 	if not _pending_key.is_empty():
 		oldest = mini(oldest, int(_pending_key["tick"]))

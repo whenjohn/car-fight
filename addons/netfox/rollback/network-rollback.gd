@@ -356,7 +356,7 @@ func _rollback() -> void:
 	var from := _resim_from
 
 	# to = Current tick
-	var to := NetworkTime.tick
+	var to: int = NetworkTime.tick
 
 	# Limit number of rollback ticks
 	if to - from > history_limit:
@@ -367,7 +367,7 @@ func _rollback() -> void:
 		from = NetworkTime.tick - history_limit
 
 	if resim_budget_ms > 0.0 and _resim_ema_tick_ms > 0.0 and _last_loop_end_tick >= 0:
-		var forward_batch := NetworkTime.tick - _last_loop_end_tick
+		var forward_batch: int = NetworkTime.tick - _last_loop_end_tick
 		var budget_ticks := maxi(maxi(1, forward_batch),
 			int(resim_budget_ms / _resim_ema_tick_ms))
 		if to - from > budget_ticks:

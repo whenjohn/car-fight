@@ -23,6 +23,12 @@
   lighting policy, oil map isolation, remote-position map validation, shell
   syntax, and the 240-tick offline drive smoke. Do not run the long gate suite
   unless specifically requested.
+- Canonical promotion moved the old 179 MB Godot 4.6 cache intact to
+  `/private/tmp/car-fight-godot46-cache-pre-3ccd8fe`. The first genuinely fresh
+  4.7 import exposed stale-cache-hidden Variant inference errors in five
+  preserved netfox/state files. Explicit `float`, `int`, and `bool` annotations
+  fixed them without changing any calculation, packet, state, or control flow.
+  The second fresh-cache parse and focused offline/network checks pass.
 - All obsolete 4.6 Car Fight launchd services were removed from macai2. No Car
   Fight server is currently running there. Human offline city review is next;
   after approval, promote this resurrection to canonical `car-fight`/master,

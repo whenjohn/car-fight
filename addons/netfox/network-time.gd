@@ -523,12 +523,12 @@ func _get_tick_tag() -> String:
 func _loop() -> void:
 	# Adjust local clock
 	_clock.step(_clock_stretch_factor)
-	var clock_diff := NetworkTimeSynchronizer.get_time() - _clock.get_time()
+	var clock_diff: float = NetworkTimeSynchronizer.get_time() - _clock.get_time()
 	
 	# Ignore diffs under 1ms
 	clock_diff = sign(clock_diff) * max(abs(clock_diff) - 0.001, 0.)
 	
-	var clock_stretch_min := 1. / clock_stretch_max
+	var clock_stretch_min: float = 1. / clock_stretch_max
 	# var clock_stretch_f = (1. + clock_diff / (1. * ticktime)) / 2.
 	var clock_stretch_f := inverse_lerp(-ticktime, +ticktime, clock_diff)
 	clock_stretch_f = clampf(clock_stretch_f, 0., 1.)
