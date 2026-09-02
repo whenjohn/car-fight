@@ -107,12 +107,13 @@ behavior.
   near its first 50 lines; the remainder is explicitly marked archived but
   contains old “Next” directions for removed arena/course worlds and historical
   feature worktrees.
-- Proposed change: retain only canonical state, active work, and immediate next
+- Change: retain only canonical state, active work, and immediate next
   actions in `CURRENT_PHASE.md`; move the existing archive intact to a history
   document so no evidence is lost.
 - Validation: link/reference review and `git diff --check` only.
 - Risk/rollback: low if history is moved rather than deleted.
-- Status: **Approved**, after CH-002.
+- Status: **Resolved** on this branch. The former file is preserved at
+  `docs/history/CURRENT_PHASE_THROUGH_2026-09-02.md`.
 
 ### CH-007 — Missing active-project registry/context wiring
 
