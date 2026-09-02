@@ -150,13 +150,15 @@ behavior.
   investigations. `GODOT_46_TO_47_HISTORY.md` explicitly names several refs as
   recovery evidence, and the private `car-fight-archives` repository preserves
   worktree bundles.
-- Proposed change: produce a branch-by-branch keep/delete list. Preserve every
-  documented recovery ref and verify the archive before deleting anything.
+- Change: `docs/BRANCH_LEDGER.md` records every keep class, 20 merged local
+  cleanup candidates, 20 merged remote candidates, both active worktrees, and
+  the boundary of the verified private cleanroom archives. No ref was deleted.
 - Validation: compare merged status, tags, remote refs, and documented commit
   IDs before and after cleanup.
 - Risk/rollback: branch deletion can remove convenient recovery names even when
   commits remain reachable elsewhere.
-- Status: **Hold** pending a separate destructive-action approval.
+- Status: inventory **Resolved** on this branch; deletion **Hold** pending a
+  separate destructive-action approval and a fresh ancestor check.
 
 ### CH-009 — Deployment retains removed project files
 

@@ -50,6 +50,9 @@ Completed branch commits:
   explicit `apply` from a clean `master`, and preserves generated/local state.
   Its preview matched the exact 33 stale files plus two empty directories;
   nothing has been deleted remotely.
+- `docs/BRANCH_LEDGER.md` records the protected recovery refs, both active
+  worktrees, and 20 merged local plus 20 merged remote cleanup candidates. No
+  branch, tag, worktree, or archive was deleted.
 
 Validation for the import-verifier cleanup:
 
@@ -69,8 +72,8 @@ Validation for the import-verifier cleanup:
    owner approval and after this branch is merged to clean `master`. Its old
    remote `gate_test.sh` still consumes the constant-zero course/gate `RESULT`
    fields, so retain that output contract until deployment state is resolved.
-3. Produce a keep/delete ledger for merged and diagnostic branches; delete no
-   branch without separate owner approval.
+3. Review the branch-ledger candidates; delete no ref without separate owner
+   approval and a fresh merged/ancestor check.
 4. Characterize one low-coupling `Main.gd` boundary before considering any
    structural extraction.
 
