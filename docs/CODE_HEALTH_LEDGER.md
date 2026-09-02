@@ -1,9 +1,9 @@
 # Car Fight code-health evidence ledger
 
-Status: active audit on `codex/code-health-audit`, based on canonical
-`master@d949ba7`. A finding is not permission to change protected gameplay,
-networking, rollback, transport, synchronized state, physics, or rendering
-behavior.
+Status: completed audit, validated through `02c4829` and fast-forwarded into
+`master` from the original `d949ba7` baseline. A finding remains separate from
+permission to change protected gameplay, networking, rollback, transport,
+synchronized state, physics, or rendering behavior.
 
 ## Status meanings
 

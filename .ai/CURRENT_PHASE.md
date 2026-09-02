@@ -3,7 +3,7 @@
 ## Canonical baseline
 
 - Active repository: `/Users/johnnguyen/Projects/car-fight` on `master`.
-- Current accepted revision when the code-health branch began: `d949ba7`.
+- Code-health audit baseline: `d949ba7`; validated audit head: `02c4829`.
 - Engine: Godot 4.7.1 with Rapier 0.8.39.
 - Renderer: Compatibility. Keep SSAO, directional shadows, native fullscreen,
   borderless fullscreen, and edge-to-edge windows disabled on this Intel Mac.
@@ -16,10 +16,12 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
-## Active work: code health
+## Completed work: code health
 
-- Worktree: `/Users/johnnguyen/Projects/car-fight-code-health`.
-- Branch: `codex/code-health-audit`.
+- The owner approved and `master` was fast-forwarded from
+  `codex/code-health-audit` through validated head `02c4829`.
+- The cleanup worktree and branch remain available until a separately approved
+  repository-housekeeping pass; do not delete them implicitly.
 - Evidence ledger: `docs/CODE_HEALTH_LEDGER.md`.
 - Stable architecture/index context now lives in `.ai/CONTEXT.md`. The shared
   project registry resolves `car-fight` to the active Godot repository and
@@ -138,20 +140,18 @@ Accumulated cleanup-boundary validation:
 
 ## Next
 
-1. Review this completed cleanup branch and merge it to `master` only with
-   explicit owner approval. Do not deploy as an implicit part of the merge.
-2. Fix CH-011 authority-probe delivery only as a separate networking task with
+1. Fix CH-011 authority-probe delivery only as a separate networking task with
    focused ENet and mixed-transport characterization.
-3. Decide separately whether tracked `.ai` state should move into the shared
+2. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
-4. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
-   owner approval and after this branch is merged to clean `master`. Its old
+3. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
+   owner approval from clean `master`. Its old
    remote `gate_test.sh` still consumes the constant-zero course/gate `RESULT`
    fields, so retain that output contract until deployment state is resolved.
-5. Review the branch-ledger candidates; delete no ref without separate owner
+4. Review the branch-ledger candidates; delete no ref without separate owner
    approval and a fresh merged/ancestor check.
-6. Treat the characterized result-report boundary as the limit of this cleanup;
+5. Treat the characterized result-report boundary as the limit of this cleanup;
    argument parsing and any further `Main.gd` extraction remain on hold.
 
 The complete former phase log is preserved at
