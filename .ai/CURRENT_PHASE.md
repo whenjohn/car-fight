@@ -16,10 +16,11 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
-## Active experiment: always-forward camera
+## Completed work: camera tuning and opt-in always-forward experiment
 
-- Worktree: `/Users/johnnguyen/Projects/car-fight-always-forward-camera` on
-  `codex/always-forward-camera`, based on `master@b6c2fa0`.
+- Merged to `master` from `codex/always-forward-camera` at `48732a2`, originally
+  based on `master@b6c2fa0`. The completed worktree remains available at
+  `/Users/johnnguyen/Projects/car-fight-always-forward-camera`.
 - The presentation-only camera experiment remains available but now starts
   disabled after the owner found the rotating-world orientation disorienting.
   Its toggle is deliberately session-only, so saved tuning can never make the
@@ -29,8 +30,7 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   comfort revision instead uses a 10-degree active-turn soft zone and caps
   camera rotation at 95 degrees/second, then settles fully after the turn.
 - Speed-scaled travel look-ahead now has separate acceleration and braking ease
-  responses. The existing isometric pitch, orthographic size, simulation,
-  authority, rollback, and wire state are unchanged.
+  responses. Simulation, authority, rollback, and wire state are unchanged.
 - The native Debug system menu contains an enable/disable comparison toggle and
   a `Camera tuning…` window. Turn catch-up, comfort zone,
   maximum camera turn speed, viewing angle, zoom, orthographic/perspective
@@ -45,9 +45,9 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   `tests/always_forward_camera_ui_test.gd`, `tests/sense_of_speed_test.gd`,
   `tests/asset_smoke_test.gd`, `tests/home_world_lighting_test.gd`, and
   `./scripts/offline_test.sh`.
-- Next: owner feel-testing in an ordinary inset window using
-  `./scripts/play_monitored.sh`; tune the five live values before deciding
-  whether the experiment should be promoted. No deployment is authorized.
+- The owner rejected always-forward world rotation as the default but accepted
+  merging it as an opt-in comparison alongside the general camera controls.
+  No deployment was performed or authorized.
 
 ## Completed work: combined feature merge
 
