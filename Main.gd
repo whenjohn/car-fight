@@ -274,7 +274,9 @@ var _gameplay_text_visible := true
 var _always_forward_camera_enabled := true
 var _always_forward_camera_tuning := {
 	"turn_response": 3.2,
-	"max_turn_angle": 22.0,
+	"turn_dead_zone": 10.0,
+	"max_turn_speed": 95.0,
+	"camera_pitch": 48.0,
 	"look_ahead_distance": 7.5,
 	"acceleration_response": 3.0,
 	"braking_response": 5.5,
@@ -474,7 +476,9 @@ func _process(_delta: float) -> void:
 		if is_instance_valid(rc_visual):
 			var rc_position := (rc_visual as Node3D).global_position
 			target = Vector3(rc_position.x, 0.0, rc_position.z)
-	var pitch := deg_to_rad(55.0)
+	var pitch_degrees := float(_always_forward_camera_tuning["camera_pitch"]) \
+		if _always_forward_camera_enabled else 55.0
+	var pitch := deg_to_rad(pitch_degrees)
 	var horizontal := cos(pitch) * 80.0
 	var offset := Vector3(horizontal * 0.70710678, sin(pitch) * 80.0,
 		horizontal * 0.70710678)
@@ -484,7 +488,8 @@ func _process(_delta: float) -> void:
 		var vehicle_forward := -(local as RigidBody3D).global_basis.z
 		vehicle_forward.y = 0.0
 		_always_forward_camera_direction = _always_forward_camera.advance(
-			vehicle_forward, _delta, _always_forward_camera_tuning)
+			vehicle_forward, (local as RigidBody3D).angular_velocity.y,
+			_delta, _always_forward_camera_tuning)
 	if _always_forward_camera_enabled:
 		offset.x = -_always_forward_camera_direction.x * horizontal
 		offset.z = -_always_forward_camera_direction.z * horizontal
@@ -1881,7 +1886,9 @@ func _on_always_forward_camera_values_changed(values: Dictionary) -> void:
 func _on_always_forward_camera_reset_requested() -> void:
 	_always_forward_camera_tuning = {
 		"turn_response": 3.2,
-		"max_turn_angle": 22.0,
+		"turn_dead_zone": 10.0,
+		"max_turn_speed": 95.0,
+		"camera_pitch": 48.0,
 		"look_ahead_distance": 7.5,
 		"acceleration_response": 3.0,
 		"braking_response": 5.5,
@@ -1895,7 +1902,9 @@ func _on_always_forward_camera_reset_requested() -> void:
 func _sanitize_always_forward_camera_tuning(values: Dictionary) -> Dictionary:
 	return {
 		"turn_response": clampf(float(values.get("turn_response", 3.2)), 0.5, 12.0),
-		"max_turn_angle": clampf(float(values.get("max_turn_angle", 22.0)), 0.0, 60.0),
+		"turn_dead_zone": clampf(float(values.get("turn_dead_zone", 10.0)), 0.0, 30.0),
+		"max_turn_speed": clampf(float(values.get("max_turn_speed", 95.0)), 30.0, 240.0),
+		"camera_pitch": clampf(float(values.get("camera_pitch", 48.0)), 35.0, 65.0),
 		"look_ahead_distance": clampf(float(values.get("look_ahead_distance", 7.5)),
 			0.0, 16.0),
 		"acceleration_response": clampf(float(values.get("acceleration_response", 3.0)),

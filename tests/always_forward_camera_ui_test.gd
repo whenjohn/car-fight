@@ -9,8 +9,8 @@ func _init() -> void:
 		"the Debug system menu exposes the experiment toggle and tuner")
 	_check("_always_forward_camera_enabled := true" in main,
 		"the experimental worktree starts with nose-up camera behavior enabled")
-	for field in ["turn_response", "max_turn_angle", "look_ahead_distance",
-			"acceleration_response", "braking_response"]:
+	for field in ["turn_response", "turn_dead_zone", "max_turn_speed", "camera_pitch",
+			"look_ahead_distance", "acceleration_response", "braking_response"]:
 		_check(('"%s"' % field) in editor,
 			"the live camera editor exposes %s" % field)
 	_check("user://always_forward_camera.cfg" in main \

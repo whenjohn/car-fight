@@ -9,9 +9,17 @@ const FIELDS := {
 		"label": "Turn catch-up", "min": 0.5, "max": 12.0, "step": 0.1,
 		"tip": "How quickly the world rotates to put the vehicle nose back at screen-up.",
 	},
-	"max_turn_angle": {
-		"label": "Maximum turn angle", "min": 0.0, "max": 60.0, "step": 1.0,
-		"tip": "Maximum degrees the vehicle may visibly lean away from screen-up.",
+	"turn_dead_zone": {
+		"label": "Turn comfort zone", "min": 0.0, "max": 30.0, "step": 1.0,
+		"tip": "How far the vehicle may turn on screen before the world starts rotating.",
+	},
+	"max_turn_speed": {
+		"label": "Maximum camera turn", "min": 30.0, "max": 240.0, "step": 5.0,
+		"tip": "Caps world rotation during sharp steering and impacts, in degrees per second.",
+	},
+	"camera_pitch": {
+		"label": "Camera pitch", "min": 35.0, "max": 65.0, "step": 1.0,
+		"tip": "Lower values show more building sides and feel less top-down.",
 	},
 	"look_ahead_distance": {
 		"label": "Look-ahead distance", "min": 0.0, "max": 16.0, "step": 0.25,
