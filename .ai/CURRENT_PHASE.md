@@ -22,6 +22,8 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   `codex/always-forward-camera`, based on `master@b6c2fa0`.
 - The presentation-only camera experiment remains available but now starts
   disabled after the owner found the rotating-world orientation disorienting.
+  Its toggle is deliberately session-only, so saved tuning can never make the
+  experimental orientation replace the standard camera on a later launch.
   When enabled it keeps the local vehicle nose returning to screen-up. The first owner pass found that its hard
   22-degree bound forced near-1:1 world rotation and felt disorienting. The
   comfort revision instead uses a 10-degree active-turn soft zone and caps

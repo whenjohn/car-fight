@@ -9,6 +9,8 @@ func _init() -> void:
 		"the Debug system menu exposes the experiment toggle and tuner")
 	_check("_always_forward_camera_enabled := false" in main,
 		"the rejected nose-up behavior now starts disabled but remains available for comparison")
+	_check('ALWAYS_FORWARD_CAMERA_SECTION, "enabled"' not in main,
+		"the orientation toggle is session-only and cannot restore itself on launch")
 	_check("_gameplay_text_visible := false" in main \
 		and "_hotkey_hints_visible := false" in main \
 		and "Show control hints" in main,

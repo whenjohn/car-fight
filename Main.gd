@@ -1946,8 +1946,6 @@ func _load_persisted_always_forward_camera() -> void:
 	var config := ConfigFile.new()
 	if config.load(ALWAYS_FORWARD_CAMERA_PATH) != OK:
 		return
-	_always_forward_camera_enabled = bool(config.get_value(
-		ALWAYS_FORWARD_CAMERA_SECTION, "enabled", false))
 	var values := {}
 	for key_variant in _always_forward_camera_tuning:
 		var key := str(key_variant)
@@ -1960,8 +1958,6 @@ func _save_persisted_always_forward_camera() -> void:
 	if not _persistence_available_for_always_forward_camera():
 		return
 	var config := ConfigFile.new()
-	config.set_value(ALWAYS_FORWARD_CAMERA_SECTION, "enabled",
-		_always_forward_camera_enabled)
 	for key_variant in _always_forward_camera_tuning:
 		var key := str(key_variant)
 		config.set_value(ALWAYS_FORWARD_CAMERA_SECTION, key,
