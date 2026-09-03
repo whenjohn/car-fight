@@ -9,6 +9,10 @@ func _init() -> void:
 		"the Debug system menu exposes the experiment toggle and tuner")
 	_check("_always_forward_camera_enabled := false" in main,
 		"the rejected nose-up behavior now starts disabled but remains available for comparison")
+	_check("_gameplay_text_visible := false" in main \
+		and "_hotkey_hints_visible := false" in main \
+		and "Show control hints" in main,
+		"gameplay text and control hints start hidden but remain available in Debug")
 	for field in ["turn_response", "turn_dead_zone", "max_turn_speed", "camera_pitch", "camera_zoom",
 			"look_ahead_distance", "acceleration_response", "braking_response"]:
 		_check(('"%s"' % field) in editor,

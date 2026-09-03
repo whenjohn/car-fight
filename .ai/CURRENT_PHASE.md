@@ -36,6 +36,9 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   live and autosave locally. The comfort revision lowers
   the default pitch from the original 55 degrees to 48 degrees so building
   sides provide a stronger depth cue. Tool-window focus sends neutral controls.
+- Gameplay status text and control hints now both start hidden. Separate Debug
+  menu checks can restore either during development; browser hints require the
+  explicit `hotkeyHints=1` query value.
 - Validation passes: `./scripts/check.sh`, `tests/always_forward_camera_test.gd`,
   `tests/always_forward_camera_ui_test.gd`, `tests/sense_of_speed_test.gd`,
   `tests/asset_smoke_test.gd`, `tests/home_world_lighting_test.gd`, and

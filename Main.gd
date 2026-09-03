@@ -143,7 +143,7 @@ var _presentation_control_elapsed := 0.0
 var _presentation_control_last_command := ""
 var _network_hud_enabled := false
 var _network_profile := "unshaped"
-var _hotkey_hints_visible := true
+var _hotkey_hints_visible := false
 var _controller_drive_active := false
 var _active_controller_id := -1
 var _resim_budget_ms := 0.0
@@ -270,7 +270,7 @@ var _vehicle_model_scales := {}
 var _city_presentation: Node3D
 var _lighting_style_index := 4
 var _gameplay_collision_debug_enabled := false
-var _gameplay_text_visible := true
+var _gameplay_text_visible := false
 var _always_forward_camera_enabled := false
 var _always_forward_camera_tuning := {
 	"turn_response": 3.2,
@@ -287,6 +287,7 @@ const DEBUG_COLLISION_MENU_ID := 1
 const DEBUG_GAMEPLAY_TEXT_MENU_ID := 2
 const DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID := 3
 const DEBUG_ALWAYS_FORWARD_CAMERA_TUNING_MENU_ID := 4
+const DEBUG_CONTROL_HINTS_MENU_ID := 5
 const ALWAYS_FORWARD_CAMERA_PATH := "user://always_forward_camera.cfg"
 const ALWAYS_FORWARD_CAMERA_SECTION := "always_forward_camera"
 const OIL_INSTANT_MENU_ID := 1001
@@ -598,7 +599,7 @@ func _parse_args() -> void:
 				_adaptive_state_rate = adaptive_rate_query == "1"
 			_network_app_telemetry = _web_query("netTelemetry") == "1"
 			_network_hud_enabled = _web_query("networkHud") == "1"
-			_hotkey_hints_visible = _web_query("hotkeyHints") != "0"
+			_hotkey_hints_visible = _web_query("hotkeyHints") == "1"
 			_client_cruise_allowed = _web_query("clientCruise") == "1"
 			_motion_trace_enabled = _web_query("motionTrace") == "1"
 			_local_presentation_smoothing_enabled = \
@@ -691,6 +692,8 @@ func _parse_args() -> void:
 			_network_hud_enabled = true
 		elif arg == "--hide-hotkey-hints":
 			_hotkey_hints_visible = false
+		elif arg == "--show-hotkey-hints":
+			_hotkey_hints_visible = true
 		elif arg.begins_with("--network-profile="):
 			_network_profile = arg.get_slice("=", 1)
 		elif arg == "--network-profile" and index + 1 < args.size():
@@ -1772,6 +1775,9 @@ func _build_hud(hud: CanvasLayer) -> void:
 	_debug_popup.add_check_item("Show gameplay text", DEBUG_GAMEPLAY_TEXT_MENU_ID)
 	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_GAMEPLAY_TEXT_MENU_ID),
 		_gameplay_text_visible)
+	_debug_popup.add_check_item("Show control hints", DEBUG_CONTROL_HINTS_MENU_ID)
+	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_CONTROL_HINTS_MENU_ID),
+		_hotkey_hints_visible)
 	_debug_popup.add_separator()
 	_debug_popup.add_check_item("Always-forward camera",
 		DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID)
@@ -1862,6 +1868,10 @@ func _on_debug_menu_item_pressed(id: int) -> void:
 		if _status_label != null:
 			_status_label.visible = _gameplay_text_visible or local_player() == null
 		_update_editor_label()
+	elif id == DEBUG_CONTROL_HINTS_MENU_ID:
+		_hotkey_hints_visible = not _hotkey_hints_visible
+		_debug_popup.set_item_checked(_debug_popup.get_item_index(id),
+			_hotkey_hints_visible)
 	elif id == DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID:
 		_always_forward_camera_enabled = not _always_forward_camera_enabled
 		_debug_popup.set_item_checked(_debug_popup.get_item_index(id),
