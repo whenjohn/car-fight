@@ -26,7 +26,7 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   authority-probe delivery, ENet, mixed transport, join, and reconnect gates.
 - No deployment was performed. The macai2 production service remains separate.
 
-## Active work: Lighting Editor input focus
+## Completed work: Lighting Editor input focus
 
 - Worktree: `/Users/johnnguyen/Projects/car-fight-lighting-input-focus` on
   `codex/lighting-editor-input-focus`, based on merged `master@9a1da6b`.
@@ -41,8 +41,9 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 - Focused validation passes: `./scripts/check.sh`,
   `tests/home_world_lighting_test.gd`, `tests/asset_smoke_test.gd`, and
   `./scripts/offline_test.sh`.
-- Still needed: one owner-approved monitored client pass to verify the native
-  macOS focus handoff by selecting the look-name field and returning to play.
+- The owner verified the native macOS focus handoff in monitored run
+  `.crash-runs/20260902-225127`: after selecting the look-name field, returning
+  to the game restored normal mouse steering. The result was accepted.
 
 ## Completed work: live lighting editor
 
@@ -249,21 +250,19 @@ Accumulated cleanup-boundary validation:
 
 ## Next
 
-1. Run the owner-approved monitored Lighting Editor focus check, then merge the
-   focused fix if mouse steering resumes immediately after returning to the game.
-2. Open the pre-existing sustained rendered stall/recovery failure as a separate
+1. Open the pre-existing sustained rendered stall/recovery failure as a separate
    networking worktree/task, preserving both captured runs. Do not repeat
    rendered testing without explicit owner approval.
-3. Decide separately whether tracked `.ai` state should move into the shared
+2. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
-4. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
+3. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
    owner approval from clean `master`. Its old
    remote `gate_test.sh` still consumes the constant-zero course/gate `RESULT`
    fields, so retain that output contract until deployment state is resolved.
-5. Review the branch-ledger candidates; delete no ref without separate owner
+4. Review the branch-ledger candidates; delete no ref without separate owner
    approval and a fresh merged/ancestor check.
-6. Treat the characterized result-report boundary as the limit of this cleanup;
+5. Treat the characterized result-report boundary as the limit of this cleanup;
    argument parsing and any further `Main.gd` extraction remain on hold.
 
 The complete former phase log is preserved at
