@@ -16,10 +16,20 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
-## Active work: live lighting editor
+## Completed work: combined feature merge
 
-- Worktree: `/Users/johnnguyen/Projects/car-fight-lighting-editor` on
-  `codex/lighting-editor`, based on `master@353f824`.
+- `master` now contains `codex/lighting-editor`, `codex/city-draw-order`, and
+  `codex/ch-011-authority-probe`. The feature worktrees and branches remain
+  available; none were removed.
+- Combined validation passes: `./scripts/check.sh` and the complete
+  `./scripts/test.sh`, including lighting/window policy, city presentation,
+  authority-probe delivery, ENet, mixed transport, join, and reconnect gates.
+- No deployment was performed. The macai2 production service remains separate.
+
+## Completed work: live lighting editor
+
+- Merged from `/Users/johnnguyen/Projects/car-fight-lighting-editor` on
+  `codex/lighting-editor`, originally based on `master@353f824`.
 - The native `Scenery` system menu now opens a transient `Lighting Editor`
   window modeled on G2's live tuning UI. It starts from the selected lighting
   preset and updates the local presentation in real time.
@@ -48,8 +58,8 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   `./scripts/offline_test.sh`. The local-asset bootstrap also passes its own
   `--check` plus the focused city-audition and tree-library tests from a
   previously empty feature worktree.
-- Still needed: one owner-approved monitored visual pass in an ordinary inset
-  window to judge layout and whether the chosen controls produce useful looks.
+- Optional follow-up: one owner-approved monitored visual pass in an ordinary
+  inset window to judge layout and whether the controls produce useful looks.
 
 ## Completed work: code health
 
@@ -221,21 +231,19 @@ Accumulated cleanup-boundary validation:
 
 ## Next
 
-1. Validate and push the combined `master` merge of the lighting editor, city
-   draw-order fixes, and CH-011 authority-probe delivery.
-2. Open the pre-existing sustained rendered stall/recovery failure as a separate
+1. Open the pre-existing sustained rendered stall/recovery failure as a separate
    networking worktree/task, preserving both captured runs. Do not repeat
    rendered testing without explicit owner approval.
-3. Decide separately whether tracked `.ai` state should move into the shared
+2. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
-4. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
+3. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
    owner approval from clean `master`. Its old
    remote `gate_test.sh` still consumes the constant-zero course/gate `RESULT`
    fields, so retain that output contract until deployment state is resolved.
-5. Review the branch-ledger candidates; delete no ref without separate owner
+4. Review the branch-ledger candidates; delete no ref without separate owner
    approval and a fresh merged/ancestor check.
-6. Treat the characterized result-report boundary as the limit of this cleanup;
+5. Treat the characterized result-report boundary as the limit of this cleanup;
    argument parsing and any further `Main.gd` extraction remain on hold.
 
 The complete former phase log is preserved at
