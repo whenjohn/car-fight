@@ -7,7 +7,6 @@ signal enforced(action: String, details: Dictionary)
 
 const CHECK_INTERVAL_SECONDS := 0.20
 const SAFE_MARGIN := 48
-const SAFE_MAX_SIZE := Vector2i(1280, 720)
 
 var _elapsed := 0.0
 var _enabled := false
@@ -100,9 +99,12 @@ static func desired_state(mode: int, borderless: bool, usable_rect: Rect2i,
 	# Very small or unusual displays still receive a positive window rectangle.
 	if inset.size.x < 1 or inset.size.y < 1:
 		inset = usable_rect
+	# Manual resizing is unrestricted inside the safe inset. Only trim a window
+	# when it would become larger than the usable inset itself; the former fixed
+	# 1280x720 cap made every larger resize snap back immediately.
 	var safe_size := Vector2i(
-		mini(window_size.x, mini(SAFE_MAX_SIZE.x, inset.size.x)),
-		mini(window_size.y, mini(SAFE_MAX_SIZE.y, inset.size.y)))
+		mini(window_size.x, inset.size.x),
+		mini(window_size.y, inset.size.y))
 	safe_size.x = maxi(safe_size.x, 1)
 	safe_size.y = maxi(safe_size.y, 1)
 	if safe_size != window_size:

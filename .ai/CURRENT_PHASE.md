@@ -16,6 +16,41 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
+## Active work: live lighting editor
+
+- Worktree: `/Users/johnnguyen/Projects/car-fight-lighting-editor` on
+  `codex/lighting-editor`, based on `master@353f824`.
+- The native `Scenery` system menu now opens a transient `Lighting Editor`
+  window modeled on G2's live tuning UI. It starts from the selected lighting
+  preset and updates the local presentation in real time.
+- The editor is deliberately limited to nine high-impact choices: sun color,
+  brightness, height, and direction; world fill; exposure; saturation; and
+  positional contact-shadow visibility/darkness. It does not expose SSAO,
+  directional shadows, renderer selection, or other unsafe/low-value knobs.
+- `Reset to selected preset` discards experimental edits. Selecting another
+  existing Scenery preset also refreshes the open editor to that preset.
+- Each edit now autosaves a working look under `user://`; the look and its
+  built-in base preset restore on the next launch. The same window can save,
+  load, overwrite, and delete named look snapshots.
+- The editor is a compact 470x540 native child window. It remains at native
+  pixel size instead of growing with the game's fixed-viewport canvas stretch
+  when the main window is resized.
+- New Car Fight worktrees must run `./scripts/sync_local_assets.sh` immediately
+  after creation. The tracked `AGENTS.md` rule and helper physically copy only
+  the required ignored city and Collection tree families from a registered
+  donor worktree; no symlinks, destructive sync, or retired audition packs.
+- The Intel Mac window guard no longer imposes its former fixed 1280x720 cap.
+  Ordinary decorated windows can be resized freely while they remain within
+  the 48-pixel safe inset; fullscreen, maximized, borderless, and edge-to-edge
+  presentation remain blocked.
+- Validation passes: `./scripts/check.sh`,
+  `tests/home_world_lighting_test.gd`, `tests/window_safety_policy_test.gd`, and
+  `./scripts/offline_test.sh`. The local-asset bootstrap also passes its own
+  `--check` plus the focused city-audition and tree-library tests from a
+  previously empty feature worktree.
+- Still needed: one owner-approved monitored visual pass in an ordinary inset
+  window to judge layout and whether the chosen controls produce useful looks.
+
 ## Completed work: code health
 
 - The owner approved and `master` was fast-forwarded from
