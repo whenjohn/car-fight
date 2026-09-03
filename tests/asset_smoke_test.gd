@@ -15,6 +15,7 @@ const INPUT_FOCUS_POLICY := preload("res://player/input_focus_policy.gd")
 const HOMING_VISUAL := preload("res://combat/homing_missile_visual.gd")
 const RC_ORB_VISUAL := preload("res://combat/rc_orb_visual.gd")
 const PLAYER_BODY := preload("res://player/player_body.gd")
+const DRIVE_CURSOR_VISUAL := preload("res://player/drive_cursor_visual.gd")
 
 func _init() -> void:
 	var resource := load("res://assets/ground_vehicle/Jeep.fbx") as PackedScene
@@ -432,6 +433,16 @@ func _init() -> void:
 		push_error("CURSOR_SPEED_MARKER_TEST FAIL: local cursor path must show its max-speed point")
 		quit(1)
 		return
+	if main_source.count("DRIVE_CURSOR_VISUAL.material(") != 3:
+		push_error("CURSOR_DRAW_ORDER_TEST FAIL: line and both cursor markers must share overlay policy")
+		quit(1)
+		return
+	var cursor_material := DRIVE_CURSOR_VISUAL.material(Color.WHITE)
+	if cursor_material == null or not cursor_material.no_depth_test \
+			or cursor_material.render_priority <= 2:
+		push_error("CURSOR_DRAW_ORDER_TEST FAIL: drive cursor must render over city geometry")
+		quit(1)
+		return
 	if "DisplayServer.window_set_title(\"Car Fight — %s\" % _player_name)" not in main_source \
 			and "DisplayServer.window_set_title(\"CAR FIGHT — %s — %s\" % [_session_label, _player_name])" not in main_source:
 		push_error("CLIENT_WINDOW_TITLE_TEST FAIL: client title must include the session name")
@@ -444,8 +455,9 @@ func _init() -> void:
 		return
 	var coverage_visual := COVERAGE_VISUAL.new()
 	var coverage_material := coverage_visual.call("_material", Color.WHITE) as StandardMaterial3D
-	if coverage_material.no_depth_test:
-		push_error("COVERAGE_DEPTH_TEST FAIL: cones must not draw through solid geometry")
+	if not coverage_material.no_depth_test \
+			or coverage_material.render_priority != COVERAGE_VISUAL.OVERLAY_RENDER_PRIORITY:
+		push_error("COVERAGE_DRAW_ORDER_TEST FAIL: firing cones must render over city geometry")
 		quit(1)
 		return
 	if not COVERAGE_VISUAL.overlay_is_visible(true, false):
@@ -538,7 +550,21 @@ func _init() -> void:
 		push_error("DRIFT_GUIDE_TEST FAIL: rear drift targets must be cursor areas, not thin bars")
 		quit(1)
 		return
-	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded coverage_depth=enabled shadow_filter=hard shadow_depth=32bit")
+	var drift_guide := DRIFT_GUIDE.new()
+	drift_guide.call("_ready")
+	for overlay_name in ["SpeedRingBase", "SpeedRingFill", "BurstRingFill",
+			"LeftDriftZone", "RightDriftZone", "LeftDriftMeter", "RightDriftMeter"]:
+		var overlay := drift_guide.get_node_or_null(overlay_name) as MeshInstance3D
+		var overlay_material := overlay.material_override as StandardMaterial3D \
+			if overlay != null else null
+		if overlay_material == null or not overlay_material.no_depth_test \
+				or overlay_material.render_priority != DRIFT_GUIDE.GROUND_OVERLAY_PRIORITY:
+			push_error("DRIFT_GUIDE_DRAW_ORDER_TEST FAIL: %s must render over city geometry" \
+				% overlay_name)
+			quit(1)
+			return
+	drift_guide.free()
+	print("PRESENTATION_ASSET_TEST PASS chassis_surfaces=6 wheels=4 front=2 grid_shader=loaded overlays=visible shadow_filter=hard shadow_depth=32bit")
 	coverage_visual.free()
 	target_dummy.free()
 	jeep.free()

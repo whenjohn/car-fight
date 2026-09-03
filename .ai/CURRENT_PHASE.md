@@ -175,6 +175,21 @@ Accumulated cleanup-boundary validation:
 
 ## Next
 
+Active visual-fix branch: `codex/city-draw-order` in
+`/Users/johnnguyen/Projects/car-fight-city-draw-order`.
+
+- Skid ribbons now sit just above the imported Low Poly City road cap while
+  retaining depth testing against vehicles and buildings.
+- The local trajectory line, endpoint, and max-speed marker now share an
+  unshaded depth-independent overlay material so city geometry cannot hide
+  direct control feedback.
+- The speed/burst rings, both drift-assist areas and meters, and the opt-in
+  firing cones now also use depth-independent overlay materials. The owner
+  visually reviewed this combined pass in a monitored offline instance.
+- Focused skid/presentation tests, `./scripts/check.sh`, and
+  `./scripts/offline_test.sh` pass. The owner accepted the combined draw-order
+  result in a monitored offline visual pass.
+
 1. Fix CH-011 authority-probe delivery only as a separate networking task with
    focused ENet and mixed-transport characterization.
 2. Decide separately whether tracked `.ai` state should move into the shared

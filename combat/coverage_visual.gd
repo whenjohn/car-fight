@@ -7,6 +7,7 @@ const DRIVE_FILL_ALPHA := 0.018
 const DRIVE_EDGE_ALPHA := 0.055
 const EDIT_FILL_ALPHA := 0.16
 const EDIT_EDGE_ALPHA := 0.68
+const OVERLAY_RENDER_PRIORITY := 2
 var _ranges := COVERAGE.default_ranges()
 var _widths := COVERAGE.default_widths()
 var _tips_outward := COVERAGE.default_tips_outward()
@@ -169,8 +170,9 @@ func _material(color: Color) -> StandardMaterial3D:
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = color
-	# Coverage belongs on the ground plane. Ignoring depth projects the moving
-	# triangles through cars, walls, and roads as a distracting striped overlay.
-	material.no_depth_test = false
+	# These cones are direct firing feedback. Keep them readable over city roads,
+	# buildings, and other decorative geometry while they are enabled with C.
+	material.no_depth_test = true
+	material.render_priority = OVERLAY_RENDER_PRIORITY
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material

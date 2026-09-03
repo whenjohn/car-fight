@@ -43,6 +43,9 @@ func _init() -> void:
 		"nearby samples connect into a continuous curve")
 	_check(not SKIDS.can_connect(Vector3.ZERO, Vector3(4.0, 0.0, 0.0)),
 		"teleports and map transitions cannot draw a bridge")
+	var lifted_contact := SKIDS.surface_point(Vector3.ZERO, Vector3.UP)
+	_check(lifted_contact.y > 0.184 and lifted_contact.y < 0.22,
+		"skid ribbons clear the city road cap without an excessive ground gap")
 	var trails := SKIDS.new()
 	trails.call("_ready")
 	trails.call("sample_tire", "rear_left", Vector3.ZERO, Vector3.RIGHT,
