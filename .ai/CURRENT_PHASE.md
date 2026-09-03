@@ -20,8 +20,9 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 
 - Worktree: `/Users/johnnguyen/Projects/car-fight-always-forward-camera` on
   `codex/always-forward-camera`, based on `master@b6c2fa0`.
-- The presentation-only camera experiment starts enabled and keeps the local
-  vehicle nose returning to screen-up. The first owner pass found that its hard
+- The presentation-only camera experiment remains available but now starts
+  disabled after the owner found the rotating-world orientation disorienting.
+  When enabled it keeps the local vehicle nose returning to screen-up. The first owner pass found that its hard
   22-degree bound forced near-1:1 world rotation and felt disorienting. The
   comfort revision instead uses a 10-degree active-turn soft zone and caps
   camera rotation at 95 degrees/second, then settles fully after the turn.
@@ -29,9 +30,10 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   responses. The existing isometric pitch, orthographic size, simulation,
   authority, rollback, and wire state are unchanged.
 - The native Debug system menu contains an enable/disable comparison toggle and
-  an `Always-forward camera tuning…` window. Turn catch-up, comfort zone,
-  maximum camera turn speed, pitch, look-ahead distance, acceleration ease, and
-  braking ease update live and autosave locally. The comfort revision lowers
+  a `Camera tuning…` window. Turn catch-up, comfort zone,
+  maximum camera turn speed, viewing angle, zoom, orthographic/perspective
+  projection, look-ahead distance, acceleration ease, and braking ease update
+  live and autosave locally. The comfort revision lowers
   the default pitch from the original 55 degrees to 48 degrees so building
   sides provide a stronger depth cue. Tool-window focus sends neutral controls.
 - Validation passes: `./scripts/check.sh`, `tests/always_forward_camera_test.gd`,

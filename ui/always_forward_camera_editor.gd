@@ -18,8 +18,12 @@ const FIELDS := {
 		"tip": "Caps world rotation during sharp steering and impacts, in degrees per second.",
 	},
 	"camera_pitch": {
-		"label": "Camera pitch", "min": 35.0, "max": 65.0, "step": 1.0,
+		"label": "Viewing angle", "min": 35.0, "max": 65.0, "step": 1.0,
 		"tip": "Lower values show more building sides and feel less top-down.",
+	},
+	"camera_zoom": {
+		"label": "Zoom", "min": 0.6, "max": 2.0, "step": 0.05,
+		"tip": "Values above 1 move the view closer; values below 1 show more city.",
 	},
 	"look_ahead_distance": {
 		"label": "Look-ahead distance", "min": 0.0, "max": 16.0, "step": 0.25,
@@ -36,6 +40,7 @@ const FIELDS := {
 }
 
 var _window: Window
+var _orthographic: CheckBox
 var _spins := {}
 var _values := {}
 var _updating := false
@@ -47,7 +52,7 @@ func setup(initial_values: Dictionary) -> void:
 
 
 func open() -> void:
-	_window.popup_centered(Vector2i(470, 390))
+	_window.popup_centered(Vector2i(470, 520))
 
 
 func has_input_focus() -> bool:
@@ -59,6 +64,7 @@ func set_values(values: Dictionary) -> void:
 	_updating = true
 	for key in FIELDS:
 		(_spins[key] as SpinBox).value = float(_values.get(key, 0.0))
+	_orthographic.button_pressed = bool(_values.get("orthographic", true))
 	_updating = false
 
 
@@ -74,7 +80,7 @@ func _close() -> void:
 func _build_window() -> void:
 	_window = Window.new()
 	_window.name = "AlwaysForwardCameraWindow"
-	_window.title = "Always-Forward Camera"
+	_window.title = "Camera Tuning"
 	_window.visible = false
 	_window.transient = true
 	_window.exclusive = false
@@ -106,6 +112,15 @@ func _build_window() -> void:
 	return_to_game.text = "Return to game"
 	return_to_game.pressed.connect(_return_to_game)
 	root.add_child(return_to_game)
+	root.add_child(HSeparator.new())
+	_orthographic = CheckBox.new()
+	_orthographic.name = "Orthographic"
+	_orthographic.text = "Orthographic (no perspective)"
+	_orthographic.tooltip_text = (
+		"Keeps parallel lines parallel and prevents distant objects from shrinking."
+	)
+	_orthographic.toggled.connect(_on_orthographic_toggled)
+	root.add_child(_orthographic)
 	root.add_child(HSeparator.new())
 
 	for key in FIELDS:
@@ -142,4 +157,11 @@ func _on_value_changed(key: String, value: float) -> void:
 	if _updating:
 		return
 	_values[key] = value
+	values_changed.emit(_values.duplicate())
+
+
+func _on_orthographic_toggled(enabled: bool) -> void:
+	if _updating:
+		return
+	_values["orthographic"] = enabled
 	values_changed.emit(_values.duplicate())

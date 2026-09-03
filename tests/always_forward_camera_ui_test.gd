@@ -5,11 +5,11 @@ func _init() -> void:
 	var main := FileAccess.get_file_as_string("res://Main.gd")
 	var editor := FileAccess.get_file_as_string("res://ui/always_forward_camera_editor.gd")
 	var input := FileAccess.get_file_as_string("res://player/player_input.gd")
-	_check("Always-forward camera" in main and "Always-forward camera tuning…" in main,
+	_check("Always-forward camera" in main and "Camera tuning…" in main,
 		"the Debug system menu exposes the experiment toggle and tuner")
-	_check("_always_forward_camera_enabled := true" in main,
-		"the experimental worktree starts with nose-up camera behavior enabled")
-	for field in ["turn_response", "turn_dead_zone", "max_turn_speed", "camera_pitch",
+	_check("_always_forward_camera_enabled := false" in main,
+		"the rejected nose-up behavior now starts disabled but remains available for comparison")
+	for field in ["turn_response", "turn_dead_zone", "max_turn_speed", "camera_pitch", "camera_zoom",
 			"look_ahead_distance", "acceleration_response", "braking_response"]:
 		_check(('"%s"' % field) in editor,
 			"the live camera editor exposes %s" % field)
@@ -18,6 +18,9 @@ func _init() -> void:
 		"the camera toggle and tuning autosave locally")
 	_check("_window.force_native = true" in editor and "Return to game" in editor,
 		"the tuner uses a compact native tool window with explicit focus return")
+	_check("Orthographic (no perspective)" in editor and '"orthographic"' in main \
+		and "PROJECTION_PERSPECTIVE" in main,
+		"projection can switch between orthographic and perspective views")
 	_check("tool_window_has_input_focus" in main and "tool_window_has_input_focus" in input,
 		"camera tuning focus sends neutral vehicle controls")
 	print("ALWAYS_FORWARD_CAMERA_UI_TEST PASS menu=debug tuning=live autosave=yes")

@@ -271,12 +271,14 @@ var _city_presentation: Node3D
 var _lighting_style_index := 4
 var _gameplay_collision_debug_enabled := false
 var _gameplay_text_visible := true
-var _always_forward_camera_enabled := true
+var _always_forward_camera_enabled := false
 var _always_forward_camera_tuning := {
 	"turn_response": 3.2,
 	"turn_dead_zone": 10.0,
 	"max_turn_speed": 95.0,
 	"camera_pitch": 48.0,
+	"camera_zoom": 1.0,
+	"orthographic": true,
 	"look_ahead_distance": 7.5,
 	"acceleration_response": 3.0,
 	"braking_response": 5.5,
@@ -476,8 +478,7 @@ func _process(_delta: float) -> void:
 		if is_instance_valid(rc_visual):
 			var rc_position := (rc_visual as Node3D).global_position
 			target = Vector3(rc_position.x, 0.0, rc_position.z)
-	var pitch_degrees := float(_always_forward_camera_tuning["camera_pitch"]) \
-		if _always_forward_camera_enabled else 55.0
+	var pitch_degrees := float(_always_forward_camera_tuning["camera_pitch"])
 	var pitch := deg_to_rad(pitch_degrees)
 	var horizontal := cos(pitch) * 80.0
 	var offset := Vector3(horizontal * 0.70710678, sin(pitch) * 80.0,
@@ -496,12 +497,18 @@ func _process(_delta: float) -> void:
 	if _speed_camera != null:
 		if local is RigidBody3D and not rc_active:
 			camera_target += _speed_camera.advance(local as RigidBody3D, _delta,
-				_always_forward_camera_tuning if _always_forward_camera_enabled else {})
+				_always_forward_camera_tuning)
 		else:
 			_speed_camera.reset()
 	_camera.global_position = camera_target + offset
 	_camera.look_at(camera_target, Vector3.UP)
-	_camera.size = 30.0 if _combat_editor_active else WORLD_CONFIG.CAMERA_SIZE
+	var camera_zoom := float(_always_forward_camera_tuning["camera_zoom"])
+	var orthographic := bool(_always_forward_camera_tuning["orthographic"])
+	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL if orthographic \
+		else Camera3D.PROJECTION_PERSPECTIVE
+	_camera.size = (30.0 if _combat_editor_active else WORLD_CONFIG.CAMERA_SIZE) \
+		/ camera_zoom
+	_camera.fov = clampf(30.0 / camera_zoom, 15.0, 60.0)
 	_update_editor_presentation(local)
 	if _shadow_light != null:
 		_shadow_light.global_position = target + Vector3(-32.0, 40.0, 34.0)
@@ -1770,7 +1777,7 @@ func _build_hud(hud: CanvasLayer) -> void:
 		DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID)
 	_debug_popup.set_item_checked(_debug_popup.get_item_index(
 		DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID), _always_forward_camera_enabled)
-	_debug_popup.add_item("Always-forward camera tuning…",
+	_debug_popup.add_item("Camera tuning…",
 		DEBUG_ALWAYS_FORWARD_CAMERA_TUNING_MENU_ID)
 	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
 	_build_vehicle_model_menu()
@@ -1889,6 +1896,8 @@ func _on_always_forward_camera_reset_requested() -> void:
 		"turn_dead_zone": 10.0,
 		"max_turn_speed": 95.0,
 		"camera_pitch": 48.0,
+		"camera_zoom": 1.0,
+		"orthographic": true,
 		"look_ahead_distance": 7.5,
 		"acceleration_response": 3.0,
 		"braking_response": 5.5,
@@ -1905,6 +1914,8 @@ func _sanitize_always_forward_camera_tuning(values: Dictionary) -> Dictionary:
 		"turn_dead_zone": clampf(float(values.get("turn_dead_zone", 10.0)), 0.0, 30.0),
 		"max_turn_speed": clampf(float(values.get("max_turn_speed", 95.0)), 30.0, 240.0),
 		"camera_pitch": clampf(float(values.get("camera_pitch", 48.0)), 35.0, 65.0),
+		"camera_zoom": clampf(float(values.get("camera_zoom", 1.0)), 0.6, 2.0),
+		"orthographic": bool(values.get("orthographic", true)),
 		"look_ahead_distance": clampf(float(values.get("look_ahead_distance", 7.5)),
 			0.0, 16.0),
 		"acceleration_response": clampf(float(values.get("acceleration_response", 3.0)),
@@ -1926,7 +1937,7 @@ func _load_persisted_always_forward_camera() -> void:
 	if config.load(ALWAYS_FORWARD_CAMERA_PATH) != OK:
 		return
 	_always_forward_camera_enabled = bool(config.get_value(
-		ALWAYS_FORWARD_CAMERA_SECTION, "enabled", true))
+		ALWAYS_FORWARD_CAMERA_SECTION, "enabled", false))
 	var values := {}
 	for key_variant in _always_forward_camera_tuning:
 		var key := str(key_variant)
