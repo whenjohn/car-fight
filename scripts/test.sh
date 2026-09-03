@@ -10,6 +10,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/tractor_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/impact_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/correction_classifier_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/authority_probe_delivery_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/asset_smoke_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/boost_afterimage_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/vehicle_animation_test.gd

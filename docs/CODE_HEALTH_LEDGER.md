@@ -223,18 +223,32 @@ synchronized state, physics, or rendering behavior.
   `_authority_probe_queue`, but the current repository contains no consumer of
   that queue and therefore no call that delivers those samples to
   `_receive_authority_probe()`.
-- History: determine when the queue consumer was removed or stopped running
-  before changing delivery timing or RPC behavior.
-- Proposed change: handle as a separate networking bugfix. Restore or replace
-  the intended delayed delivery seam, then prove same-tick coverage under ENet
-  and mixed ENet/WebRTC transport without changing simulation authority.
-- Validation: focused `network_test.sh` and `mixed_transport_test.sh`, followed
-  by late-join and reconnect gates; run the complete suite once at that
-  bugfix's integration boundary.
+- History: sibling city commit `b20bb6a` contained the intended 20-tick delayed
+  queue consumer. The Godot 4.7 city promotion `3ccd8fe` retained the delay constant,
+  producer, queue, and receiver but accidentally omitted that consumer.
+- Resolution: restored the accepted dequeue/RPC loop. Mature settled samples
+  are delivered before a new sample is queued, and each target is checked
+  against the live peer list again so a disconnect during the delay is safe.
+  Simulation authority, sample cadence, RPC reliability, and delivery timing
+  are unchanged from the accepted implementation.
+- Validation: the new focused authority-probe delivery contract,
+  `./scripts/check.sh`, `scripts/network_test.sh`,
+  `scripts/mixed_transport_test.sh`, `scripts/join_transient_test.sh`, and
+  `scripts/reconnect_test.sh` pass. The required integration-boundary
+  `./scripts/test.sh` also passes completely. A subsequent sustained
+  two-rendered-client run proved probes were delivered but failed overall sync
+  after both clients crossed retained rollback history during large process
+  stalls; corrections reached 91.671 and 92.553 units and remote views froze.
+  An identical control with matching `master@353f824` clients and isolated
+  macai2 server reproduced the underlying large freeze and stale-history loop;
+  both peers were eventually timed out while their windows continued without
+  active multiplayer connections.
 - Risk/rollback: high. Authority-probe delivery is diagnostic, but its timing
-  crosses rollback and transport behavior.
-- Status: **Hold** for a separate characterized networking fix; not caused or
-  changed by this cleanup branch.
+  crosses rollback and transport behavior. The focused and complete headless
+  gates cover the changed delivery path; sustained rendered stall/recovery is
+  confirmed as separate pre-existing debt.
+- Status: **Resolved** on `codex/ch-011-authority-probe`; keep the sustained
+  rendered freeze/disconnect investigation in a separate networking task.
 
 ### CH-012 — Redundant city-only world-build wrapper
 

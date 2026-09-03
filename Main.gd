@@ -3038,7 +3038,15 @@ func _on_tick(delta: float, tick: int) -> void:
 func _send_settled_authority_probes() -> void:
 	if not multiplayer.is_server() or _start_tick < 0:
 		return
-	var tick := NetworkTime.tick
+	var tick: int = int(NetworkTime.tick)
+	while not _authority_probe_queue.is_empty() \
+			and tick - int(_authority_probe_queue[0]["tick"]) >= AUTHORITY_PROBE_SEND_DELAY_TICKS:
+		var probe: Dictionary = _authority_probe_queue.pop_front()
+		for peer_variant in probe["samples"]:
+			var peer_id := int(peer_variant)
+			if multiplayer.get_peers().has(peer_id):
+				_receive_authority_probe.rpc_id(peer_id, int(probe["tick"]), peer_id,
+					(probe["samples"] as Dictionary)[peer_variant])
 	if tick == _last_authority_probe_tick or (tick - _start_tick) % 30 != 0:
 		return
 	_last_authority_probe_tick = tick

@@ -173,35 +173,69 @@ Accumulated cleanup-boundary validation:
 - The first sandboxed WebRTC lifecycle attempt failed with loopback
   `listen EPERM`; its required unsandboxed rerun passed.
 
+## Completed work: CH-011 authority-probe delivery
+
+- Worktree: `/Users/johnnguyen/Projects/car-fight-ch011`; branch:
+  `codex/ch-011-authority-probe` from `master@353f824`.
+- Historical tracing found the intended consumer in sibling city commit
+  `b20bb6a`. Promotion commit `3ccd8fe` retained the 20-tick delay constant,
+  queue producer, and client receiver but omitted the loop that dequeued mature
+  samples and sent them to their owning peers.
+- Restored that exact bounded delivery seam before new samples are scheduled.
+  It rechecks the live peer list at delivery time, preserving the existing
+  disconnect-race guard, unreliable RPC contract, cadence, and authority model.
+- Added `tests/authority_probe_delivery_test.gd` to prevent another partial
+  promotion from leaving the queue without its delayed consumer.
+- Focused validation passes: authority-probe delivery contract, fast check,
+  ENet `network_test.sh` (1.674-unit worst correction), mixed ENet/WebRTC
+  `mixed_transport_test.sh` (0.300), late join, and reconnect.
+- The required integration-boundary `./scripts/test.sh` passes completely. Its
+  ENet run reported a 1.834-unit worst correction and mixed transport reported
+  0.300; all lifecycle and gameplay gates passed. The initial sandboxed ENet
+  attempt failed only because local UDP bind was denied, and the required
+  unsandboxed run passed.
+- A two-rendered-client check used this exact branch on a temporary isolated
+  macai2 server at UDP 12680; production UDP 10080 was not modified. Probe
+  delivery worked, but sustained play failed: Alpha and Bravo reached 91.671
+  and 92.553-unit corrections, respectively, and each client's remote-player
+  view froze. Evidence is preserved under
+  `.crash-runs/two-client-20260902-221336/`.
+- The live failure followed a shared performance/rollback stall around
+  22:14:53. Bravo reported a 562 ms process interval and 232-tick rollback
+  depth; Alpha then reported a 653 ms process interval with deep rollback.
+  Both exceeded the retained 64-tick history, stale-authority recovery repeated,
+  and fresh body state did not converge even though the server kept ticking.
+  The temporary server was stopped and production UDP 10080 remained running.
+- The identical control used matching `master@353f824` clients and a temporary
+  isolated macai2 server at that exact commit. It reproduced the large shared
+  freeze, stale-history recovery loop, and an even stronger failure: macai2
+  timed out and removed both peers while their windows continued producing
+  inactive-multiplayer errors. The user saw the major freeze but no persistent
+  split because both clients had disconnected. Evidence is preserved under
+  `/Users/johnnguyen/Projects/car-fight/.crash-runs/two-client-20260902-222423/`.
+- This control establishes that the sustained rendered stall/recovery failure
+  predates restored probe delivery. Keep that investigation separate from
+  CH-011; the probes make divergence measurable but do not mutate simulation
+  state. Both temporary macai2 servers were stopped, and production UDP 10080
+  remained running throughout.
+
 ## Next
 
-Active visual-fix branch: `codex/city-draw-order` in
-`/Users/johnnguyen/Projects/car-fight-city-draw-order`.
-
-- Skid ribbons now sit just above the imported Low Poly City road cap while
-  retaining depth testing against vehicles and buildings.
-- The local trajectory line, endpoint, and max-speed marker now share an
-  unshaded depth-independent overlay material so city geometry cannot hide
-  direct control feedback.
-- The speed/burst rings, both drift-assist areas and meters, and the opt-in
-  firing cones now also use depth-independent overlay materials. The owner
-  visually reviewed this combined pass in a monitored offline instance.
-- Focused skid/presentation tests, `./scripts/check.sh`, and
-  `./scripts/offline_test.sh` pass. The owner accepted the combined draw-order
-  result in a monitored offline visual pass.
-
-1. Fix CH-011 authority-probe delivery only as a separate networking task with
-   focused ENet and mixed-transport characterization.
-2. Decide separately whether tracked `.ai` state should move into the shared
+1. Validate and push the combined `master` merge of the lighting editor, city
+   draw-order fixes, and CH-011 authority-probe delivery.
+2. Open the pre-existing sustained rendered stall/recovery failure as a separate
+   networking worktree/task, preserving both captured runs. Do not repeat
+   rendered testing without explicit owner approval.
+3. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.
-3. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
+4. Apply the reviewed 33-file/two-directory macai2 cleanup only after explicit
    owner approval from clean `master`. Its old
    remote `gate_test.sh` still consumes the constant-zero course/gate `RESULT`
    fields, so retain that output contract until deployment state is resolved.
-4. Review the branch-ledger candidates; delete no ref without separate owner
+5. Review the branch-ledger candidates; delete no ref without separate owner
    approval and a fresh merged/ancestor check.
-5. Treat the characterized result-report boundary as the limit of this cleanup;
+6. Treat the characterized result-report boundary as the limit of this cleanup;
    argument parsing and any further `Main.gd` extraction remain on hold.
 
 The complete former phase log is preserved at
