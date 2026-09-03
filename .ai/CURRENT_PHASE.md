@@ -19,8 +19,11 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 ## Completed work: combined feature merge
 
 - `master` now contains `codex/lighting-editor`, `codex/city-draw-order`, and
-  `codex/ch-011-authority-probe`. The feature worktrees and branches remain
-  available; none were removed.
+  `codex/ch-011-authority-probe` plus the accepted follow-up
+  `codex/lighting-editor-input-focus`. Their four merged worktrees were removed
+  after validation; the branches remain available as recovery references.
+- Ignored monitor evidence from those worktrees is preserved under
+  `.crash-runs/worktree-archive/` in the canonical repository.
 - Combined validation passes: `./scripts/check.sh` and the complete
   `./scripts/test.sh`, including lighting/window policy, city presentation,
   authority-probe delivery, ENet, mixed transport, join, and reconnect gates.
@@ -28,8 +31,8 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 
 ## Completed work: Lighting Editor input focus
 
-- Worktree: `/Users/johnnguyen/Projects/car-fight-lighting-input-focus` on
-  `codex/lighting-editor-input-focus`, based on merged `master@9a1da6b`.
+- Merged from `codex/lighting-editor-input-focus`, based on merged
+  `master@9a1da6b`; its completed worktree has been removed.
 - Owner testing showed that focusing the native editor, especially its look-name
   field, left vehicle keyboard state partially responsive while the game
   viewport's mouse position stopped updating. This was UI focus behavior, not
@@ -42,13 +45,14 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   `tests/home_world_lighting_test.gd`, `tests/asset_smoke_test.gd`, and
   `./scripts/offline_test.sh`.
 - The owner verified the native macOS focus handoff in monitored run
-  `.crash-runs/20260902-225127`: after selecting the look-name field, returning
-  to the game restored normal mouse steering. The result was accepted.
+  `.crash-runs/worktree-archive/lighting-input-focus/runs/20260902-225127`:
+  after selecting the look-name field, returning to the game restored normal
+  mouse steering. The result was accepted.
 
 ## Completed work: live lighting editor
 
-- Merged from `/Users/johnnguyen/Projects/car-fight-lighting-editor` on
-  `codex/lighting-editor`, originally based on `master@353f824`.
+- Merged from `codex/lighting-editor`, originally based on `master@353f824`;
+  its completed worktree has been removed.
 - The native `Scenery` system menu now opens a transient `Lighting Editor`
   window modeled on G2's live tuning UI. It starts from the selected lighting
   preset and updates the local presentation in real time.
@@ -204,8 +208,8 @@ Accumulated cleanup-boundary validation:
 
 ## Completed work: CH-011 authority-probe delivery
 
-- Worktree: `/Users/johnnguyen/Projects/car-fight-ch011`; branch:
-  `codex/ch-011-authority-probe` from `master@353f824`.
+- Merged from `codex/ch-011-authority-probe`, originally based on
+  `master@353f824`; its completed worktree has been removed.
 - Historical tracing found the intended consumer in sibling city commit
   `b20bb6a`. Promotion commit `3ccd8fe` retained the 20-tick delay constant,
   queue producer, and client receiver but omitted the loop that dequeued mature
@@ -228,7 +232,7 @@ Accumulated cleanup-boundary validation:
   delivery worked, but sustained play failed: Alpha and Bravo reached 91.671
   and 92.553-unit corrections, respectively, and each client's remote-player
   view froze. Evidence is preserved under
-  `.crash-runs/two-client-20260902-221336/`.
+  `.crash-runs/worktree-archive/ch011/runs/two-client-20260902-221336/`.
 - The live failure followed a shared performance/rollback stall around
   22:14:53. Bravo reported a 562 ms process interval and 232-tick rollback
   depth; Alpha then reported a 653 ms process interval with deep rollback.
