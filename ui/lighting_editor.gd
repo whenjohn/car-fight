@@ -68,6 +68,19 @@ func open() -> void:
 	_window.popup_centered(Vector2i(470, 540))
 
 
+func has_input_focus() -> bool:
+	return _window != null and _window.visible and _window.has_focus()
+
+
+func _return_to_game() -> void:
+	get_tree().root.grab_focus()
+
+
+func _close() -> void:
+	_window.hide()
+	_return_to_game()
+
+
 func set_values(values: Dictionary, preset_name: String) -> void:
 	_set_values(values, preset_name, true)
 	_save_status.text = "Working look autosaved."
@@ -98,7 +111,7 @@ func _build_window() -> void:
 	# Keep this tool in native pixels so resizing the game does not also magnify
 	# the editor into a giant overlay.
 	_window.force_native = true
-	_window.close_requested.connect(_window.hide)
+	_window.close_requested.connect(_close)
 	add_child(_window)
 
 	var scroll := ScrollContainer.new()
@@ -123,6 +136,15 @@ func _build_window() -> void:
 	intro.text = "Changes are live, local, and autosaved as your working look."
 	intro.modulate = Color(0.72, 0.72, 0.72)
 	root.add_child(intro)
+	var input_hint := Label.new()
+	input_hint.text = "Vehicle controls pause here. Click the game or Return to game to drive."
+	input_hint.modulate = Color(0.72, 0.72, 0.72)
+	root.add_child(input_hint)
+	var return_to_game := Button.new()
+	return_to_game.name = "ReturnToGame"
+	return_to_game.text = "Return to game"
+	return_to_game.pressed.connect(_return_to_game)
+	root.add_child(return_to_game)
 	root.add_child(HSeparator.new())
 
 	var color_row := HBoxContainer.new()
@@ -200,7 +222,10 @@ func _build_window() -> void:
 	_look_name.name = "LookName"
 	_look_name.placeholder_text = "Name this look…"
 	_look_name.custom_minimum_size.x = 300.0
-	_look_name.text_submitted.connect(func(_text: String): _save_named_look())
+	_look_name.text_submitted.connect(func(_text: String):
+		_save_named_look()
+		_return_to_game()
+	)
 	save_row.add_child(_look_name)
 	var save_button := Button.new()
 	save_button.text = "Save"

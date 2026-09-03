@@ -449,8 +449,9 @@ func _init() -> void:
 		quit(1)
 		return
 	if INPUT_FOCUS_POLICY.live_input_allowed(false) \
-			or not INPUT_FOCUS_POLICY.live_input_allowed(true):
-		push_error("INPUT_FOCUS_TEST FAIL: only the focused window may gather live controls")
+			or not INPUT_FOCUS_POLICY.live_input_allowed(true) \
+			or INPUT_FOCUS_POLICY.live_input_allowed(true, true):
+		push_error("INPUT_FOCUS_TEST FAIL: only the focused game window may gather live controls")
 		quit(1)
 		return
 	var coverage_visual := COVERAGE_VISUAL.new()
