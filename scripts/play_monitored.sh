@@ -140,6 +140,7 @@ initial_windowserver_pid="${initial_windowserver_pid:-unknown}"
 	echo "client_position=${client_position:-default}"
 	echo "start_local_server=$start_local_server"
 	echo "offline=$offline"
+	echo "ramming_lab=${CAR_FIGHT_RAMMING_LAB:-0}"
 	echo "headless=$headless"
 	echo "fullscreen_requested=$fullscreen"
 	echo "fake_stall=$fake_stall"
@@ -195,7 +196,9 @@ if [[ "${CAR_FIGHT_G2_STACK:-0}" == "1" ]]; then
 		network_stack_args+=(--resim-budget-ms "$CAR_FIGHT_RESIM_BUDGET_MS")
 	fi
 fi
-if [[ "${CAR_FIGHT_SERVER_DRIVER:-0}" == "1" ]]; then
+if [[ "${CAR_FIGHT_RAMMING_LAB:-0}" == "1" ]]; then
+	server_fixture_args=(--ramming-lab)
+elif [[ "${CAR_FIGHT_SERVER_DRIVER:-0}" == "1" ]]; then
 	server_fixture_args=(--server-driver)
 fi
 client_user_args+=("${network_stack_args[@]}")

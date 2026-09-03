@@ -59,7 +59,7 @@ func _init() -> void:
 	var main_source := FileAccess.get_file_as_string("res://Main.gd")
 	_check("_build_vehicle_model_menu" in main_source \
 		and "user://vehicle_model_debug.cfg" in main_source \
-		and "Visual only — collider unchanged" in main_source \
+		and "Preview only until Apply Size & Respawn" in main_source \
 		and "_vehicle_model_scales" in main_source \
 		and "Each vehicle saves its own size" in main_source \
 		and "set_model_scale_multiplier" in main_source,

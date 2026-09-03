@@ -627,6 +627,19 @@ func _mesh_node(node_name: String, mesh: Mesh, position: Vector3, material: Mate
 func vehicle_name() -> String:
 	return str((VEHICLES[_vehicle_index] as Dictionary)["name"])
 
+
+func vehicle_index() -> int:
+	return _vehicle_index
+
+
+func set_vehicle_index(value: int) -> void:
+	var next_index := clampi(value, 0, VEHICLES.size() - 1)
+	if next_index == _vehicle_index:
+		return
+	_vehicle_index = next_index
+	if _chassis_lean != null:
+		_rebuild_selected_vehicle()
+
 static func vehicle_scene(vehicle: Dictionary) -> PackedScene:
 	var scene_value: Variant = vehicle.get("scene")
 	if scene_value is PackedScene:

@@ -17,7 +17,12 @@ const DET_ZONE_RADIUS := 3.6
 const DET_GROW_TIME := 0.08
 
 var owner_id := 0
+var input_authority_id := 0
 var spawn_slot := 0
+var is_ramming_drone := false
+var vehicle_visual_index := 0
+var vehicle_model_scale := 1.0
+var vehicle_collider_scale := 1.0
 var aim := Vector3(0.0, 0.0, -1.0)
 var burst_turn_sign := 0.0
 var boost_active := false
@@ -159,7 +164,9 @@ func _ready() -> void:
 	add_to_group("pilotable")
 	owner_id = int(name)
 	set_multiplayer_authority(1)
-	_input.set_multiplayer_authority(owner_id)
+	if input_authority_id == 0:
+		input_authority_id = owner_id
+	_input.set_multiplayer_authority(input_authority_id)
 	if _sync != null:
 		_sync.root = self
 		_sync.enable_prediction = true
