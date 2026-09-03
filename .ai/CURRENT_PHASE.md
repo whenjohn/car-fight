@@ -19,8 +19,10 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 ## Completed work: camera tuning and opt-in always-forward experiment
 
 - Merged to `master` from `codex/always-forward-camera` at `48732a2`, originally
-  based on `master@b6c2fa0`. The completed worktree remains available at
-  `/Users/johnnguyen/Projects/car-fight-always-forward-camera`.
+  based on `master@b6c2fa0`. The completed worktree was removed after its three
+  monitored runs were preserved under
+  `.crash-runs/worktree-archive/always-forward-camera/runs/`; the merged branch
+  remains as a recovery reference.
 - The presentation-only camera experiment remains available but now starts
   disabled after the owner found the rotating-world orientation disorienting.
   Its toggle is deliberately session-only, so saved tuning can never make the
