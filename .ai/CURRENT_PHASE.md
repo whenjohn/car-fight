@@ -171,17 +171,25 @@ Accumulated cleanup-boundary validation:
   Both exceeded the retained 64-tick history, stale-authority recovery repeated,
   and fresh body state did not converge even though the server kept ticking.
   The temporary server was stopped and production UDP 10080 remained running.
-- The headless CH-011 gates remain valid proof that the missing queue consumer
-  was restored, but the branch is not merge-ready until an identical sustained
-  A/B determines whether the live failure is pre-existing load/stall recovery
-  debt or is triggered by restored probe traffic.
+- The identical control used matching `master@353f824` clients and a temporary
+  isolated macai2 server at that exact commit. It reproduced the large shared
+  freeze, stale-history recovery loop, and an even stronger failure: macai2
+  timed out and removed both peers while their windows continued producing
+  inactive-multiplayer errors. The user saw the major freeze but no persistent
+  split because both clients had disconnected. Evidence is preserved under
+  `/Users/johnnguyen/Projects/car-fight/.crash-runs/two-client-20260902-222423/`.
+- This control establishes that the sustained rendered stall/recovery failure
+  predates restored probe delivery. Keep that investigation separate from
+  CH-011; the probes make divergence measurable but do not mutate simulation
+  state. Both temporary macai2 servers were stopped, and production UDP 10080
+  remained running throughout.
 
 ## Next
 
-1. Do not merge or deploy `codex/ch-011-authority-probe` yet. Compare a bounded
-   sustained run on unchanged `master` with the branch under the same isolated
-   macai2/two-client conditions, then isolate probe traffic if only the branch
-   fails. Do not repeat rendered testing without explicit owner approval.
+1. Review `codex/ch-011-authority-probe` as the scoped diagnostic delivery fix;
+   do not fold the pre-existing sustained rendered stall/recovery problem into
+   it. Open that failure as a separate networking worktree/task, preserving both
+   captured runs. Do not repeat rendered testing without explicit owner approval.
 2. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.

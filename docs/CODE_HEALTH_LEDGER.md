@@ -239,12 +239,16 @@ synchronized state, physics, or rendering behavior.
   two-rendered-client run proved probes were delivered but failed overall sync
   after both clients crossed retained rollback history during large process
   stalls; corrections reached 91.671 and 92.553 units and remote views froze.
+  An identical control with matching `master@353f824` clients and isolated
+  macai2 server reproduced the underlying large freeze and stale-history loop;
+  both peers were eventually timed out while their windows continued without
+  active multiplayer connections.
 - Risk/rollback: high. Authority-probe delivery is diagnostic, but its timing
-  crosses rollback and transport behavior. The headless transport/lifecycle
-  gates cover short runs, but the live failure requires an identical sustained
-  `master`/branch A/B before merge.
-- Status: **Implementation resolved the missing consumer; merge hold** pending
-  sustained live A/B characterization.
+  crosses rollback and transport behavior. The focused and complete headless
+  gates cover the changed delivery path; sustained rendered stall/recovery is
+  confirmed as separate pre-existing debt.
+- Status: **Resolved** on `codex/ch-011-authority-probe`; keep the sustained
+  rendered freeze/disconnect investigation in a separate networking task.
 
 ### CH-012 — Redundant city-only world-build wrapper
 
