@@ -28,7 +28,7 @@ func _init() -> void:
 		"the compact editor stays independent of game-window canvas scaling")
 	_check("func has_input_focus()" in editor and "Return to game" in editor \
 		and "get_tree().root.grab_focus()" in editor \
-		and "lighting_editor_has_input_focus" in source,
+		and "tool_window_has_input_focus" in source,
 		"the editor pauses partial vehicle input and can return focus to the game")
 	_check("ssao" not in editor.to_lower() and "directional_shadow" not in editor.to_lower(),
 		"the editor does not expose unsafe or expensive lighting paths")

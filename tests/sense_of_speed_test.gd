@@ -25,6 +25,11 @@ func _init() -> void:
 		"camera target looks ahead along travel")
 	_check(CAMERA.desired_offset(Vector3(0.0, 0.0, -18.0), CAMERA.BOOST_LAG_DISTANCE).z > -3.0,
 		"boost onset pulls the camera target back before recovery")
+	_check(CAMERA.desired_offset(Vector3(0.0, 0.0, -18.0), 0.0, 12.0).z < -11.5,
+		"always-forward tuning can increase the speed-scaled look-ahead distance")
+	_check(float(CAMERA.DEFAULT_TUNING["acceleration_response"]) \
+		< float(CAMERA.DEFAULT_TUNING["braking_response"]),
+		"look-ahead eases outward on acceleration and returns faster under braking")
 	_check(CAMERA.vibration_strength(15.0) == 0.0,
 		"ordinary driving remains free of top-speed vibration")
 	_check(CAMERA.vibration_strength(28.0) > 0.99,

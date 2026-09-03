@@ -16,6 +16,12 @@ const DRIFT_JOLT_DISTANCE := 0.30
 const JOLT_RECOVERY := 5.8
 const FOLLOW_RESPONSE := 5.5
 
+const DEFAULT_TUNING := {
+	"look_ahead_distance": LEAD_DISTANCE,
+	"acceleration_response": 3.0,
+	"braking_response": 5.5,
+}
+
 var _offset := Vector3.ZERO
 var _boost_lag := 0.0
 var _jolt := 0.0
@@ -34,12 +40,14 @@ static func vibration_strength(speed: float) -> float:
 	return smoothstep(TOP_SPEED_SHAKE_START, TOP_SPEED_SHAKE_FULL, maxf(speed, 0.0))
 
 
-static func desired_offset(velocity: Vector3, boost_lag: float) -> Vector3:
+static func desired_offset(velocity: Vector3, boost_lag: float,
+		lead_distance: float = LEAD_DISTANCE) -> Vector3:
 	var planar := Vector3(velocity.x, 0.0, velocity.z)
 	var speed := planar.length()
 	if speed < 0.05:
 		return Vector3.ZERO
-	return planar / speed * (lead_strength(speed) * LEAD_DISTANCE - maxf(boost_lag, 0.0))
+	return planar / speed * (lead_strength(speed) * maxf(lead_distance, 0.0) \
+		- maxf(boost_lag, 0.0))
 
 
 func reset() -> void:
@@ -52,7 +60,7 @@ func reset() -> void:
 	_impact_hits = 0
 
 
-func advance(body: RigidBody3D, delta: float) -> Vector3:
+func advance(body: RigidBody3D, delta: float, tuning: Dictionary = {}) -> Vector3:
 	if body == null:
 		reset()
 		return Vector3.ZERO
@@ -76,8 +84,17 @@ func advance(body: RigidBody3D, delta: float) -> Vector3:
 		_jolt = maxf(_jolt, HIT_JOLT_DISTANCE)
 	_impact_hits = impact_hits
 	_boost_lag = move_toward(_boost_lag, 0.0, BOOST_LAG_RECOVERY * maxf(delta, 0.0))
-	var target := desired_offset(velocity, _boost_lag)
-	_offset = _offset.lerp(target, 1.0 - exp(-FOLLOW_RESPONSE * maxf(delta, 0.0)))
+	var lead_distance := float(tuning.get("look_ahead_distance", LEAD_DISTANCE))
+	var target := desired_offset(velocity, _boost_lag, lead_distance)
+	var response := FOLLOW_RESPONSE
+	if not tuning.is_empty():
+		# Separate rise/fall responses make acceleration and braking readable
+		# without feeding camera state back into vehicle motion.
+		response = float(tuning.get("acceleration_response",
+			DEFAULT_TUNING["acceleration_response"])) \
+			if target.length() > _offset.length() else float(tuning.get(
+				"braking_response", DEFAULT_TUNING["braking_response"]))
+	_offset = _offset.lerp(target, 1.0 - exp(-maxf(response, 0.01) * maxf(delta, 0.0)))
 	var direction := velocity.normalized() if velocity.length() > 0.05 else Vector3.FORWARD
 	var side := Vector3.UP.cross(direction).normalized()
 	var vibration := vibration_strength(velocity.length()) * TOP_SPEED_SHAKE_DISTANCE

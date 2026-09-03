@@ -21,8 +21,11 @@ const BOOST_VELOCITY_BLUR_SCRIPT := preload("res://fx/boost_velocity_blur.gd")
 const CONTROLLER_INPUT := preload("res://player/controller_input.gd")
 const DRIVE_CURSOR_VISUAL := preload("res://player/drive_cursor_visual.gd")
 const SPEED_CAMERA_SCRIPT := preload("res://fx/speed_camera.gd")
+const ALWAYS_FORWARD_CAMERA_SCRIPT := preload("res://fx/always_forward_camera.gd")
 const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
 const LIGHTING_EDITOR_SCRIPT := preload("res://ui/lighting_editor.gd")
+const ALWAYS_FORWARD_CAMERA_EDITOR_SCRIPT := \
+	preload("res://ui/always_forward_camera_editor.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
@@ -236,6 +239,8 @@ var _shield_drone: Node3D
 var _impact_fx: Node3D
 var _camera: Camera3D
 var _speed_camera
+var _always_forward_camera
+var _always_forward_camera_direction := Vector3(-1.0, 0.0, -1.0).normalized()
 var _shadow_light: SpotLight3D
 var _sun_light: DirectionalLight3D
 var _rim_light: DirectionalLight3D
@@ -260,13 +265,26 @@ var _oil_submenus := {}
 var _vehicle_model_popup: PopupMenu
 var _scenery_popup: PopupMenu
 var _lighting_editor: Node
+var _always_forward_camera_editor: Node
 var _vehicle_model_scales := {}
 var _city_presentation: Node3D
 var _lighting_style_index := 4
 var _gameplay_collision_debug_enabled := false
 var _gameplay_text_visible := true
+var _always_forward_camera_enabled := true
+var _always_forward_camera_tuning := {
+	"turn_response": 3.2,
+	"max_turn_angle": 22.0,
+	"look_ahead_distance": 7.5,
+	"acceleration_response": 3.0,
+	"braking_response": 5.5,
+}
 const DEBUG_COLLISION_MENU_ID := 1
 const DEBUG_GAMEPLAY_TEXT_MENU_ID := 2
+const DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID := 3
+const DEBUG_ALWAYS_FORWARD_CAMERA_TUNING_MENU_ID := 4
+const ALWAYS_FORWARD_CAMERA_PATH := "user://always_forward_camera.cfg"
+const ALWAYS_FORWARD_CAMERA_SECTION := "always_forward_camera"
 const OIL_INSTANT_MENU_ID := 1001
 const OIL_RESET_MENU_ID := 1002
 const OIL_AUTOSAVE_INFO_MENU_ID := 1003
@@ -337,6 +355,7 @@ func _ready() -> void:
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	_load_persisted_oil_tuning()
 	_load_persisted_vehicle_model_scale()
+	_load_persisted_always_forward_camera()
 	if not _run_id.is_empty():
 		_log("RUN_ID id=%s role=%s transport=%s" % [_run_id, _role, _transport])
 	_configure_network_stack()
@@ -455,14 +474,24 @@ func _process(_delta: float) -> void:
 		if is_instance_valid(rc_visual):
 			var rc_position := (rc_visual as Node3D).global_position
 			target = Vector3(rc_position.x, 0.0, rc_position.z)
-	var yaw := deg_to_rad(45.0)
 	var pitch := deg_to_rad(55.0)
 	var horizontal := cos(pitch) * 80.0
-	var offset := Vector3(sin(yaw) * horizontal, sin(pitch) * 80.0, cos(yaw) * horizontal)
+	var offset := Vector3(horizontal * 0.70710678, sin(pitch) * 80.0,
+		horizontal * 0.70710678)
 	var camera_target := target
+	var rc_active := local != null and is_instance_valid(_rc_orb_visuals.get(int(local.name)))
+	if _always_forward_camera_enabled and local is RigidBody3D and not rc_active:
+		var vehicle_forward := -(local as RigidBody3D).global_basis.z
+		vehicle_forward.y = 0.0
+		_always_forward_camera_direction = _always_forward_camera.advance(
+			vehicle_forward, _delta, _always_forward_camera_tuning)
+	if _always_forward_camera_enabled:
+		offset.x = -_always_forward_camera_direction.x * horizontal
+		offset.z = -_always_forward_camera_direction.z * horizontal
 	if _speed_camera != null:
-		if local is RigidBody3D and not is_instance_valid(_rc_orb_visuals.get(int(local.name))):
-			camera_target += _speed_camera.advance(local as RigidBody3D, _delta)
+		if local is RigidBody3D and not rc_active:
+			camera_target += _speed_camera.advance(local as RigidBody3D, _delta,
+				_always_forward_camera_tuning if _always_forward_camera_enabled else {})
 		else:
 			_speed_camera.reset()
 	_camera.global_position = camera_target + offset
@@ -1605,6 +1634,7 @@ func _build_presentation() -> void:
 	_camera.current = true
 	add_child(_camera)
 	_speed_camera = SPEED_CAMERA_SCRIPT.new()
+	_always_forward_camera = ALWAYS_FORWARD_CAMERA_SCRIPT.new()
 	_build_shader_prewarm()
 	_impact_fx = Node3D.new()
 	_impact_fx.name = "ImpactFX"
@@ -1730,11 +1760,19 @@ func _build_hud(hud: CanvasLayer) -> void:
 	_debug_popup.add_check_item("Show gameplay text", DEBUG_GAMEPLAY_TEXT_MENU_ID)
 	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_GAMEPLAY_TEXT_MENU_ID),
 		_gameplay_text_visible)
+	_debug_popup.add_separator()
+	_debug_popup.add_check_item("Always-forward camera",
+		DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID)
+	_debug_popup.set_item_checked(_debug_popup.get_item_index(
+		DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID), _always_forward_camera_enabled)
+	_debug_popup.add_item("Always-forward camera tuning…",
+		DEBUG_ALWAYS_FORWARD_CAMERA_TUNING_MENU_ID)
 	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
 	_build_vehicle_model_menu()
 	_build_oil_tuning_menu()
 	_build_scenery_menu()
 	_build_lighting_editor()
+	_build_always_forward_camera_editor()
 	_status_label = Label.new()
 	_status_label.position = Vector2(18.0, 16.0)
 	_status_label.add_theme_font_size_override("font_size", 18)
@@ -1812,6 +1850,96 @@ func _on_debug_menu_item_pressed(id: int) -> void:
 		if _status_label != null:
 			_status_label.visible = _gameplay_text_visible or local_player() == null
 		_update_editor_label()
+	elif id == DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID:
+		_always_forward_camera_enabled = not _always_forward_camera_enabled
+		_debug_popup.set_item_checked(_debug_popup.get_item_index(id),
+			_always_forward_camera_enabled)
+		_always_forward_camera.reset()
+		_speed_camera.reset()
+		_save_persisted_always_forward_camera()
+	elif id == DEBUG_ALWAYS_FORWARD_CAMERA_TUNING_MENU_ID:
+		_always_forward_camera_editor.call("open")
+
+
+func _build_always_forward_camera_editor() -> void:
+	_always_forward_camera_editor = Node.new()
+	_always_forward_camera_editor.name = "AlwaysForwardCameraEditor"
+	_always_forward_camera_editor.set_script(ALWAYS_FORWARD_CAMERA_EDITOR_SCRIPT)
+	add_child(_always_forward_camera_editor)
+	_always_forward_camera_editor.connect("values_changed",
+		_on_always_forward_camera_values_changed)
+	_always_forward_camera_editor.connect("reset_requested",
+		_on_always_forward_camera_reset_requested)
+	_always_forward_camera_editor.call("setup", _always_forward_camera_tuning)
+
+
+func _on_always_forward_camera_values_changed(values: Dictionary) -> void:
+	_always_forward_camera_tuning = _sanitize_always_forward_camera_tuning(values)
+	_save_persisted_always_forward_camera()
+
+
+func _on_always_forward_camera_reset_requested() -> void:
+	_always_forward_camera_tuning = {
+		"turn_response": 3.2,
+		"max_turn_angle": 22.0,
+		"look_ahead_distance": 7.5,
+		"acceleration_response": 3.0,
+		"braking_response": 5.5,
+	}
+	_always_forward_camera_editor.call("set_values", _always_forward_camera_tuning)
+	_always_forward_camera.reset()
+	_speed_camera.reset()
+	_save_persisted_always_forward_camera()
+
+
+func _sanitize_always_forward_camera_tuning(values: Dictionary) -> Dictionary:
+	return {
+		"turn_response": clampf(float(values.get("turn_response", 3.2)), 0.5, 12.0),
+		"max_turn_angle": clampf(float(values.get("max_turn_angle", 22.0)), 0.0, 60.0),
+		"look_ahead_distance": clampf(float(values.get("look_ahead_distance", 7.5)),
+			0.0, 16.0),
+		"acceleration_response": clampf(float(values.get("acceleration_response", 3.0)),
+			0.5, 12.0),
+		"braking_response": clampf(float(values.get("braking_response", 5.5)),
+			0.5, 12.0),
+	}
+
+
+func _persistence_available_for_always_forward_camera() -> bool:
+	return _role in ["client", "offline"] and DisplayServer.get_name() != "headless" \
+		and not OS.has_feature("web")
+
+
+func _load_persisted_always_forward_camera() -> void:
+	if not _persistence_available_for_always_forward_camera():
+		return
+	var config := ConfigFile.new()
+	if config.load(ALWAYS_FORWARD_CAMERA_PATH) != OK:
+		return
+	_always_forward_camera_enabled = bool(config.get_value(
+		ALWAYS_FORWARD_CAMERA_SECTION, "enabled", true))
+	var values := {}
+	for key_variant in _always_forward_camera_tuning:
+		var key := str(key_variant)
+		if config.has_section_key(ALWAYS_FORWARD_CAMERA_SECTION, key):
+			values[key] = config.get_value(ALWAYS_FORWARD_CAMERA_SECTION, key)
+	_always_forward_camera_tuning = _sanitize_always_forward_camera_tuning(values)
+
+
+func _save_persisted_always_forward_camera() -> void:
+	if not _persistence_available_for_always_forward_camera():
+		return
+	var config := ConfigFile.new()
+	config.set_value(ALWAYS_FORWARD_CAMERA_SECTION, "enabled",
+		_always_forward_camera_enabled)
+	for key_variant in _always_forward_camera_tuning:
+		var key := str(key_variant)
+		config.set_value(ALWAYS_FORWARD_CAMERA_SECTION, key,
+			_always_forward_camera_tuning[key])
+	var error := config.save(ALWAYS_FORWARD_CAMERA_PATH)
+	if error != OK:
+		push_warning("Could not autosave always-forward camera tuning: %s" \
+			% error_string(error))
 
 
 func _build_scenery_menu() -> void:
@@ -2029,6 +2157,12 @@ func _apply_lighting_style() -> void:
 func lighting_editor_has_input_focus() -> bool:
 	return _lighting_editor != null \
 		and bool(_lighting_editor.call("has_input_focus"))
+
+
+func tool_window_has_input_focus() -> bool:
+	return lighting_editor_has_input_focus() \
+		or (_always_forward_camera_editor != null \
+			and bool(_always_forward_camera_editor.call("has_input_focus")))
 
 
 func _build_vehicle_model_menu() -> void:

@@ -16,6 +16,28 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
+## Active experiment: always-forward camera
+
+- Worktree: `/Users/johnnguyen/Projects/car-fight-always-forward-camera` on
+  `codex/always-forward-camera`, based on `master@b6c2fa0`.
+- The presentation-only camera experiment starts enabled and keeps the local
+  vehicle nose near screen-up. Camera yaw eases behind turns while bounding the
+  visible vehicle angle to 22 degrees by default.
+- Speed-scaled travel look-ahead now has separate acceleration and braking ease
+  responses. The existing isometric pitch, orthographic size, simulation,
+  authority, rollback, and wire state are unchanged.
+- The native Debug system menu contains an enable/disable comparison toggle and
+  an `Always-forward camera tuning…` window. Turn catch-up, maximum angle,
+  look-ahead distance, acceleration ease, and braking ease update live and
+  autosave locally. Tool-window focus sends neutral vehicle controls.
+- Validation passes: `./scripts/check.sh`, `tests/always_forward_camera_test.gd`,
+  `tests/always_forward_camera_ui_test.gd`, `tests/sense_of_speed_test.gd`,
+  `tests/asset_smoke_test.gd`, `tests/home_world_lighting_test.gd`, and
+  `./scripts/offline_test.sh`.
+- Next: owner feel-testing in an ordinary inset window using
+  `./scripts/play_monitored.sh`; tune the five live values before deciding
+  whether the experiment should be promoted. No deployment is authorized.
+
 ## Completed work: combined feature merge
 
 - `master` now contains `codex/lighting-editor`, `codex/city-draw-order`, and
