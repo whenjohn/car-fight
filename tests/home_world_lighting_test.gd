@@ -26,6 +26,10 @@ func _init() -> void:
 	_check("_window.force_native = true" in editor \
 		and "popup_centered(Vector2i(470, 540))" in editor,
 		"the compact editor stays independent of game-window canvas scaling")
+	_check("func has_input_focus()" in editor and "Return to game" in editor \
+		and "get_tree().root.grab_focus()" in editor \
+		and "lighting_editor_has_input_focus" in source,
+		"the editor pauses partial vehicle input and can return focus to the game")
 	_check("ssao" not in editor.to_lower() and "directional_shadow" not in editor.to_lower(),
 		"the editor does not expose unsafe or expensive lighting paths")
 	_check("--overcast-world" not in source and "_build_world_menu" not in source,

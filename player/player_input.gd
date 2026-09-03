@@ -108,7 +108,10 @@ func _gather() -> void:
 	# macOS continues updating an unfocused Godot window's mouse position from
 	# the focused sibling process. Never turn that global cursor into networked
 	# vehicle intent: an unfocused client must be a neutral, braking car.
-	if not INPUT_FOCUS_POLICY.live_input_allowed(DisplayServer.window_is_focused()):
+	var tool_window_focused := main.has_method("lighting_editor_has_input_focus") \
+		and bool(main.call("lighting_editor_has_input_focus"))
+	if not INPUT_FOCUS_POLICY.live_input_allowed(DisplayServer.window_is_focused(),
+			tool_window_focused):
 		_clear_live_input()
 		_finalize_input()
 		return

@@ -2026,6 +2026,11 @@ func _apply_lighting_style() -> void:
 			LIGHTING_STYLE_NAMES[_lighting_style_index])
 
 
+func lighting_editor_has_input_focus() -> bool:
+	return _lighting_editor != null \
+		and bool(_lighting_editor.call("has_input_focus"))
+
+
 func _build_vehicle_model_menu() -> void:
 	_vehicle_model_popup = PopupMenu.new()
 	_vehicle_model_popup.name = "VehicleModel"

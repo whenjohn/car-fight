@@ -26,6 +26,25 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   authority-probe delivery, ENet, mixed transport, join, and reconnect gates.
 - No deployment was performed. The macai2 production service remains separate.
 
+## Completed work: Lighting Editor input focus
+
+- Worktree: `/Users/johnnguyen/Projects/car-fight-lighting-input-focus` on
+  `codex/lighting-editor-input-focus`, based on merged `master@9a1da6b`.
+- Owner testing showed that focusing the native editor, especially its look-name
+  field, left vehicle keyboard state partially responsive while the game
+  viewport's mouse position stopped updating. This was UI focus behavior, not
+  the sustained rollback/network stall.
+- Live vehicle input is now explicitly neutral whenever the Lighting Editor
+  owns native-window focus. Clicking the game resumes normal mouse control; a
+  visible `Return to game` button and submitting a look name also return native
+  focus to the game window.
+- Focused validation passes: `./scripts/check.sh`,
+  `tests/home_world_lighting_test.gd`, `tests/asset_smoke_test.gd`, and
+  `./scripts/offline_test.sh`.
+- The owner verified the native macOS focus handoff in monitored run
+  `.crash-runs/20260902-225127`: after selecting the look-name field, returning
+  to the game restored normal mouse steering. The result was accepted.
+
 ## Completed work: live lighting editor
 
 - Merged from `/Users/johnnguyen/Projects/car-fight-lighting-editor` on
