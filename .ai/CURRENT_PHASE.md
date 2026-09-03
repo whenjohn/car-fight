@@ -159,14 +159,29 @@ Accumulated cleanup-boundary validation:
   0.300; all lifecycle and gameplay gates passed. The initial sandboxed ENet
   attempt failed only because local UDP bind was denied, and the required
   unsandboxed run passed.
-- No deployment or rendered/manual validation was performed; this repair is
-  exercised by headless transport and lifecycle gates and does not change
-  presentation or feel.
+- A two-rendered-client check used this exact branch on a temporary isolated
+  macai2 server at UDP 12680; production UDP 10080 was not modified. Probe
+  delivery worked, but sustained play failed: Alpha and Bravo reached 91.671
+  and 92.553-unit corrections, respectively, and each client's remote-player
+  view froze. Evidence is preserved under
+  `.crash-runs/two-client-20260902-221336/`.
+- The live failure followed a shared performance/rollback stall around
+  22:14:53. Bravo reported a 562 ms process interval and 232-tick rollback
+  depth; Alpha then reported a 653 ms process interval with deep rollback.
+  Both exceeded the retained 64-tick history, stale-authority recovery repeated,
+  and fresh body state did not converge even though the server kept ticking.
+  The temporary server was stopped and production UDP 10080 remained running.
+- The headless CH-011 gates remain valid proof that the missing queue consumer
+  was restored, but the branch is not merge-ready until an identical sustained
+  A/B determines whether the live failure is pre-existing load/stall recovery
+  debt or is triggered by restored probe traffic.
 
 ## Next
 
-1. Review and merge the validated `codex/ch-011-authority-probe` branch; deploy
-   only as a separate explicit production action.
+1. Do not merge or deploy `codex/ch-011-authority-probe` yet. Compare a bounded
+   sustained run on unchanged `master` with the branch under the same isolated
+   macai2/two-client conditions, then isolate probe traffic if only the branch
+   fails. Do not repeat rendered testing without explicit owner approval.
 2. Decide separately whether tracked `.ai` state should move into the shared
    `claude-comms` symlink model; preserve history and account for concurrent
    worktrees before changing storage.

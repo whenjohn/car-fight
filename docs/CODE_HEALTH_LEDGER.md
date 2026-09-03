@@ -235,11 +235,16 @@ synchronized state, physics, or rendering behavior.
   `./scripts/check.sh`, `scripts/network_test.sh`,
   `scripts/mixed_transport_test.sh`, `scripts/join_transient_test.sh`, and
   `scripts/reconnect_test.sh` pass. The required integration-boundary
-  `./scripts/test.sh` also passes completely.
+  `./scripts/test.sh` also passes completely. A subsequent sustained
+  two-rendered-client run proved probes were delivered but failed overall sync
+  after both clients crossed retained rollback history during large process
+  stalls; corrections reached 91.671 and 92.553 units and remote views froze.
 - Risk/rollback: high. Authority-probe delivery is diagnostic, but its timing
-  crosses rollback and transport behavior; the transport and lifecycle gates
-  cover that boundary.
-- Status: **Resolved** on `codex/ch-011-authority-probe`.
+  crosses rollback and transport behavior. The headless transport/lifecycle
+  gates cover short runs, but the live failure requires an identical sustained
+  `master`/branch A/B before merge.
+- Status: **Implementation resolved the missing consumer; merge hold** pending
+  sustained live A/B characterization.
 
 ### CH-012 — Redundant city-only world-build wrapper
 
