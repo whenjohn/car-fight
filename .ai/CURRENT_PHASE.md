@@ -20,7 +20,11 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 
 - Owner authorized merging `codex/targeting-optimization` into canonical
   `master`, preserving the newer modern-sprite and baked-shadow changes.
-  Source worktree remains `/Users/johnnguyen/Projects/car-fight-targeting`.
+  Source worktree `/Users/johnnguyen/Projects/car-fight-targeting` was removed
+  at owner request after verifying its clean state and ancestry in `master`.
+  Profiling evidence was copied and hash-verified under ignored
+  `.crash-runs/worktree-archive/targeting-optimization/runs/`. Local art matched
+  canonical assets. The merged local/remote branch is retained.
 - Acquisition applies the existing triangular coverage before visibility,
   skips candidates that cannot beat the nearest visible selection, and shares
   one candidate traversal/inverse transform/lazy ray setup across ready zones.

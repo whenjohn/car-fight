@@ -295,3 +295,13 @@ sampling; this optimization does not resolve cold-start rendering latency.
 Evidence: `.crash-runs/20260904-174243/`, monitor state `clean`, plus
 `.crash-runs/sprite-profile/results.json`. Next: owner driving/shooting acceptance
 with the uninstrumented branch at 256 fixtures.
+
+## Evidence archive after worktree cleanup
+
+The owner requested removal of the merged targeting worktree. Its complete
+`.crash-runs/` was copied and SHA-256 verified into canonical
+`.crash-runs/worktree-archive/targeting-optimization/runs/` before removal.
+That archive contains the `sprite-profile/` runner, instrumentation patch and
+results, plus monitored run directories referenced above. Earlier references
+to the targeting worktree's ignored artifacts now resolve under this archive.
+The optimization branch remains retained locally and on origin.
