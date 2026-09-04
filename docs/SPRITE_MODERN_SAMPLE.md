@@ -72,4 +72,36 @@ Keep that visible limitation for the next alignment pass rather than claiming
 polished death presentation. Both monitored diagnostics were stopped explicitly
 while awaiting further rendered frames, before the complete perspective/UI
 capture sequence. No complete visual-check PASS or performance result is claimed.
-Owner comparison and acceptance are still pending.
+Owner subsequently preferred these modern samples over the ghoul and reported
+that they look smoother. This is visual preference feedback, not acceptance of
+the remaining death-alignment issue or a measured performance improvement.
+
+## Owner observation and future selection criteria (2026-09-04)
+
+The modern samples look better and smoother to the owner than the ghoul.
+All three have eight directions and default to 12 animation FPS in this test.
+Playback settings during the owner's comparison were not recorded, so this was
+not a controlled equal-speed comparison. No extra angles or higher configured
+default FPS explain the preference by themselves.
+
+Possible explanations include clearer silhouettes at gameplay scale, better
+pose spacing and loop transitions, and less distracting fine-detail shimmer.
+These are hypotheses, not findings established by frame-by-frame analysis.
+
+For the next sprite audition:
+
+- Judge at the actual gameplay camera distance, against the city background.
+- Prioritize readable silhouettes, stable feet, natural motion and clean loops
+  over advertised resolution or total frame count.
+- Compare direction changes as well as idle, walking, attack and death; verify
+  ground alignment and that poses remain readable in all eight directions.
+- Record playback rate, filtering, camera, world scale and fixture count for
+  fair comparisons. Distinguish animation FPS from game/render FPS.
+- Evaluate additional angles separately from animation quality. More directions
+  may reduce turning jumps, but eight can already look good to the owner.
+- A faster playback setting speeds up existing motion; it does not add poses.
+  Compare cycle duration and pose spacing, not just frames per animation.
+
+Keep SmallScaleInt's modern samples as the preferred visual comparison reference
+for future packs. This does not change the default sample, authorize a paid
+purchase, or establish a character theme for the game.

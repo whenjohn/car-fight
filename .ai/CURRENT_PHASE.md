@@ -30,8 +30,14 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   death has ground clipping in some directions that still needs alignment work.
   Monitored capture runs `20260904-170858` and `20260904-171027` were stopped
   explicitly after their screenshot helpers waited on further rendered frames;
-  neither completed the full perspective/UI capture sequence. Owner visual
-  acceptance remains pending. Start with 16, not a new performance stress test.
+  neither completed the full perspective/UI capture sequence. Owner subsequently
+  preferred the modern samples and found them smoother than the ghoul. Logged
+  selection criteria in `docs/SPRITE_MODERN_SAMPLE.md`: prioritize gameplay-scale
+  readability, pose spacing, loops and stable registration over raw frame counts.
+  All samples have eight directions and default to 12 animation FPS; the exact
+  comparison settings were not recorded and proposed causes remain hypotheses.
+  Death alignment still needs work. No default change or purchase authorized.
+  Start with 16, not a new performance stress test.
 - Owner confirmed the spread-out 256-fixture slowdown on a repeat run; 128
   felt better. CPU profiling now identifies automatic target acquisition as
   the dominant cause, not a demonstrated sprite rendering limit. The matched
