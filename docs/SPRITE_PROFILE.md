@@ -57,7 +57,73 @@ animation number is script CPU, not total rendering cost. This fixed-car scan-he
 case was slower than the owner's driving runs, and instrumentation adds overhead.
 These are warmed local offline results, not multiplayer capacity or cold-load tests.
 
-## Local diagnostic artifacts
+## Next-session handoff: researched optimization priorities
+
+Owner requested that the research and proposed next steps be saved. This is
+a documented proposal, not an implemented optimization or an instruction to
+deploy. Continue in canonical `/Users/johnnguyen/Projects/car-fight`, `master`.
+The ghoul asset remains sample sprite art, not a zombie gameplay direction.
+
+Recommended first pass, preserving firing frequency and responsiveness:
+
+1. Reject inactive targets and run the existing `COVERAGE.point_in_zone` test
+   before visibility queries or candidate dictionary allocation. Preserve its
+   adjustable triangular geometry, reversed-tip option, boundaries, and local
+   coordinate semantics. `reach` is longitudinal extent, not a circular radius;
+   a naive distance cutoff could incorrectly exclude valid corner targets.
+2. Skip a visibility query when the candidate cannot beat an already-visible
+   nearer candidate. Alternatively, order eligible candidates nearest-first
+   and stop at the first visible one; preserve original equal-distance ordering.
+   A blocked nearest target must not prevent selecting a farther visible target.
+   Measure whether sorting is worthwhile rather than assuming it is faster.
+3. Reuse the car inverse transform, physics-query setup, and dynamic exclusion
+   list within the acquisition pass/tick. Share visibility across overlapping
+   zones only where shooter, target, ray endpoints, obstruction rules, and
+   simulation state match. Do not carry stale visibility across ticks or deaths.
+
+Defer until the first pass is measured:
+
+- A dedicated visibility-obstruction collision mask could replace repeated
+  dynamic exclusions, but audit layers and preserve current blocking semantics.
+- Budget/stagger empty-zone searches or use a lower acquisition frequency only
+  if needed. This changes acquisition latency and needs explicit gameplay
+  evaluation; do not silently change weapon cooldown or nearest-target behavior.
+- A spatial grid can replace full-list searches if target/car counts make the
+  remaining scans expensive. Its maintenance cost is not justified by default.
+- Do not start with threading, a language rewrite, art reductions, or a new
+  physics system; the measured problem is avoidable targeting work.
+
+Verification for an authorized implementation session:
+
+1. Add/extend combat tests for cone/range boundaries, reversed-tip zones,
+   nearest-visible selection, equal-distance ties, blocked-nearest fallback,
+   dead targets, balls, overlapping zones, and unchanged firing cadence.
+2. Repeat the same warmed fixed-camera 256-fixture profile with combat enabled.
+   Compare raycasts/second, acquisition CPU, median/P95 frame time, and fixture
+   simulation cost. Keep count, layout, resolution, and camera matched.
+3. Owner driving/shooting pass at 256: verify wall blocking, quick acquisition,
+   target death/reselection, and frame-time spikes. Then test multiple cars if
+   relevant; single offline-client results do not establish server capacity.
+
+Research sources (consulted 2026-09-04):
+
+- [Epic EQS overview](https://dev.epicgames.com/documentation/unreal-engine/environment-query-system-overview-in-unreal-engine?lang=en-US):
+  filters before scoring to reduce subsequent work. Applying cheap coverage
+  filtering before raycasts is our recommendation for this code.
+- [Godot raycasting guidance](https://docs.godotengine.org/en/stable/tutorials/physics/ray-casting.html):
+  documents ray queries, exclusions, physics-space access, and recommends masks
+  over large/dynamic exception lists. Preserve the project's safe physics phase.
+- [Epic sight API](https://dev.epicgames.com/documentation/unreal-engine/API/Runtime/AIModule/Perception/UAISense_Sight?application_version=5.5):
+  exposes trace/time budgets and separates in-range/out-of-range queries.
+  This is a scheduling reference, not an Unreal dependency recommendation.
+- [Spatial partition pattern](https://gameprogrammingpatterns.com/spatial-partition.html):
+  organize objects by position for nearby queries; weigh benefit against overhead
+  for small populations.
+
+These sources support the general techniques, not a promised FPS improvement.
+The local profile is the evidence for prioritizing acquisition in Car Fight.
+
+## Local diagnostic artifacts (retained)
 
 Ignored artifacts remain available on this machine:
 

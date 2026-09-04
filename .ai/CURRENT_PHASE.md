@@ -27,6 +27,12 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   Temporary instrumentation was removed; no optimization or deployment made.
   Next: filter range/angle before visibility queries, preserve targeting rules,
   then rerun 256 with full combat and owner driving/shooting validation.
+- Research handoff saved in `docs/SPRITE_PROFILE.md` under "Next-session
+  handoff": filter existing triangular coverage first, skip visibility checks
+  that cannot change nearest-visible selection, and reuse per-tick setup.
+  Preserve ties, blocked-nearest fallback, reversed-tip geometry and firing
+  cadence. Defer scan throttling/spatial grids until reprofiled. Owner requested
+  documentation only at this checkpoint; no targeting optimization implemented.
 - Follow-up requested: raise the practical test ceiling and spread fixtures
   out. Added 128/256 count options and a street layout with at least four-unit
   initial separation, building clearance and a six-unit clear zone around the
