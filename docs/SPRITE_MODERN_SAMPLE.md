@@ -91,7 +91,10 @@ and clears those idle rows without changing world scale or hitboxes. Shadows
 still belong to the billboard, not a separate ground-projected layer; prone
 poses and other camera/animation combinations still need visual evaluation.
 Fast check and expanded sprite contracts pass. Monitored interactive trial
-`20260904-174127` starts with 16 survivors; owner acceptance is pending.
+`20260904-174127` started with 16 survivors. After the repeat run
+`20260904-174641`, the owner confirmed that the shadows help ground the sprites
+and reduce the floaty appearance. Keep this adjustment. This accepts the shadow
+improvement, not the still-unresolved death-pose alignment.
 
 The modern samples look better and smoother to the owner than the ghoul.
 All three have eight directions and default to 12 animation FPS in this test.
@@ -108,6 +111,9 @@ For the next sprite audition:
 - Judge at the actual gameplay camera distance, against the city background.
 - Prioritize readable silhouettes, stable feet, natural motion and clean loops
   over advertised resolution or total frame count.
+- Check contact shadows at gameplay scale: the owner confirmed that preserving
+  these baked shadows improves grounding. Inspect transparency and ground
+  clipping in-engine, not only the pack preview.
 - Compare direction changes as well as idle, walking, attack and death; verify
   ground alignment and that poses remain readable in all eight directions.
 - Record playback rate, filtering, camera, world scale and fixture count for

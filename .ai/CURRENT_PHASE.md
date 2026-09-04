@@ -25,7 +25,9 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   unchanged; no realtime shadows, physics, or networking changes. Fast check
   and expanded sprite contracts pass. Interactive run `20260904-174127` opens
   16 survivors for owner evaluation. Still a billboard shadow, not a ground
-  projection; prone-pose alignment and owner acceptance remain pending.
+  projection. In repeat run `20260904-174641`, the owner confirmed shadows help
+  ground the sprites and accepted keeping the adjustment. Added contact-shadow
+  evaluation to the future-pack observations. Prone-pose alignment remains open.
 - Added a local-only comparison for SmallScaleInt's two free modern exports:
   HD survivor (128px, 14 frames/clip) and outlined thug (64px, 8 frames/clip).
   `CAR_FIGHT_SPRITE_SAMPLE=survivor` or `thug` selects one at launch;
