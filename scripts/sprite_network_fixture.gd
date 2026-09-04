@@ -26,7 +26,7 @@ func _run() -> void:
 		if not await _wait_until(func(): return lab.enabled):
 			_fail("initial host did not connect")
 			return
-		lab.configure(true, 64, 1.0, false)
+		lab.configure(true, 256, 1.0, false)
 		await create_timer(1.0).timeout
 		lab.set_hits(10000, 1)
 		await create_timer(1.0).timeout
@@ -35,7 +35,7 @@ func _run() -> void:
 			_fail("late observer did not join")
 			return
 		await create_timer(1.5).timeout
-		if not lab.enabled or lab.count != 64:
+		if not lab.enabled or lab.count != 256:
 			_fail("non-owner changed server configuration")
 			return
 		lab.configure(false, 1, 1.0, false)
@@ -45,7 +45,7 @@ func _run() -> void:
 			_fail("configuration snapshot missing")
 			return
 		var target = main._targets.get_node_or_null("Target_10000")
-		if target == null or lab.count != 64 or lab.states().size() != 64:
+		if target == null or lab.count != 256 or lab.states().size() != 256:
 			_fail("wrong target snapshot")
 			return
 		if role == "owner":

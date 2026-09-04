@@ -52,7 +52,7 @@ func _run() -> void:
 	lab.service(0.016)
 	_check(target.health == 0, "real vehicle contact kills target")
 	_check(car.linear_velocity == velocity, "run-over applies no vehicle impulse")
-	for amount in [16, 64]:
+	for amount in [16, 64, 128, 256]:
 		lab.configure(true, amount, 1.0, false)
 		_check(lab.states().size() == amount, "bounded fixture count")
 	lab.configure(false, 1, 1.0, false)

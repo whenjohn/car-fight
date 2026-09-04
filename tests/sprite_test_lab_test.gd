@@ -8,6 +8,15 @@ func _init() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
+	for size in [1.0, 2.0]:
+		var positions := LAB.spawn_positions(Vector3.ZERO, 256, size)
+		_check(positions.size() == 256, "spread layout fills maximum count")
+		for index in positions.size():
+			var position := positions[index]
+			_check(absf(position.x) <= 84.0 and absf(position.z) <= 84.0, "layout stays in city")
+			_check(Vector2(position.x, position.z).length() >= 6.0, "spawn keeps car clear")
+			for other in range(index):
+				_check(position.distance_to(positions[other]) >= 4.0, "fixtures spread at least four units apart")
 	for index in 8:
 		var facing := Vector3.FORWARD.rotated(Vector3.UP, index * PI / 4.0)
 		_check(VISUAL.direction_index(facing, facing) == 0, "toward camera selects S")

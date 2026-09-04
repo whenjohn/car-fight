@@ -1,6 +1,8 @@
 extends Node
 ## Opt-in, server-owned fixture family. No rollback histories or impulses.
 const TARGET := preload("res://combat/sprite_target.gd")
+const COUNTS := [1, 16, 64, 128, 256]
+const CITY := preload("res://world/city_layout.gd")
 var requested := false
 var enabled := false
 var owner_id := 1
@@ -31,6 +33,9 @@ func setup(main: Node3D, targets: Node3D, players: Node3D, start: bool) -> void:
 	_targets = targets
 	_players = players
 	requested = start
+	var requested_count := OS.get_environment("CAR_FIGHT_SPRITE_COUNT").to_int()
+	if requested_count in COUNTS:
+		count = requested_count
 	if OS.get_environment("CAR_FIGHT_SPRITE_VISUAL_CHECK") in ["1", "close"] and main.get("_role") == "offline":
 		var check := Node.new()
 		check.set_script(load("res://scripts/sprite_visual_check.gd"))
@@ -100,20 +105,54 @@ func configure(active: bool, amount: int, size: float, walk: bool) -> void:
 	var car := _players.get_node_or_null(str(owner_id)) as Node3D
 	if car != null:
 		anchor = car.position
-	# Snap to the closest north/south road; keep inside the city footprint.
-	anchor.x = roundf(anchor.x / 63.0) * 63.0
-	anchor.x = clampf(anchor.x, -63.0, 63.0)
-	anchor.z = clampf(anchor.z - 12.0, -45.0, 105.0)
 	var spawn: Array = []
-	var selected_count := amount if amount in [1, 16, 64] else 16
+	var selected_count := amount if amount in COUNTS else 16
 	var selected_scale := clampf(size, 0.5, 2.0)
 	if active:
-		for index in selected_count:
-			var position := anchor + Vector3((index % 4 - 1.5) * 2.0, 0.9 * selected_scale + 0.08,
-				-float(index / 4) * 2.5)
+		var positions := spawn_positions(anchor, selected_count, selected_scale)
+		for index in positions.size():
+			var position: Vector3 = positions[index]
 			spawn.append([10000 + index, position,
-				Vector3.FORWARD.rotated(Vector3.UP, (index % 8) * PI / 4.0), 0, 0.0])
+				Vector3.FORWARD.rotated(Vector3.UP, (index % 8) * PI / 4.0), 0, index * 0.19])
 	_apply_configuration.rpc(generation + 1, active, selected_count, selected_scale, walk, owner_id, spawn)
+
+static func spawn_positions(anchor: Vector3, amount: int, size: float) -> Array[Vector3]:
+	var candidates: Array[Vector3] = []
+	# Two lanes on each of the six city streets, six units between samples.
+	# Start near the observer and expand through the street network, leaving
+	# the car clear. No dense grid, building interiors or positions past walls.
+	for street in [-63.0, 0.0, 63.0]:
+		for step in range(-14, 15):
+			for lane in [-3.0, 3.0]:
+				for along_x in [false, true]:
+					var candidate := Vector3(step * 6.0, 0.9 * size + 0.08, street + lane) if along_x \
+						else Vector3(street + lane, 0.9 * size + 0.08, step * 6.0)
+					if Vector2(candidate.x - anchor.x, candidate.z - anchor.z).length() < 6.0:
+						continue
+					var blocked := false
+					for building in CITY.BUILDINGS:
+						var relative := (candidate - (building["position"] as Vector3) * CITY.SCALE).rotated(
+							Vector3.UP, -deg_to_rad(float(building["yaw"])))
+						var half: Vector2 = (building["footprint"] as Vector2) * CITY.SCALE * 0.5 + Vector2.ONE * size
+						if absf(relative.x) < half.x and absf(relative.z) < half.y:
+							blocked = true
+							break
+					if not blocked and not candidates.has(candidate):
+						candidates.append(candidate)
+	candidates.sort_custom(func(a: Vector3, b: Vector3):
+		return a.distance_squared_to(anchor) < b.distance_squared_to(anchor))
+	var result: Array[Vector3] = []
+	for candidate in candidates:
+		var separated := true
+		for accepted in result:
+			if candidate.distance_to(accepted) < 4.0:
+				separated = false
+				break
+		if separated:
+			result.append(candidate)
+			if result.size() == amount:
+				break
+	return result
 
 @rpc("any_peer", "call_remote", "reliable")
 func _request_configuration(active: bool, amount: int, size: float, walk: bool) -> void:
@@ -223,8 +262,8 @@ func _build_window() -> void:
 	root.add_child(_status)
 	_button(root, "Enable / reset near car", func(): configure(true, count, body_scale, moving), true)
 	_button(root, "Disable test", func(): configure(false, count, body_scale, moving), true)
-	_option(root, "Targets", ["1", "16", "64"], 1, func(i):
-		configure(enabled, [1, 16, 64][i], body_scale, moving), true)
+	_option(root, "Targets", ["1", "16", "64", "128", "256"], COUNTS.find(count), func(i):
+		configure(enabled, COUNTS[i], body_scale, moving), true)
 	_spin(root, "Body scale (reset)", 0.5, 2.0, 0.25, 1.0, func(v):
 		configure(enabled, count, v, moving), true)
 	_option(root, "Movement (reset)", ["Stationary", "Mixed walking"], 1, func(i):
@@ -307,7 +346,7 @@ func _process(delta: float) -> void:
 			control.set_block_signals(true)
 			match str(control.get_meta("setting", "")):
 				"Targets":
-					(control as OptionButton).select([1, 16, 64].find(count))
+					(control as OptionButton).select(COUNTS.find(count))
 				"Movement (reset)":
 					(control as OptionButton).select(1 if moving else 0)
 				"Body scale (reset)":

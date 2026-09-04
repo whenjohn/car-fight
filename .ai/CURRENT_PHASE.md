@@ -18,6 +18,17 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 
 ## Accepted: interactive sprite test in canonical master
 
+- Follow-up requested: raise the practical test ceiling and spread fixtures
+  out. Added 128/256 count options and a street layout with at least four-unit
+  initial separation, building clearance and a six-unit clear zone around the
+  observer. Half the mixed fixture walks with staggered phases. Start with
+  `CAR_FIGHT_SPRITE_COUNT=256 ./scripts/play_monitored.sh --offline --sprite-test`.
+  Earlier performance samples below describe the original compact layout.
+- Spread-layout validation passed: fast check, 256-position spacing/bounds
+  checks at 100% and 200% scale, live sprite combat through all count options,
+  and the 256-target two-client replication/late-join/MTU gate. Interactive
+  monitored run `20260904-162251` was opened for owner evaluation.
+
 - Session scope: evaluate sprites in Car Fight using the CC0 ghoul pack as
   sample art. This is not a zombie gameplay direction.
 - Launch `./scripts/play_monitored.sh --offline --sprite-test`, or use

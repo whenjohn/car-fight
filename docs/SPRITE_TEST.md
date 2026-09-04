@@ -13,11 +13,22 @@ For a local dedicated server and client:
 ```
 
 Use **Debug → Sprite test…** to reset near your car, disable the fixture,
-select 1/16/64 targets, change physical scale, or switch stationary/mixed
+select 1/16/64/128/256 targets, change physical scale, or switch stationary/mixed
 walking. The first player on an opted-in server owns fixture controls. Other
 clients can inspect local presentation but cannot change server state. A server
 must start with `--sprite-test` to accept client configuration requests.
 Offline play can also enable the test from the menu without the flag.
+
+For the larger spread-out test:
+
+```sh
+CAR_FIGHT_SPRITE_COUNT=256 ./scripts/play_monitored.sh --offline --sprite-test
+```
+
+Fixtures now occupy two lanes along the city's six main streets, spreading
+outward from the observer. Starting positions stay at least four units apart,
+outside building footprints and six units from the car. Walking phases are
+staggered. The 128px default remains; the menu can reduce the count live.
 
 The test stays disabled on ordinary startup. It does not deploy or modify the
 macai2 service. Current native clients must use the same code revision for
@@ -71,7 +82,7 @@ Focused gates:
 Coverage includes directional mapping, complete asset manifests, capsule sweeps,
 scaled vehicle contact, three-hit death, wall obstruction, projectile consumption,
 area damage, reset/disable, no car impulse, generation fencing, replicated hit
-and death, 64-target late joining, and rejection of non-owner configuration.
+and death, 256-target late joining, and rejection of non-owner configuration.
 The network gate also rejects unreliable-packet MTU warnings.
 The existing combat gate covers ordinary targeting, editor suppression and cloak.
 These are localized presentation and target-family changes; player rollback,
@@ -92,7 +103,7 @@ Follow-up evaluation should focus on those two improvements. This is feedback
 on the current eight-direction, 12 FPS presentation, not a request to change
 the character theme or a claim that those improvements have been implemented.
 
-Fixed-camera, five-second warmed samples on this Intel Mac, with the car frozen
+Historical compact-layout, fixed-camera, five-second warmed samples on this Intel Mac, with the car frozen
 and unrelated automatic combat suppressed:
 
 | Targets | Resolution | Median frame ms | P95 frame ms | Extra texture memory |
@@ -105,7 +116,8 @@ and unrelated automatic combat suppressed:
 | 16 | 512 | 16.84 | 20.47 | 90.67 MiB |
 | 64 | 512 | 18.60 | 30.22 | 90.67 MiB |
 
-Keep 128px as the default. The 64-target layout extends beyond the viewport;
+Keep 128px as the default. These measurements predate the spread-out street
+layout and 256-target option. The measured 64-target layout extends beyond the viewport;
 these are whole-fixture costs at this camera position, not an all-visible crowd
 capacity claim. Both runs had an approximately 6.9-second initial rendering
 stall before sampling; these results do not characterize cold-start or network
