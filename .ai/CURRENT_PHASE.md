@@ -18,6 +18,20 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 
 ## Accepted: interactive sprite test in canonical master
 
+- Added a local-only comparison for SmallScaleInt's two free modern exports:
+  HD survivor (128px, 14 frames/clip) and outlined thug (64px, 8 frames/clip).
+  `CAR_FIGHT_SPRITE_SAMPLE=survivor` or `thug` selects one at launch;
+  Debug → Sprite test… → Character (local) switches live. Ghoul stays default.
+  Source PNGs/archives remain ignored under `assets/local/smallscale-modern/`;
+  setup/license notes are in `docs/SPRITE_MODERN_SAMPLE.md`. No paid creator,
+  gameplay, collision, RPC, or targeting changes. These are sample art only.
+  Fast check, expanded sprite contracts (including both local packs), and live
+  offline sprite combat passed. Captures show both samples in-world; survivor
+  death has ground clipping in some directions that still needs alignment work.
+  Monitored capture runs `20260904-170858` and `20260904-171027` were stopped
+  explicitly after their screenshot helpers waited on further rendered frames;
+  neither completed the full perspective/UI capture sequence. Owner visual
+  acceptance remains pending. Start with 16, not a new performance stress test.
 - Owner confirmed the spread-out 256-fixture slowdown on a repeat run; 128
   felt better. CPU profiling now identifies automatic target acquisition as
   the dominant cause, not a demonstrated sprite rendering limit. The matched

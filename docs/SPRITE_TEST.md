@@ -36,6 +36,10 @@ the optional sprite fixture's RPC endpoints.
 
 ## Behavior
 
+Two optional SmallScaleInt free modern characters can now be selected locally.
+See [modern sample setup and license notes](SPRITE_MODERN_SAMPLE.md).
+The ghoul remains the default and clean-checkout fallback.
+
 - The supplied ghoul is sample sprite art. No enemy AI or attacks are added.
 - All four clips have eight directions. Camera-relative facing works in
   orthographic and perspective views; manual facing is available for inspection.

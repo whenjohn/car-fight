@@ -61,6 +61,36 @@ func _run() -> void:
 	_check(sprite.frame == 68 and not sprite.is_playing(), "finished death survives direction change")
 	sprite.replay()
 	_check(sprite.frame == 0 and sprite.is_playing(), "explicit replay restarts preview")
+	_check(not VISUAL.sample_available("missing-sample"), "unknown sample rejected")
+	_check(VISUAL.load_clip(128, "idle", 0, "missing-sample") != null, "missing sample falls back to ghoul")
+	for character in ["survivor", "thug"]:
+		if not VISUAL.sample_available(character):
+			print("SPRITE_SAMPLE_SKIP local art absent: ", character)
+			continue
+		var native := VISUAL.native_size(character)
+		var frame_count := 14 if character == "survivor" else 8
+		for action in ["idle", "walk", "attack", "death"]:
+			for direction in 8:
+				var frames := VISUAL.load_clip(512, action, direction, character)
+				_check(frames != null and frames.get_frame_count("default") == frame_count, "modern complete clip")
+				_check(frames == VISUAL.load_clip(128, action, direction, character), "modern frames shared; ghoul resolution ignored")
+				_check(frames.get_animation_loop("default") == (action in ["idle", "walk"]), "modern loop policy")
+				var texture := frames.get_frame_texture("default", 0) as AtlasTexture
+				_check(texture.region == Rect2(0, VISUAL.MODERN_ROWS[direction] * native, native, native), "modern source row mapping")
+		sprite.clip = "death"
+		sprite.sample = character
+		sprite._process(0.0)
+		sprite.set_frame_and_progress(frame_count - 1, 1.0)
+		sprite.pause()
+		sprite.manual_direction = 2
+		sprite._process(0.0)
+		_check(sprite.frame == frame_count - 1 and not sprite.is_playing(), "modern death holds across direction changes")
+		_check(is_equal_approx(sprite.pixel_size * native * 44.0 / 128.0, 1.8), "modern standing height")
+	# A dead fixture stays on the final frame when changing character packs.
+	if VISUAL.sample_available("survivor") and VISUAL.sample_available("thug"):
+		sprite.sample = "survivor"
+		sprite._process(0.0)
+		_check(sprite.frame == 13 and not sprite.is_playing(), "character switch preserves completed death")
 	stage.free()
 	target.setup(10000, 1.0, false)
 	root.add_child(target)

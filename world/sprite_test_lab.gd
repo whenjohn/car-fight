@@ -1,6 +1,7 @@
 extends Node
 ## Opt-in, server-owned fixture family. No rollback histories or impulses.
 const TARGET := preload("res://combat/sprite_target.gd")
+const VISUAL := preload("res://fx/directional_sprite.gd")
 const COUNTS := [1, 16, 64, 128, 256]
 const CITY := preload("res://world/city_layout.gd")
 var requested := false
@@ -21,6 +22,7 @@ var _window: Window
 var _status: Label
 var _host_controls: Array[Control] = []
 var _resolution := 128
+var _sample := "ghoul"
 var _preview := "automatic"
 var _direction := -1
 var _rate := 1.0
@@ -33,6 +35,11 @@ func setup(main: Node3D, targets: Node3D, players: Node3D, start: bool) -> void:
 	_targets = targets
 	_players = players
 	requested = start
+	var requested_sample := OS.get_environment("CAR_FIGHT_SPRITE_SAMPLE")
+	if requested_sample in VISUAL.SAMPLES and VISUAL.sample_available(requested_sample):
+		_sample = requested_sample
+	elif not requested_sample.is_empty():
+		push_warning("Sprite sample unavailable: %s; using ghoul. See docs/SPRITE_TEST.md." % requested_sample)
 	var requested_count := OS.get_environment("CAR_FIGHT_SPRITE_COUNT").to_int()
 	if requested_count in COUNTS:
 		count = requested_count
@@ -268,7 +275,14 @@ func _build_window() -> void:
 		configure(enabled, count, v, moving), true)
 	_option(root, "Movement (reset)", ["Stationary", "Mixed walking"], 1, func(i):
 		configure(enabled, count, body_scale, i == 1), true)
-	_option(root, "Resolution", ["128", "512"], 1 if _resolution == 512 else 0, func(i): _resolution = [128, 512][i])
+	var available: Array[String] = []
+	var labels: Array[String] = []
+	for i in VISUAL.SAMPLES.size():
+		if VISUAL.sample_available(VISUAL.SAMPLES[i]):
+			available.append(VISUAL.SAMPLES[i])
+			labels.append(VISUAL.SAMPLE_LABELS[i])
+	_option(root, "Character (local)", labels, available.find(_sample), func(i): _sample = available[i])
+	_option(root, "Ghoul resolution", ["128", "512"], 1 if _resolution == 512 else 0, func(i): _resolution = [128, 512][i])
 	_option(root, "Preview", ["Automatic", "Idle", "Walk", "Attack", "Death"],
 		["automatic", "idle", "walk", "attack", "death"].find(_preview), func(i):
 		_preview = ["automatic", "idle", "walk", "attack", "death"][i])
@@ -332,6 +346,7 @@ func _process(delta: float) -> void:
 		if target.visual == null:
 			continue
 		var sprite = target.visual
+		sprite.sample = _sample
 		sprite.resolution = _resolution
 		sprite.manual_direction = _direction
 		sprite.playback_rate = _rate
@@ -340,7 +355,8 @@ func _process(delta: float) -> void:
 			else "walk" if target.walking else "idle"
 	if _status != null:
 		var can_control := multiplayer.is_server() or (generation > 0 and multiplayer.get_unique_id() == owner_id)
-		_status.text = "%d targets · %dpx · 3 hits or one run-over\n%s" % [_fixtures.size(), _resolution,
+		_status.text = "%d targets · %s · %dpx · 3 hits or one run-over\n%s" % [_fixtures.size(), _sample,
+			_resolution if _sample == "ghoul" else VISUAL.native_size(_sample),
 			"Host controls available" if can_control else "Host must launch with --sprite-test"]
 		for control in _host_controls:
 			control.set_block_signals(true)
@@ -361,8 +377,9 @@ func _process(delta: float) -> void:
 		_frame_times.append(delta * 1000.0)
 		if _metrics_clock >= 5.0:
 			_frame_times.sort()
-			print("SPRITE_TEST_METRICS count=%d resolution=%d median_ms=%.2f p95_ms=%.2f draws=%d texture_bytes=%d" % [
-				_fixtures.size(), _resolution, _frame_times[_frame_times.size() / 2],
+			print("SPRITE_TEST_METRICS count=%d resolution=%d sample=%s median_ms=%.2f p95_ms=%.2f draws=%d texture_bytes=%d" % [
+				_fixtures.size(), _resolution if _sample == "ghoul" else VISUAL.native_size(_sample), _sample,
+				_frame_times[_frame_times.size() / 2],
 				_frame_times[int(_frame_times.size() * 0.95)],
 				Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
 				Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)])
