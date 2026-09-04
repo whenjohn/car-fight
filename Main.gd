@@ -13,6 +13,7 @@ const SERVER_DRIVER_COLLISION := preload("res://player/server_driver_collision.g
 const VEHICLE_SIZE_AUTHORITY := preload("res://player/vehicle_size_authority.gd")
 const VEHICLE_TUNING := preload("res://player/vehicle_tuning.gd")
 const RAMMING_LAB := preload("res://player/ramming_lab.gd")
+const SPRITE_TEST_LAB := preload("res://world/sprite_test_lab.gd")
 const SCATTER_PROP_CONFIG := preload("res://world/scatter_prop_config.gd")
 const SCATTER_PROP_SCRIPT := preload("res://world/scatter_prop.gd")
 const CORRECTION_CLASSIFIER := preload("res://player/correction_classifier.gd")
@@ -164,6 +165,8 @@ var _scripted := ""
 var _server_driver_enabled := false
 var _server_driver_lane := false
 var _ramming_lab_enabled := false
+var _sprite_test_lab: Node
+var _sprite_test_requested := false
 var _ramming_lab_targets := {}
 var _ramming_lab_recovery := {}
 var _vehicle_size_respawns_pending := {}
@@ -307,6 +310,7 @@ const DEBUG_GAMEPLAY_TEXT_MENU_ID := 2
 const DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID := 3
 const DEBUG_ALWAYS_FORWARD_CAMERA_TUNING_MENU_ID := 4
 const DEBUG_CONTROL_HINTS_MENU_ID := 5
+const DEBUG_SPRITE_TEST_MENU_ID := 6
 const ALWAYS_FORWARD_CAMERA_PATH := "user://always_forward_camera.cfg"
 const ALWAYS_FORWARD_CAMERA_SECTION := "always_forward_camera"
 const OIL_INSTANT_MENU_ID := 1001
@@ -826,6 +830,8 @@ func _parse_args() -> void:
 			_server_driver_lane = true
 		elif arg == "--ramming-lab":
 			_ramming_lab_enabled = true
+		elif arg == "--sprite-test":
+			_sprite_test_requested = true
 		elif arg == "--player-capsule":
 			_player_capsule_enabled = true
 		elif arg == "--no-player-capsule":
@@ -1179,8 +1185,10 @@ func _on_peer_join(id: int) -> void:
 	_apply_oil_tuning_snapshot.rpc_id(id, OIL_SLICK.tuning_snapshot())
 	var target_counts := PackedInt32Array()
 	for target in _targets.get_children():
-		target_counts.append(int(target.get("hit_count")))
+		if not target.is_in_group("sprite_test_target"):
+			target_counts.append(int(target.get("hit_count")))
 	_sync_target_hits.rpc_id(id, target_counts)
+	_sprite_test_lab.call("send_state_to", id)
 	_next_spawn_slot += 1
 	if _ball_enabled and not _ball_seeded:
 		_ball_seeded = true
@@ -1362,6 +1370,10 @@ func _build_world() -> void:
 	_troop_delivery.call("setup", _players)
 	add_child(_troop_delivery)
 	_build_combat_targets()
+	_sprite_test_lab = SPRITE_TEST_LAB.new()
+	_sprite_test_lab.name = "SpriteTestLab"
+	add_child(_sprite_test_lab)
+	_sprite_test_lab.call("setup", self, _targets, _players, _sprite_test_requested)
 	if not _is_headless():
 		# Oil decals and grass remain presentation-only and never add rollback bodies.
 		var oil_slicks := Node3D.new()
@@ -2037,6 +2049,7 @@ func _build_hud(hud: CanvasLayer) -> void:
 		DEBUG_ALWAYS_FORWARD_CAMERA_MENU_ID), _always_forward_camera_enabled)
 	_debug_popup.add_item("Camera tuning…",
 		DEBUG_ALWAYS_FORWARD_CAMERA_TUNING_MENU_ID)
+	_debug_popup.add_item("Sprite test…", DEBUG_SPRITE_TEST_MENU_ID)
 	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
 	_build_vehicle_model_menu()
 	_build_vehicle_tuning_editor()
@@ -2108,6 +2121,9 @@ func _build_city_presentation() -> void:
 	_city_presentation.call("set_lighting_style", _lighting_style_index)
 
 func _on_debug_menu_item_pressed(id: int) -> void:
+	if id == DEBUG_SPRITE_TEST_MENU_ID:
+		_sprite_test_lab.call("open")
+		return
 	if id == DEBUG_COLLISION_MENU_ID:
 		_toggle_gameplay_collision_debug()
 	elif id == DEBUG_GAMEPLAY_TEXT_MENU_ID:
@@ -2457,7 +2473,8 @@ func lighting_editor_has_input_focus() -> bool:
 
 
 func tool_window_has_input_focus() -> bool:
-	return lighting_editor_has_input_focus() \
+	return (_sprite_test_lab != null and bool(_sprite_test_lab.call("has_input_focus"))) \
+		or lighting_editor_has_input_focus() \
 		or (_always_forward_camera_editor != null \
 			and bool(_always_forward_camera_editor.call("has_input_focus"))) \
 		or (_vehicle_tuning_editor != null \
@@ -3780,6 +3797,7 @@ func _on_tick(delta: float, tick: int) -> void:
 	if multiplayer.is_server():
 		_service_server_driver_route(tick)
 		_service_ramming_lab(delta, tick)
+		_sprite_test_lab.call("service", delta)
 		if not _ramming_lab_enabled:
 			_service_area_weapons()
 			_service_rc_orbs(delta, tick)
@@ -4089,7 +4107,15 @@ func _apply_area_targets(owner_id: int, position: Vector3, radius: float, tick: 
 		impact: bool) -> void:
 	for target_node in _targets.get_children():
 		var target := target_node as StaticBody3D
-		if target != null and _planar_distance(position, target.global_position) <= radius + COMBAT_TARGET_RADIUS:
+		if not _combat_target_active(target):
+			continue
+		var target_radius: float = target.call("radius") if target.is_in_group("sprite_test_target") else COMBAT_TARGET_RADIUS
+		if target.is_in_group("sprite_test_target"):
+			var query := PhysicsRayQueryParameters3D.create(position + Vector3.UP * 0.5, target.global_position, 1)
+			query.exclude = _combat_dynamic_rids()
+			if not get_world_3d().direct_space_state.intersect_ray(query).is_empty():
+				continue
+		if _planar_distance(position, target.global_position) <= radius + target_radius:
 			_register_target_hit.rpc(int(target.get("target_id")))
 	for player_node in _players.get_children():
 		var player := player_node as RigidBody3D
@@ -4176,7 +4202,9 @@ func _nearest_homing_target(shooter: RigidBody3D) -> Node3D:
 	var best_distance := HOMING_MISSILE.ACQUIRE_RANGE * HOMING_MISSILE.ACQUIRE_RANGE
 	for target_node in _targets.get_children():
 		var candidate := target_node as StaticBody3D
-		if candidate == null:
+		if not _combat_target_active(candidate):
+			continue
+		if candidate.is_in_group("sprite_test_target") and not _has_target_line_of_sight(shooter, candidate):
 			continue
 		var distance := shooter.global_position.distance_squared_to(candidate.global_position)
 		if distance < best_distance:
@@ -4201,7 +4229,8 @@ func _homing_target_id(target: Node3D) -> int:
 
 func homing_target_for(target_id: int) -> Node3D:
 	if target_id >= 0:
-		return _targets.get_node_or_null("Target_%02d" % target_id) as Node3D
+		var target := _targets.get_node_or_null("Target_%02d" % target_id) as Node3D
+		return target if _combat_target_active(target) else null
 	var ball_index := BALL_TARGET_ID_BASE - target_id
 	return _balls.get_child(ball_index) as Node3D if ball_index >= 0 \
 		and ball_index < _balls.get_child_count() else null
@@ -4212,7 +4241,7 @@ func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
 	var by_id := {}
 	for target_node in _targets.get_children():
 		var target := target_node as StaticBody3D
-		if target == null:
+		if not _combat_target_active(target):
 			continue
 		var target_id := int(target.get("target_id"))
 		var local := COVERAGE.local_point(target.global_position, body.global_transform)
@@ -4237,6 +4266,21 @@ func _has_target_line_of_sight(body: RigidBody3D, target: Node3D) -> bool:
 	query.exclude = _combat_dynamic_rids()
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	return hit.is_empty()
+
+func _combat_target_active(target: Node) -> bool:
+	return target != null and (not target.is_in_group("sprite_test_target") or int(target.get("health")) > 0)
+
+func _target_segment_entry(target: Node3D, start: Vector3, finish: Vector3) -> float:
+	if not _combat_target_active(target):
+		return 1.01
+	if target.is_in_group("sprite_test_target"):
+		return float(target.call("segment_entry", start, finish))
+	# Preserve the accepted legacy dummy hit envelope and ordering.
+	var segment := finish - start
+	if segment.length_squared() <= 0.0001:
+		return 1.01
+	var fraction := clampf((target.global_position - start).dot(segment) / segment.length_squared(), 0.0, 1.0)
+	return fraction if (start + segment * fraction).distance_to(target.global_position) <= COMBAT_TARGET_RADIUS else 1.01
 
 func _combat_dynamic_rids() -> Array[RID]:
 	var excluded: Array[RID] = []
@@ -4402,10 +4446,8 @@ func _step_server_bolts(delta: float) -> void:
 				var target := target_node as StaticBody3D
 				if target == null or segment.length_squared() <= 0.0001:
 					continue
-				var fraction := clampf((target.global_position - start).dot(segment) \
-					/ segment.length_squared(), 0.0, 1.0)
-				if (start + segment * fraction).distance_to(target.global_position) <= COMBAT_TARGET_RADIUS \
-						and fraction < target_fraction:
+				var fraction := _target_segment_entry(target, start, finish)
+				if fraction < target_fraction:
 					target_hit = target
 					target_fraction = fraction
 			for ball_node in _balls.get_children():
@@ -4442,11 +4484,8 @@ func _step_server_bolts(delta: float) -> void:
 				var target := target_node as StaticBody3D
 				if target == null or segment.length_squared() <= 0.0001:
 					continue
-				var fraction := clampf((target.global_position - start).dot(segment) \
-					/ segment.length_squared(), 0.0, 1.0)
-				var closest := start + segment * fraction
-				if closest.distance_to(target.global_position) <= COMBAT_TARGET_RADIUS \
-						and fraction < target_fraction:
+				var fraction := _target_segment_entry(target, start, finish)
+				if fraction < target_fraction:
 					target_hit = target
 					target_fraction = fraction
 			for ball_node in _balls.get_children():
@@ -4577,7 +4616,11 @@ func _register_world_impact(bolt_id: int, impact_position: Vector3,
 func _register_target_hit(target_id: int) -> void:
 	var target := _targets.get_node_or_null("Target_%02d" % target_id)
 	if target != null:
-		target.call("register_hit")
+		if target.is_in_group("sprite_test_target"):
+			if multiplayer.is_server():
+				_sprite_test_lab.call("set_hits", target_id, int(target.get("hit_count")) + 1)
+		else:
+			target.call("register_hit")
 
 @rpc("authority", "call_remote", "reliable")
 func _sync_target_hits(hit_counts: PackedInt32Array) -> void:

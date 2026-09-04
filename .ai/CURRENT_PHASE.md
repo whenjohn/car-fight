@@ -16,6 +16,37 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
+## Implemented: interactive sprite test in canonical master
+
+- Session scope: evaluate sprites in Car Fight using the CC0 ghoul pack as
+  sample art. This is not a zombie gameplay direction.
+- Launch `./scripts/play_monitored.sh --offline --sprite-test`, or use
+  `--local --sprite-test` for a local dedicated server/client. The ordinary
+  launch stays unchanged; controls are under Debug → Sprite test….
+- Eight-direction idle/walk/attack/death sprites support shared, on-demand
+  128px/512px atlases, stable foot registration, camera-relative facing, local
+  previews, and 1/16/64 server-controlled fixtures.
+- Upright capsule hitboxes take three confirmed weapon/area hits to die.
+  Swept contact with the actual scaled vehicle capsule kills immediately and
+  never changes vehicle velocity. Death removes collision/target eligibility;
+  reset restores health. Moving targets use lightweight updates, not rollback
+  bodies. Reliable generation-fenced state handles hits, death and late joining.
+- `docs/SPRITE_TEST.md` records commands, architecture, focused verification,
+  measurements and limits. Source/CC0 metadata and the reproducible packer are
+  included with the imported sample.
+- Monitored visual runs `20260904-145702` and `20260904-150019` exited cleanly.
+  At 16 fixtures, the 128px sample measured 16.68 ms median / 18.82 ms P95 and
+  about 11 MiB additional texture memory; 512px used about 91 MiB additional.
+  Keep 128px as default. At 64 fixtures, frame cost increased; some fixtures
+  were outside the viewport, so this is not an all-visible crowd limit.
+- Both runs showed an approximately 6.9-second initial rendering stall before
+  warmed sampling. No claim is made about cold-start/network rendering latency.
+- Owner art/feel acceptance remains open. No production deployment occurred.
+- Verification: fast check; sprite asset/animation/capsule tests; live offline
+  sprite combat; baseline offline and combat gates; and the 64-target server /
+  two-client gate for hit/death replication, late joining and owner controls.
+  Movement snapshots are batched to stay below the unreliable packet MTU.
+
 ## Accepted checkpoint: ramming lab, vehicle tuning, and scatter props
 
 - Active feature worktree: `/Users/johnnguyen/Projects/car-fight-ramming-gameplay`
