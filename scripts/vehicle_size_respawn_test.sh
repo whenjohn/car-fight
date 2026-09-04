@@ -54,7 +54,7 @@ if ! wait "$server_pid"; then
 fi
 server_pid=""
 
-if ! rg -q 'VEHICLE_SIZE_APPLIED id=[0-9]+ vehicle=0 scale=1.50 generation=[0-9]+' \
+if ! rg -q 'VEHICLE_TUNING_APPLIED id=[0-9]+ vehicle=0 scale=1.50 mass=2.2 generation=[0-9]+' \
 		"$log_dir/server.log"; then
 	echo "server did not approve and recreate the tuned vehicle; logs: $log_dir" >&2
 	tail -140 "$log_dir/server.log" >&2
@@ -94,5 +94,5 @@ if rg -q 'SCRIPT ERROR|Parse Error|Compile Error|Invalid call|Invalid get index|
 	exit 1
 fi
 
-echo "VEHICLE_SIZE_RESPAWN_GATE PASS scale=1.50 requester=1 observer=1 respawns=1"
+echo "VEHICLE_SIZE_RESPAWN_GATE PASS scale=1.50 mass=2.2 requester=1 observer=1 respawns=1"
 echo "log: $log_dir"

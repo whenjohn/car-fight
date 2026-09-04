@@ -16,7 +16,7 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
-## Accepted checkpoint: networked ramming lab and authoritative vehicle sizing
+## Accepted checkpoint: ramming lab, vehicle tuning, and scatter props
 
 - Active feature worktree: `/Users/johnnguyen/Projects/car-fight-ramming-gameplay`
   on `codex/ramming-gameplay`, based on `master@cea2a3b`.
@@ -29,31 +29,39 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   ball, shield drone, and automatic combat. Server contact telemetry records
   the unchanged pre-enhancement collision baseline. The owner accepted the
   lab's traffic and general feel in monitored local runs.
-- Vehicle Model sizes now remain local previews until the explicit
-  `Apply Size & Respawn` action. The server validates the model and built-in
-  size step, recreates the same player ID with a fresh network generation, and
-  replicates matching model and collider scale to the requester and observers.
-  `Show Collision Capsule` is available in the same menu. The capsule grows in
-  width and length while its bottom preserves the accepted road clearance.
-- The three lab drones use matching authoritative 150% model and collider
-  sizes. Total vehicle mass remains the shared `2.2`; sizing does not silently
-  change weight.
-- Owner acceptance: the 150% drones, matched collision, and client-side
-  preview/apply/respawn workflow were tested interactively and accepted.
-- Validation passes: `./scripts/check.sh`, `tests/ramming_lab_test.gd`,
-  `tests/vehicle_animation_test.gd`, `tests/vehicle_size_respawn_test.gd`,
-  `./scripts/ramming_lab_test.sh`, and the three-process
-  `./scripts/vehicle_size_respawn_test.sh`. The last gate proves one replacement
-  reaches the server, requester, and a separate observer without losing local
-  control. Monitored run `20260903-160514` ended cleanly.
+- Vehicle size and mass are independent authoritative spawn properties. The
+  compact `Vehicle Tuning…` popup exposes local draft and server-approved
+  values, per-model mass defaults/weight classes, reset, collision visibility,
+  and explicit `Apply & Respawn`. The reliable prepare/ack/drain replacement
+  preserves the same player ID with a fresh generation and avoids stale input
+  reaching the replacement path.
+- The three lab drones use authoritative 150% model/collider sizing and
+  representative masses: Humvee `3.2`, Apocalypse Bus `4.5`, LP Car `1.6`.
+  The equal-speed collision gate proves the lighter car receives the larger
+  velocity change. Debug collision capsules can be shown for every replicated
+  vehicle at once and remain enabled through respawns.
+- Twelve server-owned city-pack scatter props now occupy the ramming lanes:
+  four barrels, four crates, two tires, and two mailboxes. Their masses range
+  from `0.08` to `0.18`, use ordinary rigid-body response and CCD, and replicate
+  through stable reserved negative StateBundle routes. Missing local art falls
+  back to simple procedural meshes; the city extractor emits the selected
+  visual library when the ignored source pack is present.
+- Owner acceptance: vehicle tuning/respawn, all-vehicle capsule display, and
+  the scatter-prop visual pass were tested interactively and accepted for
+  commit.
+- Validation passes: `./scripts/check.sh`, focused vehicle tuning, sizing,
+  animation, ramming-lab, scatter-prop, city-audition, and StateBundle tests;
+  `./scripts/vehicle_size_respawn_test.sh`;
+  `./scripts/vehicle_mass_collision_test.sh`; and
+  `./scripts/ramming_lab_test.sh`. The last gate replicated all 12 props and
+  measured a `7.40` peak scatter speed. Monitored runs through
+  `20260903-185440` ended cleanly or were owner-closed after evaluation.
 - No deployment was performed or authorized.
 
-Next checkpoint, after this commit: add server-authoritative per-model mass and
-a compact `Vehicle Tuning…` popup modeled on the camera editor. It should expose
-local draft versus server-approved size and mass, weight-class labeling,
-collision visibility, reset defaults, and `Apply & Respawn`. Size and mass must
-remain independent. Add an equal-speed heavy-versus-light head-on regression
-before the arcade ram-response work.
+Next checkpoint: tune explicit arcade ram response in small accepted steps—head
+on first, then side swipe, drift slam, boost ram, and finally bounded airborne
+knock-up—while preserving server authority, rollback determinism, mass ratios,
+and the chassis/wheel presentation response.
 
 ## Completed work: camera tuning and opt-in always-forward experiment
 

@@ -1250,5 +1250,16 @@ func _route_for(sync_root: Node) -> int:
 	# namespace so it cannot collide with a multiplayer peer id.
 	if sync_root.get_parent().name == &"Balls" and sync_root.name == &"CityBall":
 		return -1
-	push_error("State bundle root is outside Players/Balls: %s" % sync_root.get_path())
+	# Ramming-lab debris reserves a small negative range distinct from the city
+	# ball. The ID is part of authoritative spawn data, so late joiners route the
+	# same body even when local child ordering differs.
+	if sync_root.get_parent().name == &"ScatterProps":
+		var route_id := int(sync_root.get("route_id"))
+		if route_id > -100 or route_id < -999:
+			push_error("State bundle scatter prop has invalid route id: %s" \
+				% sync_root.get_path())
+			return 0
+		return route_id
+	push_error("State bundle root is outside Players/Balls/ScatterProps: %s" \
+		% sync_root.get_path())
 	return 0

@@ -3,6 +3,7 @@ extends SceneTree
 const LAB := preload("res://player/ramming_lab.gd")
 const FOLLOW := preload("res://player/follow_controller.gd")
 const HULL := preload("res://player/ground_vehicle_hull.gd")
+const TUNING := preload("res://player/vehicle_tuning.gd")
 
 var _failures: Array[String] = []
 
@@ -12,6 +13,7 @@ func _init() -> void:
 	var ids := {}
 	var lane_xs: Array[float] = []
 	var expected_models := ["Humvee M242", "Apocalypse Bus", "LP Car A03-1"]
+	var expected_masses := [3.2, 4.5, 1.6]
 	for index in range(LAB.DRONES.size()):
 		var drone: Dictionary = LAB.DRONES[index]
 		var body_id := int(drone["id"])
@@ -22,6 +24,9 @@ func _init() -> void:
 			== expected_models[index], "drone %d uses its representative model" % index)
 		_check(is_equal_approx(float(drone["model_scale"]), 1.5),
 			"drone %d uses the built-in 150%% model sizing step" % index)
+		_check(is_equal_approx(TUNING.default_mass(expected_models[index]),
+			float(expected_masses[index])),
+			"drone %d uses its representative weight class" % index)
 		var spawn_index := int(drone["spawn_endpoint"])
 		var origin := LAB.endpoint(drone, spawn_index)
 		var destination := LAB.endpoint(drone, 1 - spawn_index)

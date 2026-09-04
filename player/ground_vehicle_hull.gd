@@ -1,6 +1,6 @@
 extends Node3D
 ## Presentation-only vehicle models. Chassis lean and wheel animation are
-## derived locally; the rollback collider remains one equal-mass capsule.
+## derived locally; authoritative size and mass remain on the rollback body.
 
 const VEHICLE_SPLITTER := preload("res://player/jeep_mesh_splitter.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")

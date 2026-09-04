@@ -23,6 +23,7 @@ var is_ramming_drone := false
 var vehicle_visual_index := 0
 var vehicle_model_scale := 1.0
 var vehicle_collider_scale := 1.0
+var vehicle_mass := VEHICLE_CONFIG.MASS
 var aim := Vector3(0.0, 0.0, -1.0)
 var burst_turn_sign := 0.0
 var boost_active := false

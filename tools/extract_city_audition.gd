@@ -8,6 +8,12 @@ const SOURCE_PATH := "res://assets/local/city_audition/LowPoly_City_01fbx.fbx"
 const ATLAS_PATH := "res://assets/local/city_audition/textures/color_1024x1024.jpg"
 const OUTPUT_ROOT := "res://assets/local/city_audition/extracted"
 const CITY_LAYOUT := preload("res://world/city_layout.gd")
+const SCATTER_VISUALS := [
+	{"kind": "barrel", "source": "barrel_a002_Mesh_002"},
+	{"kind": "crate", "source": "cratebox_a002_Mesh_001"},
+	{"kind": "tire", "source": "tyre"},
+	{"kind": "mailbox", "source": "mailbox_a001_Mesh_399"},
+]
 
 
 func _init() -> void:
@@ -70,11 +76,54 @@ func _init() -> void:
 		push_error("CITY_EXTRACT could not save district scene")
 		quit(1)
 		return
-	print("CITY_EXTRACT PASS pieces=%d roads=%d unique_meshes=%d" % [pieces.size(),
-		CITY_LAYOUT.roads().size(), saved_meshes.size()])
+	if not _save_scatter_prop_library(source, atlas):
+		root.free()
+		source.free()
+		quit(1)
+		return
+	print("CITY_EXTRACT PASS pieces=%d roads=%d unique_meshes=%d scatter_props=%d" % [
+		pieces.size(), CITY_LAYOUT.roads().size(), saved_meshes.size(),
+		SCATTER_VISUALS.size()])
 	root.free()
 	source.free()
 	quit()
+
+
+func _save_scatter_prop_library(source: Node, atlas: Material) -> bool:
+	var root := Node3D.new()
+	root.name = "ScatterPropLibrary"
+	for visual_variant in SCATTER_VISUALS:
+		var spec: Dictionary = visual_variant
+		var source_mesh := source.find_child(str(spec["source"]), true, false) \
+			as MeshInstance3D
+		if source_mesh == null or source_mesh.mesh == null:
+			push_error("CITY_EXTRACT missing scatter prop %s" % spec["source"])
+			root.free()
+			return false
+		var holder := Node3D.new()
+		holder.name = str(spec["kind"])
+		root.add_child(holder)
+		holder.owner = root
+		var mesh_instance := MeshInstance3D.new()
+		mesh_instance.name = "Mesh"
+		mesh_instance.mesh = source_mesh.mesh.duplicate(true)
+		mesh_instance.basis = source_mesh.transform.basis
+		var bounds := _transformed_aabb(mesh_instance.mesh.get_aabb(),
+			Transform3D(mesh_instance.basis, Vector3.ZERO))
+		var center := bounds.position + bounds.size * 0.5
+		mesh_instance.position = -center
+		mesh_instance.material_override = atlas
+		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		holder.add_child(mesh_instance)
+		mesh_instance.owner = root
+	var packed := PackedScene.new()
+	var output_path := OUTPUT_ROOT + "/scatter_prop_library.tscn"
+	if packed.pack(root) != OK or ResourceSaver.save(packed, output_path) != OK:
+		push_error("CITY_EXTRACT could not save %s" % output_path)
+		root.free()
+		return false
+	root.free()
+	return true
 
 
 func _transformed_aabb(bounds: AABB, transform: Transform3D) -> AABB:

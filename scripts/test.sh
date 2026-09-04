@@ -7,6 +7,7 @@ godot_bin="${GODOT_BIN:-/Applications/Godot47.app/Contents/MacOS/Godot}"
 CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/follow_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/ramming_lab_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/scatter_props_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/oil_slick_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/tractor_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/impact_controller_test.gd
@@ -16,6 +17,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/boost_afterimage_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/vehicle_animation_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/vehicle_size_respawn_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/vehicle_tuning_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/tire_skid_trails_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/coverage_config_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/area_weapon_test.gd
@@ -50,6 +52,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$project_root/scripts/join_transient_test.sh"
 "$project_root/scripts/reconnect_test.sh"
 "$project_root/scripts/vehicle_size_respawn_test.sh"
+"$project_root/scripts/vehicle_mass_collision_test.sh"
 "$project_root/scripts/ball_test.sh"
 "$project_root/scripts/tractor_test.sh"
 "$project_root/scripts/reverse_test.sh"

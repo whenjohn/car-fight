@@ -33,11 +33,11 @@ func _init() -> void:
 			"scaled capsule preserves road clearance")
 
 	var main_source := FileAccess.get_file_as_string("res://Main.gd")
-	_check("Apply Size & Respawn" in main_source \
+	_check("Apply Draft & Respawn" in main_source \
 		and "Show Collision Capsule" in main_source \
-		and "_request_vehicle_size_respawn.rpc_id(1" in main_source,
+		and "_request_vehicle_tuning_respawn.rpc_id(1" in main_source,
 		"Vehicle Model menu sends an explicit request to the server")
-	_check("_accept_vehicle_size_respawn" in main_source \
+	_check("_accept_vehicle_tuning_respawn" in main_source \
 		and "remote_generation" in main_source,
 		"server recreates the body with a fresh network generation")
 	_check("vehicle_collider_scale" in main_source,

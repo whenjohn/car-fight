@@ -11,7 +11,10 @@ const FOLLOW := preload("res://player/follow_controller.gd")
 const PLAYER_RADIUS := VEHICLE_CONFIG.COLLISION_RADIUS
 const SERVER_DRIVER_COLLISION := preload("res://player/server_driver_collision.gd")
 const VEHICLE_SIZE_AUTHORITY := preload("res://player/vehicle_size_authority.gd")
+const VEHICLE_TUNING := preload("res://player/vehicle_tuning.gd")
 const RAMMING_LAB := preload("res://player/ramming_lab.gd")
+const SCATTER_PROP_CONFIG := preload("res://world/scatter_prop_config.gd")
+const SCATTER_PROP_SCRIPT := preload("res://world/scatter_prop.gd")
 const CORRECTION_CLASSIFIER := preload("res://player/correction_classifier.gd")
 const PLAYER_SCRIPT := preload("res://player/player_body.gd")
 const INPUT_SCRIPT := preload("res://player/player_input.gd")
@@ -28,6 +31,7 @@ const OFFSCREEN_INDICATORS_SCRIPT := preload("res://ui/offscreen_indicators.gd")
 const LIGHTING_EDITOR_SCRIPT := preload("res://ui/lighting_editor.gd")
 const ALWAYS_FORWARD_CAMERA_EDITOR_SCRIPT := \
 	preload("res://ui/always_forward_camera_editor.gd")
+const VEHICLE_TUNING_EDITOR_SCRIPT := preload("res://ui/vehicle_tuning_editor.gd")
 const INTERACTIVE_GRASS_SCRIPT := preload("res://fx/interactive_grass.gd")
 const CLOAK_DISSOLVE_SHADER := preload("res://fx/vehicle_cloak_dissolve.gdshader")
 const CLOAK_GHOST_SHADER := preload("res://fx/vehicle_cloak_ghost.gdshader")
@@ -55,6 +59,8 @@ const AREA_TARGET_PREVIEW_SCRIPT := preload("res://fx/area_target_preview.gd")
 const CITY_PRESENTATION_SCRIPT := preload("res://world/city_audition.gd")
 const CITY_LAYOUT := preload("res://world/city_layout.gd")
 const BALL_SCRIPT := preload("res://world/city_ball.gd")
+const SCATTER_PROP_VISUAL_LIBRARY := \
+	"res://assets/local/city_audition/extracted/scatter_prop_library.tscn"
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const HOME_HALF := MAP_LAYOUT.CITY_HALF_EXTENT
 const GROUND_BODY_Y := PLAYER_RADIUS + 0.04
@@ -197,6 +203,7 @@ var _correction_counts := {"corr": 0, "stall": 0, "stale": 0,
 var _frame_ms_current := 0.0
 var _ball_seeded := false
 var _maximum_ball_speed := 0.0
+var _maximum_scatter_prop_speed := 0.0
 var _maximum_player_y := 0.0
 var _course_landed := false
 var _course_ground_drop_seen := false
@@ -225,6 +232,7 @@ var _det_nullification_count := 0
 var _maximum_impact_speed := 0.0
 var _crash_telemetry: Node
 var _grass_contacts := {}
+var _mass_precontact := {}
 var _area_strike_serial_seen := {}
 var _area_strikes: Node3D
 var _area_burns: Node3D
@@ -240,6 +248,8 @@ var _players: Node3D
 var _spawner: MultiplayerSpawner
 var _balls: Node3D
 var _ball_spawner: MultiplayerSpawner
+var _scatter_props: Node3D
+var _scatter_prop_spawner: MultiplayerSpawner
 var _targets: Node3D
 var _combat_bolts: Node3D
 var _shield_drone: Node3D
@@ -270,10 +280,12 @@ var _debug_popup: PopupMenu
 var _oil_popup: PopupMenu
 var _oil_submenus := {}
 var _vehicle_model_popup: PopupMenu
+var _vehicle_tuning_editor: Node
 var _scenery_popup: PopupMenu
 var _lighting_editor: Node
 var _always_forward_camera_editor: Node
 var _vehicle_model_scales := {}
+var _vehicle_masses := {}
 var _city_presentation: Node3D
 var _lighting_style_index := 4
 var _gameplay_collision_debug_enabled := false
@@ -310,6 +322,7 @@ const VEHICLE_MODEL_CURRENT_INFO_MENU_ID := 2103
 const VEHICLE_MODEL_APPLY_RESPAWN_MENU_ID := 2104
 const VEHICLE_MODEL_SERVER_INFO_MENU_ID := 2105
 const VEHICLE_MODEL_COLLISION_TOGGLE_MENU_ID := 2106
+const VEHICLE_MODEL_TUNING_MENU_ID := 2107
 const LIGHTING_STYLE_MENU_ID_BASE := 3100
 const SCENERY_LIGHTING_INFO_MENU_ID := 3201
 const SCENERY_LIGHTING_EDITOR_MENU_ID := 3202
@@ -468,9 +481,6 @@ func _process(_delta: float) -> void:
 	if _camera == null:
 		return
 	var local: Node3D = local_player()
-	if _gameplay_collision_debug_enabled and local != null \
-			and local.has_method("set_gameplay_collision_debug_visible"):
-		local.call("set_gameplay_collision_debug_visible", true)
 	var local_camera_position := Vector3.ZERO if local == null else local.global_position
 	if local != null and _local_presentation_smoothing_enabled \
 			and local.has_method("presented_position"):
@@ -1033,6 +1043,7 @@ func _start_server() -> void:
 		_spawn_server_driver()
 	if _ramming_lab_enabled:
 		_spawn_ramming_lab_drones()
+		_spawn_ramming_lab_props()
 	if _transport == "mux":
 		_log("server listening transport=mux enet=:%d webrtc_signal=:%d" % [_port, _signal_port])
 	elif _transport == "webrtc":
@@ -1208,6 +1219,8 @@ func _spawn_ramming_lab_drones() -> void:
 			continue
 		var spawn_endpoint := int(drone["spawn_endpoint"])
 		var spawn_point := RAMMING_LAB.endpoint(drone, spawn_endpoint)
+		var vehicle_index := int(drone["vehicle_index"])
+		var vehicle_name := str((HULL_SCRIPT.VEHICLES[vehicle_index] as Dictionary)["name"])
 		_spawner.spawn({
 			"id": body_id,
 			"slot": _next_spawn_slot,
@@ -1215,9 +1228,10 @@ func _spawn_ramming_lab_drones() -> void:
 			"yaw": RAMMING_LAB.spawn_yaw(drone, spawn_endpoint),
 			"input_authority_id": 1,
 			"is_ramming_drone": true,
-			"vehicle_visual_index": int(drone["vehicle_index"]),
+			"vehicle_visual_index": vehicle_index,
 			"vehicle_model_scale": float(drone["model_scale"]),
 			"vehicle_collider_scale": float(drone["model_scale"]),
+			"vehicle_mass": VEHICLE_TUNING.default_mass(vehicle_name),
 			"player_capsule": _player_capsule_enabled,
 			"remote_generation": _allocate_remote_state_generation(),
 		})
@@ -1230,6 +1244,18 @@ func _spawn_ramming_lab_drones() -> void:
 		_next_spawn_slot += 1
 	_log("RAMMING_LAB_READY drones=%d speed=6.0 lanes=-6,0,6" \
 		% RAMMING_LAB.DRONES.size())
+
+
+func _spawn_ramming_lab_props() -> void:
+	if not multiplayer.is_server():
+		return
+	for index in range(SCATTER_PROP_CONFIG.SPAWNS.size()):
+		var spawn: Dictionary = SCATTER_PROP_CONFIG.SPAWNS[index].duplicate(true)
+		spawn["route_id"] = -100 - index
+		if _scatter_props.get_node_or_null(str(spawn["name"])) == null:
+			_scatter_prop_spawner.spawn(spawn)
+	_log("RAMMING_LAB_PROPS_READY count=%d max_mass=%.2f" % [
+		SCATTER_PROP_CONFIG.SPAWNS.size(), SCATTER_PROP_CONFIG.MASS_MAX])
 
 func _on_peer_leave(id: int) -> void:
 	StateBundle.forget_peer_transport(id)
@@ -1298,6 +1324,14 @@ func _build_world() -> void:
 	add_child(_ball_spawner)
 	_ball_spawner.spawn_path = _balls.get_path()
 	_ball_spawner.spawn_function = _spawn_ball
+	_scatter_props = Node3D.new()
+	_scatter_props.name = "ScatterProps"
+	add_child(_scatter_props)
+	_scatter_prop_spawner = MultiplayerSpawner.new()
+	_scatter_prop_spawner.name = "ScatterPropSpawner"
+	add_child(_scatter_prop_spawner)
+	_scatter_prop_spawner.spawn_path = _scatter_props.get_path()
+	_scatter_prop_spawner.spawn_function = _spawn_scatter_prop
 	_targets = Node3D.new()
 	_targets.name = "CombatTargets"
 	add_child(_targets)
@@ -1376,8 +1410,15 @@ func _spawn_player(data: Variant) -> Node:
 		info.get("vehicle_collider_scale", 1.0))
 	if collider_scale < 0.0:
 		collider_scale = 1.0
+	var vehicle_name := str((HULL_SCRIPT.VEHICLES[int(body.get("vehicle_visual_index"))] \
+		as Dictionary)["name"])
+	var vehicle_mass := VEHICLE_TUNING.validated_mass(info.get("vehicle_mass",
+		VEHICLE_TUNING.default_mass(vehicle_name)))
+	if vehicle_mass < 0.0:
+		vehicle_mass = VEHICLE_TUNING.default_mass(vehicle_name)
 	body.set("vehicle_model_scale", model_scale)
 	body.set("vehicle_collider_scale", collider_scale)
+	body.set("vehicle_mass", vehicle_mass)
 	body.set("disable_collision_escape", bool(info.get("disable_collision_escape", false)))
 	body.set("remote_state_generation", int(info.get("remote_generation", 0)))
 	body.set("local_presentation_smoothing", _local_presentation_smoothing_enabled)
@@ -1387,7 +1428,7 @@ func _spawn_player(data: Variant) -> Node:
 			"ranges": COVERAGE.default_ranges(), "widths": COVERAGE.default_widths(),
 			"tips_outward": COVERAGE.default_tips_outward()}
 	body.gravity_scale = 1.0
-	body.mass = VEHICLE_CONFIG.MASS
+	body.mass = vehicle_mass
 	body.linear_damp = 0.0
 	body.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	body.angular_damp = VEHICLE_CONFIG.ANGULAR_DAMP
@@ -1425,10 +1466,14 @@ func _spawn_player(data: Variant) -> Node:
 	if not is_equal_approx(model_scale, 1.0) \
 			or not is_equal_approx(collider_scale, 1.0):
 		var capsule := collision.shape as CapsuleShape3D
-		_log("VEHICLE_SIZE_SPAWN id=%d vehicle=%d visual=%.2f collider=%.2f radius=%.3f height=%.3f" % [
+		_log("VEHICLE_SIZE_SPAWN id=%d vehicle=%d visual=%.2f collider=%.2f radius=%.3f height=%.3f mass=%.1f" % [
 			owner_id, int(body.get("vehicle_visual_index")), model_scale,
 			collider_scale, collision.shape.radius,
-			capsule.height if capsule != null else collision.shape.radius * 2.0])
+			capsule.height if capsule != null else collision.shape.radius * 2.0,
+			vehicle_mass])
+	if info.has("vehicle_mass"):
+		_log("VEHICLE_TUNING_SPAWN id=%d vehicle=%d scale=%.2f mass=%.1f" % [
+			owner_id, int(body.get("vehicle_visual_index")), model_scale, vehicle_mass])
 
 	var input := Node.new()
 	input.name = "Input"
@@ -1446,8 +1491,11 @@ func _spawn_player(data: Variant) -> Node:
 
 	if not _is_headless():
 		_build_player_presentation(body, owner_id)
+	if _gameplay_collision_debug_enabled:
+		body.call("set_gameplay_collision_debug_visible", true)
 	if owner_id == multiplayer.get_unique_id():
 		call_deferred("_refresh_vehicle_model_menu")
+		call_deferred("_refresh_vehicle_tuning_editor")
 	return body
 
 
@@ -1470,6 +1518,112 @@ func _spawn_transform(slot: int) -> Transform3D:
 	var forward := -position.normalized()
 	var yaw := atan2(-forward.x, -forward.z)
 	return Transform3D(Basis(Vector3.UP, yaw), position)
+
+
+func _spawn_scatter_prop(data: Variant) -> Node:
+	var info: Dictionary = data if data is Dictionary else {}
+	var kind := str(info.get("kind", "crate"))
+	var config := SCATTER_PROP_CONFIG.type_config(kind)
+	var body := RigidBody3D.new()
+	body.set_script(SCATTER_PROP_SCRIPT)
+	body.name = str(info.get("name", "ScatterProp"))
+	body.set("prop_kind", kind)
+	body.set("route_id", int(info.get("route_id", -100)))
+	body.position = SCATTER_PROP_CONFIG.spawn_position(info)
+	body.rotation.y = float(info.get("yaw", 0.0))
+	body.gravity_scale = 1.0
+	body.mass = float(config["mass"])
+	body.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	body.linear_damp = 0.12
+	body.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	body.angular_damp = 0.18
+	body.can_sleep = true
+	body.continuous_cd = true
+	body.contact_monitor = true
+	body.max_contacts_reported = 8
+
+	var physics_material := PhysicsMaterial.new()
+	physics_material.bounce = float(config["bounce"])
+	physics_material.friction = 0.32
+	body.physics_material_override = physics_material
+
+	var collision := CollisionShape3D.new()
+	collision.name = "Collision"
+	if str(config["shape"]) == "cylinder":
+		var cylinder := CylinderShape3D.new()
+		cylinder.radius = float(config["radius"])
+		cylinder.height = float(config["height"])
+		collision.shape = cylinder
+		collision.rotation = config.get("collision_rotation", Vector3.ZERO)
+	else:
+		var box := BoxShape3D.new()
+		box.size = config["size"]
+		collision.shape = box
+	body.add_child(collision)
+
+	if _role != "offline":
+		var synchronizer := Node.new()
+		synchronizer.name = "RollbackSynchronizer"
+		synchronizer.set_script(load(
+			"res://addons/netfox/rollback/rollback-synchronizer.gd"))
+		body.add_child(synchronizer)
+		var interpolator := Node.new()
+		interpolator.name = "TickInterpolator"
+		interpolator.set_script(load("res://addons/netfox/tick-interpolator.gd"))
+		body.add_child(interpolator)
+
+	if not _is_headless():
+		_build_scatter_prop_presentation(body, kind, config)
+	return body
+
+
+func _build_scatter_prop_presentation(body: RigidBody3D, kind: String,
+		config: Dictionary) -> void:
+	if ResourceLoader.exists(SCATTER_PROP_VISUAL_LIBRARY):
+		var packed := load(SCATTER_PROP_VISUAL_LIBRARY) as PackedScene
+		var library := packed.instantiate() as Node3D if packed != null else null
+		var visual := library.get_node_or_null(kind) as Node3D if library != null else null
+		if visual != null:
+			library.remove_child(visual)
+			_clear_scene_owners(visual)
+			visual.name = "ScatterPropVisual"
+			body.add_child(visual)
+			library.free()
+			return
+		if library != null:
+			library.free()
+
+	# The source city FBX is intentionally local-only. Keep a simple colored
+	# fallback so networked collision state stays visible on machines that do not
+	# have the optional extracted art library.
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = "ScatterPropVisual"
+	if str(config["shape"]) == "cylinder":
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = float(config["radius"])
+		mesh.bottom_radius = float(config["radius"])
+		mesh.height = float(config["height"])
+		mesh.radial_segments = 16
+		mesh_instance.mesh = mesh
+		mesh_instance.rotation = config.get("collision_rotation", Vector3.ZERO)
+	else:
+		var mesh := BoxMesh.new()
+		mesh.size = config["size"]
+		mesh_instance.mesh = mesh
+	var colors := {
+		"barrel": Color("b55337"),
+		"crate": Color("9a683c"),
+		"tire": Color("26282b"),
+		"mailbox": Color("547c91"),
+	}
+	mesh_instance.material_override = _material(colors.get(kind, Color("b58d55")))
+	body.add_child(mesh_instance)
+
+
+func _clear_scene_owners(node: Node) -> void:
+	node.owner = null
+	for child in node.get_children():
+		_clear_scene_owners(child)
 
 func _spawn_ball(data: Variant) -> Node:
 	var info: Dictionary = data if data is Dictionary else {}
@@ -1539,8 +1693,9 @@ func _build_player_presentation(body: RigidBody3D, owner_id: int) -> void:
 	hull.call("set_model_scale_multiplier", float(body.get("vehicle_model_scale")))
 	if bool(body.get("is_ramming_drone")):
 		var model_scale := float(body.get("vehicle_model_scale"))
-		_log("RAMMING_DRONE_VISUAL id=%s vehicle=%s scale=%.2f" % [
-			body.name, hull.call("vehicle_name"), model_scale])
+		_log("RAMMING_DRONE_VISUAL id=%s vehicle=%s scale=%.2f mass=%.1f" % [
+			body.name, hull.call("vehicle_name"), model_scale,
+			float(body.get("vehicle_mass"))])
 	if owner_id == multiplayer.get_unique_id():
 		hull.call("set_model_scale_multiplier",
 			_vehicle_model_scale_for(str(hull.call("vehicle_name"))))
@@ -1865,7 +2020,8 @@ func _build_hud(hud: CanvasLayer) -> void:
 	_debug_popup.name = "Debug"
 	_debug_popup.title = "Debug"
 	_system_menu_bar.add_child(_debug_popup)
-	_debug_popup.add_check_item("Show collision capsule", DEBUG_COLLISION_MENU_ID)
+	_debug_popup.add_check_item("Show collision capsules (all vehicles)",
+		DEBUG_COLLISION_MENU_ID)
 	_debug_popup.set_item_checked(_debug_popup.get_item_index(DEBUG_COLLISION_MENU_ID),
 		_gameplay_collision_debug_enabled)
 	_debug_popup.add_check_item("Show gameplay text", DEBUG_GAMEPLAY_TEXT_MENU_ID)
@@ -1883,6 +2039,7 @@ func _build_hud(hud: CanvasLayer) -> void:
 		DEBUG_ALWAYS_FORWARD_CAMERA_TUNING_MENU_ID)
 	_debug_popup.id_pressed.connect(_on_debug_menu_item_pressed)
 	_build_vehicle_model_menu()
+	_build_vehicle_tuning_editor()
 	_build_oil_tuning_menu()
 	_build_scenery_menu()
 	_build_lighting_editor()
@@ -1983,10 +2140,18 @@ func _toggle_gameplay_collision_debug() -> void:
 		_vehicle_model_popup.set_item_checked(_vehicle_model_popup.get_item_index(
 			VEHICLE_MODEL_COLLISION_TOGGLE_MENU_ID),
 			_gameplay_collision_debug_enabled)
-	var local: Node3D = local_player()
-	if local != null and local.has_method("set_gameplay_collision_debug_visible"):
-		local.call("set_gameplay_collision_debug_visible",
+	if _vehicle_tuning_editor != null:
+		_vehicle_tuning_editor.call("set_collision_visible",
 			_gameplay_collision_debug_enabled)
+	_set_all_vehicle_collision_debug_visible(_gameplay_collision_debug_enabled)
+
+
+func _set_all_vehicle_collision_debug_visible(visible: bool) -> void:
+	if _players == null:
+		return
+	for player_node in _players.get_children():
+		if player_node.has_method("set_gameplay_collision_debug_visible"):
+			player_node.call("set_gameplay_collision_debug_visible", visible)
 
 
 func _build_always_forward_camera_editor() -> void:
@@ -2294,7 +2459,79 @@ func lighting_editor_has_input_focus() -> bool:
 func tool_window_has_input_focus() -> bool:
 	return lighting_editor_has_input_focus() \
 		or (_always_forward_camera_editor != null \
-			and bool(_always_forward_camera_editor.call("has_input_focus")))
+			and bool(_always_forward_camera_editor.call("has_input_focus"))) \
+		or (_vehicle_tuning_editor != null \
+			and bool(_vehicle_tuning_editor.call("has_input_focus")))
+
+
+func _build_vehicle_tuning_editor() -> void:
+	_vehicle_tuning_editor = Node.new()
+	_vehicle_tuning_editor.name = "VehicleTuningEditor"
+	_vehicle_tuning_editor.set_script(VEHICLE_TUNING_EDITOR_SCRIPT)
+	add_child(_vehicle_tuning_editor)
+	_vehicle_tuning_editor.connect("draft_changed", _on_vehicle_tuning_draft_changed)
+	_vehicle_tuning_editor.connect("apply_requested", _on_vehicle_tuning_apply_requested)
+	_vehicle_tuning_editor.connect("reset_requested", _on_vehicle_tuning_reset_requested)
+	_vehicle_tuning_editor.connect("collision_visibility_changed",
+		_on_vehicle_tuning_collision_visibility_changed)
+	_vehicle_tuning_editor.call("setup", VEHICLE_MODEL_SCALE_OPTIONS)
+	_refresh_vehicle_tuning_editor()
+
+
+func _vehicle_tuning_context() -> Dictionary:
+	var local := local_player() as Node3D
+	var vehicle_name := _current_vehicle_model_name()
+	var approved_scale := 1.0 if local == null \
+		else float(local.get("vehicle_collider_scale"))
+	var approved_mass := VEHICLE_TUNING.default_mass(vehicle_name) if local == null \
+		else float(local.get("vehicle_mass"))
+	var draft_mass := _vehicle_mass_for(vehicle_name)
+	return {
+		"vehicle_name": vehicle_name,
+		"draft_scale": _vehicle_model_scale_for(vehicle_name),
+		"draft_mass": draft_mass,
+		"draft_weight_class": VEHICLE_TUNING.weight_class(draft_mass),
+		"approved_scale": approved_scale,
+		"approved_mass": approved_mass,
+		"approved_weight_class": VEHICLE_TUNING.weight_class(approved_mass),
+		"collision_visible": _gameplay_collision_debug_enabled,
+		"apply_enabled": local != null,
+	}
+
+
+func _refresh_vehicle_tuning_editor() -> void:
+	if _vehicle_tuning_editor != null:
+		_vehicle_tuning_editor.call("set_context", _vehicle_tuning_context())
+
+
+func _on_vehicle_tuning_draft_changed(model_scale: float, mass: float) -> void:
+	var vehicle_name := _current_vehicle_model_name()
+	_vehicle_model_scales[vehicle_name] = HULL_SCRIPT.sanitized_model_scale(model_scale)
+	_vehicle_masses[vehicle_name] = VEHICLE_TUNING.sanitized_mass(mass,
+		VEHICLE_TUNING.default_mass(vehicle_name))
+	var local := local_player() as Node3D
+	if local != null:
+		var hull := local.get_node_or_null("GroundVehicleHull")
+		if hull != null and hull.has_method("set_model_scale_multiplier"):
+			hull.call("set_model_scale_multiplier", _vehicle_model_scales[vehicle_name])
+	_refresh_vehicle_model_menu()
+	_refresh_vehicle_tuning_editor()
+	_save_persisted_vehicle_model_scale()
+
+
+func _on_vehicle_tuning_apply_requested(model_scale: float, mass: float) -> void:
+	_on_vehicle_tuning_draft_changed(model_scale, mass)
+	_submit_vehicle_tuning_respawn()
+
+
+func _on_vehicle_tuning_reset_requested() -> void:
+	var vehicle_name := _current_vehicle_model_name()
+	_on_vehicle_tuning_draft_changed(1.0, VEHICLE_TUNING.default_mass(vehicle_name))
+
+
+func _on_vehicle_tuning_collision_visibility_changed(visible: bool) -> void:
+	if visible != _gameplay_collision_debug_enabled:
+		_toggle_gameplay_collision_debug()
 
 
 func _build_vehicle_model_menu() -> void:
@@ -2306,25 +2543,27 @@ func _build_vehicle_model_menu() -> void:
 	_vehicle_model_popup.set_item_disabled(_vehicle_model_popup.get_item_index(
 		VEHICLE_MODEL_CURRENT_INFO_MENU_ID), true)
 	_vehicle_model_popup.add_separator()
+	_vehicle_model_popup.add_item("Vehicle Tuning…", VEHICLE_MODEL_TUNING_MENU_ID)
+	_vehicle_model_popup.add_separator()
 	for index in range(VEHICLE_MODEL_SCALE_OPTIONS.size()):
 		var scale_amount := float(VEHICLE_MODEL_SCALE_OPTIONS[index])
 		_vehicle_model_popup.add_radio_check_item("%.0f%%" % (scale_amount * 100.0),
 			VEHICLE_MODEL_SCALE_MENU_ID_BASE + index)
 	_vehicle_model_popup.add_separator()
 	_vehicle_model_popup.add_item("Reset to 100%", VEHICLE_MODEL_RESET_MENU_ID)
-	_vehicle_model_popup.add_item("Apply Size & Respawn",
+	_vehicle_model_popup.add_item("Apply Draft & Respawn",
 		VEHICLE_MODEL_APPLY_RESPAWN_MENU_ID)
-	_vehicle_model_popup.add_check_item("Show Collision Capsule",
+	_vehicle_model_popup.add_check_item("Show collision capsules (all vehicles)",
 		VEHICLE_MODEL_COLLISION_TOGGLE_MENU_ID)
 	_vehicle_model_popup.set_item_checked(_vehicle_model_popup.get_item_index(
 		VEHICLE_MODEL_COLLISION_TOGGLE_MENU_ID),
 		_gameplay_collision_debug_enabled)
 	_vehicle_model_popup.add_separator()
-	_vehicle_model_popup.add_item("Preview only until Apply Size & Respawn",
+	_vehicle_model_popup.add_item("Preview only until Apply & Respawn",
 		VEHICLE_MODEL_COLLIDER_INFO_MENU_ID)
 	_vehicle_model_popup.set_item_disabled(_vehicle_model_popup.get_item_index(
 		VEHICLE_MODEL_COLLIDER_INFO_MENU_ID), true)
-	_vehicle_model_popup.add_item("Server-approved: 100%",
+	_vehicle_model_popup.add_item("Server-approved: 100% / mass 2.2",
 		VEHICLE_MODEL_SERVER_INFO_MENU_ID)
 	_vehicle_model_popup.set_item_disabled(_vehicle_model_popup.get_item_index(
 		VEHICLE_MODEL_SERVER_INFO_MENU_ID), true)
@@ -2346,9 +2585,11 @@ func _refresh_vehicle_model_menu() -> void:
 	var local := local_player() as Node3D
 	var server_scale := 1.0 if local == null \
 		else float(local.get("vehicle_collider_scale"))
+	var server_mass := VEHICLE_TUNING.default_mass(vehicle_name) if local == null \
+		else float(local.get("vehicle_mass"))
 	_vehicle_model_popup.set_item_text(_vehicle_model_popup.get_item_index(
-		VEHICLE_MODEL_SERVER_INFO_MENU_ID), "Server-approved: %.0f%%" \
-		% (server_scale * 100.0))
+		VEHICLE_MODEL_SERVER_INFO_MENU_ID), "Server-approved: %.0f%% / mass %.1f" \
+		% [server_scale * 100.0, server_mass])
 	_vehicle_model_popup.set_item_disabled(_vehicle_model_popup.get_item_index(
 		VEHICLE_MODEL_APPLY_RESPAWN_MENU_ID), local == null)
 	for index in range(VEHICLE_MODEL_SCALE_OPTIONS.size()):
@@ -2358,11 +2599,15 @@ func _refresh_vehicle_model_menu() -> void:
 
 
 func _on_vehicle_model_menu_pressed(id: int) -> void:
+	if id == VEHICLE_MODEL_TUNING_MENU_ID:
+		_refresh_vehicle_tuning_editor()
+		_vehicle_tuning_editor.call("open", _vehicle_tuning_context())
+		return
 	if id == VEHICLE_MODEL_COLLISION_TOGGLE_MENU_ID:
 		_toggle_gameplay_collision_debug()
 		return
 	if id == VEHICLE_MODEL_APPLY_RESPAWN_MENU_ID:
-		_submit_vehicle_size_respawn()
+		_submit_vehicle_tuning_respawn()
 		return
 	if id == VEHICLE_MODEL_RESET_MENU_ID:
 		_apply_vehicle_model_scale(1.0)
@@ -2383,10 +2628,11 @@ func _apply_vehicle_model_scale(value: Variant) -> void:
 		if hull != null and hull.has_method("set_model_scale_multiplier"):
 			hull.call("set_model_scale_multiplier", model_scale)
 	_refresh_vehicle_model_menu()
+	_refresh_vehicle_tuning_editor()
 	_save_persisted_vehicle_model_scale()
 
 
-func _submit_vehicle_size_respawn() -> void:
+func _submit_vehicle_tuning_respawn() -> void:
 	var local := local_player() as Node3D
 	if local == null:
 		return
@@ -2395,43 +2641,88 @@ func _submit_vehicle_size_respawn() -> void:
 			or not hull.has_method("vehicle_name"):
 		return
 	var vehicle_index := int(hull.call("vehicle_index"))
-	var requested_scale := _vehicle_model_scale_for(str(hull.call("vehicle_name")))
+	var vehicle_name := str(hull.call("vehicle_name"))
+	var requested_scale := _vehicle_model_scale_for(vehicle_name)
+	var requested_mass := _vehicle_mass_for(vehicle_name)
 	if _role == "offline" or multiplayer.is_server():
-		_accept_vehicle_size_respawn(multiplayer.get_unique_id(), vehicle_index,
-			requested_scale)
+		_accept_vehicle_tuning_respawn(multiplayer.get_unique_id(), vehicle_index,
+			requested_scale, requested_mass)
 	else:
-		_request_vehicle_size_respawn.rpc_id(1, vehicle_index, requested_scale)
-	_log("VEHICLE_SIZE_REQUEST vehicle=%d scale=%.2f" % [vehicle_index,
-		requested_scale])
+		_request_vehicle_tuning_respawn.rpc_id(1, vehicle_index, requested_scale,
+			requested_mass)
+	_log("VEHICLE_TUNING_REQUEST vehicle=%d scale=%.2f mass=%.1f" % [
+		vehicle_index, requested_scale, requested_mass])
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _request_vehicle_size_respawn(vehicle_index: int, requested_scale: float) -> void:
+func _request_vehicle_tuning_respawn(vehicle_index: int, requested_scale: float,
+		requested_mass: float) -> void:
 	if not multiplayer.is_server():
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	if sender <= 1 or _players == null \
 			or _players.get_node_or_null(str(sender)) == null:
 		return
-	_accept_vehicle_size_respawn(sender, vehicle_index, requested_scale)
+	_accept_vehicle_tuning_respawn(sender, vehicle_index, requested_scale,
+		requested_mass)
 
 
-func _accept_vehicle_size_respawn(owner_id: int, vehicle_index: int,
-		requested_scale: Variant) -> void:
+func _accept_vehicle_tuning_respawn(owner_id: int, vehicle_index: int,
+		requested_scale: Variant, requested_mass: Variant) -> void:
 	if owner_id in _vehicle_size_respawns_pending:
 		return
 	var approved_scale := VEHICLE_SIZE_AUTHORITY.validated_scale(requested_scale)
+	var approved_mass := VEHICLE_TUNING.validated_mass(requested_mass)
 	if approved_scale < 0.0 or not VEHICLE_SIZE_AUTHORITY.valid_vehicle_index(
-			vehicle_index, HULL_SCRIPT.VEHICLES.size()):
-		_log("VEHICLE_SIZE_REJECT id=%d vehicle=%d scale=%s" % [owner_id,
-			vehicle_index, str(requested_scale)])
+			vehicle_index, HULL_SCRIPT.VEHICLES.size()) or approved_mass < 0.0:
+		_log("VEHICLE_TUNING_REJECT id=%d vehicle=%d scale=%s mass=%s" % [
+			owner_id, vehicle_index, str(requested_scale), str(requested_mass)])
 		return
-	_vehicle_size_respawns_pending[owner_id] = true
-	_respawn_vehicle_with_size(owner_id, vehicle_index, approved_scale)
+	_vehicle_size_respawns_pending[owner_id] = {
+		"vehicle_index": vehicle_index,
+		"scale": approved_scale,
+		"mass": approved_mass,
+		"started": false,
+	}
+	if _role == "offline":
+		_prepare_vehicle_tuning_respawn(owner_id)
+		_begin_vehicle_tuning_respawn(owner_id)
+	else:
+		_prepare_vehicle_tuning_respawn.rpc(owner_id)
 
 
-func _respawn_vehicle_with_size(owner_id: int, vehicle_index: int,
-		approved_scale: float) -> void:
+@rpc("authority", "call_local", "reliable")
+func _prepare_vehicle_tuning_respawn(owner_id: int) -> void:
+	var body := _players.get_node_or_null(str(owner_id)) if _players != null else null
+	if body != null:
+		var synchronizer := body.get_node_or_null("RollbackSynchronizer")
+		if synchronizer != null and synchronizer.has_method("suspend_for_departure"):
+			synchronizer.call("suspend_for_departure")
+	if not multiplayer.is_server() and multiplayer.get_unique_id() == owner_id:
+		_vehicle_tuning_respawn_ready.rpc_id(1, owner_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _vehicle_tuning_respawn_ready(owner_id: int) -> void:
+	if not multiplayer.is_server() or multiplayer.get_remote_sender_id() != owner_id:
+		return
+	_begin_vehicle_tuning_respawn(owner_id)
+
+
+func _begin_vehicle_tuning_respawn(owner_id: int) -> void:
+	if not _vehicle_size_respawns_pending.has(owner_id):
+		return
+	var request: Dictionary = _vehicle_size_respawns_pending[owner_id]
+	if bool(request.get("started", false)):
+		return
+	request["started"] = true
+	_vehicle_size_respawns_pending[owner_id] = request
+	_respawn_vehicle_with_tuning(owner_id, int(request["vehicle_index"]),
+		float(request["scale"]), float(request["mass"]))
+
+
+func _respawn_vehicle_with_tuning(owner_id: int, vehicle_index: int,
+		approved_scale: float, approved_mass: float) -> void:
 	var old_body := _players.get_node_or_null(str(owner_id)) as RigidBody3D
 	if old_body == null:
 		_vehicle_size_respawns_pending.erase(owner_id)
@@ -2439,6 +2730,13 @@ func _respawn_vehicle_with_size(owner_id: int, vehicle_index: int,
 	var slot := int(old_body.get("spawn_slot"))
 	var map_id := int(old_body.get("map_id"))
 	var is_ramming_drone := bool(old_body.get("is_ramming_drone"))
+	# The owner has stopped producing rollback input. Keep the old RPC path alive
+	# briefly so previously emitted unreliable packets drain without targeting a
+	# freed synchronizer.
+	await get_tree().create_timer(0.15).timeout
+	if not is_instance_valid(old_body):
+		_vehicle_size_respawns_pending.erase(owner_id)
+		return
 	old_body.free()
 	await get_tree().process_frame
 	if _role != "offline" and owner_id not in multiplayer.get_peers():
@@ -2452,6 +2750,7 @@ func _respawn_vehicle_with_size(owner_id: int, vehicle_index: int,
 		"vehicle_visual_index": vehicle_index,
 		"vehicle_model_scale": approved_scale,
 		"vehicle_collider_scale": approved_scale,
+		"vehicle_mass": approved_mass,
 		"map_id": map_id,
 	}
 	if _ramming_lab_enabled and not is_ramming_drone:
@@ -2463,8 +2762,8 @@ func _respawn_vehicle_with_size(owner_id: int, vehicle_index: int,
 	else:
 		_spawner.spawn(spawn_data)
 	_vehicle_size_respawns_pending.erase(owner_id)
-	_log("VEHICLE_SIZE_APPLIED id=%d vehicle=%d scale=%.2f generation=%d" % [
-		owner_id, vehicle_index, approved_scale,
+	_log("VEHICLE_TUNING_APPLIED id=%d vehicle=%d scale=%.2f mass=%.1f generation=%d" % [
+		owner_id, vehicle_index, approved_scale, approved_mass,
 		int(spawn_data["remote_generation"])])
 
 
@@ -2479,6 +2778,12 @@ func _current_vehicle_model_name() -> String:
 
 func _vehicle_model_scale_for(vehicle_name: String) -> float:
 	return HULL_SCRIPT.sanitized_model_scale(_vehicle_model_scales.get(vehicle_name, 1.0))
+
+
+func _vehicle_mass_for(vehicle_name: String) -> float:
+	return VEHICLE_TUNING.sanitized_mass(_vehicle_masses.get(vehicle_name,
+		VEHICLE_TUNING.default_mass(vehicle_name)),
+		VEHICLE_TUNING.default_mass(vehicle_name))
 
 
 func _persistence_available_for_vehicle_model_scale() -> bool:
@@ -2505,6 +2810,14 @@ func _load_persisted_vehicle_model_scale() -> void:
 		for vehicle_variant in HULL_SCRIPT.VEHICLES:
 			var vehicle: Dictionary = vehicle_variant
 			_vehicle_model_scales[str(vehicle["name"])] = legacy_scale
+	if config.has_section_key(VEHICLE_MODEL_SCALE_SECTION, "masses"):
+		var saved_masses: Variant = config.get_value(VEHICLE_MODEL_SCALE_SECTION, "masses")
+		if saved_masses is Dictionary:
+			for vehicle_name_variant in saved_masses:
+				var vehicle_name := str(vehicle_name_variant)
+				_vehicle_masses[vehicle_name] = VEHICLE_TUNING.sanitized_mass(
+					saved_masses[vehicle_name_variant],
+					VEHICLE_TUNING.default_mass(vehicle_name))
 
 
 func _save_persisted_vehicle_model_scale() -> void:
@@ -2512,6 +2825,7 @@ func _save_persisted_vehicle_model_scale() -> void:
 		return
 	var config := ConfigFile.new()
 	config.set_value(VEHICLE_MODEL_SCALE_SECTION, "scales", _vehicle_model_scales)
+	config.set_value(VEHICLE_MODEL_SCALE_SECTION, "masses", _vehicle_masses)
 	var error := config.save(VEHICLE_MODEL_SCALE_PATH)
 	if error != OK:
 		push_warning("Could not autosave vehicle model scale: %s" % error_string(error))
@@ -3018,6 +3332,7 @@ func _cycle_local_vehicle() -> void:
 			hull.call("set_model_scale_multiplier",
 				_vehicle_model_scale_for(str(hull.call("vehicle_name"))))
 		_refresh_vehicle_model_menu()
+		_refresh_vehicle_tuning_editor()
 
 func _flip_selected_cone() -> void:
 	var id := multiplayer.get_unique_id()
@@ -3223,9 +3538,12 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 			# Automated network soaks must not inherit a browser pointer position.
 			# Explicit neutral intent keeps reconnect recovery separate from contact.
 			return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
-		"converge", "converge-burst":
+		"converge", "converge-burst", "mass-heavy", "mass-light":
 			# Fixed opposing headings make the network gate test collision rather
 			# than the far-distance FOLLOW turning radius around a moving target.
+			if _scripted in ["mass-heavy", "mass-light"] \
+					and NetworkTime.tick - _start_tick < 150:
+				return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 			var slot := int(body.get("spawn_slot"))
 			var intent := Vector2(FOLLOW.MAX_DISTANCE, 0.0) if slot % 2 == 0 \
 				else Vector2(-FOLLOW.MAX_DISTANCE, 0.0)
@@ -3468,23 +3786,32 @@ func _on_tick(delta: float, tick: int) -> void:
 			_service_auto_combat(delta, tick)
 		_track_server_contacts(tick)
 		_track_server_ball()
+		_track_server_scatter_props(tick)
 		_track_server_motion_extents()
 		if elapsed % 60 == 0:
 			_log("SERVER_TICK tick=%d players=%d minpair=%.3f contact=%d" % [elapsed, _players.get_child_count(), _minimum_pair_distance, 1 if _contact_seen else 0])
 	else:
 		var local: Node3D = local_player()
 		if local != null:
-			if _scripted == "size-respawn" and elapsed >= 90 \
+			if _scripted in ["size-respawn", "mass-heavy", "mass-light"] \
+					and elapsed >= 90 \
 					and not _vehicle_size_respawn_test_sent:
 				_vehicle_size_respawn_test_sent = true
-				_apply_vehicle_model_scale(1.5)
-				_submit_vehicle_size_respawn()
+				if _scripted == "size-respawn":
+					_apply_vehicle_model_scale(1.5)
+				elif _scripted == "mass-heavy":
+					_vehicle_masses[_current_vehicle_model_name()] = \
+						VEHICLE_TUNING.MASS_SUPER_HEAVY
+				else:
+					_vehicle_masses[_current_vehicle_model_name()] = \
+						VEHICLE_TUNING.MASS_LIGHT
+				_submit_vehicle_tuning_respawn()
 			_prediction_history[tick] = local.position
 			for old_tick in _prediction_history.keys():
 				if int(old_tick) < tick - 240:
 					_prediction_history.erase(old_tick)
 			if elapsed % 60 == 0:
-				_log("CLIENT_TICK tick=%d id=%d players=%d world=%s pos=(%.3f,%.3f) speed=%.3f map=%d cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), _players.get_child_count(), _client_world_positions(), local.position.x, local.position.z, local.speed(), int(local.get("map_id")), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
+				_log("CLIENT_TICK tick=%d id=%d players=%d world=%s props=%d pos=(%.3f,%.3f) speed=%.3f map=%d cloak=%d shield=%d" % [elapsed, multiplayer.get_unique_id(), _players.get_child_count(), _client_world_positions(), _scatter_props.get_child_count(), local.position.x, local.position.z, local.speed(), int(local.get("map_id")), 1 if bool(local.get("is_cloaked")) else 0, 1 if bool(local.get("shield_up")) else 0])
 	if _quit_after_ticks > 0 and elapsed >= _quit_after_ticks:
 		if multiplayer.is_server():
 			_log(SERVER_RESULT.format_line({
@@ -4412,12 +4739,16 @@ func _track_server_contacts(tick: int) -> void:
 			var b := bodies[j] as RigidBody3D
 			if b == null:
 				continue
+			var contact_key := "%s:%s" % [a.name, b.name]
 			_minimum_pair_distance = minf(_minimum_pair_distance, a.position.distance_to(b.position))
 			if a.get_colliding_bodies().has(b):
-				var contact_key := "%s:%s" % [a.name, b.name]
 				active_grass_contacts[contact_key] = true
 				if not _grass_contacts.has(contact_key):
 					var impact_speed := (a.linear_velocity - b.linear_velocity).length()
+					if not is_equal_approx(a.mass, b.mass):
+						_log_mass_baseline(tick, a, b,
+							_mass_precontact.get(contact_key, {}) as Dictionary)
+						_mass_precontact.erase(contact_key)
 					if _ramming_lab_enabled:
 						_log_ramming_baseline(tick, a, b)
 					if impact_speed >= 2.0:
@@ -4426,7 +4757,37 @@ func _track_server_contacts(tick: int) -> void:
 				if not _contact_seen:
 					_log("CONTACT a=%s b=%s" % [a.name, b.name])
 				_contact_seen = true
+			elif not is_equal_approx(a.mass, b.mass) \
+					and a.position.distance_to(b.position) < 10.0:
+				var direction := b.position - a.position
+				direction.y = 0.0
+				if not direction.is_zero_approx() \
+						and (a.linear_velocity - b.linear_velocity).dot(
+							direction.normalized()) > 0.0:
+					_mass_precontact[contact_key] = {
+						"a_velocity": a.linear_velocity,
+						"b_velocity": b.linear_velocity,
+					}
 	_grass_contacts = active_grass_contacts
+
+
+func _log_mass_baseline(tick: int, a: RigidBody3D, b: RigidBody3D,
+		precontact: Dictionary) -> void:
+	if precontact.is_empty():
+		return
+	var a_pre := precontact["a_velocity"] as Vector3
+	var b_pre := precontact["b_velocity"] as Vector3
+	var heavy := a if a.mass >= b.mass else b
+	var light := b if heavy == a else a
+	var heavy_pre := a_pre if heavy == a else b_pre
+	var light_pre := b_pre if light == b else a_pre
+	var heavy_delta := (heavy.linear_velocity - heavy_pre).length()
+	var light_delta := (light.linear_velocity - light_pre).length()
+	_log("MASS_BASELINE tick=%d heavy=%s hm=%.1f light=%s lm=%.1f heavy_dv=%.3f light_dv=%.3f ratio=%.3f" % [
+		tick, heavy.name, heavy.mass, light.name, light.mass,
+		heavy_delta, light_delta,
+		light_delta / maxf(heavy_delta, 0.001),
+	])
 
 
 func _log_ramming_baseline(tick: int, a: RigidBody3D, b: RigidBody3D) -> void:
@@ -4484,6 +4845,26 @@ func _track_server_ball() -> void:
 		var ball := child as RigidBody3D
 		if ball != null:
 			_maximum_ball_speed = maxf(_maximum_ball_speed, ball.linear_velocity.length())
+
+
+func _track_server_scatter_props(tick: int) -> void:
+	if _scatter_props == null or _scatter_props.get_child_count() == 0:
+		return
+	var moving := 0
+	var frame_max := 0.0
+	for child in _scatter_props.get_children():
+		var prop := child as RigidBody3D
+		if prop == null:
+			continue
+		var speed := prop.linear_velocity.length()
+		frame_max = maxf(frame_max, speed)
+		if speed > 0.5:
+			moving += 1
+	_maximum_scatter_prop_speed = maxf(_maximum_scatter_prop_speed, frame_max)
+	if tick % 60 == 0:
+		_log("SCATTER_PROP_STATE tick=%d count=%d moving=%d frame_max=%.2f peak=%.2f" % [
+			tick, _scatter_props.get_child_count(), moving, frame_max,
+			_maximum_scatter_prop_speed])
 
 func _track_server_motion_extents() -> void:
 	for child in _players.get_children():
