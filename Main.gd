@@ -4237,33 +4237,50 @@ func homing_target_for(target_id: int) -> Node3D:
 
 func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
 		tip_outward: bool) -> Node3D:
-	var candidates: Array[Dictionary] = []
-	var by_id := {}
-	for target_node in _targets.get_children():
-		var target := target_node as StaticBody3D
-		if not _combat_target_active(target):
-			continue
-		var target_id := int(target.get("target_id"))
-		var local := COVERAGE.local_point(target.global_position, body.global_transform)
-		candidates.append({"id": target_id, "local_position": local,
-			"visible": _has_target_line_of_sight(body, target)})
-		by_id[target_id] = target
-	for index in range(_balls.get_child_count()):
-		var ball := _balls.get_child(index) as RigidBody3D
-		if ball == null:
-			continue
-		var target_id := BALL_TARGET_ID_BASE - index
-		var local := COVERAGE.local_point(ball.global_position, body.global_transform)
-		candidates.append({"id": target_id, "local_position": local,
-			"visible": _has_target_line_of_sight(body, ball)})
-		by_id[target_id] = ball
-	var selected := AUTO_TARGETING.select_nearest(zone, reach, width, tip_outward, candidates)
-	return by_id.get(selected) as Node3D
+	if reach <= 0.0001 or width <= 0.0001:
+		return null
+	var inverse := body.global_transform.affine_inverse()
+	var selected: Node3D = null
+	var selected_distance := INF
+	var query: PhysicsRayQueryParameters3D = null
+	# Preserve traversal order: dummies/sprites first, then balls. Strictly
+	# nearer replacement keeps the first visible target on equal-distance ties.
+	for container in [_targets, _balls]:
+		for child in container.get_children():
+			var target: Node3D
+			if container == _targets:
+				target = child as StaticBody3D
+				if not _combat_target_active(target):
+					continue
+			else:
+				target = child as RigidBody3D
+				if target == null:
+					continue
+			var point := inverse * target.global_position
+			var local := Vector2(point.x, point.z)
+			var distance := local.length_squared()
+			if distance >= selected_distance or not COVERAGE.point_in_zone(
+					local, zone, reach, width, tip_outward):
+				continue
+			# Build exclusions only if a ray is needed, once per acquisition.
+			# Nothing is cached across ticks, target deaths, or physics changes.
+			if query == null:
+				query = PhysicsRayQueryParameters3D.new()
+				query.collision_mask = 1
+				query.exclude = _combat_dynamic_rids()
+			if _has_target_line_of_sight(body, target, query):
+				selected = target
+				selected_distance = distance
+	return selected
 
-func _has_target_line_of_sight(body: RigidBody3D, target: Node3D) -> bool:
-	var start := _combat_muzzle_origin(body, target.global_position)
-	var query := PhysicsRayQueryParameters3D.create(start, target.global_position, 1)
-	query.exclude = _combat_dynamic_rids()
+func _has_target_line_of_sight(body: RigidBody3D, target: Node3D,
+		query: PhysicsRayQueryParameters3D = null) -> bool:
+	if query == null:
+		query = PhysicsRayQueryParameters3D.new()
+		query.collision_mask = 1
+		query.exclude = _combat_dynamic_rids()
+	query.from = _combat_muzzle_origin(body, target.global_position)
+	query.to = target.global_position
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	return hit.is_empty()
 

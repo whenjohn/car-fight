@@ -21,6 +21,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/vehicle_size_respawn_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/vehicle_tuning_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/tire_skid_trails_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/auto_targeting_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/coverage_config_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/area_weapon_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/homing_missile_test.gd

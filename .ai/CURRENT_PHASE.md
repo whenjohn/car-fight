@@ -16,6 +16,29 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
+## Active: targeting optimization worktree
+
+- Worktree: `/Users/johnnguyen/Projects/car-fight-targeting`, branch
+  `codex/targeting-optimization`, based on canonical `eba42c7`.
+- Acquisition now applies the existing triangular coverage before visibility,
+  skips candidates that cannot beat the nearest visible selection, and reuses
+  one inverse transform and lazy ray/exclusion setup per acquisition. No
+  cross-tick cache, scan throttling, cooldown, authority or wire changes.
+- Focused tests compare against the original eager selector, including blocked
+  fallback, ties, reversed tips, triangle corners, dead sprites, balls and
+  overlapping zones. Real sprite combat also exercises wall occlusion.
+- Matched headless 256-fixture comparison: four-zone acquisition median
+  19.179 ms eager versus 1.680 ms optimized; P95 29.169 versus 3.452 ms over
+  20 warmed samples with identical target choices. This is CPU-only evidence,
+  not a rendered FPS or multiplayer-capacity measurement.
+- Validation passed: `scripts/check.sh`, targeting and coverage tests, live
+  sprite combat/CPU comparison, and `scripts/combat_test.sh`. The combat
+  harness needed an unsandboxed run after sandbox process startup failed.
+  Broader networking gates are unnecessary for this acquisition-only change.
+- Next: an explicitly approved monitored 256-fixture combat profile and owner
+  driving/shooting acceptance. No merge or production deployment performed.
+  See `docs/SPRITE_PROFILE.md` for implementation evidence and limitations.
+
 ## Accepted: interactive sprite test in canonical master
 
 - Owner confirmed the spread-out 256-fixture slowdown on a repeat run; 128

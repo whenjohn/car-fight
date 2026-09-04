@@ -141,3 +141,66 @@ used the required safe-window monitor:
 ```sh
 CAR_FIGHT_SPRITE_PROFILE=1 CAR_FIGHT_SPRITE_PROFILE_DETAIL=1 CAR_FIGHT_SPRITE_VISUAL_CHECK=1 ./scripts/play_monitored.sh --offline --sprite-test
 ```
+
+## Implemented first pass — targeting worktree, 2026-09-04
+
+Branch `codex/targeting-optimization`, based on `eba42c7`, implements the first
+bounded pass in `Main.gd::_acquire_target`:
+
+- Preserve `COVERAGE.point_in_zone` exactly, including triangular corners and
+  reversed tips; reject outside candidates before visibility work.
+- Retain original target-then-ball traversal and strict nearer-only replacement.
+  Blocked candidates never replace the current visible selection. Farther and
+  tied candidates cannot win, so they do not need a ray.
+- Remove per-candidate dictionaries and ID lookup from runtime acquisition.
+  Reuse one car inverse transform and one lazily built ray/exclusion setup per
+  acquisition. Each zone still scans independently; nothing survives the call.
+- Preserve ray endpoints, mask, exclusions and the existing 15-tick firing
+  interval. Empty zones still reacquire each eligible simulation tick.
+
+Focused evidence:
+
+- `tests/auto_targeting_test.gd`: 240 seeded comparisons with the original pure
+  selector, plus explicit blocked-nearest fallback, first-visible ties, dead
+  sprites, balls, triangle corners, reversed tips and overlapping-zone cases.
+  A synthetic 256-candidate case with 255 outside coverage needs one visibility
+  call and one exclusion setup instead of 256 calls/setups.
+- `tests/sprite_combat_test.gd`: real physics wall occlusion and dead-target
+  acquisition, existing projectile/area/run-over checks, and identical results
+  for all four zones against an eager real-ray reference in the 256-fixture city.
+
+The real-world headless CPU comparison keeps the same loaded world, car and
+simulation state for both selectors. It uses 256 mixed-walking fixtures plus
+ordinary targets/ball, default four-zone coverage, two warmup passes and 20
+measured passes. Simulation does not advance inside the synchronous comparison.
+
+| Four-zone acquisition CPU | Eager reference | Optimized |
+| --- | ---: | ---: |
+| Median | 19.179 ms | 1.680 ms |
+| P95 | 29.169 ms | 3.452 ms |
+
+This is about 11.4 times faster at the median in this bounded headless sample.
+The eager reference uses the original coverage/selection order and per-target
+visibility setup; its lookup uses array indices instead of gameplay IDs.
+The eager pass runs first in each pair, so cache/order effects are not isolated.
+No performance threshold is asserted by the test, avoiding machine-load flakes.
+Logs for this sample: `/tmp/car-fight-targeting-sprite-test.log`.
+
+Reproduce the CPU comparison with:
+
+```sh
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tests/sprite_combat_test.gd -- --offline --no-drone
+```
+
+This does not replace the earlier rendered profile: no rendered frame time,
+GPU cost, full-combat tick cost, or multiplayer capacity is measured here.
+An approved monitored repeat at 256 with full combat and owner driving/shooting
+remains the next acceptance step. Do not compare these per-acquisition CPU
+numbers directly with the historical per-rendered-frame timings above.
+
+Validation also passed `scripts/check.sh`, `tests/coverage_config_test.gd`, and
+`scripts/combat_test.sh` (automatic shots/hits, editor and cloak suppression).
+The combat harness needed execution outside the sandbox after process startup
+was denied. The broad suite was omitted per `docs/QUALITY_GATES.md`: this change
+is confined to acquisition and does not change state, RPCs or authority flow.
