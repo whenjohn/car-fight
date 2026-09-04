@@ -1,5 +1,30 @@
 # Current phase
 
+## Active worktree: networking review, 2026-09-04
+
+- Created `/Users/johnnguyen/Projects/car-fight-networking` from updated master
+  `9a25b09`, branch `codex/networking-review`; required local art copied with
+  `scripts/sync_local_assets.sh`. Canonical master remains unchanged.
+- Review and primary-source research are in
+  `docs/NETWORKING_REVIEW_2026-09-04.md`. Runtime code/settings unchanged.
+- First actionable finding: live input adds `drop_troops`, but the packed codec
+  expects the older schema and silently falls back. Live opt-in input measured
+  496 logical bytes/message. Existing codec test passes without live-schema
+  coverage. Fix codec/version handling and actual-encoding telemetry first.
+- Also found inactive-peer errors missed by the networking gate, unbounded
+  browser connect paths, native/mux configuration differences, and packet-size
+  budgeting gaps at larger object counts. See the review for evidence/limits.
+- Headless combined profile: legacy failed at 2.852 units, passed its isolated
+  repeat at 1.587; opt-in G2 divisor 1 passed at 0.586 with no missing-reference
+  warnings. Both passing logs contain shutdown engine errors. These are short
+  diagnostic comparisons, not clean lifecycle or cross-platform acceptance.
+- Fast check and existing codec assertions passed. Raw evidence retained under
+  ignored `.network-runs/review-2026-09-04/`. No rendered runs or deployment.
+- Next: implement the bounded codec/schema fix, then connection/gate handling;
+  compare all three transport paths before changing defaults. Platform and
+  impairment matrix plus later pacing/interpolation/input-delay trials are
+  documented in the review.
+
 ## Canonical baseline
 
 - Active repository: `/Users/johnnguyen/Projects/car-fight` on `master`.
