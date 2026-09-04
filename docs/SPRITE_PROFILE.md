@@ -252,3 +252,46 @@ fire/hits, editor suppression and cloak suppression. Broader networking tests
 remain outside this acquisition-only change; no shared state or RPC changed.
 
 Final `scripts/check.sh` passes two imports, syntax, manifest, UID and diff checks.
+
+## Rendered follow-up — 2026-09-04, run 174243
+
+User approved continuing with the monitored rendered test. Temporary timing
+instrumentation was adapted to `66d0288` and the retained phase runner. The
+ordinary-window monitor completed cleanly. Instrumentation was then removed;
+its patch, runner, launcher and raw JSON remain under ignored
+`.crash-runs/sprite-profile/` in the targeting worktree.
+
+Each phase configured 256 mixed-walking fixtures at 128px, warmed three seconds
+and sampled eight seconds with the car frozen. Combat remained fully enabled
+for its phase; 253 targets were alive at its end versus 256 without combat.
+
+| Rendered measurement | Combat enabled | Combat disabled |
+| --- | ---: | ---: |
+| Median frame | 20.727 ms | 19.827 ms |
+| P95 frame | 27.135 ms | 23.189 ms |
+| Combat CPU / frame | 2.322 ms | 0 |
+| Acquisition CPU / frame | 1.560 ms | 0 |
+| Fixture simulation / tick | 2.784 ms | 2.830 ms |
+| Sprite script CPU / frame | 0.647 ms | 0.645 ms |
+| Visibility calls / 8-second sample | 5 | 0 |
+
+The combat-on median corresponds to approximately 48 FPS (reciprocal of median
+frame time, not average FPS). The within-run median difference is only 0.900 ms;
+combat no longer causes the large frame-time gap seen in the original profile.
+The historical unoptimized combat-on result was 148.97 ms median / 164.68 ms P95,
+with 109.36 ms acquisition CPU per frame and about 57,000 rays per second.
+This is a substantial observed improvement, but historical comparisons do not
+isolate machine load or the car's exact pose. The initial free-driving period
+before the runner freezes the car can change that pose; no claim of an exact
+matched-position speedup is made. This scan-heavy fixed-car case is not a
+sustained firing or multiplayer-capacity test.
+
+The first attempted run `20260904-174125` closed before producing any profile
+phases and is not measurement evidence. The retry used an ignored launcher
+that explicitly exports profile variables and logged successful activation.
+The accepted run also had the known multi-second startup stall before warmed
+sampling; this optimization does not resolve cold-start rendering latency.
+
+Evidence: `.crash-runs/20260904-174243/`, monitor state `clean`, plus
+`.crash-runs/sprite-profile/results.json`. Next: owner driving/shooting acceptance
+with the uninstrumented branch at 256 fixtures.

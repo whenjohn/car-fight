@@ -36,9 +36,15 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 - Follow-up validation passed targeting regressions, real sprite combat/CPU
   comparison, the focused server/client combat gate and `scripts/check.sh`.
   No broader state/network changes.
-- Next: an explicitly approved monitored 256-fixture combat profile and owner
-  driving/shooting acceptance. No merge or production deployment performed.
-  See `docs/SPRITE_PROFILE.md` for implementation evidence and limitations.
+- Rendered profile completed after owner approval, monitor run
+  `20260904-174243` clean: 256 fixtures with combat measured 20.727 ms median /
+  27.135 ms P95, versus 19.827 / 23.189 ms without combat. Acquisition was
+  1.560 ms per rendered frame. The historical unoptimized median was 148.97 ms;
+  exact car pose and machine load are not controlled across those runs.
+- Temporary instrumentation was removed after the run and retained as ignored
+  diagnostic artifacts. See `docs/SPRITE_PROFILE.md` for raw evidence and limits.
+- Next: owner driving/shooting acceptance at 256 on the uninstrumented branch.
+  No merge or production deployment performed.
 
 ## Accepted: interactive sprite test in canonical master
 
