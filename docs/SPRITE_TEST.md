@@ -106,6 +106,10 @@ the character theme or a claim that those improvements have been implemented.
 Historical compact-layout, fixed-camera, five-second warmed samples on this Intel Mac, with the car frozen
 and unrelated automatic combat suppressed:
 
+For the newer spread-out 256-fixture investigation, see
+[the CPU profile](SPRITE_PROFILE.md): automatic target acquisition dominated
+the slowdown; this is not an established sprite-rendering capacity limit.
+
 | Targets | Resolution | Median frame ms | P95 frame ms | Extra texture memory |
 | --- | --- | --- | --- | --- |
 | 0 | baseline | 16.25 | 18.95 | — |

@@ -18,6 +18,15 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 
 ## Accepted: interactive sprite test in canonical master
 
+- Owner confirmed the spread-out 256-fixture slowdown on a repeat run; 128
+  felt better. CPU profiling now identifies automatic target acquisition as
+  the dominant cause, not a demonstrated sprite rendering limit. The matched
+  256 test measured 148.97 ms median with combat versus 16.38 ms without it;
+  acquisition used about 98% of combat CPU and performed about 57,000 visibility
+  checks/second before range/angle filtering. See `docs/SPRITE_PROFILE.md`.
+  Temporary instrumentation was removed; no optimization or deployment made.
+  Next: filter range/angle before visibility queries, preserve targeting rules,
+  then rerun 256 with full combat and owner driving/shooting validation.
 - Follow-up requested: raise the practical test ceiling and spread fixtures
   out. Added 128/256 count options and a street layout with at least four-unit
   initial separation, building clearance and a six-unit clear zone around the
