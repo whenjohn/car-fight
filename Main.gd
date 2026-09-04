@@ -4057,16 +4057,20 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 		var ranges: PackedFloat32Array = config["ranges"]
 		var widths: PackedFloat32Array = config["widths"]
 		var tips_outward: PackedByteArray = config["tips_outward"]
+		var ready_zones := 0
 		for zone in range(COVERAGE.ZONE_COUNT):
 			var cooldown_key := "%d:%d" % [owner_id, zone]
 			if tick - int(_zone_last_fire_tick.get(cooldown_key, -COMBAT_FIRE_INTERVAL_TICKS)) \
-					< COMBAT_FIRE_INTERVAL_TICKS:
-				continue
-			var target := _acquire_target(body, zone, ranges[zone], widths[zone],
-				bool(tips_outward[zone]))
+					>= COMBAT_FIRE_INTERVAL_TICKS:
+				ready_zones |= 1 << zone
+		if ready_zones == 0:
+			continue
+		var selected := _acquire_targets(body, ranges, widths, tips_outward, ready_zones)
+		for zone in range(COVERAGE.ZONE_COUNT):
+			var target := selected[zone]
 			if target == null:
 				continue
-			_zone_last_fire_tick[cooldown_key] = tick
+			_zone_last_fire_tick["%d:%d" % [owner_id, zone]] = tick
 			_fire_combat_bolt(body, target, zone)
 
 func _service_area_weapons() -> void:
@@ -4237,33 +4241,70 @@ func homing_target_for(target_id: int) -> Node3D:
 
 func _acquire_target(body: RigidBody3D, zone: int, reach: float, width: float,
 		tip_outward: bool) -> Node3D:
-	var candidates: Array[Dictionary] = []
-	var by_id := {}
-	for target_node in _targets.get_children():
-		var target := target_node as StaticBody3D
-		if not _combat_target_active(target):
-			continue
-		var target_id := int(target.get("target_id"))
-		var local := COVERAGE.local_point(target.global_position, body.global_transform)
-		candidates.append({"id": target_id, "local_position": local,
-			"visible": _has_target_line_of_sight(body, target)})
-		by_id[target_id] = target
-	for index in range(_balls.get_child_count()):
-		var ball := _balls.get_child(index) as RigidBody3D
-		if ball == null:
-			continue
-		var target_id := BALL_TARGET_ID_BASE - index
-		var local := COVERAGE.local_point(ball.global_position, body.global_transform)
-		candidates.append({"id": target_id, "local_position": local,
-			"visible": _has_target_line_of_sight(body, ball)})
-		by_id[target_id] = ball
-	var selected := AUTO_TARGETING.select_nearest(zone, reach, width, tip_outward, candidates)
-	return by_id.get(selected) as Node3D
+	var ranges := PackedFloat32Array([0, 0, 0, 0])
+	var widths := PackedFloat32Array([0, 0, 0, 0])
+	var tips := PackedByteArray([0, 0, 0, 0])
+	ranges[zone] = reach
+	widths[zone] = width
+	tips[zone] = int(tip_outward)
+	return _acquire_targets(body, ranges, widths, tips, 1 << zone)[zone]
 
-func _has_target_line_of_sight(body: RigidBody3D, target: Node3D) -> bool:
-	var start := _combat_muzzle_origin(body, target.global_position)
-	var query := PhysicsRayQueryParameters3D.create(start, target.global_position, 1)
-	query.exclude = _combat_dynamic_rids()
+func _acquire_targets(body: RigidBody3D, ranges: PackedFloat32Array,
+		widths: PackedFloat32Array, tips: PackedByteArray, ready_zones: int = 15) -> Array[Node3D]:
+	var selected: Array[Node3D] = [null, null, null, null]
+	var distances := PackedFloat64Array([INF, INF, INF, INF])
+	var zones: Array[int] = []
+	for zone in range(COVERAGE.ZONE_COUNT):
+		if ready_zones & (1 << zone) and ranges[zone] > 0.0001 and widths[zone] > 0.0001:
+			zones.append(zone)
+	if zones.is_empty():
+		return selected
+	var inverse := body.global_transform.affine_inverse()
+	var query: PhysicsRayQueryParameters3D = null
+	# Visit each candidate once for this car. Original traversal and strict
+	# nearer-only replacement preserve first-visible ties in every zone.
+	for container in [_targets, _balls]:
+		for child in container.get_children():
+			var target: Node3D
+			if container == _targets:
+				target = child as StaticBody3D
+				if not _combat_target_active(target):
+					continue
+			else:
+				target = child as RigidBody3D
+				if target == null:
+					continue
+			var point := inverse * target.global_position
+			var local := Vector2(point.x, point.z)
+			var distance := local.length_squared()
+			var contenders := 0
+			for zone in zones:
+				if distance < distances[zone] and COVERAGE.point_in_zone(
+						local, zone, ranges[zone], widths[zone], bool(tips[zone])):
+					contenders |= 1 << zone
+			if contenders == 0:
+				continue
+			if query == null:
+				query = PhysicsRayQueryParameters3D.new()
+				query.collision_mask = 1
+				query.exclude = _combat_dynamic_rids()
+			# Ray endpoints and obstruction rules depend on car/target, not zone.
+			# Share this result only within this call, before any shots are fired.
+			if _has_target_line_of_sight(body, target, query):
+				for zone in zones:
+					if contenders & (1 << zone):
+						selected[zone] = target
+						distances[zone] = distance
+	return selected
+
+func _has_target_line_of_sight(body: RigidBody3D, target: Node3D,
+		query: PhysicsRayQueryParameters3D = null) -> bool:
+	if query == null:
+		query = PhysicsRayQueryParameters3D.new()
+		query.collision_mask = 1
+		query.exclude = _combat_dynamic_rids()
+	query.from = _combat_muzzle_origin(body, target.global_position)
+	query.to = target.global_position
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	return hit.is_empty()
 

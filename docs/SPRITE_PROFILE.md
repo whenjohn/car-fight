@@ -141,3 +141,157 @@ used the required safe-window monitor:
 ```sh
 CAR_FIGHT_SPRITE_PROFILE=1 CAR_FIGHT_SPRITE_PROFILE_DETAIL=1 CAR_FIGHT_SPRITE_VISUAL_CHECK=1 ./scripts/play_monitored.sh --offline --sprite-test
 ```
+
+## Implemented first pass — targeting worktree, 2026-09-04
+
+Branch `codex/targeting-optimization`, based on `eba42c7`, implements the first
+bounded pass in `Main.gd::_acquire_target`:
+
+- Preserve `COVERAGE.point_in_zone` exactly, including triangular corners and
+  reversed tips; reject outside candidates before visibility work.
+- Retain original target-then-ball traversal and strict nearer-only replacement.
+  Blocked candidates never replace the current visible selection. Farther and
+  tied candidates cannot win, so they do not need a ray.
+- Remove per-candidate dictionaries and ID lookup from runtime acquisition.
+  Reuse one car inverse transform and one lazily built ray/exclusion setup per
+  acquisition. Each zone still scans independently; nothing survives the call.
+- Preserve ray endpoints, mask, exclusions and the existing 15-tick firing
+  interval. Empty zones still reacquire each eligible simulation tick.
+
+Focused evidence:
+
+- `tests/auto_targeting_test.gd`: 240 seeded comparisons with the original pure
+  selector, plus explicit blocked-nearest fallback, first-visible ties, dead
+  sprites, balls, triangle corners, reversed tips and overlapping-zone cases.
+  A synthetic 256-candidate case with 255 outside coverage needs one visibility
+  call and one exclusion setup instead of 256 calls/setups.
+- `tests/sprite_combat_test.gd`: real physics wall occlusion and dead-target
+  acquisition, existing projectile/area/run-over checks, and identical results
+  for all four zones against an eager real-ray reference in the 256-fixture city.
+
+The real-world headless CPU comparison keeps the same loaded world, car and
+simulation state for both selectors. It uses 256 mixed-walking fixtures plus
+ordinary targets/ball, default four-zone coverage, two warmup passes and 20
+measured passes. Simulation does not advance inside the synchronous comparison.
+
+| Four-zone acquisition CPU | Eager reference | Optimized |
+| --- | ---: | ---: |
+| Median | 19.179 ms | 1.680 ms |
+| P95 | 29.169 ms | 3.452 ms |
+
+This is about 11.4 times faster at the median in this bounded headless sample.
+The eager reference uses the original coverage/selection order and per-target
+visibility setup; its lookup uses array indices instead of gameplay IDs.
+The eager pass runs first in each pair, so cache/order effects are not isolated.
+No performance threshold is asserted by the test, avoiding machine-load flakes.
+Logs for this sample: `/tmp/car-fight-targeting-sprite-test.log`.
+
+Reproduce the CPU comparison with:
+
+```sh
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tests/sprite_combat_test.gd -- --offline --no-drone
+```
+
+This does not replace the earlier rendered profile: no rendered frame time,
+GPU cost, full-combat tick cost, or multiplayer capacity is measured here.
+An approved monitored repeat at 256 with full combat and owner driving/shooting
+remains the next acceptance step. Do not compare these per-acquisition CPU
+numbers directly with the historical per-rendered-frame timings above.
+
+Validation also passed `scripts/check.sh`, `tests/coverage_config_test.gd`, and
+`scripts/combat_test.sh` (automatic shots/hits, editor and cloak suppression).
+The combat harness needed execution outside the sandbox after process startup
+was denied. The broad suite was omitted per `docs/QUALITY_GATES.md`: this change
+is confined to acquisition and does not change state, RPCs or authority flow.
+
+## Shared four-zone pass — 2026-09-04
+
+The follow-up on `codex/targeting-optimization` processes ready zones together.
+Each candidate's active state, local position and distance are computed once
+per car; one lazy ray/exclusion setup serves the pass. A target that could win
+several overlapping zones receives one ray and its result serves those zones.
+There is no persistent visibility cache. The original zone firing order remains
+unchanged, and bolts are spawned only after this synchronous selection pass;
+spawning a bolt does not immediately move it or apply damage.
+
+The service still checks each zone's existing 15-tick cooldown and marks it fired
+only when a target is selected. Tests now explicitly check ticks 100/114/115,
+empty-zone immediate acquisition while another zone cools down, and editor/cloak
+suppression. All-cooled or disabled zones require no visibility work. A shared
+blocked-overlap result is refreshed on the next call.
+
+Matched headless sample with 256 fixtures, 20 measured four-zone passes after
+two warmups, now alternating first-pass/shared execution order:
+
+| Acquisition CPU | Original eager reference | First optimization | Shared pass |
+| --- | ---: | ---: | ---: |
+| Median | 12.233 ms | 1.411 ms | 0.589 ms |
+| P95 | 13.850 ms | 1.970 ms | 0.922 ms |
+
+The shared pass reduces median acquisition time a further 58.3% versus the first
+optimization in this same run (about 2.4 times faster). Overall it uses about
+95.2% less time than the eager reference in this run. Machine load differs from
+the previous sample; use within-run comparisons instead of mixing baselines.
+The test retains both older implementations solely as selection/CPU references.
+Log: `/tmp/car-fight-targeting-sprite2.log`.
+
+Focused targeting coverage now includes 360 seeded per-zone comparisons,
+shared visibility/exclusion counts, cooldown masks and actual service cadence.
+Real sprite wall/hit/death tests and the eager/first/shared 256 comparison pass.
+Rendered FPS/full combat tick measurements and owner driving acceptance remain
+unmeasured; these are synchronous acquisition-only CPU results.
+
+The first three handoff priorities are now covered: early geometry rejection,
+nearest-visible pruning, and shared per-car setup/overlapping-zone visibility.
+Keep scan throttling and spatial grids deferred until a new full-combat profile
+shows a need; the current changes preserve immediate acquisition responsiveness.
+
+The follow-up server/client `scripts/combat_test.sh` also passes automatic
+fire/hits, editor suppression and cloak suppression. Broader networking tests
+remain outside this acquisition-only change; no shared state or RPC changed.
+
+Final `scripts/check.sh` passes two imports, syntax, manifest, UID and diff checks.
+
+## Rendered follow-up — 2026-09-04, run 174243
+
+User approved continuing with the monitored rendered test. Temporary timing
+instrumentation was adapted to `66d0288` and the retained phase runner. The
+ordinary-window monitor completed cleanly. Instrumentation was then removed;
+its patch, runner, launcher and raw JSON remain under ignored
+`.crash-runs/sprite-profile/` in the targeting worktree.
+
+Each phase configured 256 mixed-walking fixtures at 128px, warmed three seconds
+and sampled eight seconds with the car frozen. Combat remained fully enabled
+for its phase; 253 targets were alive at its end versus 256 without combat.
+
+| Rendered measurement | Combat enabled | Combat disabled |
+| --- | ---: | ---: |
+| Median frame | 20.727 ms | 19.827 ms |
+| P95 frame | 27.135 ms | 23.189 ms |
+| Combat CPU / frame | 2.322 ms | 0 |
+| Acquisition CPU / frame | 1.560 ms | 0 |
+| Fixture simulation / tick | 2.784 ms | 2.830 ms |
+| Sprite script CPU / frame | 0.647 ms | 0.645 ms |
+| Visibility calls / 8-second sample | 5 | 0 |
+
+The combat-on median corresponds to approximately 48 FPS (reciprocal of median
+frame time, not average FPS). The within-run median difference is only 0.900 ms;
+combat no longer causes the large frame-time gap seen in the original profile.
+The historical unoptimized combat-on result was 148.97 ms median / 164.68 ms P95,
+with 109.36 ms acquisition CPU per frame and about 57,000 rays per second.
+This is a substantial observed improvement, but historical comparisons do not
+isolate machine load or the car's exact pose. The initial free-driving period
+before the runner freezes the car can change that pose; no claim of an exact
+matched-position speedup is made. This scan-heavy fixed-car case is not a
+sustained firing or multiplayer-capacity test.
+
+The first attempted run `20260904-174125` closed before producing any profile
+phases and is not measurement evidence. The retry used an ignored launcher
+that explicitly exports profile variables and logged successful activation.
+The accepted run also had the known multi-second startup stall before warmed
+sampling; this optimization does not resolve cold-start rendering latency.
+
+Evidence: `.crash-runs/20260904-174243/`, monitor state `clean`, plus
+`.crash-runs/sprite-profile/results.json`. Next: owner driving/shooting acceptance
+with the uninstrumented branch at 256 fixtures.

@@ -16,6 +16,40 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
+## Accepted: targeting optimization merged into canonical master
+
+- Owner authorized merging `codex/targeting-optimization` into canonical
+  `master`, preserving the newer modern-sprite and baked-shadow changes.
+  Source worktree remains `/Users/johnnguyen/Projects/car-fight-targeting`.
+- Acquisition applies the existing triangular coverage before visibility,
+  skips candidates that cannot beat the nearest visible selection, and shares
+  one candidate traversal/inverse transform/lazy ray setup across ready zones.
+  Overlapping zones share each candidate's ray result within this call only.
+  No cross-tick cache, scan throttling, cooldown, authority or wire changes.
+- The first pass was committed/pushed as `3403e4a`. Follow-up matched headless
+  256-fixture results: eager 12.233 ms, first pass 1.411 ms, shared pass 0.589 ms
+  median per four zones. Shared scanning saves a further 58.3% in that run.
+  This is acquisition CPU evidence, not rendered FPS or multiplayer capacity.
+- Targeting tests cover 360 seeded comparisons, blocked fallback, ties, reversed
+  tips, triangle corners, dead sprites, balls, shared overlap, cooldown masks,
+  exact 15-tick firing and immediate empty-zone reacquisition. Real sprite
+  combat exercises wall occlusion and matches all three selectors at 256.
+- Follow-up validation passed targeting regressions, real sprite combat/CPU
+  comparison, the focused server/client combat gate and `scripts/check.sh`.
+  No broader state/network changes.
+- Rendered profile completed after owner approval, monitor run
+  `20260904-174243` clean: 256 fixtures with combat measured 20.727 ms median /
+  27.135 ms P95, versus 19.827 / 23.189 ms without combat. Acquisition was
+  1.560 ms per rendered frame. The historical unoptimized median was 148.97 ms;
+  exact car pose and machine load are not controlled across those runs.
+- Temporary instrumentation was removed after the run and retained as ignored
+  diagnostic artifacts. See `docs/SPRITE_PROFILE.md` for raw evidence and limits.
+- Merge validation passed `scripts/check.sh`, targeting regressions, sprite
+  lab contracts (including modern samples), and live offline sprite combat.
+  Focused gates cover the combined acquisition/presentation changes; no shared
+  authority or transport changes warrant the broad networking suite.
+- Optimization merged into `master`. No production deployment performed.
+
 ## Accepted: interactive sprite test in canonical master
 
 - Baked-shadow trial for modern samples: confirmed translucent shadows in the
