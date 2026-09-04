@@ -44,6 +44,9 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 - Owner accepted the sprite test after single-client runs `20260904-160642`
   and `20260904-161030`; both exited cleanly. Implementation is committed as
   `4a1324b` on canonical `master`. No production deployment occurred.
+- Owner visual feedback: the sprites look okay as a proof of concept; more
+  directional views and a higher animation frame rate could make them look
+  good. Keep these as follow-up evaluation priorities, not completed changes.
 - Verification: fast check; sprite asset/animation/capsule tests; live offline
   sprite combat; baseline offline and combat gates; and the 64-target server /
   two-client gate for hit/death replication, late joining and owner controls.

@@ -86,6 +86,12 @@ sprites, all four clips, completed death, perspective rendering and the native
 controls. The owner subsequently accepted the sprite test after single-client
 runs `20260904-160642` and `20260904-161030`, both of which exited cleanly.
 
+Owner visual feedback: the sprites look okay as a proof of concept; more
+directional views and a higher animation frame rate could make them look good.
+Follow-up evaluation should focus on those two improvements. This is feedback
+on the current eight-direction, 12 FPS presentation, not a request to change
+the character theme or a claim that those improvements have been implemented.
+
 Fixed-camera, five-second warmed samples on this Intel Mac, with the car frozen
 and unrelated automatic combat suppressed:
 
