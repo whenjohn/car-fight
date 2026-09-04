@@ -16,7 +16,7 @@ Read `AGENTS.md` for mandatory project rules and `.ai/CONTEXT.md` for the stable
 architecture index. Read `GODOT_46_TO_47_HISTORY.md` before changing the engine,
 renderer, lighting safety policy, Rapier, caches, or world architecture.
 
-## Implemented: interactive sprite test in canonical master
+## Accepted: interactive sprite test in canonical master
 
 - Session scope: evaluate sprites in Car Fight using the CC0 ghoul pack as
   sample art. This is not a zombie gameplay direction.
@@ -41,7 +41,9 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   were outside the viewport, so this is not an all-visible crowd limit.
 - Both runs showed an approximately 6.9-second initial rendering stall before
   warmed sampling. No claim is made about cold-start/network rendering latency.
-- Owner art/feel acceptance remains open. No production deployment occurred.
+- Owner accepted the sprite test after single-client runs `20260904-160642`
+  and `20260904-161030`; both exited cleanly. Implementation is committed as
+  `4a1324b` on canonical `master`. No production deployment occurred.
 - Verification: fast check; sprite asset/animation/capsule tests; live offline
   sprite combat; baseline offline and combat gates; and the 64-target server /
   two-client gate for hit/death replication, late joining and owner controls.

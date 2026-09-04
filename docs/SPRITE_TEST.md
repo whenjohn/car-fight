@@ -83,7 +83,8 @@ no script errors or display precursors. Captures and measurements are under
 `.crash-runs/sprite-visual-1788551836/` and
 `.crash-runs/sprite-visual-1788552032/`. Inspected normal-distance and close-up
 sprites, all four clips, completed death, perspective rendering and the native
-controls. Owner judgment of the sample art and feel remains a separate review.
+controls. The owner subsequently accepted the sprite test after single-client
+runs `20260904-160642` and `20260904-161030`, both of which exited cleanly.
 
 Fixed-camera, five-second warmed samples on this Intel Mac, with the car frozen
 and unrelated automatic combat suppressed:
