@@ -6,6 +6,15 @@ const TARGETING := preload("res://combat/auto_targeting.gd")
 class Fixture extends StaticBody3D:
 	var health := 3
 
+class Shooter extends RigidBody3D:
+	var map_id := 0
+	var is_cloaked := false
+	var area_weapon_armed := false
+	var rc_pilot_active := false
+
+class Controls extends Node:
+	var editing := false
+
 var failures: Array[String] = []
 var main
 var body: RigidBody3D
@@ -58,6 +67,29 @@ func _run() -> void:
 		and _pick(1, 8.0, COVERAGE.MAX_WIDTH) == corner,
 		"overlapping zones independently acquire the same target")
 
+	main.rays = 0
+	main.setups = 0
+	main.seen_query = null
+	var wide := PackedFloat32Array([COVERAGE.MAX_WIDTH, COVERAGE.MAX_WIDTH, 0, 0])
+	var shared: Array[Node3D] = main._acquire_targets(body, COVERAGE.default_ranges(),
+		wide, COVERAGE.default_tips_outward())
+	_check(shared[0] == corner and shared[1] == corner and main.rays == 1 and main.setups == 1,
+		"overlapping zones share one ray and one setup")
+	corner.set_meta("visible", false)
+	shared = main._acquire_targets(body, COVERAGE.default_ranges(), wide,
+		COVERAGE.default_tips_outward())
+	_check(shared[0] == null and shared[1] == null, "blocked overlap refreshes on next call")
+	corner.set_meta("visible", true)
+	shared = main._acquire_targets(body, COVERAGE.default_ranges(), wide,
+		COVERAGE.default_tips_outward(), 2)
+	_check(shared[0] == null and shared[1] == corner, "cooldown mask excludes unready zone")
+	main.rays = 0
+	main.setups = 0
+	shared = main._acquire_targets(body, COVERAGE.default_ranges(), wide,
+		COVERAGE.default_tips_outward(), 0)
+	_check(shared == [null, null, null, null] and main.rays == 0 and main.setups == 0,
+		"all zones cooling down do no visibility setup")
+
 	# Differential oracle uses the original eager selector with seeded geometry,
 	# rotated/scaled car transforms, visibility and dead sprites.
 	var rng := RandomNumberGenerator.new()
@@ -77,6 +109,19 @@ func _run() -> void:
 				var width := rng.randf_range(0.1, COVERAGE.MAX_WIDTH)
 				_check(_pick(zone, reach, width, tip) == _reference(zone, reach, width, tip),
 					"seeded nearest-visible equivalence")
+		var ranges := PackedFloat32Array()
+		var widths := PackedFloat32Array()
+		var tips := PackedByteArray()
+		for zone in range(4):
+			ranges.append(rng.randf_range(0.1, 24.0))
+			widths.append(rng.randf_range(0.1, COVERAGE.MAX_WIDTH))
+			tips.append(rng.randi_range(0, 1))
+		var mask := rng.randi_range(0, 15)
+		shared = main._acquire_targets(body, ranges, widths, tips, mask)
+		for zone in range(4):
+			var expected := _reference(zone, ranges[zone], widths[zone], bool(tips[zone])) \
+				if mask & (1 << zone) else null
+			_check(shared[zone] == expected, "shared pass matches independent eager zones and cooldowns")
 	_clear()
 	body.transform = Transform3D.IDENTITY
 	nearest = _fixture(Vector2(0, -2))
@@ -84,10 +129,40 @@ func _run() -> void:
 		_fixture(Vector2(20 + index, -4))
 	_check(_pick() == nearest and main.rays == 1 and main.setups == 1,
 		"256 candidates need only one ray when 255 are outside coverage")
+	_clear()
+	var shooter := Shooter.new()
+	shooter.freeze = true
+	shooter.name = "2"
+	var controls := Controls.new()
+	controls.name = "Input"
+	shooter.add_child(controls)
+	main._players = Node3D.new()
+	world.add_child(main._players)
+	main._players.add_child(shooter)
+	_fixture(Vector2(0, -3))
+	main._service_auto_combat(0.0, 100)
+	_check(main.fired_zones == [0], "ready front zone fires immediately")
+	main.fired_zones.clear()
+	main._service_auto_combat(0.0, 114)
+	_check(main.fired_zones.is_empty(), "front zone waits the full 15-tick interval")
+	_fixture(Vector2(3, 0))
+	main._service_auto_combat(0.0, 114)
+	_check(main.fired_zones == [1], "empty zone reacquires immediately while front cools down")
+	main.fired_zones.clear()
+	main._service_auto_combat(0.0, 115)
+	_check(main.fired_zones == [0], "front fires exactly at the original cooldown boundary")
+	main.fired_zones.clear()
+	controls.editing = true
+	main._service_auto_combat(0.0, 200)
+	_check(main.fired_zones.is_empty(), "editing suppresses all acquisitions")
+	controls.editing = false
+	shooter.is_cloaked = true
+	main._service_auto_combat(0.0, 200)
+	_check(main.fired_zones.is_empty(), "cloak suppresses all acquisitions")
 	main.free()
 	world.free()
 	if failures.is_empty():
-		print("AUTO_TARGETING_TEST PASS differential_cases=240 crowded_rays=1/256")
+		print("AUTO_TARGETING_TEST PASS differential_cases=360 crowded_rays=1/256")
 		quit()
 	else:
 		for message in failures:

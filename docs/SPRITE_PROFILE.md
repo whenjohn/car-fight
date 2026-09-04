@@ -204,3 +204,51 @@ Validation also passed `scripts/check.sh`, `tests/coverage_config_test.gd`, and
 The combat harness needed execution outside the sandbox after process startup
 was denied. The broad suite was omitted per `docs/QUALITY_GATES.md`: this change
 is confined to acquisition and does not change state, RPCs or authority flow.
+
+## Shared four-zone pass — 2026-09-04
+
+The follow-up on `codex/targeting-optimization` processes ready zones together.
+Each candidate's active state, local position and distance are computed once
+per car; one lazy ray/exclusion setup serves the pass. A target that could win
+several overlapping zones receives one ray and its result serves those zones.
+There is no persistent visibility cache. The original zone firing order remains
+unchanged, and bolts are spawned only after this synchronous selection pass;
+spawning a bolt does not immediately move it or apply damage.
+
+The service still checks each zone's existing 15-tick cooldown and marks it fired
+only when a target is selected. Tests now explicitly check ticks 100/114/115,
+empty-zone immediate acquisition while another zone cools down, and editor/cloak
+suppression. All-cooled or disabled zones require no visibility work. A shared
+blocked-overlap result is refreshed on the next call.
+
+Matched headless sample with 256 fixtures, 20 measured four-zone passes after
+two warmups, now alternating first-pass/shared execution order:
+
+| Acquisition CPU | Original eager reference | First optimization | Shared pass |
+| --- | ---: | ---: | ---: |
+| Median | 12.233 ms | 1.411 ms | 0.589 ms |
+| P95 | 13.850 ms | 1.970 ms | 0.922 ms |
+
+The shared pass reduces median acquisition time a further 58.3% versus the first
+optimization in this same run (about 2.4 times faster). Overall it uses about
+95.2% less time than the eager reference in this run. Machine load differs from
+the previous sample; use within-run comparisons instead of mixing baselines.
+The test retains both older implementations solely as selection/CPU references.
+Log: `/tmp/car-fight-targeting-sprite2.log`.
+
+Focused targeting coverage now includes 360 seeded per-zone comparisons,
+shared visibility/exclusion counts, cooldown masks and actual service cadence.
+Real sprite wall/hit/death tests and the eager/first/shared 256 comparison pass.
+Rendered FPS/full combat tick measurements and owner driving acceptance remain
+unmeasured; these are synchronous acquisition-only CPU results.
+
+The first three handoff priorities are now covered: early geometry rejection,
+nearest-visible pruning, and shared per-car setup/overlapping-zone visibility.
+Keep scan throttling and spatial grids deferred until a new full-combat profile
+shows a need; the current changes preserve immediate acquisition responsiveness.
+
+The follow-up server/client `scripts/combat_test.sh` also passes automatic
+fire/hits, editor suppression and cloak suppression. Broader networking tests
+remain outside this acquisition-only change; no shared state or RPC changed.
+
+Final `scripts/check.sh` passes two imports, syntax, manifest, UID and diff checks.

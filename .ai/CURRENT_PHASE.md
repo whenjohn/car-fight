@@ -20,21 +20,22 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 
 - Worktree: `/Users/johnnguyen/Projects/car-fight-targeting`, branch
   `codex/targeting-optimization`, based on canonical `eba42c7`.
-- Acquisition now applies the existing triangular coverage before visibility,
-  skips candidates that cannot beat the nearest visible selection, and reuses
-  one inverse transform and lazy ray/exclusion setup per acquisition. No
-  cross-tick cache, scan throttling, cooldown, authority or wire changes.
-- Focused tests compare against the original eager selector, including blocked
-  fallback, ties, reversed tips, triangle corners, dead sprites, balls and
-  overlapping zones. Real sprite combat also exercises wall occlusion.
-- Matched headless 256-fixture comparison: four-zone acquisition median
-  19.179 ms eager versus 1.680 ms optimized; P95 29.169 versus 3.452 ms over
-  20 warmed samples with identical target choices. This is CPU-only evidence,
-  not a rendered FPS or multiplayer-capacity measurement.
-- Validation passed: `scripts/check.sh`, targeting and coverage tests, live
-  sprite combat/CPU comparison, and `scripts/combat_test.sh`. The combat
-  harness needed an unsandboxed run after sandbox process startup failed.
-  Broader networking gates are unnecessary for this acquisition-only change.
+- Acquisition applies the existing triangular coverage before visibility,
+  skips candidates that cannot beat the nearest visible selection, and shares
+  one candidate traversal/inverse transform/lazy ray setup across ready zones.
+  Overlapping zones share each candidate's ray result within this call only.
+  No cross-tick cache, scan throttling, cooldown, authority or wire changes.
+- The first pass was committed/pushed as `3403e4a`. Follow-up matched headless
+  256-fixture results: eager 12.233 ms, first pass 1.411 ms, shared pass 0.589 ms
+  median per four zones. Shared scanning saves a further 58.3% in that run.
+  This is acquisition CPU evidence, not rendered FPS or multiplayer capacity.
+- Targeting tests cover 360 seeded comparisons, blocked fallback, ties, reversed
+  tips, triangle corners, dead sprites, balls, shared overlap, cooldown masks,
+  exact 15-tick firing and immediate empty-zone reacquisition. Real sprite
+  combat exercises wall occlusion and matches all three selectors at 256.
+- Follow-up validation passed targeting regressions, real sprite combat/CPU
+  comparison, the focused server/client combat gate and `scripts/check.sh`.
+  No broader state/network changes.
 - Next: an explicitly approved monitored 256-fixture combat profile and owner
   driving/shooting acceptance. No merge or production deployment performed.
   See `docs/SPRITE_PROFILE.md` for implementation evidence and limitations.
