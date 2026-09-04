@@ -1,11 +1,13 @@
 extends AnimatedSprite3D
 ## Camera-relative appearance only. Health and collision live on the target.
 const DIRECTIONS := ["S", "SW", "W", "NW", "N", "NE", "E", "SE"]
-const SAMPLES := ["ghoul", "survivor", "thug"]
-const SAMPLE_LABELS := ["Ghoul (original)", "HD survivor (128px)", "Outlined thug (64px)"]
+const SAMPLES := ["ghoul", "survivor", "thug", "knight"]
+const SAMPLE_LABELS := ["Ghoul (original)", "HD survivor (128px)", "Outlined thug (64px)", "HD knight (128px)"]
 const MODERN_ROOT := "res://assets/local/smallscale-modern/"
 const MODERN_FOLDERS := {"survivor": "FREE Character HD Survivor W Bike", "thug": "FREE Character 16-bit Thug Outlined"}
 const MODERN_ACTIONS := {"idle": "Idle", "walk": "Walk", "attack": "Attack1", "death": "Die"}
+const KNIGHT_ROOT := "res://assets/local/smallscale-knight/2D HD Character Knight/Spritesheets/With shadows/"
+const KNIGHT_ACTIONS := {"idle": "Idle", "walk": "Walk", "attack": "Melee", "death": "Die"}
 # Source rows run E, SE, S, SW, W, NW, N, NE (visually checked).
 const MODERN_ROWS := [2, 3, 4, 5, 6, 7, 0, 1]
 static var _clips := {}
@@ -35,23 +37,34 @@ func _ready() -> void:
 		# Preserve the baked translucent contact shadow. The opaque prepass keeps
 		# solid character pixels depth-tested while the shadow blends with the road.
 		alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
-		pixel_size = world_height / (float(size) * 44.0 / 128.0)
-		# Idle feet/shadow reach row 90 in the 128px export. Anchor below them,
-		# rather than letting the final rows intersect the ground at row 88.
-		offset = Vector2(0.0, float(size) * (91.0 / 128.0 - 0.5))
+		pixel_size = world_height / (float(size) * body_pixels(sample) / 128.0)
+		offset = Vector2(0.0, float(size) * (ground_row(sample) / 128.0 - 0.5))
 		if sample == "thug":
 			texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 
 static func native_size(character: String) -> int:
 	return 64 if character == "thug" else 128
 
+static func body_pixels(character: String) -> float:
+	return 60.0 if character == "knight" else 44.0
+
+static func ground_row(character: String) -> float:
+	return 112.0 if character == "knight" else 91.0
+
+static func sample_path(character: String, action: String) -> String:
+	if character == "knight":
+		return KNIGHT_ROOT + KNIGHT_ACTIONS.get(action, "") + ".png"
+	if MODERN_FOLDERS.has(character):
+		return MODERN_ROOT + MODERN_FOLDERS[character] + "/" + MODERN_ACTIONS.get(action, "") + ".png"
+	return ""
+
 static func sample_available(character: String) -> bool:
 	if character == "ghoul":
 		return true
-	if not MODERN_FOLDERS.has(character):
+	if character != "knight" and not MODERN_FOLDERS.has(character):
 		return false
-	for action in MODERN_ACTIONS.values():
-		if not ResourceLoader.exists(MODERN_ROOT + MODERN_FOLDERS[character] + "/" + action + ".png"):
+	for action in ["idle", "walk", "attack", "death"]:
+		if not ResourceLoader.exists(sample_path(character, action)):
 			return false
 	return true
 
@@ -93,7 +106,7 @@ static func _load_modern_clip(character: String, action: String, direction: int)
 		var cached: Variant = (_clips[key] as WeakRef).get_ref()
 		if cached != null:
 			return cached as SpriteFrames
-	var atlas := load(MODERN_ROOT + MODERN_FOLDERS[character] + "/" + MODERN_ACTIONS[action] + ".png") as Texture2D
+	var atlas := load(sample_path(character, action)) as Texture2D
 	var size := native_size(character)
 	if atlas == null or atlas.get_height() != size * 8 or atlas.get_width() % size != 0:
 		return null

@@ -56,6 +56,18 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
 
 ## Accepted: interactive sprite test in canonical master
 
+- Active follow-up worktree: `/Users/johnnguyen/Projects/car-fight-more-sprites`
+  on `codex/more-sprites`, based on `master@9a25b09`. Added SmallScaleInt's
+  explicitly free HD knight as another local-only audition option; the other
+  eight characters in its pack remain paid and were not downloaded. The knight
+  uses native 128px, 15-frame, eight-direction Idle/Walk/Melee/Die sheets with
+  baked shadows, a measured knight-specific scale/ground anchor, and existing
+  presentation-only selection. No collision, damage, movement, targeting,
+  authority, RPC or transport changes. Source remains ignored under
+  `assets/local/smallscale-knight/`; setup/license notes are in
+  `docs/SPRITE_KNIGHT_SAMPLE.md`. Fast check, expanded sprite contracts and
+  live offline sprite combat pass. Interactive monitored run
+  `20260904-185655` is open with 16 knights for owner visual evaluation.
 - Baked-shadow trial for modern samples: confirmed translucent shadows in the
   downloaded PNGs. Changed modern-only alpha discard to opaque-prepass blending
   and ground registration from row 88 to 91 to retain soft pixels and avoid

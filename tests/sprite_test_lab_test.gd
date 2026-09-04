@@ -63,12 +63,12 @@ func _run() -> void:
 	_check(sprite.frame == 0 and sprite.is_playing(), "explicit replay restarts preview")
 	_check(not VISUAL.sample_available("missing-sample"), "unknown sample rejected")
 	_check(VISUAL.load_clip(128, "idle", 0, "missing-sample") != null, "missing sample falls back to ghoul")
-	for character in ["survivor", "thug"]:
+	for character in ["survivor", "thug", "knight"]:
 		if not VISUAL.sample_available(character):
 			print("SPRITE_SAMPLE_SKIP local art absent: ", character)
 			continue
 		var native := VISUAL.native_size(character)
-		var frame_count := 14 if character == "survivor" else 8
+		var frame_count: int = {"survivor": 14, "thug": 8, "knight": 15}[character]
 		for action in ["idle", "walk", "attack", "death"]:
 			for direction in 8:
 				var frames := VISUAL.load_clip(512, action, direction, character)
@@ -85,10 +85,10 @@ func _run() -> void:
 		sprite.manual_direction = 2
 		sprite._process(0.0)
 		_check(sprite.frame == frame_count - 1 and not sprite.is_playing(), "modern death holds across direction changes")
-		_check(is_equal_approx(sprite.pixel_size * native * 44.0 / 128.0, 1.8), "modern standing height")
+		_check(is_equal_approx(sprite.pixel_size * native * VISUAL.body_pixels(character) / 128.0, 1.8), "modern standing height")
 		_check(sprite.alpha_cut == SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS, "modern baked shadow preserves transparency")
 		_check(not sprite.no_depth_test, "modern shadow does not bypass wall depth")
-		_check(is_equal_approx(sprite.offset.y, native * (91.0 / 128.0 - 0.5)), "modern shadow rows clear ground anchor")
+		_check(is_equal_approx(sprite.offset.y, native * (VISUAL.ground_row(character) / 128.0 - 0.5)), "modern shadow rows clear ground anchor")
 	# A dead fixture stays on the final frame when changing character packs.
 	if VISUAL.sample_available("survivor") and VISUAL.sample_available("thug"):
 		sprite.sample = "survivor"

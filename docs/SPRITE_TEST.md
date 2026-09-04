@@ -40,6 +40,9 @@ Two optional SmallScaleInt free modern characters can now be selected locally.
 See [modern sample setup and license notes](SPRITE_MODERN_SAMPLE.md).
 The ghoul remains the default and clean-checkout fallback.
 
+A third SmallScaleInt comparison, the free HD knight, is supported when its
+local archive is installed. See [knight sample setup](SPRITE_KNIGHT_SAMPLE.md).
+
 - The supplied ghoul is sample sprite art. No enemy AI or attacks are added.
 - All four clips have eight directions. Camera-relative facing works in
   orthographic and perspective views; manual facing is available for inspection.
