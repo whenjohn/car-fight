@@ -45,9 +45,12 @@ Start with 16 fixtures: the known 256-target acquisition CPU issue is unresolved
 - Idle/Walk loop; Attack1/Die play once. The same 12 FPS adjustable baseline
   is used because the archives do not include playback timing metadata.
   More frames per clip does not inherently mean higher playback FPS.
-- Fixed foot registration at (64, 88), scaled by native cell size, and a
+- Fixed ground registration at (64, 91), scaled by native cell size, and a
   roughly 44px standing height at 128px keep approximately the same world size
   as the existing 1.8-unit capsule. Registration is shared across animations.
+- Modern samples use alpha blending with an opaque depth prepass to retain
+  their baked translucent foot shadows. The original ghoul keeps alpha discard.
+  Wall/ground depth testing remains enabled; no realtime shadow maps are added.
 - PNG sheets load on demand and share resources across instances. The thug
   uses nearest filtering; survivor uses linear filtering. Ghoul resolution
   controls do not resample the new samples; they stay at native resolution.
@@ -77,6 +80,18 @@ that they look smoother. This is visual preference feedback, not acceptance of
 the remaining death-alignment issue or a measured performance improvement.
 
 ## Owner observation and future selection criteria (2026-09-04)
+
+Shadow follow-up: inspected original idle PNGs and confirmed baked foot shadows
+in both samples. Sampled main-shadow opacity is 164/255 (~64%), above the old
+50% discard threshold; softer pixels below the threshold were removed. Thus
+alpha discard did not remove the whole shadow. The initial row-88 anchor also
+intersected bottom rows with the ground. Trial now uses opaque-prepass blending
+and a row-91 anchor (source idle bounds reach row 90). This preserves translucency
+and clears those idle rows without changing world scale or hitboxes. Shadows
+still belong to the billboard, not a separate ground-projected layer; prone
+poses and other camera/animation combinations still need visual evaluation.
+Fast check and expanded sprite contracts pass. Monitored interactive trial
+`20260904-174127` starts with 16 survivors; owner acceptance is pending.
 
 The modern samples look better and smoother to the owner than the ghoul.
 All three have eight directions and default to 12 animation FPS in this test.

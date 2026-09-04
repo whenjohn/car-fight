@@ -86,11 +86,17 @@ func _run() -> void:
 		sprite._process(0.0)
 		_check(sprite.frame == frame_count - 1 and not sprite.is_playing(), "modern death holds across direction changes")
 		_check(is_equal_approx(sprite.pixel_size * native * 44.0 / 128.0, 1.8), "modern standing height")
+		_check(sprite.alpha_cut == SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS, "modern baked shadow preserves transparency")
+		_check(not sprite.no_depth_test, "modern shadow does not bypass wall depth")
+		_check(is_equal_approx(sprite.offset.y, native * (91.0 / 128.0 - 0.5)), "modern shadow rows clear ground anchor")
 	# A dead fixture stays on the final frame when changing character packs.
 	if VISUAL.sample_available("survivor") and VISUAL.sample_available("thug"):
 		sprite.sample = "survivor"
 		sprite._process(0.0)
 		_check(sprite.frame == 13 and not sprite.is_playing(), "character switch preserves completed death")
+	sprite.sample = "ghoul"
+	sprite._process(0.0)
+	_check(sprite.alpha_cut == SpriteBase3D.ALPHA_CUT_DISCARD, "ghoul restores original alpha policy")
 	stage.free()
 	target.setup(10000, 1.0, false)
 	root.add_child(target)

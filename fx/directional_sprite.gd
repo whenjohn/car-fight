@@ -32,8 +32,13 @@ func _ready() -> void:
 	offset = Vector2(0.0, float(resolution) * (346.0 / 512.0 - 0.5))
 	if sample != "ghoul" and sample_available(sample):
 		var size := native_size(sample)
+		# Preserve the baked translucent contact shadow. The opaque prepass keeps
+		# solid character pixels depth-tested while the shadow blends with the road.
+		alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 		pixel_size = world_height / (float(size) * 44.0 / 128.0)
-		offset = Vector2(0.0, float(size) * (88.0 / 128.0 - 0.5))
+		# Idle feet/shadow reach row 90 in the 128px export. Anchor below them,
+		# rather than letting the final rows intersect the ground at row 88.
+		offset = Vector2(0.0, float(size) * (91.0 / 128.0 - 0.5))
 		if sample == "thug":
 			texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 
