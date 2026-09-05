@@ -144,3 +144,98 @@ the [tcpdump manual source](https://github.com/the-tcpdump-group/tcpdump/blob/ma
 Runtime evidence: `.network-runs/network-diagnostics-2026-09-05/`; gate logs:
 `/var/folders/nt/tp7j7qtx2cgc39ftxymn6kfw0000gn/T/car-fight-network.ZJtJBp/`.
 Previous milestone failures and later macOS/browser acceptance remain open.
+
+## First real packet-correlated run, 2026-09-05
+
+Owner completed the two-native-client run against isolated macai2 UDP 12780.
+Both clients exited zero, the temporary server stopped, and the completed
+non-restarting launchd job was removed. Production PID 57599 remained on UDP
+10080. No networking defaults or rendering settings changed. Owner said done
+without a new subjective smoothness verdict or a marked hitch time.
+
+Evidence (ignored, retained locally; do not publish raw packet payloads):
+
+- Clients: `.crash-runs/two-client-20260905-032049/`; Alpha subrun
+  `20260905-032049`, Bravo `20260905-032052`.
+- Capture: `.network-runs/capture-1788596366046/`.
+- Server and generated `alpha-report.json` / `bravo-report.json`:
+  `.network-runs/diagnostic-1788596366046/`.
+- Runtime diagnostics from `a7e5256`; branch at launch `8384ea6`, whose later
+  changes were handoff documentation only. Both clients had P cruise enabled;
+  Bravo logged actual cruise activation. Legacy 60 Hz/fixed 75 ms remained.
+
+### Evidence quality
+
+The privileged capture completed normally: 91,572 packets, zero kernel capture
+drops, no packet-cap hit. This is not proof of zero game-network loss. Client
+flows were isolated using recorded local ports 55033 (Alpha) and 59922 (Bravo),
+with 32,330 and 29,967 incoming datagrams respectively. Clock-anchor offset
+variation was below 0.83 ms; all decoded packet summaries were supported.
+
+Capture ran about 03:19:26-03:22:26 local time. Clients started later, so coverage
+does not include the last approximately 29/32 seconds of their 120-second stage
+traces. Gaps before each endpoint's first packet or after its last packet remain
+unclassified, not evidence of absent traffic. Both client stage and presentation
+traces completed without record drops.
+
+The server hit its 30,000-record bound and dropped 3,918 later records, with its
+last retained event about 03:22:37 on its own clock. Its retained summaries are
+partial, not whole-run clearance. Reporter debt: the optional server summary
+exposes `dropped` but does not propagate that into top-level `quality_warnings`
+or the CLI exit status. Both reports exited zero; that does not clear this debt.
+
+### What the capture distinguished
+
+| Client callback gap | Incoming datagrams inside gap | Largest overlapping measured network loop |
+| --- | ---: | ---: |
+| Alpha 4,677 ms, ending 03:21:06.912 | 1,491 | 45.8 ms |
+| Bravo 5,203 ms, ending 03:21:13.656 | 409 | None recorded |
+| Alpha 831 ms, ending 03:21:37.938 | 272 | 39.3 ms |
+| Bravo 687 ms, ending 03:21:47.707 | 191 | 47.9 ms |
+
+These covered gaps provide direct evidence of local callback stalls while the
+OS still observed incoming traffic. They are not explained simply by a complete
+connection outage. Packet types are not matched to RPCs, so this does not prove
+every expected state update arrived. The 5.6/6.5-second initial pre-endpoint
+gaps are not used for this packet-based conclusion.
+
+The early process samples in both clients contain main-thread OpenGL shader
+compilation (`glCompileShaderIncludeARB_Exec`, `ShCompile`, `glpCompileShader`).
+In particular, Bravo's `client-stall-1788596472.sample.txt` begins at
+03:21:12.984, inside its 5.2-second callback gap; Alpha's
+`client-stall-1788596466.sample.txt` begins inside its 4.7-second gap. This is
+concrete rendering/startup-work evidence for part of those stalls, not proof that
+shader compilation accounts for every millisecond or the later small hitches.
+Many Godot frames remain unsymbolicated. Samples can extend into recovery.
+
+All 27 sampled CPU speed limits per client were 100, with no recorded thermal
+warning. Unlike the earlier throttled run, this run does not require thermal
+throttling to explain its startup stalls. These coarse samples do not rule out
+brief scheduling pressure or establish GPU utilization.
+
+### Remaining costs and limits
+
+Client measured network-loop median/p95 was 11.6/26.5 ms (Alpha) and 10.8/24.6 ms
+(Bravo). Maxima were 107/283 ms, including rollback maxima 102/267 ms. These are
+elapsed spans, not CPU execution time; they overlap and are not additive. The
+large callback gaps are mostly outside these measured loop spans. Rendering,
+loading, multiplayer polling outside the observer, and OS scheduling are not
+fully partitioned by this instrument.
+
+After the first 30 seconds, callback-gap median/p95 was 33.1/52.3 ms and
+31.2/48.8 ms; maxima were still 831/687 ms. Presentation body observations after
+that cutoff were 2690 interp / 7 extra / 11 hold and 2935 / 14 / 6. These are
+sample counts, not wall-time percentages or proof of perceptual smoothness.
+Final applied state was current with zero rejects in the final telemetry
+interval; maximum observed probe discrepancy was 0.467/0.900 units. Startup had
+45/14 probe misses and four guarded stale-rollback warnings on Bravo. No client
+or server SCRIPT ERROR/ERROR matches or captured display precursor were found.
+
+Next work: characterize startup shader/asset work and separately profile the
+remaining post-warmup callback gaps, preserving the accepted Compatibility and
+safe-window policy. Repair server trace quality reporting and shorten or reduce
+server sampling within the existing bound. For another authorized comparison,
+prepare everything before owner authentication and use a short Terminal command
+so capture covers the full game trace. Measure diagnostic overhead before
+claiming a performance improvement. Do not tune network buffers to mask these
+local stalls, and do not treat this run as macOS/browser acceptance.

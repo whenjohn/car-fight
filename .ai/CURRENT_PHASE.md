@@ -1,5 +1,33 @@
 # Current phase
 
+## First packet-correlated playtest analyzed, 2026-09-05
+
+- Both clients exited zero; isolated server stopped and completed job removed.
+  Production PID 57599 remains on UDP 10080. Read the first-real-run section of
+  `docs/NETWORK_DIAGNOSTICS.md` for evidence and interpretation limits.
+- Capture succeeded: 91,572 packets, zero capture drops, bounded completion.
+  Packet arrivals continued during Alpha/Bravo 4.7/5.2-second callback gaps;
+  measured network loops did not account for those gaps. Both process samples
+  show main-thread OpenGL shader compilation inside the early stalled intervals.
+  This identifies local rendering/startup work as a concrete contributor, not
+  a complete connection outage or proof of the cause of all subsequent hitches.
+- All sampled CPU speed limits were 100 this time, no thermal warning. Later
+  callback stalls still reached 831/687 ms with traffic arriving. Network-loop
+  median/p95 remained about 11/25 ms; no tuning or rendering changes applied.
+- Client traces have zero drops; capture ends before the last 29/32 seconds of
+  stage tracing. Server trace dropped 3,918 records after its 30,000-record cap.
+  Optional server drops are visible in reports but not escalated to top-level
+  warnings/exit status: diagnostic debt to fix before relying on that status.
+- Evidence: `.crash-runs/two-client-20260905-032049/`, packet folder
+  `.network-runs/capture-1788596366046/`, server and generated per-client reports
+  `.network-runs/diagnostic-1788596366046/`. Owner said done without a new feel
+  verdict. Final applied state current; worst observed probes 0.467/0.900 units;
+  startup probe misses and guarded stale warnings retained, not hidden.
+- Next: characterize startup shader/asset work and remaining post-warmup gaps,
+  fix server diagnostic quality propagation/bounded coverage, then a separately
+  authorized comparison. Keep renderer/display policy and networking defaults;
+  mixed macOS/browser acceptance and earlier milestone failures remain open.
+
 ## Packet-correlated diagnostic playtest active, 2026-09-05
 
 - Owner successfully started the short ignored `.network-runs/capture.mjs`
