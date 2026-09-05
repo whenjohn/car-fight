@@ -28,6 +28,19 @@ func _run() -> void:
 	car.freeze = true
 	car.position = Vector3(10, 1, 0)
 	car.linear_velocity = Vector3.ZERO
+	# Offline simulation still advances ticks, but remote-only snapshots have
+	# no consumers. Configuration and local practice-shot events stay separate.
+	lab.configure(true, 256, 1.0, false)
+	ai.mode = "legacy"
+	ai.metrics.max_payload = 0
+	var messages_before: int = ai.metrics.messages
+	var tick_before: int = lab._motion_tick
+	for tick in 12:
+		lab.service(1.0 / 60)
+	_check(lab._motion_tick == tick_before + 12, "offline simulation keeps advancing")
+	_check(lab._snapshot_clock < 0.1, "offline snapshot cadence stays bounded")
+	_check(ai.metrics.messages == messages_before, "no motion serialization without recipients")
+	_check(ai.metrics.max_payload == 0, "offline ticks do not pack motion payloads")
 	for profile in ["basic", "attacker", "evader", "ambusher"]:
 		lab.configure(true, 1, 1.0, false)
 		ai.configure(profile, 3.0, 32.0, 1.0, false)

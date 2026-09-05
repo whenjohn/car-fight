@@ -145,3 +145,34 @@ and the debug display now intentionally shows fewer entities. This first pass
 does NOT establish smooth 256-attacker play: approximately 19 FPS without debug
 and 17 with it remain below the desired experience. Full-frame movement and
 batched sprite presentation remain the next measured optimization candidates.
+
+## 256-sprite CPU follow-up (2026-09-04)
+
+With seeded movement variation retained, cache AI-active status and each car's
+actual capsule transform/dimensions once per synchronous service tick, rather
+than per sprite. Preserve player order, previous-tick transforms and the precise
+run-over solver. Skip remote-only motion snapshot construction when there are
+zero peers; keep simulation, snapshot cadence and late-join configuration intact.
+No movement queries, collision checks, steering or visual sizing were removed.
+
+Matched offline headless `sprite_ai_probe.gd`, attacker mode, 120 warmup ticks
+and 600 measured ticks per case (microseconds converted to milliseconds):
+
+| 256 sprites | Before median / P95 | After median / P95 |
+| --- | ---: | ---: |
+| Legacy | 3.202 / 4.764 ms | 1.946 / 2.581 ms |
+| Attacker | 5.797 / 8.789 ms | 4.192 / 6.914 ms |
+
+Observed attacker median decreases ~28%; this is simulation service CPU, not
+rendered FPS or a multiplayer speedup claim. Separate runs remain sensitive to
+machine load. Final timing ran after the other test processes finished; an
+intermediate concurrent-test measurement is excluded. Attacker warmup maximum
+was 7.983 ms versus 10.066 ms before. The unchanged incremental P95 budget of
+2 ms over matched legacy still fails (4.333 ms); 256 capacity is not accepted.
+The probe's long synchronous loop emits an expected netfox pause diagnostic.
+Evidence: `/private/tmp/car-fight-cpu-{before,final}.log`.
+
+Fast check, AI runtime (including no-recipient packet regression), actual-world
+sprite combat/run-over, and ENet/mux lifecycle/load gates pass. These cover the
+local service optimization and remote publication boundary without changing
+schema, rollback or transport; the broad milestone suite is not required.

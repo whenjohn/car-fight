@@ -75,11 +75,27 @@ func service(delta: float) -> void:
 		return
 	_motion_tick += 1
 	ai.begin(delta)
+	# Profile/connection cannot change during this synchronous fixture pass.
+	var ai_active: bool = ai.active()
+	# Cars do not move during this synchronous pass. Sample each collider once,
+	# retaining player order and the previous tick's sweep endpoints.
+	var contacts: Array = []
+	var current_cars := {}
+	for car in _players.get_children():
+		var collision := car.get_node_or_null("Collision") as CollisionShape3D
+		if collision == null:
+			continue
+		var current := collision.global_transform.orthonormalized()
+		var id := car.get_instance_id()
+		current_cars[id] = current
+		if collision.shape is CapsuleShape3D:
+			var shape := collision.shape as CapsuleShape3D
+			contacts.append([_previous_cars.get(id, current), current, shape.radius, shape.height])
 	for target in _fixtures:
 		if target.health <= 0:
 			continue
 		var previous: Vector3 = target.position
-		if ai.active():
+		if ai_active:
 			target.position = ai.move(target, delta)
 		elif target.walking:
 			target.age += delta
@@ -97,30 +113,25 @@ func service(delta: float) -> void:
 			if space.intersect_shape(query, 1).is_empty():
 				var sweep := space.cast_motion(query)
 				target.position = previous.lerp(finish, float(sweep[0]))
-		for car in _players.get_children():
-			var collision := car.get_node_or_null("Collision") as CollisionShape3D
-			if collision == null or not collision.shape is CapsuleShape3D:
-				continue
-			var shape := collision.shape as CapsuleShape3D
-			var current := collision.global_transform.orthonormalized()
-			var before: Transform3D = _previous_cars.get(car.get_instance_id(), current)
-			if TARGET.swept_vehicle_contact(before, current, shape.radius, shape.height,
+		for contact in contacts:
+			if TARGET.swept_vehicle_contact(contact[0], contact[1], contact[2], contact[3],
 					previous, target.position, target.radius(), target.height()):
 				set_hits(target.target_id, 3)
 				break
-	_previous_cars.clear()
-	for car in _players.get_children():
-		var collision := car.get_node_or_null("Collision") as CollisionShape3D
-		if collision != null:
-			_previous_cars[car.get_instance_id()] = collision.global_transform.orthonormalized()
+	_previous_cars = current_cars
 	ai.finish(delta)
 	_snapshot_clock += delta
 	if _snapshot_clock >= 0.1:
 		_snapshot_clock = 0.0
+		var recipients := multiplayer.get_peers().size()
+		# This RPC is remote-only. Avoid packing 256 states for nobody during
+		# offline play or an empty server; late join uses full configuration.
+		if recipients == 0:
+			return
 		# Keep each unreliable packet below ENet's MTU at the 64-target gate.
 		var snapshot := states()
 		for batch in AI.batches(snapshot):
-			ai.record_payload("sprite_motion", [generation, batch, _motion_tick], multiplayer.get_peers().size())
+			ai.record_payload("sprite_motion", [generation, batch, _motion_tick], recipients)
 			_sync_motion.rpc(generation, batch, _motion_tick)
 
 func configure(active: bool, amount: int, size: float, walk: bool) -> void:

@@ -2,6 +2,16 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- 256 CPU follow-up: cache per-tick AI status/car capsule inputs and avoid
+  remote-only motion packing with zero peers. Preserve pursuit, randomness,
+  spacing, all world sweeps, run-over solver and sprite sizing. No engine change.
+- Offline 256-attacker service median/P95 improved from 5.797/8.789 ms to
+  4.192/6.914 ms (~28% median reduction observed). This is CPU tick time, not
+  rendered FPS. Incremental P95 budget still fails; next bottleneck remains
+  movement/navigation work. Details: `docs/SPRITE_ATTACKER_PROFILE.md`.
+- Fast check, AI runtime, world combat/run-over and ENet/mixed-transport
+  load/lifecycle gates pass with clean error scans. Logs `/private/tmp/car-fight-cpu-*.log`.
+  Prior interactive run `20260904-231501` closed cleanly; no new rendered run.
 - Latest tuning: owner requested randomness in attacker movement. Added
   deterministic per-fixture pace (±12%), left/right preference and gentle
   3–6-second steering variation (up to ~21 degrees), faded near waypoints.

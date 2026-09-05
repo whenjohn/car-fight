@@ -67,6 +67,9 @@ Other networking changes have not been imported into this branch.
   Only the lab owner may request settings; the server validates and clamps them.
 - Representation: lightweight 10 Hz sprite snapshots and reliable shot lifecycle
   events. No new rollback bodies, player inputs, codec fields or transports.
+  Motion packets are only constructed when remote peers exist; offline ticks
+  still simulate normally and advance the snapshot clock. Late joins retain
+  full configuration, and local shot presentation is never skipped.
   Existing five-field snapshots remain in legacy mode. AI adds behavior/profile,
   shot serial and moving state. Matching builds are required for this opt-in lab.
 - Replay: simulation runs in the existing authoritative tick service, outside
