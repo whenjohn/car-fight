@@ -71,7 +71,7 @@ func _nearest(origin: Vector2i) -> Vector2i:
 					return point
 	return Vector2i(9999, 9999)
 
-func cover_candidates(from: Vector3) -> Array[Dictionary]:
+func cover_candidates(from: Vector3, max_distance: float = 32.0) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for block in blocks:
 		var half: Vector2 = block.half
@@ -86,7 +86,7 @@ func cover_candidates(from: Vector3) -> Array[Dictionary]:
 				b = Vector3(block.center) + b.rotated(Vector3.UP, block.yaw)
 				a.y = from.y
 				b.y = from.y
-				if from.distance_to(a) <= 32.0 and clear(a) and clear(b):
+				if from.distance_to(a) <= max_distance and clear(a) and clear(b):
 					result.append({"cover": a, "peek": b})
 					result.append({"cover": b, "peek": a})
 	return result

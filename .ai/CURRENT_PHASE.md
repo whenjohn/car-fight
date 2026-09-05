@@ -2,6 +2,31 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner rejected baseline Ambusher: exposed standing and no convincing rush.
+  Confirmed implementation only searched after sight, required a visible peek
+  point, fell back to Basic shooting on failure and attacked from that peek.
+  Replaced with cover-first preparation → real concealment → 1.5× rush toward
+  the current player → return after three shots or six seconds. Prepared hide
+  lasts at least one second, trigger 18 units, close to six; actual sight remains
+  required for shooting. No exposed Basic fallback. Cover revalidated at arrival.
+- Ambusher preparation now tracks an eligible player before sight (like hunter
+  acquisition, preserving cloak/edit/RC/map exclusions). Unlike weapon sight-range
+  filtering, its hide test uses real occlusion. Cover search uses 64-unit corner
+  candidates with four candidate/path checks per queued job, rolling cursor,
+  two-second retries; existing four-job/tick and incremental-grid limits retained.
+  No new RPC/codec fields, rollback bodies, engine/sizing or spawner changes.
+- New decision regression was added before the change and failed on old behavior.
+  Final fast check, decision, runtime and population tests PASS, including actual walking to cover and
+  a nearby occluded city-corner approach: rush peak displacement 7.29 units,
+  three actual shots, then return. The initial assertion incorrectly measured
+  final displacement after returning; now it tracks maximum excursion.
+- Representative offline cohort: 64/64 found cover, 59/64 physically reached
+  concealment within 40 simulated seconds; five were still taking longer paths
+  around buildings. Stationary car stayed outside their rush range. This is not
+  instant hidden spawning or an FPS claim. Final pure/runtime runs had no errors;
+  an initial explicit-bool compile issue was fixed and its two stalled test
+  processes stopped precisely. No networking tests/deployment. Owner visual feel
+  and sustained FPS acceptance remain pending on the revised 64-Ambusher playtest.
 - Owner accepted varied Evader reactions ("feels good") and moved on to Ambusher.
   Evader run `20260905-023808` ended cleanly. Launched baseline Ambusher observation
   at `ebfd37f`, run `20260905-023956`, PID 94874: offline, 64 initial sprites,

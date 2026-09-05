@@ -9,7 +9,7 @@ static func initial(id: int, profile: String, home: Vector3) -> Dictionary:
 		"destination": home, "target": 0, "last_seen": home, "lost": 4.0,
 		"cooldown": float(id % 10) * 0.1, "aim": 0.0, "wander": 0,
 		"evading": false, "cover": Vector3.INF, "peek": Vector3.INF,
-		"hidden": 0.0, "burst": 0, "cover_retry": 0.0,
+		"hidden": 0.0, "burst": 0, "cover_retry": 0.0, "cover_cursor": 0, "rush_left": 0.0,
 		"pace": random.randf_range(0.88, 1.12), "motion_age": 0.0,
 		"drift_phase": random.randf_range(0.0, TAU), "drift_period": random.randf_range(3.0, 6.0),
 		"drift_bias": random.randf_range(-0.18, 0.18),
@@ -55,32 +55,10 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 			s.aim = 0.0
 		s.state = result.state
 		return result
-	if profile == "ambusher" and s.cover != Vector3.INF and not car.is_empty():
-		if s.state in ["peek", "aim", "fire"] and s.burst < 3:
-			result.destination = s.peek
-			result.state = "peek"
-			if planar(position, s.peek).length() < 0.6 and visible:
-				_aim(s, result, delta, settings)
-				if result.fire:
-					s.burst += 1
-		else:
-			result.destination = s.cover
-			result.state = "cover"
-			if planar(position, s.cover).length() < 0.6:
-				result.state = "hide"
-				s.hidden += delta
-				if s.hidden >= 1.0 and planar(position, car.position).length() <= 18.0:
-					s.burst = 0
-					s.hidden = 0.0
-					result.state = "peek"
-					result.destination = s.peek
-		if result.state not in ["aim", "fire"]:
-			s.aim = 0.0
+	if profile == "ambusher":
+		_ambush(s, result, position, car, delta, settings)
 		s.state = result.state
 		return result
-	if profile == "ambusher" and visible and s.cover_retry <= 0.0:
-		result.seek_cover = true
-		s.cover_retry = 2.0
 	if profile == "evader" and not car.is_empty():
 		var away := planar(car.position, position)
 		var velocity: Vector3 = car.velocity
@@ -133,6 +111,67 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 		s.aim = 0.0
 	s.state = result.state
 	return result
+
+static func _ambush(s: Dictionary, result: Dictionary, position: Vector3,
+		car: Dictionary, delta: float, settings: Dictionary) -> void:
+	if car.is_empty():
+		s.rush_left = 0.0
+		s.hidden = 0.0
+		s.aim = 0.0
+		result.state = "wait" if s.cover == Vector3.INF else "cover"
+		result.destination = position if s.cover == Vector3.INF else s.cover
+		return
+	var visible := bool(car.get("visible", false))
+	var distance := planar(position, car.position).length()
+	if s.rush_left > 0.0:
+		s.rush_left = maxf(0.0, s.rush_left - delta)
+		if s.rush_left > 0.0 and s.burst < 3:
+			result.state = "rush"
+			result.speed *= 1.5
+			result.destination = car.position if not visible or distance > 6.0 else position
+			if visible and distance <= 18.0:
+				_aim(s, result, delta, settings)
+				if result.fire:
+					s.burst += 1
+				else:
+					result.state = "rush"
+			else:
+				s.aim = 0.0
+			return
+		s.rush_left = 0.0
+		s.hidden = 0.0
+		s.route_clock = 0.0
+	s.aim = 0.0
+	var arrived: bool = s.cover != Vector3.INF and planar(position, s.cover).length() < 0.6
+	# A spot is not cover just because the navigation job once called it cover.
+	# Recheck actual sight at arrival; only a prepared trap may spring on exposure.
+	if arrived and visible and (s.hidden < 1.0 or distance > 18.0):
+		s.cover = Vector3.INF
+		s.peek = Vector3.INF
+		s.hidden = 0.0
+		s.cover_retry = 0.0
+	if s.cover == Vector3.INF:
+		result.state = "seek_cover"
+		if s.cover_retry <= 0.0:
+			result.seek_cover = true
+			s.cover_retry = 2.0
+		return
+	result.destination = s.cover
+	result.state = "cover"
+	if not arrived:
+		s.hidden = 0.0
+		return
+	result.state = "hide"
+	if not visible:
+		s.hidden = minf(1.0, s.hidden + delta)
+	if s.hidden >= 1.0 and distance <= 18.0:
+		s.rush_left = 6.0
+		s.burst = 0
+		s.hidden = 0.0
+		s.route_clock = 0.0
+		result.state = "rush"
+		result.speed *= 1.5
+		result.destination = car.position
 
 static func _aim(s: Dictionary, result: Dictionary, delta: float, settings: Dictionary) -> void:
 	s.aim += delta

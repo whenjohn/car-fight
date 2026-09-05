@@ -140,8 +140,7 @@ func _run() -> void:
 		for i in 180:
 			lab.service(1.0 / 60)
 		if profile == "ambusher":
-			_check(ai.metrics.hits > before or ai.brains[target.target_id].cover != Vector3.INF,
-				"ambusher shoots in open or selects real cover")
+			_check(ai.metrics.hits == before, "ambusher does not fall back to firing while preparing cover")
 		else:
 			_check(ai.metrics.hits > before, profile + " practice shots reach real car")
 		_check(car.linear_velocity == velocity, "practice shots never apply impulses")
@@ -236,11 +235,47 @@ func _run() -> void:
 	brain.car = {"id": 1, "position": car.position, "velocity": Vector3.ZERO, "visible": true}
 	var nav = ai._navigation(target)
 	nav.advance(30000)
-	ai._find_cover(target, brain, nav)
+	for search in 32:
+		ai._find_cover(target, brain, nav)
+		if brain.cover != Vector3.INF:
+			break
 	_check(brain.cover != Vector3.INF, "real building produces reachable ambush cover")
 	if brain.cover != Vector3.INF:
 		_check(not ai._visible(brain.cover, car.position), "cover is physically occluded")
-		_check(ai._visible(brain.peek, car.position), "peek has a real firing line")
+		_check(ai._position_clear(target, brain.cover), "cover uses actual scaled capsule clearance")
+		# Exercise the walk into cover, not just a successful cover query.
+		for tick in 2400:
+			lab.service(1.0 / 60.0)
+			if target.ai_state == "hide":
+				break
+		_check(target.ai_state == "hide" and target.position.distance_to(brain.cover) < 0.6,
+			"exposed ambusher actually walks to concealment")
+		var hidden_car := Vector3.INF
+		# A pursuer can approach around a corner, not only on fixture spawn lanes.
+		for x in range(-8, 9):
+			for z in range(-8, 9):
+				var position: Vector3 = target.position + Vector3(x * 2, 0, z * 2)
+				if position.distance_to(target.position) <= 18.0 and nav.clear(position, 2.0) \
+						and not ai._visible(target.position, position) and not nav.route(target.position, position).is_empty():
+					hidden_car = position
+					break
+			if hidden_car != Vector3.INF:
+				break
+		_check(hidden_car != Vector3.INF, "city cover has a nearby occluded approach for rush test")
+		if hidden_car != Vector3.INF:
+			car.position = hidden_car
+			var rush_start: Vector3 = target.position
+			var rush_seen := false
+			var rush_distance := 0.0
+			var shots_before: int = ai.metrics.shots
+			for tick in 420:
+				lab.service(1.0 / 60.0)
+				rush_seen = rush_seen or target.ai_state == "rush"
+				rush_distance = maxf(rush_distance, target.position.distance_to(rush_start))
+			print("AMBUSH_RUSH moved=%.2f shots=%d" % [rush_distance, ai.metrics.shots - shots_before])
+			_check(rush_seen and rush_distance > 2.0,
+				"concealed ambusher physically rushes out rather than holding a peek point")
+			_check(ai.metrics.shots > shots_before, "real ambush rush obtains sight and fires")
 	# The wall, rather than the car behind it, ends the bullet.
 	car.position = Vector3(0, 1, 0)
 	await physics_frame
@@ -253,6 +288,28 @@ func _run() -> void:
 		" visible=", ai._visible(Vector3(0, 1, -10), Vector3(0, 1, 0)))
 	_check(not ai.shots.has(999) and ai.metrics.hits == hits, "wall stops practice shot before car")
 	wall.free()
+	# Representative supported cohort: collect actual achieved states over time,
+	# not only requested profiles or successful cover-position queries.
+	car.position = Vector3(-63, 1, 80)
+	lab.configure(true, 64, 1.0, true)
+	ai.configure("ambusher", 3.0, 32.0, 1.0, false)
+	var concealed := {}
+	var rushed := {}
+	var prepared := {}
+	for tick in 2400:
+		lab.service(1.0 / 60.0)
+		for member in lab._fixtures:
+			if ai.brains[member.target_id].cover != Vector3.INF:
+				prepared[member.target_id] = true
+			if member.ai_state == "hide":
+				concealed[member.target_id] = true
+			if member.ai_state == "rush":
+				rushed[member.target_id] = true
+	print("AMBUSH_COHORT prepared=%d concealed=%d rushed=%d" % [prepared.size(), concealed.size(), rushed.size()])
+	for member in lab._fixtures:
+		if not concealed.has(member.target_id):
+			print("AMBUSH_NOT_HIDDEN id=%d position=%s cover=%s state=%s" % [member.target_id, member.position, ai.brains[member.target_id].cover, member.ai_state])
+	_check(prepared.size() == 64 and concealed.size() >= 48, "64-sprite cohort finds cover and most physically hide within 40 seconds")
 	# Actual extended motion payloads fit the budget; stale ticks/generations
 	# cannot overwrite current state. The configuration stream commits atomically.
 	lab.configure(true, 256, 2.0, false)

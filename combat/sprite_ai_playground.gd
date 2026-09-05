@@ -258,7 +258,7 @@ func _cars() -> Array[Dictionary]:
 
 func _observe(target, state: Dictionary, cars: Array[Dictionary]) -> Dictionary:
 	var chosen: Dictionary = {}
-	if state.profile == "attacker":
+	if state.profile in ["attacker", "ambusher"]:
 		var nearest := INF
 		for car in cars:
 			var distance: float = target.position.distance_squared_to(car.position)
@@ -272,7 +272,9 @@ func _observe(target, state: Dictionary, cars: Array[Dictionary]) -> Dictionary:
 		if not chosen.is_empty():
 			# Range filtering bounds ray work even when the hunter pursues across
 			# the whole city. Existing eligible-player filtering still applies.
-			chosen.visible = target.position.distance_squared_to(chosen.position) <= 18.0 * 18.0 \
+			# Ambushers prepare against the eligible car even before sight.
+			# Their hiding check needs real occlusion, not a range-based false.
+			chosen.visible = (state.profile == "ambusher" or target.position.distance_squared_to(chosen.position) <= 18.0 * 18.0) \
 				and _visible(target.position, chosen.position)
 		return chosen
 	var best := float(settings.detection) * float(settings.detection)
@@ -301,29 +303,26 @@ func _visible(from: Vector3, to: Vector3) -> bool:
 func _find_cover(target, state: Dictionary, nav) -> void:
 	if state.car.is_empty():
 		return
-	var best := INF
-	for pair in nav.cover_candidates(target.position):
-		if _visible(pair.cover, state.car.position) or not _visible(pair.peek, state.car.position):
-			continue
+	var candidates: Array[Dictionary] = nav.cover_candidates(target.position, 64.0)
+	candidates.sort_custom(func(a, b): return target.position.distance_squared_to(a.cover) < target.position.distance_squared_to(b.cover))
+	# Progress through a bounded slice. No all-candidates path/ray burst for
+	# every sprite on the first tick, and no requirement for a visible peek.
+	for attempt in mini(4, candidates.size()):
+		var pair: Dictionary = candidates[int(state.cover_cursor) % candidates.size()]
+		state.cover_cursor = (int(state.cover_cursor) + 1) % candidates.size()
 		var route: PackedVector3Array = nav.route(target.position, pair.cover)
-		var peek_route: PackedVector3Array = nav.route(pair.cover, pair.peek)
-		if route.is_empty() or peek_route.is_empty():
+		if route.is_empty():
 			continue
 		# Use reached grid cells, not unverified ideal corner coordinates.
 		var cover: Vector3 = route[-1]
-		var peek: Vector3 = peek_route[-1]
-		if not _position_clear(target, cover) or not _position_clear(target, peek) \
-				or _visible(cover, state.car.position) or not _visible(peek, state.car.position):
+		if not _position_clear(target, cover) or _visible(cover, state.car.position):
 			continue
-		var length := 0.0
-		for i in range(1, route.size()):
-			length += route[i - 1].distance_to(route[i])
-		if length < best:
-			best = length
-			state.cover = cover
-			state.peek = peek
-			state.state = "cover"
-			routes[target.target_id] = route
+		state.cover = cover
+		state.peek = Vector3.INF
+		state.hidden = 0.0
+		state.state = "cover"
+		routes[target.target_id] = route
+		return
 
 func _position_clear(target, position: Vector3) -> bool:
 	var query := PhysicsShapeQueryParameters3D.new()

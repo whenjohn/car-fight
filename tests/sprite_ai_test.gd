@@ -147,20 +147,42 @@ func _run() -> void:
 	var wander: Dictionary = brain.decide(basic, Vector3.ZERO, {}, 0.2, settings)
 	_check(wander.destination.length() <= 8.01 and not wander.fire, "unthreatened basic wanders locally")
 	var ambusher: Dictionary = brain.initial(10000, "ambusher", Vector3.ZERO)
+	seen = {"id": 2, "position": Vector3(4, 0, -10), "velocity": Vector3.ZERO, "visible": false}
+	var ambush: Dictionary = brain.decide(ambusher, Vector3.ZERO, seen, 0.2, settings)
+	_check(ambush.seek_cover and not ambush.fire, "ambusher prepares cover before direct sight")
+	seen.visible = true
+	ambusher = brain.initial(10000, "ambusher", Vector3.ZERO)
+	for step in 20:
+		ambush = brain.decide(ambusher, Vector3.ZERO, seen, 0.2, settings)
+		_check(not ambush.fire and ambush.state == "seek_cover", "no Basic shooting fallback while exposed without cover")
 	ambusher.cover = Vector3.ZERO
 	ambusher.peek = Vector3(4, 0, 0)
 	ambusher.state = "cover"
-	seen = {"id": 2, "position": Vector3(4, 0, -10), "velocity": Vector3.ZERO, "visible": false}
-	var ambush: Dictionary = brain.decide(ambusher, Vector3.ZERO, seen, 0.5, settings)
+	seen.visible = false
+	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 0.5, settings)
 	_check(ambush.state == "hide" and not ambush.fire, "ambush waits concealed")
 	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 0.5, settings)
-	_check(ambush.state == "peek", "nearby tracked car triggers step out")
+	_check(ambush.state == "rush" and ambush.destination == seen.position and is_equal_approx(ambush.speed, 4.5),
+		"concealed ambusher launches full rush toward car, not a peek point")
 	seen.visible = true
 	for shot in 3:
+		seen.position.x += 1.0
 		ambush = brain.decide(ambusher, ambusher.peek, seen, 1.0, settings)
-		_check(ambush.fire, "ambush burst shot confirmed")
+		_check(ambush.fire and ambush.destination == seen.position, "ambush fires while pursuing current car position")
 	ambush = brain.decide(ambusher, ambusher.peek, seen, 0.2, settings)
 	_check(ambush.state == "cover" and not ambush.fire, "three-shot burst returns to cover")
+	ambush = brain.decide(ambusher, ambusher.cover, seen, 0.2, settings)
+	_check(ambush.state == "seek_cover" and ambush.seek_cover, "exposed former cover is rejected, never counted as hidden")
+	ambusher = brain.initial(10000, "ambusher", Vector3.ZERO)
+	ambusher.cover = Vector3.ZERO
+	seen.visible = false
+	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 1.0, settings)
+	seen.position = Vector3(0, 0, -80)
+	for step in 40:
+		ambush = brain.decide(ambusher, Vector3(0, 0, -5), seen, 0.2, settings)
+	_check(ambush.state == "cover" and not ambush.fire, "escaped player cannot cause an endless rush")
+	ambush = brain.decide(ambusher, Vector3(0, 0, -5), {}, 0.2, settings)
+	_check(not ambush.fire and ambush.destination == ambusher.cover, "lost eligible player aborts ambush and returns to cover")
 	var nav_script = load("res://world/sprite_ai_navigation.gd")
 	var nav = nav_script.new()
 	for radius in [0.175, 0.35, 0.7]:

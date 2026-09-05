@@ -56,16 +56,26 @@ and counters only: no damage, resources, impulses, shield or det interactions.
   A predicted run-over takes priority: full-speed direct sidestep until clear
   of the projected path, then weaving resumes if still evading. It does not
   read bullets or player input to predict intent.
-- Ambusher searches nearby building corners for reachable cover and a firing
-  position. It waits hidden for at least one second, steps out when its tracked
-  car approaches within eighteen units, fires three shots, and returns to cover.
-  If no cover is reachable it temporarily behaves like Basic and retries.
+- Ambusher prepares behind reachable building cover before attacking; it knows
+  the eligible player's position for preparation even before direct sight, while
+  retaining cloak/editing/RC/map exclusions. It searches corner candidates within
+  64 units, checking at most four per existing route job, with a rolling cursor
+  and two-second retries. A visible peek point is no longer required. It never
+  falls back to Basic shooting while exposed without cover. If no suitable cover
+  is found it waits and retries; it does not teleport or become invisible.
+  Arrival must be genuinely occluded, not merely outside detection range.
+  After hiding for at least one second, a player within eighteen units triggers
+  a **rush toward the player's current position at 1.5× speed**, not a small peek.
+  It shoots when sight is clear within eighteen units and closes to six units.
+  After three shots or six seconds it returns to cover. Cover exposed by a moving
+  player is rejected on arrival and searched again; losing the eligible player
+  cancels the rush. Expect initial travel to cover, sometimes a long route.
 
 Defaults: movement 3 units/second, attack 1.5× and evasion up to 1.5× movement, detection 32 units,
 shot interval 1 second, aim delay at least 0.35 seconds. Decisions run at 5 Hz,
 so transitions are quantized to that cadence. Bullet speed is 22 units/second,
 lifetime two seconds. Show AI decisions displays profile/state labels on clients
-and server/offline destination/cover/peek markers for the nearest 16 living
+and server/offline destination/cover markers for the nearest 16 living
 sprites to the camera. Debug facts refresh at 5 Hz; invalid cover markers are
 not allocated, and leaving the selection releases nodes. All obey depth occlusion.
 Preview animation controls remain presentation-only; real deaths override them.
