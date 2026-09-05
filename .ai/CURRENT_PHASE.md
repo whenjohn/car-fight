@@ -1,5 +1,20 @@
 # Current phase
 
+## P-cruise human playtest active, 2026-09-05
+
+- Owner approved launch. Both monitored clients connected to the isolated
+  macai2 mux on UDP 12780 / TCP 12781 with `--client-cruise` verified in both
+  process command lines. Runtime is `b8b6c36`; networking settings match the
+  previous clock retest. Production UDP 10080 was left untouched.
+- Run: `.crash-runs/two-client-20260905-014319/` (alpha PID 78509, bravo 78570).
+  Launch/server evidence: `.network-runs/cruise-b8b6c36-2026-09-05/`.
+  Non-restarting job: `com.whenjohn.car-fight-cruise-b8b6c36-20260905` in
+  `gui/501`. Launcher stops only its isolated server and copies the server log
+  when both clients close. Remove the completed job after the session.
+- Await owner feedback; do not infer smoothness from startup connection.
+  P starts/stops cruise in the chosen client and remains active while the
+  owner observes from the other window. Do not restart automatically.
+
 ## Next playtest: P cruise enabled in both clients, 2026-09-05
 
 - Owner requested the existing P auto-drive toggle for observing one client
