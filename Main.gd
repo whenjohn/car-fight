@@ -132,6 +132,8 @@ var _ice_servers: Array = []
 var _ice_relay_only := false
 var _webrtc_channel_telemetry := false
 var _webrtc_connect_timeout_ms := 0
+var _webrtc_pending_timeout_ms := 0
+var _webrtc_max_pending := 0
 var _webrtc_failure_reported := false
 var _state_bundles := false
 var _input_broadcast := false
@@ -722,6 +724,10 @@ func _parse_args() -> void:
 			_webrtc_channel_telemetry = true
 		elif arg.begins_with("--webrtc-connect-timeout-ms="):
 			_webrtc_connect_timeout_ms = maxi(0, int(arg.get_slice("=", 1)))
+		elif arg.begins_with("--webrtc-pending-timeout-ms="):
+			_webrtc_pending_timeout_ms = maxi(0, int(arg.get_slice("=", 1)))
+		elif arg.begins_with("--webrtc-max-pending="):
+			_webrtc_max_pending = maxi(0, int(arg.get_slice("=", 1)))
 		elif arg == "--net-telemetry":
 			_network_app_telemetry = true
 		elif arg == "--network-hud":
@@ -1022,7 +1028,8 @@ func _start_server() -> void:
 		add_child(_webrtc_transport)
 		_webrtc_transport.connect("failed", _on_webrtc_failed)
 		peer = _webrtc_transport.call("start_server", _signal_port, _ice_servers,
-			_ice_relay_only, 1, _webrtc_channel_telemetry)
+			_ice_relay_only, 1, _webrtc_channel_telemetry, _webrtc_pending_timeout_ms,
+			_webrtc_max_pending)
 		error = OK if peer != null else ERR_CANT_CREATE
 		if peer != null:
 			StateBundle.set_send_pressure_provider(_webrtc_transport.peer_buffered_bytes)
@@ -1042,7 +1049,8 @@ func _start_server() -> void:
 				_webrtc_transport.call("set_forced_peer_id_provider",
 					_mux_peer.first_peer_for_transport.bind("enet"))
 			var rtc_peer: MultiplayerPeer = _webrtc_transport.call("start_server",
-				_signal_port, _ice_servers, _ice_relay_only, 1, _webrtc_channel_telemetry)
+				_signal_port, _ice_servers, _ice_relay_only, 1, _webrtc_channel_telemetry,
+				_webrtc_pending_timeout_ms, _webrtc_max_pending)
 			if rtc_peer == null:
 				error = ERR_CANT_CREATE
 				enet_peer.close()

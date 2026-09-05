@@ -83,6 +83,8 @@ For WebRTC bootstrap/lifecycle changes, also run:
 ```bash
 /Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
   --script res://tests/webrtc_connection_test.gd
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tests/webrtc_server_lifecycle_test.gd
 ```
 
 This focused test needs local loopback socket access. It covers refusal before
@@ -92,6 +94,17 @@ after signaling closes. Deadline boundaries use an injected monotonic timestamp;
 the sockets and RTC peers are real. Native extension evidence does not establish
 browser/TURN behavior or same-session recovery. Run the mixed gate for gameplay
 integration and inspect its complete logs for unexpected engine errors.
+
+The server regression additionally exercises pending TCP admission, deadlines
+before/after SDP, real malformed SDP/ICE, callback cleanup and ID reuse, healthy
+packet delivery during peer failures, and genuine listener startup failure.
+Its malformed-input fixtures intentionally invoke the native parser and emit
+four engine diagnostics (two each for invalid SDP and ICE); these must not emit
+the transport's server-fatal signal or interrupt the survivor. Keep those logs
+and distinguish them from unexpected errors. Do not add these diagnostics to a
+general gameplay-harness allowlist. The existing mixed gate covers collision
+and ordinary gameplay with limits still disabled; opt-in limits need their own
+bounded integration smoke before promotion.
 
 | Change | Required validation | Add when integration changed |
 | --- | --- | --- |

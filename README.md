@@ -92,6 +92,15 @@ connection-attempt budget in milliseconds, not a gameplay idle timeout; zero
 established gameplay connection survives signaling loss. This does not add
 automatic reconnect. Browser/TURN validation of the new deadline is still pending.
 
+Server-side pending joins can be bounded experimentally with
+`--webrtc-pending-timeout-ms=30000 --webrtc-max-pending=16` on either a mux or
+pure WebRTC server. Both settings default to zero (disabled); these example
+values are not promoted defaults. The budget starts at TCP acceptance and ends
+when DataChannels connect. Connected players do not consume pending slots.
+With the cap enabled, excess TCP connections are closed before RTC allocation,
+and at most 16 accepts are handled per process pass. This is not a total-player
+limit, automatic retry policy, or complete denial-of-service defense.
+
 ```bash
 ./scripts/web_network_build.sh release  # export build/web-network/index.html
 ./scripts/web_network_smoke.sh          # automated browser + native ENet gate

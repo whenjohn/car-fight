@@ -553,3 +553,93 @@ this is a code-review finding, not a newly reproduced exploit. Same-session
 world teardown/rejoin and browser recovery remain separate. With the deadline
 disabled, a silent but still-open attempt can still wait indefinitely. No
 deployment, master merge, or networking default promotion was performed.
+
+## Implementation follow-up: WebRTC server lifecycle, 2026-09-04
+
+### Contract and changes
+
+Server authority, input/state schemas, simulation/replay, replication rates, and
+channel lifetimes remain unchanged. This slice separates per-peer signaling
+failure from global transport startup failure and adds opt-in pending-join bounds.
+It does not change default admission/timeout settings or deploy the branch.
+
+- SDP/ICE/initialization/send failures associated with a server peer mark only
+  that signaling session failed. They no longer emit the `failed` signal that
+  Main treats as fatal. Actual listener/create-server errors retain that signal.
+- Failed pending peers are removed during the transport's process pass, outside
+  native RTC polling callbacks. Failure-time state decides whether gameplay may
+  survive, so a failed join cannot escape cleanup by connecting later in the same
+  poll. Callback bindings check connection-instance identity as well as peer ID.
+- Established DataChannels survive signaling closure or malformed signaling;
+  late offers are rejected before they can mutate an established connection.
+  This bootstrap does not support SDP renegotiation or ICE restart. Explicit
+  server/mux rejection still removes gameplay, including after signaling is gone.
+- `--webrtc-pending-timeout-ms=N` bounds time from TCP acceptance through channel
+  establishment, including silent TCP, ID/ACK, SDP, and ICE stalls. Progress and
+  repeated ACKs do not reset it. Enforcement runs when the server processes.
+- `--webrtc-max-pending=N` counts unfinished accepted sessions, not established
+  players. Excess TCP connections are closed before WebSocket/RTC allocation.
+  A positive cap also limits accepts/rejections to 16 per process pass; rejected
+  totals are logged at most once per second. Expired slots become reusable.
+- Both settings remain zero/disabled by default in pure WebRTC and mux servers.
+  There is no new global player cap, native ENet limit, or client retry behavior.
+
+The existing server pass remains linear in retained signaling peers; added
+bookkeeping is constant-size per session. With a positive cap, pending retained
+sessions are bounded by that cap and new-connection processing by 16 per pass.
+These are structural bounds, not CPU/RAM capacity measurements. Established
+sessions, OS listen backlog, per-message parse cost, message-drain loops, native
+error logging, and packet-byte growth are not comprehensively bounded by this
+change. Zero settings retain the earlier unbounded pending admission/wait.
+
+The cleanup ordering follows the
+[Godot 4.7 RTC polling implementation](https://github.com/godotengine/godot/blob/4.7/modules/webrtc/webrtc_multiplayer_peer.cpp).
+The native server closes retired accepted WebSockets immediately rather than
+waiting indefinitely for a remote close acknowledgement; the browser-only
+client close path remains separate. See the
+[TCP acceptance API](https://docs.godotengine.org/en/stable/classes/class_tcpserver.html)
+and the earlier WebSocket lifecycle references. No custom SDP or ICE parser was
+introduced: malformed payload tests exercise the existing native implementation.
+
+### Verification and limits
+
+The new `tests/webrtc_server_lifecycle_test.gd` first reproduced a malformed SDP
+emitting the server-fatal signal. It now passes: occupied listener startup still
+fails globally; a 20-TCP-connection burst admits two pending sessions and rejects
+18; silent and negotiating sessions expire; freed slots admit replacements;
+zero settings retain defaults; a healthy peer continues delivering packets while
+other peers send invalid SDP/ICE/ACKs; reused IDs reject stale callbacks; failure
+inside a real SDP callback waits until polling unwinds; and established gameplay
+survives signaling loss while explicit rejection still removes it. A deterministic
+state-order check also covers connection completion between failure and cleanup.
+Deadline boundaries use injected monotonic timestamps, not a slow-network claim.
+
+The native malformed SDP and ICE fixtures intentionally emit four parser ERROR
+diagnostics, two per payload. Assertions verify isolation, not suppression of
+native logging. No broad error allowlist was added. The listener fixture uses
+the same wildcard binding as production so that it actually conflicts on macOS.
+
+A separate bounded Main smoke on isolated loopback ports enabled a one-pending
+cap and 500 ms deadline. One excess TCP connection was rejected; the silent peer
+expired at 501 ms; malformed SDP produced its two expected parser errors without
+stopping the mux server; a subsequent ENet client completed 60 ticks and the
+server completed 300 ticks with exit zero. This confirms native CLI wiring and
+Main failure isolation, not browser acceptance. It preceded the final
+failure-time race latch, which is covered by the focused and final mixed gates.
+
+The existing client bootstrap regression passed without unexpected engine errors.
+`./scripts/check.sh` passed. Final
+`CAR_FIGHT_PACKED_INPUT=1 ./scripts/mixed_transport_test.sh` passed at 0.576 units
+with zero codec fallbacks/rejects and no engine/script errors in complete logs.
+Two bounded missing-reference diff warnings occurred in the shared RTC client.
+The final copied run is `car-fight-mixed.W8i4fI`.
+Evidence is retained under ignored `.network-runs/webrtc-server-2026-09-04/`:
+`server-focused.log`, `client-focused.log`, `main-server.log`, `main-native.log`,
+and `fast-check.log`, plus the copied final mixed-run directory.
+
+No production changes, master merge, complete milestone suite, rendered session,
+browser/TURN/mobile-resume test, or packaged Windows/Linux run. The full suite
+remains required before merge. Real-platform/slow-path measurements and an
+explicit owner decision are still needed before enabling limits by default.
+Further work includes packet-byte/load budgets, remaining harness log/error
+gating, and separate admission/rate-limit/recovery policy where needed.

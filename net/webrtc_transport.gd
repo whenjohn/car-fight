@@ -16,6 +16,7 @@ const TYPE_ANSWER := "answer"
 const TYPE_CANDIDATE := "candidate"
 const MAX_SIGNAL_MESSAGE := 1024 * 1024
 const CHANNEL_TELEMETRY_INTERVAL_MSEC := 1000
+const LIMITED_ACCEPTS_PER_POLL := 16
 
 class SignalPeer extends RefCounted:
 	var id: int
@@ -26,18 +27,29 @@ class SignalPeer extends RefCounted:
 	var local_candidates := 0
 	var remote_offer_received := false
 	var local_answer_sent := false
+	var accepted_msec := Time.get_ticks_msec()
+	var gameplay_connected := false
+	var failure_reason := ""
+	var force_disconnect := false
 	var ws := WebSocketPeer.new()
 
 	func _init(peer_id: int, stream: StreamPeer) -> void:
 		id = peer_id
 		ws.inbound_buffer_size = MAX_SIGNAL_MESSAGE
 		ws.outbound_buffer_size = MAX_SIGNAL_MESSAGE
-		ws.accept_stream(stream)
+		var err := ws.accept_stream(stream)
+		if err != OK:
+			failure_reason = "WebRTC accept_stream failed: %s" % error_string(err)
 
 var _mode := ""
 var _rtc := WebRTCMultiplayerPeer.new()
 var _tcp := TCPServer.new()
 var _server_signal_peers := {}
+var _server_pending_timeout_msec := 0
+var _server_max_pending := 0
+var _server_rejected_connections := 0
+var _last_admission_log_msec := 0
+var _last_logged_rejections := 0
 var _client_signal := WebSocketPeer.new()
 var _client_signal_open := false
 var _client_id := 0
@@ -73,13 +85,18 @@ func set_expected_failure_quiet(enabled: bool) -> void:
 
 
 func start_server(signaling_port: int, ice_servers: Array, relay_only := false,
-		unreliable_lifetime_ms := 1, channel_telemetry_enabled := false) -> MultiplayerPeer:
+		unreliable_lifetime_ms := 1, channel_telemetry_enabled := false,
+		pending_timeout_msec := 0, max_pending := 0) -> MultiplayerPeer:
 	_closed = false
 	_mode = "server"
 	_ice_servers = ice_servers.duplicate(true)
 	_relay_only = relay_only
 	_unreliable_lifetime_ms = clampi(unreliable_lifetime_ms, 1, 65534)
 	_channel_telemetry_enabled = channel_telemetry_enabled
+	_server_pending_timeout_msec = maxi(0, pending_timeout_msec)
+	_server_max_pending = maxi(0, max_pending)
+	_server_rejected_connections = 0
+	_last_logged_rejections = 0
 	var err := _rtc.create_server()
 	if err != OK:
 		_fail("WebRTC create_server failed: %s" % error_string(err))
@@ -88,7 +105,8 @@ func start_server(signaling_port: int, ice_servers: Array, relay_only := false,
 	if err != OK:
 		_fail("WebRTC signaling listen on :%d failed: %s" % [signaling_port, error_string(err)])
 		return null
-	print("[webrtc] authoritative peer=1 signaling=ws://0.0.0.0:%d gameplay=WebRTC" % signaling_port)
+	print("[webrtc] authoritative peer=1 signaling=ws://0.0.0.0:%d gameplay=WebRTC pending_timeout_ms=%d max_pending=%d" % [
+		signaling_port, _server_pending_timeout_msec, _server_max_pending])
 	return _rtc
 
 
@@ -139,9 +157,16 @@ func close() -> void:
 func reject_server_peer(peer_id: int, reason: String) -> void:
 	if _server_signal_peers.has(peer_id):
 		var signal_peer: SignalPeer = _server_signal_peers[peer_id]
-		signal_peer.ws.close(4001, reason)
-	if _rtc.has_peer(peer_id):
-		_rtc.remove_peer(peer_id)
+		signal_peer.force_disconnect = true
+		_peer_fail(peer_id, reason)
+	elif _rtc.has_peer(peer_id):
+		# A mux kick can arrive from inside RTC poll, after signaling is gone.
+		var rtc := _rtc
+		var connection: WebRTCPeerConnection = rtc.get_peer(peer_id).connection
+		(func():
+			if rtc.has_peer(peer_id) and rtc.get_peer(peer_id).connection == connection:
+				rtc.remove_peer(peer_id)
+		).call_deferred()
 
 
 func _process(_delta: float) -> void:
@@ -247,20 +272,19 @@ func _reported_channel_lifetime(channel: WebRTCDataChannel) -> String:
 
 
 func _poll_server_signaling() -> void:
-	while _tcp.is_connection_available():
-		var id := _allocate_peer_id()
-		_server_signal_peers[id] = SignalPeer.new(id, _tcp.take_connection())
-
-	var remove: Array[int] = []
-	for id: int in _server_signal_peers:
+	_accept_server_connections()
+	for id: int in _server_signal_peers.keys():
 		var signal_peer: SignalPeer = _server_signal_peers[id]
+		_check_server_peer(signal_peer, Time.get_ticks_msec())
+		if not _server_signal_peers.has(id):
+			continue
 		signal_peer.ws.poll()
 		var state := signal_peer.ws.get_ready_state()
 		if state == WebSocketPeer.STATE_OPEN and not signal_peer.announced:
 			signal_peer.announced = true
 			var err := _create_connection(id, false)
 			if err != OK:
-				remove.push_back(id)
+				_retire_server_peer(signal_peer)
 				continue
 			print("[webrtc] signaling assigned peer=%d" % id)
 		# A reverse proxy can finish its upstream WebSocket transition just after
@@ -269,20 +293,89 @@ func _poll_server_signaling() -> void:
 		var now_msec := Time.get_ticks_msec()
 		if state == WebSocketPeer.STATE_OPEN and signal_peer.announced and not signal_peer.id_acked and \
 				now_msec - signal_peer.last_id_sent_msec >= 500:
-			_send(signal_peer.ws, {"type": TYPE_ID, "id": id})
+			_send(signal_peer.ws, {"type": TYPE_ID, "id": id}, id)
 			signal_peer.last_id_sent_msec = now_msec
-		while state == WebSocketPeer.STATE_OPEN and signal_peer.ws.get_available_packet_count() > 0:
+		while signal_peer.failure_reason.is_empty() and state == WebSocketPeer.STATE_OPEN \
+				and signal_peer.ws.get_available_packet_count() > 0:
 			if not _parse_server_message(signal_peer, signal_peer.ws.get_packet()):
-				signal_peer.ws.close(4000, "invalid signaling message")
+				_peer_fail(id, "invalid signaling message")
 				break
-		if signal_peer.ws.get_ready_state() == WebSocketPeer.STATE_CLOSED:
-			# Losing signaling after ICE completes does not kill gameplay. Before
-			# DataChannels connect, however, this peer can never finish joining.
-			if _rtc.has_peer(id) and not bool(_rtc.get_peer(id).get("connected", false)):
-				_rtc.remove_peer(id)
-			remove.push_back(id)
-	for id in remove:
-		_server_signal_peers.erase(id)
+		_check_server_peer(signal_peer, Time.get_ticks_msec())
+
+
+func _accept_server_connections() -> void:
+	var pending := 0
+	if _server_max_pending > 0:
+		for signal_peer: SignalPeer in _server_signal_peers.values():
+			if not _server_peer_connected(signal_peer):
+				pending += 1
+	var accepted := 0
+	while _tcp.is_connection_available():
+		if _server_max_pending > 0 and accepted >= LIMITED_ACCEPTS_PER_POLL:
+			break
+		accepted += 1
+		var stream := _tcp.take_connection()
+		if _server_max_pending > 0 and pending >= _server_max_pending:
+			stream.disconnect_from_host()
+			_server_rejected_connections += 1
+			continue
+		var id := _allocate_peer_id()
+		_server_signal_peers[id] = SignalPeer.new(id, stream)
+		pending += 1
+	var now := Time.get_ticks_msec()
+	if _server_rejected_connections != _last_logged_rejections and \
+			now - _last_admission_log_msec >= CHANNEL_TELEMETRY_INTERVAL_MSEC:
+		print("[webrtc] admission rejected_total=%d max_pending=%d" % [
+			_server_rejected_connections, _server_max_pending])
+		_last_admission_log_msec = now
+		_last_logged_rejections = _server_rejected_connections
+
+
+func _server_peer_connected(signal_peer: SignalPeer) -> bool:
+	if not signal_peer.gameplay_connected and _rtc.has_peer(signal_peer.id) \
+			and bool(_rtc.get_peer(signal_peer.id).get("connected", false)):
+		signal_peer.gameplay_connected = true
+	return signal_peer.gameplay_connected
+
+
+func _check_server_peer(signal_peer: SignalPeer, now_msec: int) -> void:
+	var connected := _server_peer_connected(signal_peer)
+	if not connected and _server_pending_timeout_msec > 0 and \
+			now_msec - signal_peer.accepted_msec >= _server_pending_timeout_msec:
+		_peer_fail(signal_peer.id, "pending connection timed out after %d ms" % [
+			now_msec - signal_peer.accepted_msec])
+	if not signal_peer.failure_reason.is_empty() or \
+			signal_peer.ws.get_ready_state() == WebSocketPeer.STATE_CLOSED or \
+			(signal_peer.announced and not _rtc.has_peer(signal_peer.id)):
+		_retire_server_peer(signal_peer)
+
+
+func _retire_server_peer(signal_peer: SignalPeer) -> void:
+	if _server_signal_peers.get(signal_peer.id) != signal_peer:
+		return
+	# Called from our process pass, never from an SDP/ICE callback inside RTC poll.
+	if (signal_peer.force_disconnect or not _server_peer_connected(signal_peer)) \
+			and _rtc.has_peer(signal_peer.id):
+		_rtc.remove_peer(signal_peer.id)
+	# Accepted WebSockets are native-only; force close instead of retaining a
+	# graceful-close handshake that an unresponsive remote may never finish.
+	signal_peer.ws.close(-1)
+	_server_signal_peers.erase(signal_peer.id)
+
+
+func _peer_fail(peer_id: int, message: String) -> void:
+	if _mode != "server":
+		_fail(message)
+		return
+	var signal_peer: SignalPeer = _server_signal_peers.get(peer_id)
+	if signal_peer == null or not signal_peer.failure_reason.is_empty():
+		return
+	# Preserve the decision made at failure time, even if RTC finishes connecting
+	# later in the same poll before our process pass performs cleanup.
+	if not _server_peer_connected(signal_peer):
+		signal_peer.force_disconnect = true
+	signal_peer.failure_reason = message
+	print("[webrtc] signaling peer_failed peer=%d reason=%s" % [peer_id, message])
 
 
 func _poll_client_signaling() -> void:
@@ -345,10 +438,14 @@ func _parse_server_message(signal_peer: SignalPeer, packet: PackedByteArray) -> 
 	if typeof(msg) != TYPE_DICTIONARY or typeof(msg.get("type")) != TYPE_STRING:
 		return false
 	var kind: String = msg.type
-	if kind == TYPE_ID_ACK and typeof(msg.get("id")) == TYPE_FLOAT and int(msg.id) == signal_peer.id:
+	if kind == TYPE_ID_ACK and typeof(msg.get("id")) == TYPE_FLOAT and msg.id == signal_peer.id:
 		signal_peer.id_acked = true
 		return true
 	if kind == TYPE_OFFER and typeof(msg.get("sdp")) == TYPE_STRING:
+		# This bootstrap does not implement renegotiation. Do not let a late
+		# offer mutate an established connection before retiring its signaling.
+		if _server_peer_connected(signal_peer):
+			return false
 		signal_peer.id_acked = true
 		signal_peer.remote_offer_received = true
 		return _set_remote_description(signal_peer.id, "offer", msg.sdp)
@@ -408,30 +505,41 @@ func _create_connection(peer_id: int, make_offer: bool) -> Error:
 	])
 	var err := connection.initialize(config)
 	if err != OK:
-		_fail("WebRTC initialize peer=%d failed: %s" % [peer_id, error_string(err)])
+		_peer_fail(peer_id, "WebRTC initialize peer=%d failed: %s" % [peer_id, error_string(err)])
 		return err
-	connection.session_description_created.connect(_on_session_description.bind(peer_id))
-	connection.ice_candidate_created.connect(_on_ice_candidate.bind(peer_id))
+	connection.session_description_created.connect(_on_session_description.bind(peer_id, connection.get_instance_id()))
+	connection.ice_candidate_created.connect(_on_ice_candidate.bind(peer_id, connection.get_instance_id()))
 	err = _rtc.add_peer(connection, peer_id, _unreliable_lifetime_ms)
 	if err != OK:
-		_fail("WebRTC add_peer(%d) failed: %s" % [peer_id, error_string(err)])
+		_peer_fail(peer_id, "WebRTC add_peer(%d) failed: %s" % [peer_id, error_string(err)])
 		return err
 	if make_offer:
 		err = connection.create_offer()
 		if err != OK:
-			_fail("WebRTC create_offer failed: %s" % error_string(err))
+			_peer_fail(peer_id, "WebRTC create_offer failed: %s" % error_string(err))
 	return err
 
 
-func _on_session_description(kind: String, sdp: String, peer_id: int) -> void:
+func _rtc_callback_is_current(peer_id: int, connection_id: int) -> bool:
 	if _closed or not _rtc.has_peer(peer_id):
+		return false
+	if connection_id != 0 and _rtc.get_peer(peer_id).connection.get_instance_id() != connection_id:
+		return false
+	if _mode == "server":
+		var signal_peer: SignalPeer = _server_signal_peers.get(peer_id)
+		return signal_peer != null and signal_peer.failure_reason.is_empty()
+	return true
+
+
+func _on_session_description(kind: String, sdp: String, peer_id: int, connection_id := 0) -> void:
+	if not _rtc_callback_is_current(peer_id, connection_id):
 		return
 	var connection: WebRTCPeerConnection = _rtc.get_peer(peer_id).connection
 	if _relay_only:
 		sdp = _relay_candidates_only(sdp)
 	var err := connection.set_local_description(kind, sdp)
 	if err != OK:
-		_fail("WebRTC set_local_description(%s) failed: %s" % [kind, error_string(err)])
+		_peer_fail(peer_id, "WebRTC set_local_description(%s) failed: %s" % [kind, error_string(err)])
 		return
 	var msg := {"type": kind, "sdp": sdp}
 	if _mode == "server":
@@ -439,13 +547,13 @@ func _on_session_description(kind: String, sdp: String, peer_id: int) -> void:
 		if signal_peer:
 			if kind == "answer":
 				signal_peer.local_answer_sent = true
-			_send(signal_peer.ws, msg)
+			_send(signal_peer.ws, msg, peer_id)
 	else:
 		_send(_client_signal, msg)
 
 
-func _on_ice_candidate(mid: String, index: int, candidate: String, peer_id: int) -> void:
-	if _closed:
+func _on_ice_candidate(mid: String, index: int, candidate: String, peer_id: int, connection_id := 0) -> void:
+	if not _rtc_callback_is_current(peer_id, connection_id):
 		return
 	if _relay_only:
 		var relay_candidate := " typ relay" in candidate
@@ -461,7 +569,7 @@ func _on_ice_candidate(mid: String, index: int, candidate: String, peer_id: int)
 		var signal_peer: SignalPeer = _server_signal_peers.get(peer_id)
 		if signal_peer:
 			signal_peer.local_candidates += 1
-			_send(signal_peer.ws, msg)
+			_send(signal_peer.ws, msg, peer_id)
 	else:
 		_send(_client_signal, msg)
 
@@ -480,7 +588,7 @@ func _set_remote_description(peer_id: int, kind: String, sdp: String) -> bool:
 	var connection: WebRTCPeerConnection = _rtc.get_peer(peer_id).connection
 	var err := connection.set_remote_description(kind, sdp)
 	if err != OK:
-		_fail("WebRTC set_remote_description(%s) failed: %s" % [kind, error_string(err)])
+		_peer_fail(peer_id, "WebRTC set_remote_description(%s) failed: %s" % [kind, error_string(err)])
 	return err == OK
 
 
@@ -491,16 +599,16 @@ func _add_candidate(peer_id: int, msg: Dictionary) -> bool:
 	var connection: WebRTCPeerConnection = _rtc.get_peer(peer_id).connection
 	var err := connection.add_ice_candidate(msg.mid, int(msg.index), msg.candidate)
 	if err != OK:
-		_fail("WebRTC add_ice_candidate failed: %s" % error_string(err))
+		_peer_fail(peer_id, "WebRTC add_ice_candidate failed: %s" % error_string(err))
 	return err == OK
 
 
-func _send(ws: WebSocketPeer, msg: Dictionary) -> void:
+func _send(ws: WebSocketPeer, msg: Dictionary, peer_id := 0) -> void:
 	if ws.get_ready_state() != WebSocketPeer.STATE_OPEN:
 		return
 	var err := ws.send_text(JSON.stringify(msg))
 	if err != OK:
-		_fail("WebRTC signaling send failed: %s" % error_string(err))
+		_peer_fail(peer_id, "WebRTC signaling send failed: %s" % error_string(err))
 
 
 func _allocate_peer_id() -> int:

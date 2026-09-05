@@ -1,5 +1,39 @@
 # Current phase
 
+## Active worktree: WebRTC server lifecycle, 2026-09-04
+
+- Continuing on `codex/networking-review` in `car-fight-networking`. Reproduced
+  malformed SDP emitting the server-fatal failure signal. Server peer errors now
+  retire only their signaling/pending RTC session; listener/create-server errors
+  remain fatal. Healthy DataChannels survive another peer's failure and their
+  own signaling loss. Explicit mux/server rejection still removes gameplay.
+- Added opt-in `--webrtc-pending-timeout-ms=N` and `--webrtc-max-pending=N` for
+  pure WebRTC and mux servers. Both default to zero/disabled. Pending includes
+  TCP acceptance through DataChannel establishment; connected peers are exempt.
+  A positive cap closes excess TCP connections before RTC allocation and bounds
+  accepts/rejections to 16 per process pass. No total-player/rate-limit claim.
+- Peer cleanup runs outside RTC callbacks. Connection-instance checks reject
+  stale callbacks after ID reuse; failure-time state prevents a failed join
+  escaping cleanup if channels finish connecting before the process pass.
+- New `tests/webrtc_server_lifecycle_test.gd` covers admission, timeout stages,
+  malformed native SDP/ICE, healthy packet delivery, callback cleanup, ID reuse,
+  explicit rejection, and genuine startup failure. Four native parser errors
+  are intentional fixture output, not an allowlist for gameplay logs. Existing
+  client bootstrap tests also pass. Both tests are in `scripts/test.sh`.
+- Bounded Main smoke: cap 1, timeout 500 ms; excess TCP rejected, silent peer
+  expired at 501 ms, bad SDP contained, subsequent ENet client completed 60 ticks,
+  server completed 300 ticks/exit 0. Evidence and limitations are in the review
+  follow-up and ignored `.network-runs/webrtc-server-2026-09-04/`.
+- Fast check and final packed-input mixed gate passed; worst correction 0.576,
+  zero codec fallbacks/rejects, no engine/script errors in complete mixed logs.
+  Two bounded missing-reference diff warnings remain visible. Final mixed log
+  folder: `car-fight-mixed.W8i4fI`.
+- Next: inspect packet-byte/load budgets as player and object counts grow and
+  audit remaining harness error/log coverage. Real browser/TURN and packaged
+  platform evidence remain required before any limit/default promotion. The
+  full milestone suite remains required before merging this branch. No default
+  changes, deployment, master merge, rendered run, or same-session rejoin feature.
+
 ## Active worktree: WebRTC client bootstrap, 2026-09-04
 
 - Continuing on `codex/networking-review` in `car-fight-networking`. Fixed async
