@@ -2,6 +2,12 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner requested observation of the next behavior before tuning. Launched
+  monitored offline Evader playtest at `9cedf26`: 64 initial sprites, survivor,
+  batched drawing, ordinary 1280x720 inset window. Run `20260905-022650`,
+  client PID 91201; offline readiness and 64-fixture configuration confirmed.
+  Population starts off and is enabled via the existing in-game selector.
+  Await owner notes; no Evader changes or performance acceptance yet.
 - Implemented optional **offline population spawners** after recording the
   accepted 64-live target in `f618961`. Debug → Sprite test → Population (offline)
   → Maintain 56–64 (reset), immediately below Disable test. Monitor at the top
