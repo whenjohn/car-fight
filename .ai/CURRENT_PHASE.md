@@ -2,6 +2,16 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner requested same all-alive stationary-Jeep test at lower counts.
+  Prepared 64/32 with two repeats, matching 15-second warmup / 12-second
+  samples, temporarily permitting 32 only in the offline diagnostic.
+  Run `20260905-015453` aborted before any sample: no rendered frame for
+  2.5 seconds after window became obscured. Expected diagnostic exit 2,
+  NOT valid FPS evidence. Import passed; no engine/script errors observed.
+- Diagnostic patch preserved in that run directory. All temporary runner,
+  hit suppression and 32-count changes removed; gameplay matches HEAD.
+  Asked owner whether the next test may temporarily keep its small ordinary
+  window above others to prevent occlusion. No lower-live-count result yet.
 - Valid TRUE 128-live-attacker test completed at `18e2f92` plus temporary
   offline diagnostic. Run `20260905-014909` closed cleanly; all 128 stayed
   alive AND batched in every sampled frame, Jeep fixed at (0,1,0), window
