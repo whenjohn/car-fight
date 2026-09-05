@@ -2,6 +2,22 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner found baseline Evader reasonable and requested faster retreat as the
+  pursuer closes plus zig-zag evasion. Added a distance ramp from base speed at
+  ten units to the existing 1.5× maximum at two units, with seeded 1.5–3-second
+  alternating steering up to 0.65 radians. Existing per-waypoint fading, speed
+  limiting and capsule sweeps are reused unchanged. Predicted run-over retains
+  full-speed direct sidestep priority; no added route jobs/RPC/state fields.
+- Added regression BEFORE behavior change and confirmed the old behavior fails
+  ramp/weave assertions. Final PASS: fast check, `sprite_ai_test.gd` (all slider
+  extremes, cap, easing/hysteresis, repeatable individual turns, crossing priority),
+  `sprite_ai_runtime_test.gd` (real movement and fresh-sweep equivalence at two
+  capsule sizes, both turn directions, wall blocking and speed cap; existing
+  other-profile/contact/lifecycle checks retained). Final runs clean, no errors.
+  No engine, sprite size, population or network changes/tests. Rendered feel/FPS
+  for the tuned Evader remains pending owner observation; ready for a repeat
+  monitored 64-Evader playtest.
+- Baseline observation run `20260905-022650` ended cleanly before this edit.
 - Owner requested observation of the next behavior before tuning. Launched
   monitored offline Evader playtest at `9cedf26`: 64 initial sprites, survivor,
   batched drawing, ordinary 1280x720 inset window. Run `20260905-022650`,

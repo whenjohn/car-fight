@@ -96,7 +96,15 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 			if direction.is_zero_approx():
 				direction = Vector3.RIGHT
 			result.destination = position + direction * 8.0
-			result.speed *= 1.5
+			# Build from normal pace at ten units to the existing 1.5x cap
+			# at two units. An imminent run-over keeps the urgent sidestep.
+			var urgency := clampf((10.0 - away.length()) / 8.0, 0.0, 1.0)
+			result.speed *= lerpf(1.0, 1.5, 1.0 if crossing else urgency)
+			s.motion_age += delta
+			if not crossing:
+				# Reuse seeded phase/period and the existing swept steering path.
+				# Alternating turns never add velocity on top of the speed cap.
+				result.steer = 0.65 * sin(s.motion_age * TAU / (s.drift_period * 0.5) + s.drift_phase)
 			result.state = "evade"
 			s.aim = 0.0
 			s.state = result.state

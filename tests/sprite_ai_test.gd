@@ -64,6 +64,49 @@ func _run() -> void:
 	evader = brain.initial(10000, "evader", Vector3.ZERO)
 	evade = brain.decide(evader, Vector3.ZERO, seen, 0.2, settings)
 	_check(evade.state == "evade" and absf(evade.destination.x) > 1, "evader sidesteps predicted crossing")
+	_check(evade.steer == 0.0 and is_equal_approx(evade.speed, settings.speed * 1.5),
+		"imminent crossing keeps full-speed sidestep, not a zig back into traffic")
+	seen.velocity = Vector3.ZERO
+	for base_speed in [0.5, 3.0, 8.0]:
+		var tuning := {"speed": base_speed, "detection": 32.0, "interval": 1.0}
+		var runner: Dictionary = brain.initial(10003, "evader", Vector3.ZERO)
+		var previous_speed := 0.0
+		for gap in [9.0, 6.0, 3.0, 2.0, 0.0]:
+			seen.position = Vector3(0, 0, -gap)
+			var run: Dictionary = brain.decide(runner, Vector3.ZERO, seen, 0.2, tuning)
+			_check(run.state == "evade" and run.speed >= previous_speed and run.speed <= base_speed * 1.5,
+				"closer pursuer increases speed without exceeding existing evader cap")
+			if gap > 2.0:
+				_check(run.speed > previous_speed and run.speed < base_speed * 1.5, "speed ramps before reaching cap")
+			else:
+				_check(is_equal_approx(run.speed, base_speed * 1.5), "point-blank runner reaches but never exceeds cap")
+			_check(run.destination.is_finite(), "coincident car gets a finite escape direction")
+			previous_speed = run.speed
+		seen.position = Vector3(0, 0, -12)
+		var easing: Dictionary = brain.decide(runner, Vector3.ZERO, seen, 0.2, tuning)
+		_check(easing.state == "evade" and is_equal_approx(easing.speed, base_speed), "runner eases off as gap opens while retaining hysteresis")
+		seen.position.z = -15
+		easing = brain.decide(runner, Vector3.ZERO, seen, 0.2, tuning)
+		_check(easing.state != "evade" and easing.steer == 0.0, "zigzag ends when safely outside retreat distance")
+	var zig_a: Dictionary = brain.initial(10005, "evader", Vector3.ZERO)
+	var zig_b: Dictionary = brain.initial(10005, "evader", Vector3.ZERO)
+	var zig_other: Dictionary = brain.initial(10006, "evader", Vector3.ZERO)
+	seen.position = Vector3(0, 0, -5)
+	var positive := false
+	var negative := false
+	var individual := false
+	for step in 40:
+		var a: Dictionary = brain.decide(zig_a, Vector3.ZERO, seen, 0.2, settings)
+		var b: Dictionary = brain.decide(zig_b, Vector3.ZERO, seen, 0.2, settings)
+		var c: Dictionary = brain.decide(zig_other, Vector3.ZERO, seen, 0.2, settings)
+		_check(a == b, "same seeded evader reproduces zigzag")
+		_check(absf(a.steer) <= 0.65 and not a.fire, "zigzag remains forward-directed without firing during retreat")
+		positive = positive or a.steer > 0.3
+		negative = negative or a.steer < -0.3
+		individual = individual or not is_equal_approx(a.steer, c.steer)
+	_check(positive and negative and individual, "evaders alternate left/right at individual timings")
+	var safe: Dictionary = brain.decide(zig_a, Vector3.ZERO, {}, 0.2, settings)
+	_check(safe.steer == 0.0, "no eligible pursuer means no evasive zigzag")
 	var basic: Dictionary = brain.initial(10001, "basic", Vector3.ZERO)
 	var wander: Dictionary = brain.decide(basic, Vector3.ZERO, {}, 0.2, settings)
 	_check(wander.destination.length() <= 8.01 and not wander.fire, "unthreatened basic wanders locally")

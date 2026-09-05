@@ -59,6 +59,43 @@ func _run() -> void:
 						expected += query.motion * float(space.cast_motion(query)[0])
 					_check(ai.move(mover, 0.5).is_equal_approx(expected),
 						"movement matches fresh sweep across size, direction, overlap and exclusions")
+	# Apply proximity/zigzag decisions through the real movement path and wall
+	# sweep. A sideways component must not add speed or bypass the capsule.
+	var evader_blocked := false
+	var evader_left := false
+	var evader_right := false
+	for size in [0.5, 2.0]:
+		lab.configure(true, 1, size, false)
+		ai.configure("evader", 3.0, 32.0, 1.0, false)
+		var runner = lab._fixtures[0]
+		runner.position = Vector3(0, 1, -7)
+		ai._excluded = main._combat_dynamic_rids()
+		for step in 30:
+			var threat := {"position": runner.position - Vector3(0, 0, float(step % 10)),
+				"velocity": Vector3.ZERO, "visible": true}
+			var decision: Dictionary = ai.BRAIN.decide(ai.brains[runner.target_id], runner.position, threat, 0.2, ai.settings)
+			ai.brains[runner.target_id].decision = decision
+			ai.routes[runner.target_id] = PackedVector3Array([decision.destination])
+			ai.pending.clear()
+			var direction: Vector3 = (decision.destination - runner.position).normalized().rotated(Vector3.UP, decision.steer)
+			var query := PhysicsShapeQueryParameters3D.new()
+			query.shape = runner.get_child(0).shape
+			query.transform = Transform3D(Basis.IDENTITY, runner.position)
+			query.motion = direction * decision.speed * 0.2
+			query.collision_mask = 1
+			query.exclude = ai._excluded
+			var space: PhysicsDirectSpaceState3D = main.get_world_3d().direct_space_state
+			var expected: Vector3 = runner.position
+			if space.intersect_shape(query, 1).is_empty():
+				expected += query.motion * float(space.cast_motion(query)[0])
+			var actual: Vector3 = ai.move(runner, 0.2)
+			_check(actual.is_equal_approx(expected), "evader zigzag matches fresh actual-capsule sweep")
+			var travelled: Vector3 = actual - runner.position
+			_check(travelled.length() <= 4.5 * 0.2 + 0.00001, "zigzag cannot exceed evader movement cap")
+			evader_blocked = evader_blocked or travelled.length() + 0.001 < query.motion.length()
+			evader_left = evader_left or travelled.x < -0.05
+			evader_right = evader_right or travelled.x > 0.05
+	_check(evader_blocked and evader_left and evader_right, "real movement weaves both ways and respects wall clearance")
 	# Offline simulation still advances ticks, but remote-only snapshots have
 	# no consumers. Configuration and local practice-shot events stay separate.
 	lab.configure(true, 256, 1.0, false)

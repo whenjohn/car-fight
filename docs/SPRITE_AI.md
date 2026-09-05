@@ -40,14 +40,21 @@ and counters only: no damage, resources, impulses, shield or det interactions.
   Seeds derive from fixture IDs, so resets reproduce the same personalities.
   Variation is evaluated at the existing server decision cadence, not on clients.
 - Evader retreats inside ten units, resumes firing outside fourteen, and
-  sidesteps a projected collision within one second. It does not read bullets
-  or player input to predict intent.
+  sidesteps a projected collision within one second. While retreating, speed
+  rises linearly from normal pace at ten units to its existing 1.5× cap at two
+  units (3 → 4.5 units/second at default settings), easing off as the gap opens.
+  It zig-zags with seeded individual phases and 1.5–3-second cycles, up to about
+  37 degrees either side of the route direction. Existing waypoint fading and
+  capsule sweeps constrain the turns; weaving never adds speed above the cap.
+  A predicted run-over takes priority: full-speed direct sidestep until clear
+  of the projected path, then weaving resumes if still evading. It does not
+  read bullets or player input to predict intent.
 - Ambusher searches nearby building corners for reachable cover and a firing
   position. It waits hidden for at least one second, steps out when its tracked
   car approaches within eighteen units, fires three shots, and returns to cover.
   If no cover is reachable it temporarily behaves like Basic and retries.
 
-Defaults: movement 3 units/second, attack/evasion 1.5× movement, detection 32 units,
+Defaults: movement 3 units/second, attack 1.5× and evasion up to 1.5× movement, detection 32 units,
 shot interval 1 second, aim delay at least 0.35 seconds. Decisions run at 5 Hz,
 so transitions are quantized to that cadence. Bullet speed is 22 units/second,
 lifetime two seconds. Show AI decisions displays profile/state labels on clients
