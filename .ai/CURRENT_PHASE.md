@@ -2,6 +2,17 @@
 
 ## P-cruise human playtest active, 2026-09-05
 
+- Owner's preliminary feedback: good, like before; very subtle stutter in the
+  observed remote vehicle, plus occasional whole-world FPS drops. Keep these
+  as separate symptoms. Bravo logged cruise active; session remains running.
+- Live capture through about 01:46:32: preceding-minute median FPS 35/34;
+  both clients dropped to single digits around 01:45:33-45 while both were
+  unfocused. Network-loop maxima reached 193/242 ms and rollback 64/111 ms.
+  macOS CPU_Speed_Limit minimum so far was 24; latest values remained reduced.
+  These support local processing/power or background-scheduling pressure,
+  not a proven CPU-only or thermal root cause. Latest applied state was current;
+  no client engine/script errors or display precursor at capture. Fixed legacy
+  playback still lacks the trace needed to explain subtle remote-only stutter.
 - Owner approved launch. Both monitored clients connected to the isolated
   macai2 mux on UDP 12780 / TCP 12781 with `--client-cruise` verified in both
   process command lines. Runtime is `b8b6c36`; networking settings match the
