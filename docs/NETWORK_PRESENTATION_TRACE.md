@@ -388,8 +388,19 @@ unknown; speed variation alone is not a skid trigger. These FX paths predate the
 trial. Do not hide the issue by disabling remote marks or add replicated fields
 without first reproducing and measuring the state/time mismatch.
 
-Next: retain the opt-in, investigate the remote FX inputs and stall/correction
-outlier, then perform a controlled comparison and later native/browser gate.
+Owner subsequently deferred the skid-mark discrepancy as minor unless it proves
+to be a networking/speed symptom. Keep it in the backlog, not the next required
+FX task. Important qualification: `FollowController.automatic_brake_skid()` uses
+current speed minus requested speed. A prediction, input or reconciliation
+difference could affect brake state even though marks do not directly measure
+render-cursor speed. The elapsed cursor does not change simulated velocity;
+no sustained speed disagreement or exact skid trigger was established here.
+Reopen the FX issue if it correlates with tick-aligned speed/brake disagreement,
+repeated corrections or remote movement hitches. Do not label it proven harmless
+or dismiss a transient merely because final applied state was current.
+
+Next: retain the opt-in, investigate the measured stall/correction outlier, then
+perform a controlled comparison and later native/browser gate; skid FX deferred.
 No defaults or production services changed during analysis. Validation here was
 saved-evidence parsing/assertions and documentation diff checks, not a new live
 gate or repeated broad suite.

@@ -1,5 +1,24 @@
 # Current phase
 
+## Priority update: skid discrepancy deferred by owner, 2026-09-05
+
+- Owner considers observer-only skid marks minor and requested logging them for
+  later unless they indicate speed disagreement/network stutter. Defer the FX
+  investigation; do not treat it as the next required implementation task.
+- Qualification from code: `FollowController.automatic_brake_skid()` depends on
+  current speed minus requested speed. A prediction/correction/input mismatch
+  could therefore affect brake state, although marks are not directly generated
+  from render-cursor speed changes. The elapsed cursor only changes presentation,
+  not simulated velocity. Current evidence does not identify the triggering
+  signal or establish sustained client/server speed disagreement.
+- Retain the mismatch as a diagnostic clue, not confirmed harmless cosmetics.
+  Reopen if marks coincide with measured tick-aligned speed/braking disagreement,
+  repeated corrections or remote-only movement hitches. Existing traces lack
+  those effect inputs; final current-state status does not rule out transients.
+- Next networking priority is the measured 2.800-unit stall/probe outlier, then
+  controlled cursor comparison and later native/browser validation. Keep the
+  improvement opt-in and production/defaults unchanged.
+
 ## Elapsed-cursor trial completed and analyzed, 2026-09-05
 
 - Owner finished after reporting "smooth very little stutter", separately from
@@ -22,8 +41,8 @@
 - Evidence: `.crash-runs/two-client-20260905-035412/`, plus server logs and
   `compare-cursors.mjs` / `cursor-comparison.json` in
   `.network-runs/elapsed-20260905-0351/`. No trial processes remain.
-- Next: keep clock opt-in/default unchanged; characterize remote skid trigger
-  inputs against presentation time, investigate the stall/probe outlier, then
+- Next (updated by owner above): keep clock opt-in/default unchanged; defer skid
+  effects and investigate the stall/probe outlier, then
   controlled comparison and later native/browser validation. Do not equate the
   positive motion verdict with approval to promote or deploy.
 
