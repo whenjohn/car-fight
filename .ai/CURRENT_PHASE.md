@@ -1,5 +1,23 @@
 # Current phase
 
+## Owner observation during elapsed trial: remote-only skid marks
+
+- Owner sees straight-path skid marks under the other player in the observer
+  window, but no marks in that player's own window. Trial remains active;
+  owner has not said done or given a separate motion-smoothness verdict.
+- Read-only trace: `GroundVehicleHull._animation_inputs()` reads current rigid
+  velocity/basis and `brake_skid_amount`, while the remote visual root follows
+  delayed snapshots. `_update_tire_skid_trails()` additionally reads reverse,
+  drift-assist/oil and boost transitions. `skid_strength()` gates on braking,
+  slide or boost, with speed scaling, not acceleration alone. These FX paths
+  predate the cursor trial and were not changed during it.
+- State-time mismatch is a hypothesis, not the identified trigger for these
+  marks: existing traces do not record the per-tire trigger inputs. Keep this
+  separate from proof of movement desync or proof the new clock caused it.
+  After the run, characterize remote effect inputs and their presentation time;
+  add focused coverage before changing skid rules or replicated state. Do not
+  hide the discrepancy by disabling all remote skid effects.
+
 ## Elapsed-cursor human trial active, 2026-09-05
 
 - Owner said ready to test. Implemented opt-in at `856e081` before launching;
