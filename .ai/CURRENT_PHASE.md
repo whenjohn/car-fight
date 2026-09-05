@@ -2,6 +2,23 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Valid TRUE 128-live-attacker test completed at `18e2f92` plus temporary
+  offline diagnostic. Run `20260905-014909` closed cleanly; all 128 stayed
+  alive AND batched in every sampled frame, Jeep fixed at (0,1,0), window
+  1280x720 and focused throughout, recorded CPU limits 100. Results:
+  `.crash-runs/live128-1788590968/`; diagnostic patch in monitored run folder.
+- Two 12-second windows after separate 15-second warmups: median/P95
+  20.411/26.924 ms and 20.356/26.690 ms (~49 FPS typical, ~37 at P95).
+  Worst frames 31.581/31.956 ms; zero measured frames over 33.333 ms.
+  1,132/1,139 practice shots created during samples. No claim of locked 60
+  or longer-session/moving-Jeep/network capacity. Full-active 64 still untested.
+- Temporary offline hit suppression retained all movement/contact queries;
+  runner checked live count and Jeep position every frame, added draw-gap
+  and overall timeout/resize guards. Import passed; both runtime samples valid,
+  no engine/script errors. Test-only code fully removed; gameplay and probe
+  match HEAD. Only docs changed, verified with source-restoration/diff checks.
+- This supersedes the earlier unverified 128 recommendation: the ~57 FPS
+  spawned-count result had only 72 alive; TRUE 128 was ~49 FPS in this scene.
 - Owner asked whether lower counts reach ~60 FPS. Added optional diagnostic
   `CAR_FIGHT_BATCH_COUNT_SWEEP=1` to the existing rendered probe; no gameplay
   defaults or AI changes. Fast check passed; bounded count phases exercised.

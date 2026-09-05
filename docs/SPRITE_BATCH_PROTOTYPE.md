@@ -189,3 +189,45 @@ matches HEAD. Full-active capacity remains unmeasured rather than inferred.
 Fast check passed for the retained count-sweep addition; its requested phases
 were exercised by the first run. Temporary fixture import passed separately.
 No networking, defaults, AI, movement or collision behavior changes are shipped.
+
+## Verified stationary-Jeep / 128-live test (2026-09-05)
+
+Owner explicitly requested 128 attackers with the Jeep stationary and no
+run-over deaths in the diagnostic. Baseline `18e2f92`, same Godot/Compatibility,
+1280x720 window, survivor size 1, managed batches, debug off, offline.
+The temporary hit-suppression fixture retained all AI, world movement sweeps
+and vehicle contact calculations, but prevented hits from reducing sprite
+health. Jeep frozen at (0,1,0), linear/angular velocity zero; ordinary car combat
+suppressed using the existing fixture-isolation flag. Sprite practice shots
+remained active. This is a count-load diagnostic, not shippable invulnerability.
+
+Two fresh configurations, each with 15 seconds of warmup and 12 seconds of
+wall-clock `frame_post_draw` samples:
+
+| Sample | Frames | Live / drawn throughout | Median ms | P95 ms | P99 ms | Worst ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| First | 564 | 128 / 128 | 20.411 | 26.924 | 29.644 | 31.581 |
+| Repeat | 565 | 128 / 128 | 20.356 | 26.690 | 30.140 | 31.956 |
+
+Typical rate is ~49 FPS by reciprocal median, with P95 frame times equivalent
+to ~37 FPS and worst measured frames ~31 FPS. Neither window contained a frame
+over 33.333 ms. This is **not 60-FPS acceptance**, but it is valid evidence for
+128 live attackers, unlike the earlier 128-spawn sample with only 72 alive.
+It does not establish moving-player, sustained thermal-soak or network capacity.
+
+Each recorded frame verifies alive=128 and drawn=128. The runner also rejected
+Jeep movement, resizing, a draw gap over one second, no draw for 2.5 seconds,
+or an overall timeout, rather than accepting an occluded-window result. Both
+windows were focused throughout and lasted 12.008 / 12.003 wall-clock seconds.
+Practice shot creation was 1,132 / 1,139 per sample; some shot hits belong to
+bullets created before each window. Recorded CPU performance limits stayed 100.
+No cap or VSync setting was changed (`max_fps=0`, VSync enabled).
+
+Run `.crash-runs/20260905-014909/` closed cleanly with no engine/script errors;
+the familiar long startup pause was outside measured windows. Raw per-frame
+rows, settings and summaries: `.crash-runs/live128-1788590968/`.
+Temporary fixture/runner patch: `20260905-014909/diagnostic.patch` under the
+monitor root. Diagnostic import passed before launch. All temporary code was
+removed afterward and both touched source files exactly match `18e2f92`.
+This follow-up commits documentation only; source-restoration and diff checks
+are the relevant gates. No network work, gameplay tuning or default change.
