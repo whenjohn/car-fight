@@ -24,6 +24,9 @@
   Environment: `CAR_FIGHT_SPRITE_BATCHED=1`. Four whole-city action batches,
   capacity 256 each; no individual culling/sorting inside batches. Kept opt-in
   pending owner visual review. No backend migration or network changes.
+- Opened approved interactive monitored run `20260904-230807` at `bc9ebde`
+  with 256 batched survivor attackers. Owner visual/feel evaluation and final
+  monitor outcome remain pending.
 - Owner authorized trying optimization and explicitly ruled out engine changes.
   First pass stays on Godot 4.7.1 Compatibility: avoids redundant appearance/
   color/speed updates, bounds debug labels/markers to nearest 16 living sprites
