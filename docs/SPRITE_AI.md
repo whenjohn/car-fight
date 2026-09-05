@@ -88,6 +88,34 @@ sprites to the camera. Debug facts refresh at 5 Hz; invalid cover markers are
 not allocated, and leaving the selection releases nodes. All obey depth occlusion.
 Preview animation controls remain presentation-only; real deaths override them.
 
+## Later-session behavior ideas (2026-09-05)
+
+Owner requested saving these ideas for later, not implementing them now.
+Existing profiles: Basic, Attacker, Evader, grass Ambusher; Mixed combines them.
+Preserve the accepted Attacker/Evader tuning and grass-Ambusher iteration.
+
+- Flanker: approach the car from the side instead of following directly behind.
+- Skirmisher: move in, fire a short burst, then back off.
+- Charger: pause briefly to signal intent, then commit to a fast, mostly straight
+  rush that the player can dodge.
+- Defender: guard an area, attack intruders, and return instead of chasing across
+  the whole map.
+- Coward: attack with nearby allies, flee when left alone. Any neighbor sensing
+  must use bounded spatial queries, not an all-sprites scan per sprite.
+
+Suggested next experiment: **Charger**, because its pause/commit/recover cycle
+should be distinct and easy to observe and tune. This is a recommendation, not
+an owner-selected next task. Confirm the chosen behavior before implementing.
+Reuse existing movement/collision checks and decision scheduling; do not assume
+new damage, impulses, speed-cap changes or replicated bodies are authorized.
+
+Continue one behavior at a time with owner playtest notes. Keep the 64-live
+working target, bounded CPU/search work, current Godot engine/renderer and the
+other session's sprite-sizing work intact. Networking remains deferred; read
+the network-safe gameplay guidance before extending simulation. Reuse focused
+regressions and existing CPU/frame diagnostics; do not infer FPS acceptance
+from headless timings. No implementation or performance claim for these ideas.
+
 ## Offline population prototype (2026-09-05)
 
 Working target: **64 living sprites**, following the measured 57–63 average FPS

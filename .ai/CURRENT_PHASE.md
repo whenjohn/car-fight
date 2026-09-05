@@ -2,6 +2,15 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Later-session handoff: owner requested documentation only of additional
+  behavior ideas. Saved Flanker, Skirmisher, Charger, Defender and Coward in
+  `docs/SPRITE_AI.md` under "Later-session behavior ideas". Charger is the
+  suggested next experiment, not an owner-selected implementation task.
+  Resume by confirming the choice, then tune one behavior at a time with owner
+  observation. Preserve accepted grass Ambusher/Attacker/Evader, 64-live target,
+  bounded work, engine/renderer and sprite sizing; networking stays deferred.
+  No behavior changes this checkpoint; documentation diff checked.
+
 - Owner observed the grass Ambusher, said "I like it", and requested committing
   this version for now. Keep the current behavior and camouflage as the accepted
   iteration. Explained that hiding uses green tint at 22% opacity, not complete
