@@ -761,3 +761,61 @@ the user-job launch was verified with both client process IDs. Production PID
 57599 was rechecked still listening on UDP 10080. No production restart, default
 promotion or master merge occurred. Human feedback and completed logs remain
 to be collected; launch is not evidence of smooth or error-free play.
+
+## Human desync and clock recovery, 2026-09-05
+
+The owner reported "out of sync" during `two-client-20260905-004554`.
+At capture, alpha's newest received state was 284 ticks behind its local tick;
+bravo's was 216 ticks behind. RTT was approximately 16/20 ms and both windows
+were around 27 FPS in the sampled interval. Bravo's worst correction reached
+12.813 units. These are tick-age discrepancies, not proof of multi-second
+network transit. Both clients were rejecting incoming full states as stale.
+
+Startup logs show reference-clock panic corrections of +5.882 and +3.606 seconds,
+followed by detected 1.107/1.209-second frame stalls. Code review found that
+`NetworkTime._loop()` rebased `_tick` on a pause but only advanced the old
+`_next_tick_time` by the stall duration, leaving the simulation clock and tick
+schedule on their previous timeline. As that clock caught up to corrected
+reference time, tick labels counted the difference again. Preserving pre-stall
+scheduled backlog caused an additional permanent offset.
+
+Added `tests/network_time_pause_test.gd` using the real loop and injected clock
+implementations. Zero/+4/-4-second reference offsets and zero/half-second
+backlog reproduce drift without sockets, rendered clients, changing the OS
+clock, or sleeping. The initial pre-fix fixture reported 227-257 ticks of drift
+for the positive offset. Its final assertion compares every subsequent tick
+against a clean-start control, rather than imposing a new tick-phase policy;
+the six scenarios now match exactly for 900 frames (15 simulated seconds).
+
+The fix samples reference time once and resets the simulation clock, next tick,
+tick label and stretch factor together when the existing pause path fires.
+Ordinary clock discipline, stall thresholds, input/state authority and schemas,
+publication defaults, initial timestamp handling and netfox D-040 recovery
+remain unchanged. In particular, this is not the previously rejected initial
+half-handshake-RTT seed. The actual rendered cause is strongly consistent with
+the reproduction, but a matched human retest is still required; low FPS and
+other startup problems have not been declared fixed.
+
+Clock regression and fast check pass. `join_transient_test.sh` passes with one
+recovery/reliable request, two state applications and post-stall tick 500.
+Its missing-reference warning and intentional stale-history-origin warning
+remain visible; no engine/script errors occurred. Logs: `pause-before.log`,
+`pause-after.log`, `pause-check.log`, `pause-join.log`, and copied
+`car-fight-join-transient.SqM1uC/` under `.network-runs/playtest-2026-09-05/`.
+The earlier default-network and respawn-harness failures are not cleared by
+this result. Full milestone clearance remains required before merge.
+
+`reconnect_test.sh` also passes: three joins, three leaves and seven survivor
+two-player samples. One missing-reference warning occurred in the leaver, with
+no engine/script errors. Logs: `pause-reconnect.log` and copied
+`car-fight-reconnect.qIkKXv/` in the same evidence directory.
+
+Stopped the diagnostic clients after capturing `desync-server-live.log`.
+The temporary `launchctl submit` job restarted the wrapper once after the
+nonzero termination, producing `two-client-20260905-004758`; that second run is
+not acceptance evidence. Removed the job explicitly and verified that only
+production PID 57599 remained listening on UDP 10080, with no isolated listener
+on 12780. Any future detached human launcher must explicitly disable restart
+instead of reusing that submit invocation. Original monitored logs contain no
+`Invalid actual_host_time` precursor. Production and default settings were not
+changed, and no fixed-build rendered run has been launched yet.

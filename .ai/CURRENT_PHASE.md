@@ -1,5 +1,43 @@
 # Current phase
 
+## Diagnostic desync and pause-clock fix, 2026-09-05
+
+- Owner reported the two clients out of sync. Captured both clients and the
+  isolated server, then stopped the diagnostic run. Production PID 57599 on
+  UDP 10080 remained running. The temporary launchctl-submit job restarted once
+  on nonzero client exit; removed it explicitly and verified no diagnostic
+  clients/server remained. Do not reuse that submit setup; any next detached
+  launcher must explicitly disable automatic restart.
+- Failed human run: `.crash-runs/two-client-20260905-004554/`. A brief unwanted
+  restarted run is `two-client-20260905-004758`; keep its logs separate. Server
+  capture is `.network-runs/playtest-2026-09-05/desync-server-live.log`.
+- Both clients corrected their reference clocks at startup (+5.882 / +3.606 s)
+  and later detected >1-second frame stalls. Final state tick ages were roughly
+  284 / 216 ticks despite RTT around 16 / 20 ms. Those are misaligned tick ages,
+  not measured multi-second packet transit. Bravo reached a 12.813-unit worst
+  correction. This run failed human acceptance; no display precursor was found
+  in captured original-run logs.
+- Reproduced a concrete `NetworkTime` bug with injected clocks: pause recovery
+  reset the tick label but retained the old simulation clock and tick schedule.
+  Subsequent catch-up permanently shifted tick labels. The focused pre-fix
+  test reached 227-257 ticks of drift for a +4-second reference offset.
+- Fixed pause recovery by rebasing simulation clock, next tick, and tick label
+  to one reference-time sample and resetting stretch to 1. No default, schema,
+  authority, publication rate, smoothing, or stale-history guard changed.
+  `network_time_pause_test.gd` now matches a clean timeline for 15 seconds with
+  zero/+4/-4-second offsets and optional half-second backlog. This isolates the
+  bug; a fresh rendered comparison is still needed to attribute the entire
+  observed desync to it. No initial handshake RTT seed was added.
+- Focused clock test and fast check pass. Stall-recovery gate passes with one
+  reliable request, two applications and post-stall tick 500; its expected
+  missing-reference/stale-history warnings remain logged. Reconnect passes with
+  three joins/leaves and one missing-reference warning, no engine/script errors.
+  Previous preflight failures remain open, not erased
+  by this fix. No production deployment, master merge or automatic relaunch.
+- Next: review the preserved desync and fix, then arrange the same two-client
+  diagnostic retest with a non-restarting launcher. Full milestone clearance is
+  still required before merge; do not spend another broad suite on a local fix.
+
 ## Playtest preflight, 2026-09-05
 
 - UPDATE: Owner explicitly approved proceeding as a diagnostic playtest despite

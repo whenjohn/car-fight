@@ -548,8 +548,13 @@ func _loop() -> void:
 	# Handle pause
 	if _was_paused:
 		_was_paused = false
-		_next_tick_time += clock_step
-		_tick = seconds_to_ticks(NetworkTimeSynchronizer.get_time())
+		# Rebase the whole timeline. Retaining the old schedule after jumping the
+		# tick counter replays its backlog and permanently offsets tick labels.
+		var reference_time := NetworkTimeSynchronizer.get_time()
+		_clock.set_time(reference_time)
+		_next_tick_time = reference_time
+		_tick = seconds_to_ticks(reference_time)
+		_clock_stretch_factor = 1.0
 	
 	# Run tick loop if needed
 	var ticks_in_loop := 0

@@ -39,6 +39,11 @@ these rules do not authorize new features, broad rewrites, or deployment.
   `scripts/reconnect_test.sh` gate them. Never accept a client that retries
   rollback older than `history_start` or queries authority from a detached
   input node.
+- Preserve the `NetworkTime` pause-timeline reset: simulation clock, tick label,
+  and next scheduled tick must rebase together. Run
+  `tests/network_time_pause_test.gd` and the existing stall/reconnect gates when
+  changing that path. A clock correction plus a stall previously left clients
+  seconds ahead and rejecting fresh server state as stale.
 - Do not port G2's half-handshake-RTT initial time seed. In Car Fight's 120 ms
   two-client A/B it caused 3.16-3.46 unit startup corrections in two of three
   runs; the unseeded control passed three of three at 1.178 units or less.

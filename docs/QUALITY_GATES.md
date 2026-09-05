@@ -78,6 +78,13 @@ accepted only with the expected CLIENT_STOPPED marker; errors still fail the run
 
 ## Gate selection
 
+For clock, pause, or stall recovery changes, run the pinned headless editor with
+`--script res://tests/network_time_pause_test.gd`, then the existing
+`scripts/join_transient_test.sh` and `scripts/reconnect_test.sh`. The clock test
+injects reference-clock offsets and scheduling backlog and compares recovery
+against a clean timeline; it does not require rendered windows or system-clock
+changes. Shared-clock changes still require milestone validation before merge.
+
 For payload accounting, replicated-state growth, or packet-budget work, run
 `tests/network_payload_telemetry_test.gd` and
 `tests/network_packet_size_test.gd -- --offline` with the pinned headless editor.
