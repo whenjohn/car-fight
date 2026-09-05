@@ -349,7 +349,8 @@ not the other findings or platform acceptance gaps.
 - `[packed-input]` diagnostics identify version 2 and cumulative `packed`,
   `fallbacks`, `encoded_bytes`, `received`, and `rejects`. Encoding counters include
   attempts later dropped by queue pressure; bytes measure the serialized input
-  array only. `NETAPP` still counts actual submitted RPC argument bytes. Neither
+  array only. `NETAPP` counts serialized logical payload estimates for submitted
+  RPCs, not their exact Godot RPC framing. Neither
   measures UDP/SCTP/encryption overhead or confirms authoritative application.
 - `scripts/mixed_transport_test.sh` accepts `CAR_FIGHT_PACKED_INPUT=1` for its
   shared-world case and requires packing/receive evidence with no fallbacks or
@@ -643,3 +644,50 @@ remains required before merge. Real-platform/slow-path measurements and an
 explicit owner decision are still needed before enabling limits by default.
 Further work includes packet-byte/load budgets, remaining harness log/error
 gating, and separate admission/rate-limit/recovery policy where needed.
+
+## Packet-size follow-up, 2026-09-04
+
+Added per-window largest logical payload/bundle values to existing opt-in
+`NETAPP` telemetry, preserving totals and recipient-copy accounting. Disabled
+telemetry still exits before encoding; no schema, authority, replay, transport,
+queue policy, publication rate, or default was changed. Added a focused
+maximum/reset/disabled-accounting regression and a real-schema RPC-size fixture.
+
+The [packet-size baseline](NETWORK_PACKET_BUDGETS_2026-09-04.md) records the
+measurement layers, full methodology, representative table, engine/RFC research,
+commands, and remaining experiments. The fixture projects player/ball/prop
+templates through production encoders and actual Godot RPC serialization over
+an in-memory peer. It is not active-player load or transport-fragment evidence.
+It preserves the 34-property player schema and covers full keys plus mirror,
+physics-only and all-fields-changing diffs, packing off/on, pose legacy/batch,
+and the existing pressure guard. Both tests are registered in the full runner.
+
+The 16-player-template/one-ball/64-prop key is 13,419 RPC bytes per copy unpacked,
+26,838 per recipient with its mirror. The all-fields-changing diff is 16,043
+bytes; a 16-body pose batch is 1,086. Physics packing helps but does not bound
+envelopes. These results prioritize state bursts and recovery pressure for the
+next experiment, not an immediate change to rates or complete-set batching.
+
+Both focused regressions and `check.sh` pass with clean final logs. The mixed
+gate with packed input/telemetry passed at 0.900 units, zero codec fallback or
+reject counts, and live `payload_max` values on both paths. Ordinary shared-world
+and transport-door logs contain no engine/script errors. Two missing-reference
+warning events remain (shared RTC and ENet-door-close RTC, each also echoed by
+the logger). Collision rejection produced its expected pre-gameplay negotiation
+error; that harness kills the rejected process without proving CLIENT_STOPPED
+or its natural exit. This is remaining harness coverage, not a cleanup claim.
+Copied logs: `.network-runs/packet-size-2026-09-04/car-fight-mixed.y6kUXv/`.
+
+The live bundle accounting check also passed:
+`CAR_FIGHT_STATE_BUNDLES=1 CAR_FIGHT_PACKED_INPUT=1 CAR_FIGHT_PACKED_STATE=1 ./scripts/network_test.sh combined`.
+At 120 ms one-way latency, +/-40 ms jitter and 1% loss, worst correction was
+0.305 units, reference rejections zero, and complete logs had no engine/script
+errors or warnings. Both clients and server reported nonzero `bundle_max`;
+experimental flags applied only to these processes. Logs are copied alongside
+the fixture as `car-fight-network.KkblZD/`. These focused checks cover the new
+accounting and its existing call sites; neither run is high-object-count load.
+
+Next: actual-link burst/queue/fragment measurements and the remaining harness
+terminal-log audit. No deployment, default promotion, master merge, rendered
+run, browser/TURN/device acceptance, or full milestone suite. The full suite
+remains required before merging this accumulated networking branch.

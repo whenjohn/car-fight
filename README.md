@@ -11,6 +11,8 @@ Before gameplay, input, lifecycle, or replicated-state changes, read
 [`Network-safe gameplay`](docs/NETWORK_SAFE_GAMEPLAY.md) for the development
 rules and their reasoning, and use
 [`Quality gates`](docs/QUALITY_GATES.md) for the required focused checks.
+For RPC-size measurements and the meaning of `NETAPP` maximum-payload fields,
+see the [packet-size baseline](docs/NETWORK_PACKET_BUDGETS_2026-09-04.md).
 
 > **Project status:** This Godot implementation is again the active Car Fight
 > project. The Unity handoff was superseded after its browser transport proved

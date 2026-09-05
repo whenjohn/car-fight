@@ -78,6 +78,14 @@ accepted only with the expected CLIENT_STOPPED marker; errors still fail the run
 
 ## Gate selection
 
+For payload accounting, replicated-state growth, or packet-budget work, run
+`tests/network_payload_telemetry_test.gd` and
+`tests/network_packet_size_test.gd -- --offline` with the pinned headless editor.
+The [packet baseline](NETWORK_PACKET_BUDGETS_2026-09-04.md) has exact commands,
+real-schema coverage and measurement limits. These gates measure serialization,
+not supported object-count CPU capacity or actual transport fragmentation.
+Telemetry changes also need a relevant live gate with `--net-telemetry` enabled.
+
 For WebRTC bootstrap/lifecycle changes, also run:
 
 ```bash

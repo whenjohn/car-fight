@@ -125,6 +125,10 @@ Some signals already exist, but a unified percentile/feature-budget report and
 complete platform coverage do not. Mark unavailable measurements as unavailable,
 not zero. Codec encoding attempts are not necessarily sent messages; serialized
 application bytes are not encrypted transport bytes; receipt is not application.
+`NETAPP` now includes per-window `payload_max` and `bundle_max` logical byte
+counts. The [packet-size fixture](NETWORK_PACKET_BUDGETS_2026-09-04.md) separately
+measures real RPC encoding from player/ball/prop schemas. Use it when those
+schemas grow, but do not substitute its template projections for live-load tests.
 
 Compare feature-off/on or before/after builds on the same hardware, resolved
 configuration, input scenario, and supported counts. Keep warmup separate, retain

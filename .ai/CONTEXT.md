@@ -69,6 +69,8 @@ rules.
   reconnect-soak, and two-player acceptance evidence.
 - `docs/NETWORKING_REVIEW_2026-09-04.md`: current networking audit and packed-input
   implementation evidence; known lifecycle and cross-platform validation gaps.
+- `docs/NETWORK_PACKET_BUDGETS_2026-09-04.md`: repeatable real-schema RPC-size
+  baseline and telemetry maxima; not live-load or fragmentation acceptance.
 - `NETWORKING_1_NEXT_STEPS.md`, `NETWORKING_2_PLAN.md`, and
   `WEB_PLATFORM_PLAN.md`: historical execution plans; never treat their old
   baselines or “next” sections as current authorization.

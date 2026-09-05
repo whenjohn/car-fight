@@ -40,9 +40,11 @@ var _sent_state_props_accum: int = 0
 var _app_telemetry_enabled := false
 var _app_message_counts: Dictionary = {}
 var _app_payload_bytes: Dictionary = {}
+var _app_payload_max_bytes: Dictionary = {}
 var _app_bundle_counts: Dictionary = {}
 var _app_bundle_entries: Dictionary = {}
 var _app_bundle_bytes: Dictionary = {}
+var _app_bundle_max_bytes: Dictionary = {}
 var _app_bundles_skipped := 0
 var _app_bundles_backpressure_dropped := 0
 var _app_inputs_backpressure_dropped := 0
@@ -170,8 +172,10 @@ func record_app_message(direction: String, category: String, payload: Variant, c
 	if not _app_telemetry_enabled or copies <= 0:
 		return
 	var key := "%s:%s" % [direction, category]
+	var payload_size := var_to_bytes(payload).size()
 	_app_message_counts[key] = int(_app_message_counts.get(key, 0)) + copies
-	_app_payload_bytes[key] = int(_app_payload_bytes.get(key, 0)) + var_to_bytes(payload).size() * copies
+	_app_payload_bytes[key] = int(_app_payload_bytes.get(key, 0)) + payload_size * copies
+	_app_payload_max_bytes[key] = maxi(int(_app_payload_max_bytes.get(key, 0)), payload_size)
 
 ## Count actual state-envelope RPCs separately from the logical entries they carry.
 func record_app_state_bundle(direction: String, payload: Variant, entry_count: int) -> void:
@@ -179,7 +183,9 @@ func record_app_state_bundle(direction: String, payload: Variant, entry_count: i
 		return
 	_app_bundle_counts[direction] = int(_app_bundle_counts.get(direction, 0)) + 1
 	_app_bundle_entries[direction] = int(_app_bundle_entries.get(direction, 0)) + entry_count
-	_app_bundle_bytes[direction] = int(_app_bundle_bytes.get(direction, 0)) + var_to_bytes(payload).size()
+	var payload_size := var_to_bytes(payload).size()
+	_app_bundle_bytes[direction] = int(_app_bundle_bytes.get(direction, 0)) + payload_size
+	_app_bundle_max_bytes[direction] = maxi(int(_app_bundle_max_bytes.get(direction, 0)), payload_size)
 
 func note_app_bundle_skipped(count: int) -> void:
 	if _app_telemetry_enabled:
@@ -252,9 +258,11 @@ func get_app_telemetry_snapshot(now_tick: int) -> Dictionary:
 	return {
 		"message_counts": _app_message_counts.duplicate(),
 		"payload_bytes": _app_payload_bytes.duplicate(),
+		"payload_max_bytes": _app_payload_max_bytes.duplicate(),
 		"bundle_counts": _app_bundle_counts.duplicate(),
 		"bundle_entries": _app_bundle_entries.duplicate(),
 		"bundle_bytes": _app_bundle_bytes.duplicate(),
+		"bundle_max_bytes": _app_bundle_max_bytes.duplicate(),
 		"bundles_skipped": _app_bundles_skipped,
 		"bundles_backpressure_dropped": _app_bundles_backpressure_dropped,
 		"inputs_backpressure_dropped": _app_inputs_backpressure_dropped,
@@ -288,7 +296,7 @@ func build_app_telemetry_report(tick: int) -> String:
 	if not _app_telemetry_enabled:
 		return ""
 	var snapshot := get_app_telemetry_snapshot(tick)
-	return "NETAPP tick=%d rates=%s bundles=%s skipped=%d bp_dropped=%d input_bp_dropped=%d fast_forwards=%d/%dt key_requests=%d pending_age_max=%d state_rx_ticks=%s..%s state_age_ticks=%s/%s applied_tick=%s applied_age_ticks=%s rejected=%d rollback_ticks_sum=%d rollback_ticks_max=%d origins=%s" % [
+	return "NETAPP tick=%d rates=%s bundles=%s skipped=%d bp_dropped=%d input_bp_dropped=%d fast_forwards=%d/%dt key_requests=%d pending_age_max=%d state_rx_ticks=%s..%s state_age_ticks=%s/%s applied_tick=%s applied_age_ticks=%s rejected=%d rollback_ticks_sum=%d rollback_ticks_max=%d origins=%s payload_max=%s bundle_max=%s" % [
 		tick, _format_app_rates(), _format_app_bundles(),
 		int(snapshot["bundles_skipped"]), int(snapshot["bundles_backpressure_dropped"]),
 		int(snapshot["inputs_backpressure_dropped"]),
@@ -302,7 +310,16 @@ func build_app_telemetry_report(tick: int) -> String:
 		_tick_or_na(int(snapshot["state_newest_applied_tick"])),
 		_age_or_na(int(snapshot["state_applied_age_ticks"])), int(snapshot["state_rejected"]),
 		int(snapshot["rollback_ticks_sum"]), int(snapshot["rollback_ticks_max"]),
-		_format_rollback_origins(snapshot["rollback_origin_depths"])]
+		_format_rollback_origins(snapshot["rollback_origin_depths"]),
+		_format_payload_maximums(_app_payload_max_bytes), _format_payload_maximums(_app_bundle_max_bytes)]
+
+func _format_payload_maximums(maximums: Dictionary) -> String:
+	var keys := maximums.keys()
+	keys.sort()
+	var parts := PackedStringArray()
+	for key in keys:
+		parts.append("%s=%dB" % [key, int(maximums[key])])
+	return "none" if parts.is_empty() else ",".join(parts)
 
 func _on_app_telemetry_tick(_dt: float, tick: int) -> void:
 	if not _app_telemetry_enabled:
@@ -364,9 +381,11 @@ func _age_or_na(age: int) -> String:
 func _reset_app_telemetry_window() -> void:
 	_app_message_counts.clear()
 	_app_payload_bytes.clear()
+	_app_payload_max_bytes.clear()
 	_app_bundle_counts.clear()
 	_app_bundle_entries.clear()
 	_app_bundle_bytes.clear()
+	_app_bundle_max_bytes.clear()
 	_app_bundles_skipped = 0
 	_app_bundles_backpressure_dropped = 0
 	_app_inputs_backpressure_dropped = 0

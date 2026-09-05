@@ -1,5 +1,36 @@
 # Current phase
 
+## Active worktree: packet-size baseline, 2026-09-04
+
+- Continuing on `codex/networking-review` in `car-fight-networking`. Added
+  per-window `NETAPP payload_max` and `bundle_max` logical byte measurements;
+  totals/copies and disabled behavior are preserved. No networking defaults,
+  authority, schemas, replay, publication rates, or transport policy changed.
+- Added focused telemetry regression and a real-schema packet-size fixture.
+  Main factories supply 34 player properties and one physics property each for
+  ball/prop; real encoders and in-memory Godot RPC dispatch project 2/4/8/16
+  player templates plus one ball and 0/16/64 props. This is serialization
+  evidence, not active-player simulation, encrypted datagrams, or fragmentation.
+- Read `docs/NETWORK_PACKET_BUDGETS_2026-09-04.md` before the next packet-budget
+  experiment. It documents measurement layers, table, engine/RFC sources and
+  commands. A 16-player-template/one-ball/64-prop unpacked key is 13,419 bytes
+  per RPC copy, 26,838 per recipient with its mirror. All-fields-changing diff
+  is 16,043; 16-body pose batch is 1,086. Packing alone does not bound messages.
+  The existing pressure guard still permits both recovery-key copies.
+- Focused tests and fast check passed with clean final logs. Packed-input mixed
+  gate passed at 0.900 units; bundled/packed ENet combined impairment passed at
+  0.305, with live maxima and clean complete logs. Mixed logs retain two known
+  missing-reference warning events and the expected collision-rejection error;
+  that harness still kills the rejected client without proving natural exit.
+  Evidence: `.network-runs/packet-size-2026-09-04/`; audit follow-up has details.
+- Next: actual-link state-burst/queue/fragment measurements, then a scoped
+  byte-budget experiment preserving recovery, route fairness and complete pose
+  membership. Also audit remaining harness terminal-log/error coverage. Do not
+  naively split pose lists or drop recovery mirrors based on size alone.
+  Browser/TURN/device and actual multi-client CPU/load evidence remain open.
+  Full milestone suite is still required before merging this branch. No
+  deployment, master merge, rendered run, or default promotion.
+
 ## Active worktree: WebRTC server lifecycle, 2026-09-04
 
 - Continuing on `codex/networking-review` in `car-fight-networking`. Reproduced
