@@ -1,5 +1,17 @@
 # Current phase
 
+## Active session: Car-Fight: sprite ai
+
+- Worktree: `/Users/johnnguyen/Projects/car-fight-sprite-ai`.
+- Branch: `codex/sprite-ai`, created from current `master@9a25b09`.
+- Required ignored city/tree assets copied with `scripts/sync_local_assets.sh`.
+- Owner's session scope: add basic sprite logic, attacking, evading, and
+  ambush (hide, then attack), with room to experiment with other behaviors.
+- Setup checkpoint only: no AI behavior implemented or rendered run launched.
+- Next: extend the existing server-owned lightweight sprite fixture with
+  selectable behaviors; define attack effects and cover selection against
+  existing combat/world rules, and add focused movement regression coverage.
+
 ## Canonical baseline
 
 - Active repository: `/Users/johnnguyen/Projects/car-fight` on `master`.
