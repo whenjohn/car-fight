@@ -22,6 +22,8 @@
   Final local steering polish fades small corrections to avoid full-speed
   spacing jitter; runtime and load checks rerun for that final adjustment.
 - Previous attacker playtest `20260904-220627` closed cleanly.
+- Reopened approved 16-Attacker offline playtest `20260904-221422` at `2a44fd4`
+  for owner evaluation of loose grouping; final monitor outcome is pending.
 - Worktree: `/Users/johnnguyen/Projects/car-fight-sprite-ai`.
 - Branch: `codex/sprite-ai`, created from current `master@9a25b09`.
 - Required ignored city/tree assets copied with `scripts/sync_local_assets.sh`.
