@@ -278,6 +278,39 @@ characterization and documentation diff checks. No production code changed, so
 the full gameplay suite was not rerun. Earlier milestone and browser acceptance
 gaps remain open; no new human smoothness verdict was supplied for this run.
 
+## Opt-in elapsed cursor trial, 2026-09-05
+
+`CAR_FIGHT_REMOTE_CURSOR_CLOCK=elapsed` selects the native trial at startup.
+Unset/unknown values retain `engine`; startup prints the selected clock and
+presentation trace headers include `cursor_clock`. No live toggle or browser
+query parameter is added. Use the existing monitored two-client launcher.
+
+Only fixed/adaptive remote visual cursor advancement uses elapsed microseconds
+between eligible callbacks. First use and gaps above 250 ms fall back to the
+original engine delta; this deliberately leaves long-pause recovery to the
+existing 30-tick discontinuity rebase rather than jumping by seconds of elapsed
+time. The cutoff is a conservative experiment boundary, not a tuned optimum.
+Disconnect/inactive frames, missing history, relevance transitions and entry
+into predictive/proxy presentation clear the measurement. New body instances
+start with no timestamp. The existing damped monotonic follower, 75 ms target,
+history bound and rebase warmup invalidation remain unchanged.
+
+Authority, input/state/RPC schema, simulation and rollback clocks, collision,
+transport cadence, defaults and production remain unchanged. Cost is one stored
+timestamp per body and one monotonic read per active opt-in visual callback;
+no new replicated objects, history entries or network messages are introduced.
+
+Focused cursor test covers opt-in/default, actual PlayerBody selection, jitter,
+duplicate/backward timestamps, long-pause fallback, inactive/history/relevance
+resets and rebase. Existing transport, adaptive and trace regressions PASS.
+Opt-in clean headless two-client gate PASS: worst probe 0.300 units, zero missing
+reference rejects, no engine/script errors. Logs:
+`/var/folders/nt/tp7j7qtx2cgc39ftxymn6kfw0000gn/T/car-fight-network.a54ELd/`.
+The first new fixture lacked the body's Input child and emitted an engine error;
+that fixture was corrected and its rerun was clean. Full milestone/browser gates
+are not cleared. Human testing compares against the retained engine-clock run;
+it is not yet a matched randomized A/B or a proven perceptual improvement.
+
 ## Later platform gate
 
 The owner requested a macOS-native plus browser playtest later, not now. After

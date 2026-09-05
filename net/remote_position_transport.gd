@@ -67,6 +67,7 @@ var _unknown_bodies := 0
 var _membership_enters := 0
 var _membership_leaves := 0
 var _presentation_mode := "fixed"
+var _presentation_cursor_clock := "engine"
 var _presentation_min_msec := 75.0
 var _presentation_max_msec := 150.0
 var _presentation_state: Dictionary = {}
@@ -173,6 +174,8 @@ func configure(enabled: bool, mode: String, rate_hz: int, telemetry: bool,
 func configure_presentation(mode: String, minimum_msec: float,
 		maximum_msec: float, trace_path := "", trace_seconds := 0.0) -> void:
 	_presentation_mode = mode if mode in ["fixed", "adaptive", "predictive", "proxy"] else "fixed"
+	_presentation_cursor_clock = "elapsed" \
+		if OS.get_environment("CAR_FIGHT_REMOTE_CURSOR_CLOCK") == "elapsed" else "engine"
 	_presentation_min_msec = maxf(0.0, minimum_msec)
 	_presentation_max_msec = maxf(_presentation_min_msec, maximum_msec)
 	_presentation_pending_batches.clear()
@@ -195,10 +198,15 @@ func configure_presentation(mode: String, minimum_msec: float,
 	print("[presentation-buffer] mode=%s min_ms=%.0f max_ms=%.0f profile=%s" % [
 		_presentation_mode, _presentation_min_msec, _presentation_max_msec,
 		AdaptivePresentationDelay.PROFILE_VERSION])
+	print("[presentation-cursor] clock=%s" % _presentation_cursor_clock)
 
 
 func presentation_mode() -> String:
 	return _presentation_mode
+
+
+func presentation_cursor_clock() -> String:
+	return _presentation_cursor_clock
 
 
 func set_presentation_mode(mode: String) -> bool:
@@ -324,6 +332,7 @@ func _flush_presentation_trace() -> void:
 		"trace_version": 2,
 		"profile": AdaptivePresentationDelay.PROFILE_VERSION,
 		"presentation_mode": _presentation_mode,
+		"cursor_clock": _presentation_cursor_clock,
 		"minimum_msec": _presentation_min_msec,
 		"maximum_msec": _presentation_max_msec,
 		"transport": _server_mode, "transport_rate_hz": _server_rate_hz,

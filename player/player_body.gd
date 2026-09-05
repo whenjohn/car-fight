@@ -96,6 +96,7 @@ var _remote_latest_linear_velocity := Vector3.ZERO
 var _remote_latest_angular_velocity := Vector3.ZERO
 var _remote_render_tick := 0.0
 var _remote_render_tick_initialized := false
+var _remote_cursor_clock_usec := -1
 var _remote_interp_last_desired_tick := 0.0
 var _remote_interp_clock_backsteps := 0
 var _remote_interp_warmup_samples := 0
@@ -614,6 +615,7 @@ func set_remote_position_relevant(relevant: bool, tick: int) -> void:
 	_remote_latest_linear_velocity = Vector3.ZERO
 	_remote_latest_angular_velocity = Vector3.ZERO
 	_remote_render_tick_initialized = false
+	_remote_cursor_clock_usec = -1
 	_remote_predictive_pose_initialized = false
 	_remote_interp_last_desired_tick = 0.0
 	_remote_interp_warmup_samples = 0
@@ -776,8 +778,21 @@ func _set_remote_collision_proxy_enabled(enabled: bool) -> void:
 		_remote_peer_marker.transform = _remote_peer_marker_local_transform
 
 
+func _remote_cursor_delta(delta: float, elapsed: bool, now_usec := -1) -> float:
+	if not elapsed:
+		_remote_cursor_clock_usec = -1
+		return delta
+	if now_usec < 0:
+		now_usec = Time.get_ticks_usec()
+	var selected := REMOTE_SNAPSHOT_INTERPOLATION.elapsed_cursor_delta(
+		now_usec, _remote_cursor_clock_usec, delta)
+	_remote_cursor_clock_usec = now_usec
+	return selected
+
+
 func _process_remote_position(delta: float) -> void:
 	if not is_inside_tree() or not remote_position_transport_controlled():
+		_remote_cursor_clock_usec = -1
 		return
 	var remote_transport := get_node_or_null("/root/RemotePositionTransport")
 	var presentation_mode := "fixed" if remote_transport == null \
@@ -786,10 +801,12 @@ func _process_remote_position(delta: float) -> void:
 		and _remote_collision_proxy_candidate()
 	_set_remote_collision_proxy_enabled(proxy_active)
 	if not _remote_position_relevant or _remote_samples.is_empty():
+		_remote_cursor_clock_usec = -1
 		return
 	_ensure_remote_visual_roots()
 	var network_time := get_node_or_null("/root/NetworkTime")
 	if network_time == null:
+		_remote_cursor_clock_usec = -1
 		return
 	var rate := float(network_time.get("tickrate"))
 	var selected_delay_msec := REMOTE_INTERP_MS
@@ -798,16 +815,22 @@ func _process_remote_position(delta: float) -> void:
 	var current_tick := float(network_time.get("tick")) \
 		+ float(network_time.get("tick_factor"))
 	if presentation_mode == "proxy":
+		_remote_cursor_clock_usec = -1
 		if proxy_active:
 			_process_proxy_presentation(delta, current_tick, rate, remote_transport)
 		else:
 			_process_predictive_presentation(delta, current_tick, rate)
 		return
 	if presentation_mode == "predictive":
+		_remote_cursor_clock_usec = -1
 		_process_predictive_presentation(delta, current_tick, rate)
 		return
 	var desired_tick := current_tick \
 		- selected_delay_msec / 1000.0 * rate
+	if not _remote_render_tick_initialized:
+		_remote_cursor_clock_usec = -1
+	var cursor_delta := _remote_cursor_delta(delta, remote_transport != null \
+		and str(remote_transport.call("presentation_cursor_clock")) == "elapsed")
 	var rebased_this_frame := false
 	if not _remote_render_tick_initialized:
 		_remote_render_tick = desired_tick
@@ -825,7 +848,7 @@ func _process_remote_position(delta: float) -> void:
 			rebased_this_frame = true
 		else:
 			_remote_render_tick = REMOTE_SNAPSHOT_INTERPOLATION.advance_cursor(
-				_remote_render_tick, desired_tick, delta, rate)
+				_remote_render_tick, desired_tick, cursor_delta, rate)
 	var sampled := REMOTE_SNAPSHOT_INTERPOLATION.sample(_remote_samples,
 		_remote_render_tick, REMOTE_EXTRAPOLATE_MS / 1000.0 * rate)
 	if sampled.is_empty():

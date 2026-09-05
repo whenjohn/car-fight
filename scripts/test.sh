@@ -50,6 +50,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/presentation_trace_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/network_stage_trace_test.gd
 node "$project_root/scripts/network_diagnostics_test.mjs"
+"$godot_bin" --headless --path "$project_root" --script res://tests/remote_cursor_clock_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/adaptive_presentation_delay_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/window_safety_policy_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/city_ball_test.gd

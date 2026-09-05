@@ -7,6 +7,13 @@ const MODE_INTERPOLATE := "interp"
 const MODE_EXTRAPOLATE := "extra"
 const MODE_HOLD := "hold"
 
+## This opt-in targets ordinary frame pacing only. Keep long-pause recovery on
+## the existing engine-delta/rebase path instead of spending seconds of backlog.
+static func elapsed_cursor_delta(now_usec: int, previous_usec: int, engine_delta: float) -> float:
+	if previous_usec < 0 or now_usec - previous_usec > 250000:
+		return engine_delta
+	return maxf(0.0, float(now_usec - previous_usec) / 1000000.0)
+
 ## Predict a pose from one correlated authoritative sample. Velocities use the
 ## same units as RigidBody3D (world units/sec and radians/sec). The caller owns
 ## the age bound so a stalled connection cannot extrapolate forever.
