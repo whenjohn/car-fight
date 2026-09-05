@@ -16,12 +16,16 @@ CAR_FIGHT_SPRITE_BATCHED=1 CAR_FIGHT_SPRITE_AI=attacker CAR_FIGHT_SPRITE_COUNT=2
 
 - Four action batches at most, each with capacity 256. One atlas/material per
   action, shared camera-facing quad geometry within each batch.
-- Instance data selects the native sprite's actually loaded animation frame
-  and direction, not potentially newer lab intent. Shader geometry uses the
+- Instance data selects each native clock's current frame and the current
+  camera-relative facing. Managed animation applies current clip intent before
+  upload. Shader geometry uses the
   existing pixel size, offset and world position; color carries hit flashes.
-- Native AnimatedSprite3D nodes remain hidden but retain their animation clocks,
-  pause, replay and finished-death semantics. This prototype isolates drawing
-  savings; it does not eliminate per-sprite animation script/native update costs.
+- Native AnimatedSprite3D nodes remain hidden but retain independent clocks,
+  pause, replay and finished-death semantics. In managed batches their directional
+  script callbacks are disabled. Four canonical frame sets are retained per
+  batch lifetime; turning selects an atlas row without swapping hidden native
+  frame resources. Original drawing resumes its script and real directional
+  frames on fallback. Native internal clock/update costs still exist.
 - The existing unshaded appearance, depth testing, transparent contact shadows
   and linear/nearest mipmap choice are retained. No new art or collider changes.
 - Batches are cleared on fixture reset/retirement, sample change, disable or

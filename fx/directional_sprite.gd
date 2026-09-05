@@ -19,6 +19,53 @@ var playback_rate := 1.0
 var frozen := false
 var _key := ""
 var _appearance_key := ""
+var batch_managed := false
+var _batch_action := ""
+var _batch_sample := ""
+var _batch_height := -1.0
+var _batch_resolution := -1
+var _batch_restore_process := true
+
+func update_batched(frames: SpriteFrames) -> void:
+	# Keep the independent native clock, but never swap directional textures
+	# for a hidden sprite. The batch shader selects its facing row instead.
+	if not batch_managed:
+		_batch_restore_process = is_processing()
+		set_process(false)
+		batch_managed = true
+		_batch_action = ""
+		_batch_sample = ""
+	if _batch_sample != sample or _batch_height != world_height or _batch_resolution != resolution:
+		_ready()
+		_batch_height = world_height
+		_batch_resolution = resolution
+	if _batch_action != clip or _batch_sample != sample:
+		var old_clip := _key.get_slice("/", 1)
+		var old_frame := frame
+		var old_progress := frame_progress
+		var finished := sprite_frames != null and not is_playing() and not frozen
+		sprite_frames = frames
+		_batch_action = clip
+		_batch_sample = sample
+		_key = "%d/%s/0/%s" % [resolution, clip, sample]
+		play("default")
+		if old_clip == clip:
+			set_frame_and_progress(mini(old_frame, frames.get_frame_count("default") - 1), old_progress)
+			if finished and clip in ["attack", "death"]:
+				set_frame_and_progress(frames.get_frame_count("default") - 1, 1.0)
+				pause()
+	var rate := 0.0 if frozen else playback_rate
+	if speed_scale != rate:
+		speed_scale = rate
+
+func release_batch() -> void:
+	if not batch_managed:
+		return
+	batch_managed = false
+	set_process(_batch_restore_process)
+	# Resolve the real directional textures before original drawing resumes.
+	_process(0.0)
+	visible = true
 
 func _ready() -> void:
 	_appearance_key = "%s/%d/%s" % [sample, resolution, world_height]

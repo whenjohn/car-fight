@@ -1,6 +1,6 @@
 extends Node3D
-## Opt-in modern-art drawing prototype. Native sprites retain animation clocks;
-## only their drawing is replaced. No authoritative state is written here.
+## Opt-in modern-art drawing. Native clocks remain individual; directional
+## presentation is managed here. No authoritative state is written here.
 const VISUAL := preload("res://fx/directional_sprite.gd")
 const SHADER_CODE := """
 shader_type spatial;
@@ -29,6 +29,8 @@ var lab
 var batches := {}
 var character := ""
 var drawn := 0
+var clocks := {}
+var _managed: Array = []
 
 func setup(owner_lab) -> void:
 	lab = owner_lab
@@ -36,11 +38,19 @@ func setup(owner_lab) -> void:
 	enabled = OS.get_environment("CAR_FIGHT_SPRITE_BATCHED") == "1"
 
 func clear() -> void:
+	for sprite in _managed:
+		if is_instance_valid(sprite):
+			sprite.release_batch()
+	_managed.clear()
+	clocks.clear()
 	for node in batches.values():
 		node.queue_free()
 	batches.clear()
 	character = ""
 	drawn = 0
+
+func _exit_tree() -> void:
+	clear()
 
 func _process(_delta: float) -> void:
 	if lab == null:
@@ -63,17 +73,20 @@ func _process(_delta: float) -> void:
 	drawn = 0
 	for target in lab._fixtures:
 		var sprite = target.visual
-		if sprite == null or sprite.sprite_frames == null:
+		if sprite == null:
 			continue
-		# Lab intent may change after the native sprite's process callback.
-		# Use the clip/direction actually loaded, not next-frame intent.
-		if sprite._key.get_slice("/", 3) != character:
+		if sprite.sample != character:
+			sprite.release_batch()
 			sprite.visible = true
 			continue
-		var action: String = sprite._key.get_slice("/", 1)
+		var action: String = sprite.clip
 		if not VISUAL.MODERN_ACTIONS.has(action):
+			sprite.release_batch()
 			continue
 		var node := _batch(action)
+		if not sprite.batch_managed and not sprite in _managed:
+			_managed.append(sprite)
+		sprite.update_batched(clocks[action])
 		var index: int = counts.get(action, 0)
 		node.multimesh.set_instance_transform(index, instance_transform(sprite))
 		node.multimesh.set_instance_custom_data(index, instance_data(sprite, camera))
@@ -88,8 +101,11 @@ static func instance_transform(sprite) -> Transform3D:
 	var extent: float = sprite.pixel_size * VISUAL.native_size(sprite.sample)
 	return Transform3D(Basis.from_scale(Vector3.ONE * extent), sprite.global_position)
 
-static func instance_data(sprite, _camera: Camera3D) -> Color:
-	var facing: int = int(sprite._key.get_slice("/", 2))
+static func instance_data(sprite, camera: Camera3D) -> Color:
+	var toward: Vector3 = camera.global_basis.z if camera.projection == Camera3D.PROJECTION_ORTHOGONAL \
+		else camera.global_position - sprite.global_position
+	var facing: int = sprite.manual_direction if sprite.manual_direction >= 0 \
+		else VISUAL.direction_index(sprite.heading, toward)
 	return Color(sprite.frame, VISUAL.MODERN_ROWS[facing], sprite.offset.y / VISUAL.native_size(sprite.sample), 0)
 
 func _batch(action: String) -> MultiMeshInstance3D:
@@ -121,4 +137,7 @@ func _batch(action: String) -> MultiMeshInstance3D:
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(node)
 	batches[action] = node
+	# Only four canonical frame sets per character, retained for this batch's
+	# lifetime. No weak-cache churn as individuals turn through eight facings.
+	clocks[action] = VISUAL._load_modern_clip(character, action, 0)
 	return node

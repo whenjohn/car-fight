@@ -16,6 +16,8 @@ func run(lab, main) -> void:
 	DirAccess.make_dir_recursive_absolute(output)
 	var results: Array = []
 	var phases := [] if OS.get_environment("CAR_FIGHT_BATCH_VISUAL_ONLY") == "1" else ["original", "batch", "original_repeat", "batch_repeat"]
+	if OS.get_environment("CAR_FIGHT_BATCH_PERF_ONLY") == "1":
+		phases = ["batch", "batch_repeat"]
 	for phase in phases:
 		lab.configure(true, 256, 1.0, true)
 		lab.ai.configure("attacker", 3.0, 32.0, 1.0, false)
@@ -41,6 +43,10 @@ func run(lab, main) -> void:
 		results.append(record)
 		print("BATCH_PROFILE_RESULT ", JSON.stringify(record))
 		FileAccess.open(output.path_join("results.json"), FileAccess.WRITE).store_string(JSON.stringify(results, "\t"))
+	if OS.get_environment("CAR_FIGHT_BATCH_PERF_ONLY") == "1":
+		print("BATCH_PROFILE_COMPLETE captures=", output)
+		get_tree().quit()
+		return
 	# Match native animation and uploaded transform/frame data on real GLES.
 	get_node("/root/NetworkTime").stop()
 	# Offline service can continue outside NetworkTime. Explicitly hold motion

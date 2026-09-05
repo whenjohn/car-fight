@@ -133,6 +133,7 @@ func _run() -> void:
 		batch.enabled = true
 		batch._process(0.0)
 		_check(batch.drawn == 1 and not fixture.visual.visible, "batch replaces only original drawing")
+		_check(fixture.visual.batch_managed and not fixture.visual.is_processing(), "batch stops hidden directional script callbacks")
 		# Headless Dummy renderer does not retain MultiMesh upload buffers.
 		# Check uploaded values here; actual renderer is checked in visual A/B.
 		var data: Color = batch.instance_data(fixture.visual, camera)
@@ -140,9 +141,57 @@ func _run() -> void:
 		_check(fixture.health == 3 and fixture.collision_layer == 8, "batch does not alter gameplay state")
 		var transform: Transform3D = batch.instance_transform(fixture.visual)
 		_check(is_equal_approx(transform.basis.x.length(), fixture.visual.pixel_size * 128), "batch follows actual sprite size")
+		var clock_frames: SpriteFrames = fixture.visual.sprite_frames
+		for direction in 8:
+			fixture.visual.manual_direction = direction
+			batch._process(0.0)
+			_check(fixture.visual.sprite_frames == clock_frames, "turning does not rebuild hidden animation resources")
+			_check(fixture.visual.frame == 13 and not fixture.visual.is_playing(), "batch turn preserves completed death")
+			_check(batch.instance_data(fixture.visual, camera).g == VISUAL.MODERN_ROWS[direction], "batch row follows individual facing")
 		fixture.visual.clip = "idle"
 		batch._process(0.0)
-		_check(batch.batches.has("death") and not batch.batches.has("idle"), "batch uses loaded animation, not pending next-frame intent")
+		_check(batch.batches.has("idle") and fixture.visual._key.get_slice("/", 1) == "idle", "managed batch applies current clip intent")
+		fixture.visual.set_frame_and_progress(3, 0.4)
+		fixture.visual.manual_direction = 2
+		batch._process(0.0)
+		_check(fixture.visual.frame == 3 and is_equal_approx(fixture.visual.frame_progress, 0.4), "individual clock survives a turn")
+		fixture.visual.playback_rate = 1.7
+		fixture.visual.frozen = true
+		batch._process(0.0)
+		_check(fixture.visual.speed_scale == 0, "managed animation respects freeze")
+		fixture.visual.frozen = false
+		batch._process(0.0)
+		_check(is_equal_approx(fixture.visual.speed_scale, 1.7), "managed animation respects playback rate")
+		fixture.visual.clip = "attack"
+		batch._process(0.0)
+		fixture.visual.set_frame_and_progress(5, 0.5)
+		fixture.visual.replay()
+		_check(fixture.visual.frame == 0 and fixture.visual.is_playing(), "attack events restart managed native clock")
+		fixture.visual.set_frame_and_progress(4, 0.25)
+		batch.enabled = false
+		batch._process(0.0)
+		_check(fixture.visual.is_processing() and not fixture.visual.batch_managed, "fallback restores directional script")
+		_check(fixture.visual.frame == 4 and is_equal_approx(fixture.visual.frame_progress, 0.25), "fallback preserves individual clock")
+		var restored: AtlasTexture = fixture.visual.sprite_frames.get_frame_texture("default", 4)
+		_check(restored.region.position.y == VISUAL.MODERN_ROWS[2] * 128, "fallback restores actual directional texture")
+		batch.enabled = true
+		fixture.visual.clip = "idle"
+		batch._process(0.0)
+		var companion := TARGET.new()
+		companion.setup(10002, 1.0, true)
+		stage.add_child(companion)
+		companion.visual.sample = "survivor"
+		companion.visual.clip = "idle"
+		batch.lab._fixtures.append(companion)
+		batch._process(0.0)
+		fixture.visual.set_frame_and_progress(1, 0.0)
+		companion.visual.set_frame_and_progress(4, 0.0)
+		_check(fixture.visual.sprite_frames == companion.visual.sprite_frames, "individuals share canonical frame resources")
+		await create_timer(0.12).timeout
+		_check(fixture.visual.frame > 1 and companion.visual.frame > 4, "native clocks advance with directional scripts disabled")
+		_check(fixture.visual.frame != companion.visual.frame, "shared resources do not synchronize individual clocks")
+		batch.lab._fixtures.erase(companion)
+		companion.free()
 		if VISUAL.sample_available("thug"):
 			fixture.visual.sample = "thug"
 			fixture.visual._process(0.0)

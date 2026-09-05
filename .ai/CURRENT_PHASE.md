@@ -2,6 +2,26 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner authorized next offline FPS optimization, explicitly no networking yet.
+  Implemented managed batch animation: disable hidden directional script
+  callbacks, retain four canonical frame sets and independent native clocks,
+  compute facing directly for batch data, restore original directional frames
+  and processing on fallback. No simulation, sizing or network changes.
+- Sprite contracts pass, including actual independent clock advancement with
+  scripts disabled, eight facings, death hold, replay, speed/pause and fallback.
+  AI runtime and final fast check after expanded test pass with clean error scans.
+  Logs `/private/tmp/car-fight-managed-*.log`. Initial typed-vector compile
+  error was corrected; the exact hung test process was stopped before retry.
+- Before capture `20260905-002924` closed cleanly: batched median/P95
+  28.832/34.659 and 29.321/35.162 ms, alive225/226, window1280x720 and CPU
+  limit100 at start/end. Results `.crash-runs/sprite-batch-1788586184/`.
+- After-run `20260905-003246` closed cleanly but was resized repeatedly and
+  closed before its first benchmark result. It is INVALID as an A/B result.
+  No FPS gain or visual acceptance claimed. Asked owner asynchronously to
+  permit an untouched rerun; rendered comparison remains pending.
+- Existing batch probe now supports `CAR_FIGHT_BATCH_PERF_ONLY=1` for two
+  batched phases, without original-drawing phases or screenshot tail. Functional
+  offline tests do not establish performance; no network tests/deployment run.
 - Latest request was rendered profiling of drops near 20 FPS and apparent
   ~50-FPS ceiling, not another fix. Baseline `79615ad`; no gameplay changes.
   Full report: `docs/SPRITE_FRAME_DROPS_2026-09-05.md`.
