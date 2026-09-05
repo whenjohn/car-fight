@@ -78,6 +78,11 @@ accepted only with the expected CLIENT_STOPPED marker; errors still fail the run
 
 ## Gate selection
 
+For presentation-trace changes, run `tests/presentation_trace_test.gd`, the
+existing remote-position and adaptive-delay tests, plus a bounded live network
+gate with tracing enabled. See [Remote presentation diagnosis](NETWORK_PRESENTATION_TRACE.md)
+for fields, sampling limits, evidence and the next human/platform checks.
+
 For clock, pause, or stall recovery changes, run the pinned headless editor with
 `--script res://tests/network_time_pause_test.gd`, then the existing
 `scripts/join_transient_test.sh` and `scripts/reconnect_test.sh`. The clock test

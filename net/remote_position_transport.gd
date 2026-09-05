@@ -82,7 +82,8 @@ const PRESENTATION_TRACE_RECORD_CAP := 30000
 const PRESENTATION_TRACE_CHUNK_BYTES := 24000
 var _presentation_trace_path := ""
 var _presentation_trace_duration_msec := 0
-var _presentation_trace_started_msec := 0
+var _presentation_trace_started_msec := -1
+var _presentation_frame_usec := -1
 var _presentation_trace_records: Array = []
 var _presentation_trace_dropped := 0
 var _presentation_trace_flushed := false
@@ -105,11 +106,16 @@ func _process(delta: float) -> void:
 	if _presentation_mode != "adaptive" and not _trace_enabled():
 		return
 	var peer := multiplayer.multiplayer_peer
-	if peer == null or peer.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
+	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return
 	if multiplayer.is_server():
 		return
 	var now := Time.get_ticks_msec()
+	_start_presentation_trace(now)
+	var now_usec := Time.get_ticks_usec()
+	var wall_delta_msec := float(now_usec - _presentation_frame_usec) / 1000.0 \
+		if _presentation_frame_usec >= 0 else -1.0
+	_presentation_frame_usec = now_usec
 	var frame_msec := delta * 1000.0
 	if frame_msec > 50.0:
 		_presentation_hitch_settle_until_msec = now + 100
@@ -127,6 +133,8 @@ func _process(delta: float) -> void:
 		AdaptivePresentationDelay.observe_frame(_presentation_state, now, frame_msec, bodies)
 	_trace_record({
 		"type": "frame", "at_msec": now, "delta_msec": frame_msec,
+		"wall_delta_msec": wall_delta_msec, "wall_hitch": wall_delta_msec > 50.0,
+		"window_focused": DisplayServer.window_is_focused(),
 		"hitch": frame_msec > 50.0, "network_tick": NetworkTime.tick,
 		"tick_factor": NetworkTime.tick_factor,
 		"target_msec": presentation_delay_msec(),
@@ -138,7 +146,7 @@ func _process(delta: float) -> void:
 			and now - _presentation_report_msec >= 1000:
 		_report_presentation()
 		_presentation_report_msec = now
-	if _trace_enabled() and _presentation_trace_started_msec > 0 \
+	if _trace_enabled() and _presentation_trace_started_msec >= 0 \
 			and not _presentation_trace_flushed \
 			and now - _presentation_trace_started_msec >= _presentation_trace_duration_msec:
 		_flush_presentation_trace()
@@ -177,7 +185,8 @@ func configure_presentation(mode: String, minimum_msec: float,
 	_predictive_lead_units = 0.0
 	_presentation_trace_path = trace_path
 	_presentation_trace_duration_msec = int(maxf(0.0, trace_seconds) * 1000.0)
-	_presentation_trace_started_msec = 0
+	_presentation_trace_started_msec = -1
+	_presentation_frame_usec = -1
 	_presentation_trace_records.clear()
 	_presentation_trace_dropped = 0
 	_presentation_trace_flushed = false
@@ -196,6 +205,7 @@ func set_presentation_mode(mode: String) -> bool:
 	if mode not in ["fixed", "adaptive", "predictive", "proxy"] or mode == _presentation_mode:
 		return false
 	_presentation_mode = mode
+	_presentation_frame_usec = -1
 	_presentation_pending_batches.clear()
 	_presentation_body_samples.clear()
 	AdaptivePresentationDelay.reset_epoch(_presentation_state, Time.get_ticks_msec())
@@ -227,6 +237,7 @@ func observe_presentation_body(body_id: String, eligible: bool, warming: bool,
 		return
 	_presentation_body_samples[body_id] = {
 		"id": body_id, "eligible": eligible, "warming": warming,
+		"at_msec": Time.get_ticks_msec(),
 		"headroom_msec": headroom_msec, "effective_msec": effective_msec,
 		"render_tick": render_tick, "mode": mode,
 	}
@@ -286,11 +297,17 @@ func _report_presentation() -> void:
 
 
 func _trace_enabled() -> bool:
-	return not _presentation_trace_path.is_empty() and _presentation_trace_duration_msec > 0
+	return not _presentation_trace_path.is_empty() and _presentation_trace_duration_msec > 0 \
+		and not _presentation_trace_flushed
+
+
+func _start_presentation_trace(now_msec: int) -> void:
+	if _trace_enabled() and _presentation_trace_started_msec < 0:
+		_presentation_trace_started_msec = now_msec
 
 
 func _trace_record(record: Dictionary) -> void:
-	if not _trace_enabled() or _presentation_trace_started_msec <= 0 \
+	if not _trace_enabled() or _presentation_trace_started_msec < 0 \
 			or _presentation_trace_flushed:
 		return
 	if _presentation_trace_records.size() >= PRESENTATION_TRACE_RECORD_CAP:
@@ -304,6 +321,7 @@ func _flush_presentation_trace() -> void:
 		return
 	_presentation_trace_flushed = true
 	var header := {"type": "config",
+		"trace_version": 2,
 		"profile": AdaptivePresentationDelay.PROFILE_VERSION,
 		"presentation_mode": _presentation_mode,
 		"minimum_msec": _presentation_min_msec,
@@ -537,8 +555,16 @@ func _push_legacy(publication: int, tick: int, body_id: int, generation: int,
 	var payload := [publication, tick, body_id, generation, position, rotation,
 		linear_velocity, angular_velocity]
 	NetworkPerformance.record_app_message("in", "remote_state_legacy", payload)
+	var arrival_msec := Time.get_ticks_msec() if _trace_enabled() else 0
 	_prepare_legacy_body(body_id, generation, tick)
-	_deliver(body_id, generation, tick, position, rotation, linear_velocity, angular_velocity)
+	var delivered := _deliver(body_id, generation, tick, position, rotation,
+		linear_velocity, angular_velocity)
+	if _trace_enabled():
+		_start_presentation_trace(arrival_msec)
+		_trace_record({"type": "legacy", "arrival_msec": arrival_msec,
+			"publication": publication, "tick": tick, "body_id": body_id,
+			"generation": generation, "delivered": delivered,
+			"network_tick": NetworkTime.tick, "tick_factor": NetworkTime.tick_factor})
 
 @rpc("authority", "unreliable", "call_remote", RPC_CHANNEL)
 func _push_batch(sequence: int, publication: int, tick: int, recipient_map: int,
@@ -579,8 +605,7 @@ func _push_batch(sequence: int, publication: int, tick: int, recipient_map: int,
 	_rx_entries += ids.size()
 	var presentation_arrival_msec := Time.get_ticks_msec()
 	if _presentation_mode == "adaptive" or _trace_enabled():
-		if _trace_enabled() and _presentation_trace_started_msec <= 0:
-			_presentation_trace_started_msec = presentation_arrival_msec
+		_start_presentation_trace(presentation_arrival_msec)
 		_presentation_pending_batches.append({
 			"type": "batch",
 			"sequence": sequence,
@@ -728,6 +753,7 @@ func _reset_window() -> void:
 	_peer_stats.clear()
 
 func _reset_receiver_epoch(transition_presentation := false) -> void:
+	_presentation_frame_usec = -1
 	_last_batch_sequence = -1
 	_last_batch_publication = -1
 	_last_batch_tick = -1

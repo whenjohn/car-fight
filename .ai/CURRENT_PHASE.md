@@ -1,5 +1,32 @@
 # Current phase
 
+## Legacy presentation trace repaired, 2026-09-05
+
+- Owner approved continued improvement and requested a macOS + browser test
+  later, explicitly not now. Read `docs/NETWORK_PRESENTATION_TRACE.md` for the
+  next bounded capture, regression evidence and deferred mixed-platform gate.
+- Fixed a diagnostic blind spot: only batches previously started presentation
+  traces, so the legacy mode used in human testing recorded nothing. Traces now
+  start on connected frames/legacy arrivals, retain delivery identity and
+  timestamped playback modes, and add monotonic callback gaps/focus separately
+  from Godot delta. Completed captures stop gathering; 30,000-record cap remains.
+- No movement, input/state/RPC schema, authority/replay, publication cadence,
+  interpolation delay, networking defaults or production changes. This repairs
+  measurement; it is not evidence that subtle stutter has been reduced yet.
+- Validation: fast check, new real-transport-node trace regression, existing
+  remote-position/adaptive tests PASS. Existing clean loopback two-client gate
+  with traces/telemetry PASS (0.900-unit worst probe discrepancy, one guarded
+  missing-reference rejection, no engine/script errors). Both saved legacy
+  traces contain arrivals, body modes and monotonic frame gaps, with no drops.
+- Human cruise run `.crash-runs/two-client-20260905-014319/` is now finished:
+  both exits zero, isolated server stopped, completed launchd job removed;
+  production PID 57599 remained on UDP 10080. No new rendered test launched.
+- Next: explicitly approved trace-enabled cruise observation on the same
+  two-client/isolated-server setup, separating whole-window stalls from remote
+  hold/extrapolation or cursor jitter. Then choose one measured improvement.
+  Later: macOS + browser, including browser background/resume and reconnect.
+  Prior milestone failures remain open; do not claim cross-platform clearance.
+
 ## P-cruise human playtest active, 2026-09-05
 
 - Owner's preliminary feedback: good, like before; very subtle stutter in the
