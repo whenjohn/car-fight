@@ -38,6 +38,22 @@ func _run() -> void:
 	_check(not is_equal_approx(LAB.automatic_attack_offset(10000, attack_cycle),
 		LAB.automatic_attack_offset(10001, LAB.automatic_attack_cycle(10001, attack_duration))),
 		"fixture attack schedules are staggered")
+	var option := OptionButton.new()
+	option.add_item("One")
+	option.add_item("Two")
+	option.select(0)
+	_check(not LAB.sync_option_selection(option, 0) and option.selected == 0,
+		"unchanged dropdown selection is not rewritten per frame")
+	_check(LAB.sync_option_selection(option, 1) and option.selected == 1,
+		"changed dropdown selection synchronizes once")
+	var spin := SpinBox.new()
+	spin.step = 0.25
+	spin.value = 1.0
+	_check(not LAB.sync_spin_value(spin, 1.0), "unchanged spin value is not rewritten per frame")
+	_check(LAB.sync_spin_value(spin, 1.5) and is_equal_approx(spin.value, 1.5),
+		"changed spin value synchronizes once")
+	option.free()
+	spin.free()
 	var settings_path := "user://sprite_test_lab_test.cfg"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_path))
 	var saved_settings := LAB.new()

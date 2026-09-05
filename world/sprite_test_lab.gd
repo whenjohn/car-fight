@@ -22,6 +22,7 @@ var _started := false
 var _window: Window
 var _status: Label
 var _host_controls: Array[Control] = []
+var _option_controls: Array[OptionButton] = []
 var _resolution := 128
 var _sample := "ghoul"
 var _preview := "automatic"
@@ -247,7 +248,14 @@ func _apply_hits(version: int, id: int, hits: int, position: Vector3, heading: V
 		print("SPRITE_TEST_HIT id=%d health=%d" % [id, target.health])
 
 func has_input_focus() -> bool:
-	return _window != null and _window.visible and _window.has_focus()
+	if _window == null or not _window.visible:
+		return false
+	if _window.has_focus():
+		return true
+	for option in _option_controls:
+		if option.get_popup().visible:
+			return true
+	return false
 
 func open() -> void:
 	if _window == null:
@@ -259,6 +267,7 @@ func _build_window() -> void:
 	_window.title = "Sprite test"
 	_window.visible = false
 	_window.transient = true
+	_window.exclusive = false
 	_window.force_native = true
 	_window.close_requested.connect(func():
 		_window.hide()
@@ -341,11 +350,13 @@ func _option(root: Control, title: String, options: Array, selected: int,
 	label.custom_minimum_size.x = 170
 	row.add_child(label)
 	var choice := OptionButton.new()
+	choice.custom_minimum_size.x = 190.0
 	for value in options:
 		choice.add_item(value)
 	choice.select(selected)
 	choice.item_selected.connect(callback)
 	row.add_child(choice)
+	_option_controls.append(choice)
 	if host:
 		choice.set_meta("setting", title)
 		_host_controls.append(choice)
@@ -364,6 +375,7 @@ func _spin(root: Control, title: String, low: float, high: float, step: float,
 	spin.max_value = high
 	spin.step = step
 	spin.value = value
+	spin.custom_minimum_size.x = 190.0
 	spin.value_changed.connect(callback)
 	row.add_child(spin)
 	if host:
@@ -396,19 +408,19 @@ func _process(delta: float) -> void:
 			visual_scale, playback_rate,
 			"Host controls available" if can_control else "Host must launch with --sprite-test"]
 		for control in _host_controls:
-			control.set_block_signals(true)
 			match str(control.get_meta("setting", "")):
 				"Targets":
-					(control as OptionButton).select(COUNTS.find(count))
+					sync_option_selection(control as OptionButton, COUNTS.find(count))
 				"Movement (reset)":
-					(control as OptionButton).select(1 if moving else 0)
+					sync_option_selection(control as OptionButton, 1 if moving else 0)
 				"Body scale (reset)":
-					(control as SpinBox).value = body_scale
-			control.set_block_signals(false)
+					sync_spin_value(control as SpinBox, body_scale)
 			if control is BaseButton:
-				control.disabled = not can_control
+				if control.disabled == can_control:
+					control.disabled = not can_control
 			elif control is SpinBox:
-				control.editable = can_control
+				if control.editable != can_control:
+					control.editable = can_control
 	if requested and not _main.call("_is_headless"):
 		_metrics_clock += delta
 		_frame_times.append(delta * 1000.0)
@@ -422,6 +434,22 @@ func _process(delta: float) -> void:
 				Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)])
 			_metrics_clock = 0.0
 			_frame_times.clear()
+
+static func sync_option_selection(option: OptionButton, selected: int) -> bool:
+	if option == null or option.selected == selected:
+		return false
+	option.set_block_signals(true)
+	option.select(selected)
+	option.set_block_signals(false)
+	return true
+
+static func sync_spin_value(spin: SpinBox, value: float) -> bool:
+	if spin == null or is_equal_approx(spin.value, value):
+		return false
+	spin.set_block_signals(true)
+	spin.value = value
+	spin.set_block_signals(false)
+	return true
 
 func character_setting(character: String, key: String) -> float:
 	var values: Dictionary = _sample_settings.get(character, {})

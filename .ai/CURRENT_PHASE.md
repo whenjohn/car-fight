@@ -82,6 +82,12 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   Serialization/clamping and independent-value contracts plus fast check pass.
   Monitored run `20260904-190957` is open for owner evaluation of the controls
   and cross-launch behavior.
+  UI follow-up: owner reported dropdowns flashing and being difficult to select.
+  Removed unchanged per-frame dropdown/spin rewrites, explicitly kept the tool
+  window non-exclusive, widened controls, and treats an open option popup as
+  tool focus so driving remains neutral. Focused dropdown/spin contracts and
+  fast check pass. Monitored run `20260904-191711` is open for owner validation;
+  acceptance remains pending.
 - Baked-shadow trial for modern samples: confirmed translucent shadows in the
   downloaded PNGs. Changed modern-only alpha discard to opaque-prepass blending
   and ground registration from row 88 to 91 to retain soft pixels and avoid

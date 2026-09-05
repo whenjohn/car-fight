@@ -26,6 +26,11 @@ They restore on the next launch. Target count, physical body scale, movement,
 enabled state and pause do not autosave because they affect the shared fixture
 or are temporary session controls. Visual size never changes hitboxes.
 
+The native sprite tool keeps vehicle input neutral while an OptionButton popup
+is open. Server-backed controls synchronize only when their displayed value
+actually changes; they are not forcibly re-selected every rendered frame. This
+prevents target/movement dropdowns from flashing closed during selection.
+
 For the larger spread-out test:
 
 ```sh
