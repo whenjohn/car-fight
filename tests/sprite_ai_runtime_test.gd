@@ -96,6 +96,23 @@ func _run() -> void:
 			evader_left = evader_left or travelled.x < -0.05
 			evader_right = evader_right or travelled.x > 0.05
 	_check(evader_blocked and evader_left and evader_right, "real movement weaves both ways and respects wall clearance")
+	# Existing player observation supplies real approach velocity; at the same
+	# distance the cohort must contain both early runners and patient shooters.
+	lab.configure(true, 64, 1.0, false)
+	ai.configure("evader", 3.0, 32.0, 1.0, false)
+	car.position = Vector3(0, 1, 0)
+	car.linear_velocity = Vector3(0, 0, 2)
+	ai._excluded = main._combat_dynamic_rids()
+	var early_runners := 0
+	for member in lab._fixtures:
+		member.position = Vector3(0, 1, 18)
+		var state: Dictionary = ai.brains[member.target_id]
+		var observation: Dictionary = ai._observe(member, state, ai._cars())
+		_check(not observation.is_empty() and observation.visible, "far approaching player observed through ordinary acquisition")
+		var decision: Dictionary = ai.BRAIN.decide(state, member.position, observation, 0.2, ai.settings)
+		early_runners += int(decision.state == "evade")
+	_check(early_runners > 0 and early_runners < 64, "real 64-evader cohort has mixed reaction distances")
+	car.linear_velocity = Vector3.ZERO
 	# Offline simulation still advances ticks, but remote-only snapshots have
 	# no consumers. Configuration and local practice-shot events stay separate.
 	lab.configure(true, 256, 1.0, false)

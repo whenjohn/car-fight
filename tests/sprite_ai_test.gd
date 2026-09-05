@@ -85,7 +85,7 @@ func _run() -> void:
 		seen.position = Vector3(0, 0, -12)
 		var easing: Dictionary = brain.decide(runner, Vector3.ZERO, seen, 0.2, tuning)
 		_check(easing.state == "evade" and is_equal_approx(easing.speed, base_speed), "runner eases off as gap opens while retaining hysteresis")
-		seen.position.z = -15
+		seen.position.z = -(float(runner.get("evade_distance", 10.0)) + 4.1)
 		easing = brain.decide(runner, Vector3.ZERO, seen, 0.2, tuning)
 		_check(easing.state != "evade" and easing.steer == 0.0, "zigzag ends when safely outside retreat distance")
 	var zig_a: Dictionary = brain.initial(10005, "evader", Vector3.ZERO)
@@ -107,6 +107,42 @@ func _run() -> void:
 	_check(positive and negative and individual, "evaders alternate left/right at individual timings")
 	var safe: Dictionary = brain.decide(zig_a, Vector3.ZERO, {}, 0.2, settings)
 	_check(safe.steer == 0.0, "no eligible pursuer means no evasive zigzag")
+	var patient := 0
+	var cautious := 0
+	var far_reactions := 0
+	for id in range(10000, 10064):
+		var personality: Dictionary = brain.initial(id, "evader", Vector3.ZERO)
+		var threshold := float(personality.get("evade_distance", 10.0))
+		_check(threshold == 10.0 or (threshold >= 14.0 and threshold <= 22.0), "reaction distances stay in intended bands")
+		_check(personality == brain.initial(id, "evader", Vector3.ZERO), "reaction personality repeats for same ID")
+		patient += int(threshold == 10.0)
+		cautious += int(threshold >= 14.0)
+		# Slow approaching car cannot hit within a second: test awareness, not
+		# the existing emergency crossing trigger. Y velocity is irrelevant.
+		var approach_car := {"position": Vector3(0, 0, -18), "velocity": Vector3(0, 7, 2), "visible": true}
+		var reaction: Dictionary = brain.decide(personality, Vector3.ZERO, approach_car, 0.2, settings)
+		_check((reaction.state == "evade") == (threshold > 18.0), "only cautious sprites react to farther approaching car")
+		far_reactions += int(reaction.state == "evade")
+		if reaction.state == "evade":
+			approach_car.position.z = -(threshold + 2.0)
+			approach_car.velocity = Vector3.ZERO
+			reaction = brain.decide(personality, Vector3.ZERO, approach_car, 0.2, settings)
+			_check(reaction.state == "evade", "early evader retains personal four-unit release buffer")
+			approach_car.position.z = -(threshold + 4.1)
+			reaction = brain.decide(personality, Vector3.ZERO, approach_car, 0.2, settings)
+			_check(reaction.state != "evade", "personal release distance ends retreat")
+		for velocity in [Vector3.ZERO, Vector3(0, 0, -2), Vector3(2, 0, 0)]:
+			personality = brain.initial(id, "evader", Vector3.ZERO)
+			approach_car = {"position": Vector3(0, 0, -13), "velocity": velocity, "visible": true}
+			reaction = brain.decide(personality, Vector3.ZERO, approach_car, 0.2, settings)
+			_check(reaction.state != "evade", "far parked, departing or tangential car does not trigger early evasion")
+		personality = brain.initial(id, "evader", Vector3.ZERO)
+		approach_car.position.z = -9.0
+		approach_car.velocity = Vector3.ZERO
+		reaction = brain.decide(personality, Vector3.ZERO, approach_car, 0.2, settings)
+		_check(reaction.state == "evade", "every personality retains existing close-range reaction")
+	_check(patient > 0 and cautious > 0 and far_reactions > 0 and far_reactions < 64,
+		"64-sprite population mixes patient and early-reacting evaders")
 	var basic: Dictionary = brain.initial(10001, "basic", Vector3.ZERO)
 	var wander: Dictionary = brain.decide(basic, Vector3.ZERO, {}, 0.2, settings)
 	_check(wander.destination.length() <= 8.01 and not wander.fire, "unthreatened basic wanders locally")

@@ -2,6 +2,23 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner approved the sprint/zig-zag feel, then requested varied reaction range:
+  some Evaders sense the approaching car earlier; some wait as before. Added a
+  per-ID seeded reaction distance: ~35% retain 10 units, the rest draw 14–22.
+  Early reaction requires planar closing speed >0.5 units/sec from the observed
+  player's velocity; parked/departing/tangential cars retain the close trigger.
+  Personal release distance is trigger +4 units to prevent reaction chatter.
+  Existing acquisition, emergency sidestep, 10→2-unit speed ramp/cap and zig-zag
+  steering remain; no extra perception/routing work or replicated fields.
+- Regression added before code and confirmed uniform old behavior fails the
+  cohort test. Final PASS: fast check, `sprite_ai_test.gd` (seeded bounds, early
+  vs patient cohort, direction/closing checks, release buffer, all previous
+  sprint/zig-zag tests), `sprite_ai_runtime_test.gd` (mixed reaction at the same
+  18-unit distance through real 64-fixture player observation, plus retained
+  movement/collision/other-profile/lifecycle checks). Final tests clean, no errors.
+  Documented in `docs/SPRITE_AI.md`; ready for owner repeat playtest. Networking,
+  engine/sizing, spawners and speed caps unchanged; no new FPS acceptance claim.
+- Prior tuned-Evader run `20260905-023254` ended cleanly before this edit.
 - Owner found baseline Evader reasonable and requested faster retreat as the
   pursuer closes plus zig-zag evasion. Added a distance ramp from base speed at
   ten units to the existing 1.5× maximum at two units, with seeded 1.5–3-second

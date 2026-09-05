@@ -12,7 +12,10 @@ static func initial(id: int, profile: String, home: Vector3) -> Dictionary:
 		"hidden": 0.0, "burst": 0, "cover_retry": 0.0,
 		"pace": random.randf_range(0.88, 1.12), "motion_age": 0.0,
 		"drift_phase": random.randf_range(0.0, TAU), "drift_period": random.randf_range(3.0, 6.0),
-		"drift_bias": random.randf_range(-0.18, 0.18)}
+		"drift_bias": random.randf_range(-0.18, 0.18),
+		# Keep some patient sprites at the old trigger; others sense approach
+		# earlier. Draw after existing personality fields to preserve their seeds.
+		"evade_distance": 10.0 if random.randf() < 0.35 else random.randf_range(14.0, 22.0)}
 
 static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 		delta: float, settings: Dictionary) -> Dictionary:
@@ -86,7 +89,12 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 		if velocity.length_squared() > 0.01:
 			var t := clampf(away.dot(velocity) / velocity.length_squared(), 0.0, 1.0)
 			crossing = t > 0.0 and (away - velocity * t).length() < float(car.get("clearance", 2.5))
-		s.evading = away.length() < (14.0 if s.evading else 10.0) or crossing
+		var gap := away.length()
+		var approaching := away.dot(velocity) > gap * 0.5
+		var trigger: float = s.evade_distance if approaching else 10.0
+		# Keep a four-unit buffer after reacting so a changing approach angle
+		# or a stopped car does not make the sprite repeatedly stop/start.
+		s.evading = gap < (float(s.evade_distance) + 4.0 if s.evading else trigger) or crossing
 		if s.evading:
 			var direction := away.normalized()
 			if crossing:

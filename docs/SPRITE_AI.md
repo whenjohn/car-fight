@@ -39,8 +39,15 @@ and counters only: no damage, resources, impulses, shield or det interactions.
   not add idle wandering, change fire cadence or bypass spacing/world sweeps.
   Seeds derive from fixture IDs, so resets reproduce the same personalities.
   Variation is evaluated at the existing server decision cadence, not on clients.
-- Evader retreats inside ten units, resumes firing outside fourteen, and
-  sidesteps a projected collision within one second. While retreating, speed
+- Evader has a seeded personal reaction distance: about 35% keep the original
+  ten-unit trigger, while the others react between fourteen and twenty-two
+  units when an observed car is closing at more than 0.5 units/second. Stationary,
+  departing and tangential cars do not trigger this early reaction; all retain
+  the original close-range response. Once retreating, each keeps a four-unit
+  buffer beyond its personal threshold before stopping, avoiding rapid toggles.
+  Existing detection/sight rules still govern acquisition, and a projected
+  collision within one second overrides personality with a sidestep.
+  While retreating, speed
   rises linearly from normal pace at ten units to its existing 1.5× cap at two
   units (3 → 4.5 units/second at default settings), easing off as the gap opens.
   It zig-zags with seeded individual phases and 1.5–3-second cycles, up to about
