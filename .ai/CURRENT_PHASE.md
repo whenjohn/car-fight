@@ -1,5 +1,23 @@
 # Current phase
 
+## Standing gameplay/networking guidance, 2026-09-04
+
+- Owner requested durable rules and the reasoning behind them. Added
+  `docs/NETWORK_SAFE_GAMEPLAY.md`, required from `AGENTS.md` and indexed by
+  `.ai/CONTEXT.md`, `README.md`, and `docs/QUALITY_GATES.md`.
+- Future gameplay/input/lifecycle/state work must state authority, replication
+  class, replay safety, lifecycle behavior, bounded cost, and focused evidence.
+  The guide explains general ownership/retry/budget/measurement principles and
+  the Car Fight failures that motivate them, plus a reusable handoff checklist.
+- Existing checks and proposed automation are explicitly separate. The codec
+  regression is still run explicitly, network log/error enforcement still needs
+  repair, and standardized feature-cost reports are not implemented yet.
+- Documentation-only update on `codex/networking-review`; checked links/commands
+  and diff formatting. No runtime, default, deployment, or canonical-master
+  changes. These instructions reach master/new master worktrees only after the
+  documentation is integrated there; the shared code change still needs the
+  pre-merge milestone suite noted below.
+
 ## Active worktree: packed-input fix, 2026-09-04
 
 - Owner authorized the first bounded implementation in
@@ -31,7 +49,10 @@
   codec/netfox change, run the full milestone suite once; it was intentionally
   deferred at this focused worktree checkpoint.
 
-## Active worktree: networking review, 2026-09-04
+## Review checkpoint: networking review, 2026-09-04
+
+Historical pre-fix checkpoint; its implementation next steps are superseded by
+the packed-input section above and the standing development guidance.
 
 - Created `/Users/johnnguyen/Projects/car-fight-networking` from updated master
   `9a25b09`, branch `codex/networking-review`; required local art copied with

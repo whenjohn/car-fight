@@ -7,6 +7,10 @@ engine, Rapier version, renderer, shadows, SSAO, caches, or world architecture.
 For agent-assisted auditing, dead-code removal, and behavior-preserving
 refactoring, follow
 [`CODE_HEALTH_CLEANUP_PLAYBOOK.md`](CODE_HEALTH_CLEANUP_PLAYBOOK.md).
+Before gameplay, input, lifecycle, or replicated-state changes, read
+[`Network-safe gameplay`](docs/NETWORK_SAFE_GAMEPLAY.md) for the development
+rules and their reasoning, and use
+[`Quality gates`](docs/QUALITY_GATES.md) for the required focused checks.
 
 > **Project status:** This Godot implementation is again the active Car Fight
 > project. The Unity handoff was superseded after its browser transport proved

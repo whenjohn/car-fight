@@ -46,6 +46,9 @@ rules.
 - `./scripts/check.sh`: quiet two-pass import, shell/Node syntax, complete-suite
   test-manifest coverage, orphan UID, and staged/unstaged diff checks.
 - `docs/QUALITY_GATES.md`: choose the smallest tests that cover a change.
+- `docs/NETWORK_SAFE_GAMEPLAY.md`: required before gameplay/input/lifecycle or
+  replicated-state work. Covers authority, replay safety, bounded cost, real
+  schema tests, and distinguishing connection problems from processing stalls.
 - `./scripts/test.sh`: expensive comprehensive milestone gate; do not run it
   after every localized change.
 - Rendered validation must use the monitored safe-window wrappers and requires
@@ -64,6 +67,8 @@ rules.
 - `MIGRATION_TO_UNITY.md`: superseded Unity migration decision.
 - `NETWORK_SHAPING_FINDINGS.md`: transport, rollback, presentation, impairment,
   reconnect-soak, and two-player acceptance evidence.
+- `docs/NETWORKING_REVIEW_2026-09-04.md`: current networking audit and packed-input
+  implementation evidence; known lifecycle and cross-platform validation gaps.
 - `NETWORKING_1_NEXT_STEPS.md`, `NETWORKING_2_PLAN.md`, and
   `WEB_PLATFORM_PLAN.md`: historical execution plans; never treat their old
   baselines or “next” sections as current authorization.
@@ -85,3 +90,6 @@ rules.
   behavior.
 - Cleanup, optimization, gameplay, and visual tuning are separate workstreams.
   A shorter implementation is not a measured performance improvement.
+- Treat networking quality as a gameplay integration constraint, not only a
+  transport concern. Measure actual encoding, simulation cost, and state age;
+  enabled flags or a harness PASS are not proof of correct or smooth play.

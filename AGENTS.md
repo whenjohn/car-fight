@@ -11,6 +11,16 @@ agent-led refactor, read `CODE_HEALTH_CLEANUP_PLAYBOOK.md`. Begin with its
 read-only evidence ledger; cleanup is not authorization to rewrite gameplay,
 networking, rollback, transports, or synchronized state.
 
+Before implementing or reviewing gameplay, input, spawning/despawning, or
+replicated state, read `docs/NETWORK_SAFE_GAMEPLAY.md`. Declare authority,
+replication class, replay/lifecycle behavior, and bounded CPU/traffic cost for
+the affected feature. Keep presentation out of simulation. Run real-schema
+codec regressions when inputs or their registration change; `check.sh` does
+not execute them. New networked object families require before/after load
+evidence. Report unexpected engine errors and missing measurements even when
+a harness prints PASS. Use `docs/QUALITY_GATES.md` for proportional validation;
+these rules do not authorize new features, broad rewrites, or deployment.
+
 - Run with `/Applications/Godot47.app/Contents/MacOS/Godot`.
 - Immediately after creating any Car Fight Git worktree, run
   `./scripts/sync_local_assets.sh` from the new worktree before importing,

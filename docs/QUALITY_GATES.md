@@ -21,6 +21,43 @@ The fast check verifies that every standalone `tests/*_test.gd` appears exactly
 once in the comprehensive runner. It checks the manifest without executing all
 of those feature tests.
 
+## Gameplay and networking contracts
+
+Read [Network-safe gameplay](NETWORK_SAFE_GAMEPLAY.md) before gameplay, input,
+lifecycle, or replicated-state work. Record the affected authority, replication
+class, replay/lifecycle behavior, cost bounds, and chosen checks in the change
+handoff. Keep the record proportional; an unchanged contract can be stated as
+unchanged rather than redesigned.
+
+- Changes to player input, its registration, or its encoding require the live
+  `tests/input_codec_test.gd` regression, even when no file under `net/` changed.
+  Do not substitute a fixture generated only from the codec's expected list.
+- Other synchronized-state/schema changes require their corresponding real
+  registration/round-trip/version tests. Add missing focused coverage before
+  changing the contract; the input test does not validate every state codec.
+- Movement, collision, or combat replay changes require outcome/replay checks,
+  including duplicate-effect prevention where relevant, plus the affected runtime
+  gate from the table below.
+- New networked object families require representative and maximum-supported
+  count tests with feature-off/on CPU and traffic evidence. Record missing
+  instrumentation or untested platforms instead of claiming acceptance.
+- For lifecycle changes, finish collecting process logs and reject unexpected
+  engine/script errors. Existing network harnesses do not yet enforce this
+  consistently: inspect their logs and report known debt alongside their exit
+  status. Do not broadly allowlist errors or relax correction limits to pass.
+
+Run the live player input regression from the project root:
+
+```bash
+/Applications/Godot47.app/Contents/MacOS/Godot \
+  --headless --path . --script res://tests/input_codec_test.gd -- --offline
+```
+
+This is currently an explicit focused gate and part of `scripts/test.sh`, not
+an executed step in `scripts/check.sh`. Automatic fast-gate execution, complete
+network error collection, and standardized feature-cost reports remain follow-up
+implementation work; documenting this policy does not install that automation.
+
 ## Gate selection
 
 | Change | Required validation | Add when integration changed |
@@ -79,3 +116,6 @@ The final handoff for a change should state:
 - which gates ran and their results;
 - why broader gates were not needed, if omitted;
 - what still requires human feel, appearance, or cross-client validation.
+- for networked gameplay, the contract and before/after cost evidence described
+  in [Network-safe gameplay](NETWORK_SAFE_GAMEPLAY.md), including known errors
+  and missing measurements even if the selected harness printed PASS.
