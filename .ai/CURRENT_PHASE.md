@@ -2,6 +2,12 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner accepted varied Evader reactions ("feels good") and moved on to Ambusher.
+  Evader run `20260905-023808` ended cleanly. Launched baseline Ambusher observation
+  at `ebfd37f`, run `20260905-023956`, PID 94874: offline, 64 initial sprites,
+  survivor, batched drawing, ordinary inset window. Population remains an in-game
+  opt-in. No behavior/code changes this turn; awaiting notes on finding cover,
+  hiding, stepping out, three-shot burst and retreat. No new performance claim.
 - Owner approved the sprint/zig-zag feel, then requested varied reaction range:
   some Evaders sense the approaching car earlier; some wait as before. Added a
   per-ID seeded reaction distance: ~35% retain 10 units, the rest draw 14–22.
