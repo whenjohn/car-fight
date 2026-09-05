@@ -2,6 +2,28 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner asked whether lower counts reach ~60 FPS. Added optional diagnostic
+  `CAR_FIGHT_BATCH_COUNT_SWEEP=1` to the existing rendered probe; no gameplay
+  defaults or AI changes. Fast check passed; bounded count phases exercised.
+- Run `20260905-012152` closed cleanly, window stayed 1280x720. Valid samples:
+  256 spawned / 226 alive median 26.334 ms (~38 FPS); 128/72 median 17.483 (~57);
+  64/28 median 15.222 and 14.722 (~66–68); 16/16 median 11.725 and 12.611 (~79–85).
+  Zero-sprite city median 11.523 ms but P95 23.513: a smaller count does not
+  guarantee every frame meets 16.7 ms. Details in batch prototype doc.
+- Important: spawn counts are NOT all-active capacity. Follow-up attempted
+  128/64/16 with temporary offline hit suppression while retaining movement/
+  contact queries. Window repeatedly became obscured; no usable full-active
+  sample completed. Stopped exact diagnostic PID 76385 with SIGTERM, removed
+  all immunity/temporary-runner changes, and verified gameplay source matches
+  HEAD. No claim that 64 living attackers sustain 60 is supported yet.
+- Exclude final 128 repeat in first run (one 101-second frame after occlusion),
+  and all full-active run `20260905-012717`. Original first-run results are
+  `.crash-runs/sprite-batch-1788589333/`; temporary diagnostic patch preserved
+  in second run directory. Original last repeat also overlapped an import
+  check, another reason it is unusable. Recorded CPU speed limits were 100.
+- Practical next playtest candidate: 64 spawned, with explicit live-count and
+  frame-tail caveats. Full-active 64/128 measurement still needs a visible,
+  uninterrupted rendered window. No network tests or gameplay changes.
 - Managed-animation rendered retry `20260905-011034` completed both phases
   and closed cleanly at `625c3f9`, with no engine/script errors. Window remained
   1280x720; recorded CPU speed limits stayed 100. Median/P95: 25.869/30.445 and

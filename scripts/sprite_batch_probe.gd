@@ -18,8 +18,15 @@ func run(lab, main) -> void:
 	var phases := [] if OS.get_environment("CAR_FIGHT_BATCH_VISUAL_ONLY") == "1" else ["original", "batch", "original_repeat", "batch_repeat"]
 	if OS.get_environment("CAR_FIGHT_BATCH_PERF_ONLY") == "1":
 		phases = ["batch", "batch_repeat"]
+	var count_sweep := OS.get_environment("CAR_FIGHT_BATCH_COUNT_SWEEP") == "1"
+	if count_sweep:
+		# Bracket 60-FPS capacity and repeat the lower counts to expose drift.
+		# Zero is a city-only diagnostic, not a new gameplay count setting.
+		phases = ["batch_256", "batch_128", "batch_64", "batch_16", "batch_0",
+			"batch_16_repeat", "batch_64_repeat", "batch_128_repeat"]
 	for phase in phases:
-		lab.configure(true, 256, 1.0, true)
+		var amount: int = int(phase.get_slice("_", 1)) if count_sweep else 256
+		lab.configure(amount > 0, amount, 1.0, true)
 		lab.ai.configure("attacker", 3.0, 32.0, 1.0, false)
 		lab.ai.show_debug = false
 		lab.batch.enabled = phase.begins_with("batch")
@@ -37,13 +44,13 @@ func run(lab, main) -> void:
 		var alive := 0
 		for target in lab._fixtures:
 			alive += int(target.health > 0)
-		var record := {"phase": phase, "frames": samples.size(), "median_ms": samples[samples.size()/2],
+		var record := {"phase": phase, "spawned": amount, "frames": samples.size(), "median_ms": samples[samples.size()/2],
 			"p95_ms": samples[int(samples.size()*0.95)], "alive": alive, "batched": lab.batch.drawn,
 			"draws": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)}
 		results.append(record)
 		print("BATCH_PROFILE_RESULT ", JSON.stringify(record))
 		FileAccess.open(output.path_join("results.json"), FileAccess.WRITE).store_string(JSON.stringify(results, "\t"))
-	if OS.get_environment("CAR_FIGHT_BATCH_PERF_ONLY") == "1":
+	if OS.get_environment("CAR_FIGHT_BATCH_PERF_ONLY") == "1" or count_sweep:
 		print("BATCH_PROFILE_COMPLETE captures=", output)
 		get_tree().quit()
 		return

@@ -141,3 +141,51 @@ No new gameplay tests are needed for this documentation-only retry. A full
 managed-path rendered visual check and owner feel acceptance remain separate
 from this performance-only result; the original prototype's earlier screenshot
 acceptance is not silently extended to the managed implementation.
+
+## Count sweep (2026-09-05)
+
+Owner requested a lower-count recommendation for ~60 FPS. The existing probe
+now accepts `CAR_FIGHT_BATCH_COUNT_SWEEP=1`, selecting batched 256/128/64/16/0
+then repeated 16/64/128. Each uses the same 15-second warmup and six-second
+wall-clock draw sample. Zero disables the lab; it does not add a gameplay count
+option. All other settings match the managed-animation comparison above.
+
+Run `20260905-012152` at `d0b987b` plus the diagnostic runner addition, results
+`.crash-runs/sprite-batch-1788589333/`:
+
+| Spawned | Alive at sample end | Median frame ms | Approx. typical FPS | P95 frame ms |
+| --- | ---: | ---: | ---: | ---: |
+| 256 | 226 | 26.334 | 38 | 32.218 |
+| 128 | 72 | 17.483 | 57 | 24.159 |
+| 64 | 28 | 15.222 | 66 | 28.014 |
+| 16 | 16 | 11.725 | 85 | 22.836 |
+| 0 | 0 | 11.523 | 87 | 23.513 |
+| 16 repeat | 16 | 12.611 | 79 | 26.203 |
+| 64 repeat | 28 | 14.722 | 68 | 28.218 |
+
+Dead sprites remain rendered corpses, but no longer run AI movement/shots.
+Therefore this is **spawned-setting performance, not a full-active capacity
+claim**. A practical next playtest setting is 64, but these results do not prove
+that 64 living attackers sustain 60 FPS. Even the zero-sprite city had a P95
+above 16.7 ms, so fewer sprites alone do not establish a locked 60 FPS.
+
+The window remained 1280x720 and recorded CPU speed limits stayed 100. Monitor
+outcome was clean and no engine/script errors were found. Exclude the final
+128 repeat: the window became obscured, `frame_post_draw` stopped arriving and
+resuming it produced one 101,254 ms sample. That phase also overlapped an import
+check and is not usable evidence. The runner currently requires a visible
+window; a draw-signal await can outlive its nominal six-second measurement
+window when rendering is suppressed. Do not mistake occluded-window engine FPS
+or a single resumed sample for rendered performance.
+
+To separate spawn/death effects, a temporary offline fixture suppressed hits
+while retaining movement/contact queries, aiming to measure all 128/64/16 alive.
+Run `20260905-012717` was also repeatedly obscured and produced no usable sample.
+It was explicitly stopped with SIGTERM (`client-exit-143`), not an unexplained
+game crash. Its diagnostic patch is preserved in the run directory. All hit
+suppression and temporary follow-up runner changes were removed; gameplay source
+matches HEAD. Full-active capacity remains unmeasured rather than inferred.
+
+Fast check passed for the retained count-sweep addition; its requested phases
+were exercised by the first run. Temporary fixture import passed separately.
+No networking, defaults, AI, movement or collision behavior changes are shipped.
