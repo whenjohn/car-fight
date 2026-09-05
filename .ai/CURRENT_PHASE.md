@@ -2,6 +2,11 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner accepted **64 living sprites** as the working population target.
+  Hold there for behavior development; the measured 57–63 average FPS is not
+  a locked-60 guarantee. No further speculative optimization or engine change.
+  Next: offline-only, bounded replenishing spawners and a live population
+  monitor; then tune Evader and Ambusher individually. Networking remains deferred.
 - Valid lower-live-count retry completed at `83127c0` plus temporary diagnostic.
   Owner approved keeping the ordinary window above other windows. Run
   `20260905-015827` closed cleanly with no engine/script errors; 1280x720,

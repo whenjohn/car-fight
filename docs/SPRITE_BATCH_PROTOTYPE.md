@@ -234,6 +234,12 @@ are the relevant gates. No network work, gameplay tuning or default change.
 
 ## Verified 64 / 32 live attackers (2026-09-05)
 
+Decision: the owner accepted **64 living sprites** as the working target for
+continued behavior development. Keep the current engine and optimization work;
+further substantial optimization needs new measured evidence. This is not a
+locked-60 promise. Replenishing spawners need their own sustained playtest because
+birth/death churn and retained corpses were not exercised by the all-alive test.
+
 Owner requested the same stationary-Jeep, all-alive test at lower counts and
 explicitly approved temporarily keeping its small ordinary window above other
 windows to prevent occlusion. Run `20260905-015827` at `83127c0` plus temporary
