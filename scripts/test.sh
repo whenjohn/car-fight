@@ -9,6 +9,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/ramming_lab_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/sprite_test_lab_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/sprite_ai_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/sprite_cover_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/sprite_ai_runtime_test.gd -- --offline --no-drone
 "$godot_bin" --headless --path "$project_root" --script res://tests/sprite_population_test.gd -- --offline --no-drone
 "$godot_bin" --headless --path "$project_root" --script res://tests/sprite_combat_test.gd -- --offline --no-drone

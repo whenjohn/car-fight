@@ -20,6 +20,7 @@ var show_debug := false
 var metrics := {"cpu_us": 0, "ticks": 0, "jobs": 0, "max_jobs": 0,
 	"max_pending": 0, "shots": 0, "hits": 0, "messages": 0, "bytes": 0,
 	"max_payload": 0, "active_peak": 0}
+const COVER_ATTEMPTS := 2
 var _events: Array = []
 var _next_shot := 1
 var _clock := 0.0
@@ -204,6 +205,10 @@ func begin(delta: float) -> void:
 		state.perception += 0.2
 		var car := _observe(target, state, cars)
 		state.car = car
+		if state.profile == "ambusher" and state.cover_id >= 0 and nav != null and not car.is_empty():
+			car["cover_center"] = nav.blocks[state.cover_id].center
+			car["cover_distance"] = nav.cover_distance(state.cover_id, car.position)
+			state.cover_shifted = nav.cover_sector(state.cover_id, car.position, state.cover_sector) != state.cover_sector
 		var decision := BRAIN.decide(state, target.position, car, 0.2, settings)
 		state.decision = decision
 		target.ai_state = decision.state
@@ -252,7 +257,7 @@ func _cars() -> Array[Dictionary]:
 		if collider != null and collider.shape is CapsuleShape3D:
 			clearance = collider.shape.height * 0.5 + 0.7
 		result.append({"id": id, "position": car.global_position,
-			"velocity": car.linear_velocity, "clearance": clearance})
+			"velocity": car.linear_velocity, "forward": -car.global_basis.z, "clearance": clearance})
 	result.sort_custom(func(a, b): return a.id < b.id)
 	return result
 
@@ -268,6 +273,10 @@ func _observe(target, state: Dictionary, cars: Array[Dictionary]) -> Dictionary:
 			if distance < nearest:
 				nearest = distance
 				chosen = car.duplicate()
+		if state.profile == "ambusher" and state.target != chosen.get("id", 0):
+			state.prepared = false
+			state.hidden = 0.0
+			state.closest_approach = INF
 		state.target = chosen.get("id", 0)
 		if not chosen.is_empty():
 			# Range filtering bounds ray work even when the hunter pursues across
@@ -303,14 +312,27 @@ func _visible(from: Vector3, to: Vector3) -> bool:
 func _find_cover(target, state: Dictionary, nav) -> void:
 	if state.car.is_empty():
 		return
-	var candidates: Array[Dictionary] = nav.cover_candidates(target.position, 64.0)
-	candidates.sort_custom(func(a, b): return target.position.distance_squared_to(a.cover) < target.position.distance_squared_to(b.cover))
-	# Progress through a bounded slice. No all-candidates path/ray burst for
-	# every sprite on the first tick, and no requirement for a visible peek.
-	for attempt in mini(4, candidates.size()):
-		var pair: Dictionary = candidates[int(state.cover_cursor) % candidates.size()]
-		state.cover_cursor = (int(state.cover_cursor) + 1) % candidates.size()
-		var route: PackedVector3Array = nav.route(target.position, pair.cover)
+	var holding: bool = state.cover_id >= 0
+	if not holding and state.cover_choices.is_empty():
+		state.cover_choices = nav.cover_objects(target.position, target.height())
+	var attempts := 0
+	for attempt in COVER_ATTEMPTS:
+		if not holding and state.cover_choices.is_empty():
+			break
+		var id: int = state.cover_id if holding else state.cover_choices[int(state.cover_cursor) % state.cover_choices.size()]
+		if not holding:
+			state.cover_cursor = (int(state.cover_cursor) + 1) % state.cover_choices.size()
+		var sector: int = nav.cover_sector(id, state.car.position, state.cover_sector if holding else -1)
+		var point: Vector3 = nav.cover_point(id, sector, target.position.y)
+		if holding and attempt == 1:
+			# A blocked far-side anchor may use the closer adjacent far-side slot.
+			var left: Vector3 = nav.cover_point(id, sector - 1, target.position.y)
+			var right: Vector3 = nav.cover_point(id, sector + 1, target.position.y)
+			point = left if target.position.distance_squared_to(left) < target.position.distance_squared_to(right) else right
+		attempts += 1
+		if not nav.clear(point):
+			continue
+		var route: PackedVector3Array = nav.route(target.position, point)
 		if route.is_empty():
 			continue
 		# Use reached grid cells, not unverified ideal corner coordinates.
@@ -318,11 +340,29 @@ func _find_cover(target, state: Dictionary, nav) -> void:
 		if not _position_clear(target, cover) or _visible(cover, state.car.position):
 			continue
 		state.cover = cover
+		state.cover_id = id
+		state.cover_sector = sector
+		state.cover_shifted = false
 		state.peek = Vector3.INF
-		state.hidden = 0.0
+		if not holding:
+			state.hidden = 0.0
+			state.prepared = false
+			state.closest_approach = INF
 		state.state = "cover"
 		routes[target.target_id] = route
+		metrics["cover_retargets"] = int(metrics.get("cover_retargets", 0)) + int(holding)
+		metrics["cover_attempts"] = int(metrics.get("cover_attempts", 0)) + attempts
+		metrics["max_cover_attempts"] = maxi(int(metrics.get("max_cover_attempts", 0)), attempts)
 		return
+	metrics["cover_attempts"] = int(metrics.get("cover_attempts", 0)) + attempts
+	metrics["max_cover_attempts"] = maxi(int(metrics.get("max_cover_attempts", 0)), attempts)
+	if holding:
+		state.cover_id = -1
+		state.cover_sector = -1
+		state.cover = Vector3.INF
+		state.cover_choices.clear()
+		state.prepared = false
+		state.hidden = 0.0
 
 func _position_clear(target, position: Vector3) -> bool:
 	var query := PhysicsShapeQueryParameters3D.new()

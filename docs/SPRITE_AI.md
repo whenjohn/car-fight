@@ -56,20 +56,28 @@ and counters only: no damage, resources, impulses, shield or det interactions.
   A predicted run-over takes priority: full-speed direct sidestep until clear
   of the projected path, then weaving resumes if still evading. It does not
   read bullets or player input to predict intent.
-- Ambusher prepares behind reachable building cover before attacking; it knows
-  the eligible player's position for preparation even before direct sight, while
-  retaining cloak/editing/RC/map exclusions. It searches corner candidates within
-  64 units, checking at most four per existing route job, with a rolling cursor
-  and two-second retries. A visible peek point is no longer required. It never
-  falls back to Basic shooting while exposed without cover. If no suitable cover
-  is found it waits and retries; it does not teleport or become invisible.
-  Arrival must be genuinely occluded, not merely outside detection range.
-  After hiding for at least one second, a player within eighteen units triggers
-  a **rush toward the player's current position at 1.5× speed**, not a small peek.
-  It shoots when sight is clear within eighteen units and closes to six units.
-  After three shots or six seconds it returns to cover. Cover exposed by a moving
-  player is rejected on arrival and searched again; losing the eligible player
-  cancels the rush. Expect initial travel to cover, sometimes a long route.
+- Ambusher selects a reachable, tall-enough solid building within 64 units and
+  runs to its far side at the existing 1.5× speed cap. It knows the eligible
+  player's position even before direct sight, retaining cloak/editing/RC/map
+  exclusions. It keeps that building's identity while repositioning around it
+  to keep the object between itself and the car. Eight shared anchors per
+  building and seven-degree sector hysteresis avoid constant route changes;
+  reposition requests retry at most twice/second. Actual capsule clearance and
+  occlusion must validate the route endpoint; geometry alone is not concealment.
+  If both candidate routes fail it releases that building and reacquires cover.
+  Initial acquisition retries every two seconds, progressing through cached IDs.
+  No Basic-shooting fallback, teleportation or invisibility; if no cover works it
+  waits and retries. A fast circling car can still expose or catch a moving sprite.
+  After one second of genuine concealment it is prepared. Merely approaching
+  or circling while facing the building does not trigger a rush. An opportunity
+  requires the car within 24 units of the building surface and either facing
+  away (forward dot toward-building < -0.35), or departing at >1 unit/second
+  after passing within 18 units and opening the gap by >1 unit. A prepared
+  sprite remembers its preparation through brief exposure while repositioning.
+  It then rushes the player's current position at 1.5× speed, shoots with clear
+  sight inside eighteen units and closes to six. After three shots or ten seconds
+  it returns to cover and prepares again. Losing the eligible player cancels
+  preparation/rush. Expect initial travel to cover, sometimes a long route.
 
 Defaults: movement 3 units/second, attack 1.5× and evasion up to 1.5× movement, detection 32 units,
 shot interval 1 second, aim delay at least 0.35 seconds. Decisions run at 5 Hz,
@@ -178,7 +186,16 @@ Routing uses a two-unit grid inflated for capsule and cell-corner clearance;
 initial grid preparation is limited to 512 cells per tick, with routing held
 until complete. It is not a synchronous full-grid build on the first AI tick.
 Physics sweeps retain final authority. Cover/peek positions also require actual
-world clearance. Attackers add server-only soft separation at 5 Hz using spatial
+world clearance. Ambushers reuse the radius cache's 14 immutable city-building
+descriptors and 112 anchor positions. Each brain holds one building ID/sector
+and at most 14 cached candidate IDs; there is no scene-tree scan each frame,
+per-sprite object registry, new physics body or replicated cover field. Loose
+moving crates, trees and decorative meshes are deliberately not tracked as
+cover in this pass. Acquiring scans only the fixed building table; holding one
+uses constant-size geometry lookup at the existing 5 Hz decision cadence.
+Each cover job tries at most two candidates/paths: at most eight per tick under
+the shared four-job cap. Counters expose attempts, retargets and their maximum.
+Attackers add server-only soft separation at 5 Hz using spatial
 cells, capped at 16 representatives per cell and nine cells per hunter query.
 Cached steering clears on reset and ignores dead/non-attacker sprites. The
 combined steering uses existing capsule sweeps and the same speed cap; no rigid
@@ -202,6 +219,7 @@ bullet sweeps; the headless service probe includes those costs.
 
 ```sh
 ./scripts/check.sh
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . --script res://tests/sprite_cover_test.gd
 /Applications/Godot47.app/Contents/MacOS/Godot --headless --path . --script res://tests/sprite_ai_test.gd
 /Applications/Godot47.app/Contents/MacOS/Godot --headless --path . --script res://tests/sprite_ai_runtime_test.gd -- --offline --no-drone
 /Applications/Godot47.app/Contents/MacOS/Godot --headless --path . --script res://tests/sprite_population_test.gd -- --offline --no-drone
@@ -223,6 +241,44 @@ networking branch explicitly. The fast gate alone does not execute it.
 
 Evidence and remaining acceptance are recorded in `.ai/CURRENT_PHASE.md`.
 No production deployment or rendered acceptance is implied by headless results.
+
+### Object-tracking Ambusher CPU check, 2026-09-05
+
+Run the existing probe with `CAR_FIGHT_AI_PROBE_SCENARIO=cover` and the offline
+arguments above. Matched 64-live workload: 1,800 preparation ticks with a parked
+car, then 1,800 ticks driving a 252-unit street square at 10 units/second.
+Every measured tick starts with 64 living sprites: diagnostic-only health
+restoration happens outside the timer after contact deaths. Normal gameplay
+still allows run-overs. This measures the complete sprite service (AI, movement,
+contacts and shots), not rendering, the complete frame, or FPS.
+
+| Phase | Before median / P95 / max | Final median / P95 / max |
+| --- | --- | --- |
+| Preparation, including cold grid | 0.606 / 1.457 / 5.388 ms | 0.718 / 1.312 / 5.985 ms |
+| Moving car | 0.640 / 1.158 / 2.266 ms | 0.756 / 1.279 / 2.670 ms |
+
+Baseline gameplay: `6b992fb`. Local raw logs:
+`.crash-runs/ambush-cover.W6rUWm/before-live64.log` and
+`after-final-live64.log`. The earlier `before.log` fell to 63 and is superseded.
+The baseline needed 23 diagnostic death restorations; the new run needed none.
+Final work: 213 cover retargets, 277 candidates checked, maximum one candidate
+actually used per job (hard limit two), maximum four jobs/tick, and 136 shots
+versus zero before. Thus this is the cost of the changed behavior, not an
+isolated object-lookup microbenchmark. The first after run (`after-live64.log`,
+before the brief-exposure preparation fix) measured moving median/P95/max
+0.843/1.527/2.536 ms and preparation 0.764/1.444/7.314 ms. Across those two
+after runs moving P95 added 0.121–0.369 ms; scheduling variation matters.
+Thermal state was unavailable, not established as equal. No budget is relaxed,
+and these results do not prove sustained 60 FPS or network capacity.
+
+Focused regression evidence: pure cover geometry/identity and opportunity
+decisions; physical movement to the opposite side of the same building at four
+vehicle stations without firing; then a turned-away car produces a 32.22-unit
+peak excursion and two actual shots. All 64 sprites in the stationary runtime
+cohort achieved real concealment within 40 simulated seconds. The fast check,
+AI decision/runtime, cover and population tests cover this localized change;
+no scene wiring, network schema or transport changes require broader gates.
+Continuous rendered circling, feel and sustained FPS still need owner acceptance.
 
 ### Headless service evidence, 2026-09-04
 

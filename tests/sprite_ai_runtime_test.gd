@@ -250,32 +250,47 @@ func _run() -> void:
 				break
 		_check(target.ai_state == "hide" and target.position.distance_to(brain.cover) < 0.6,
 			"exposed ambusher actually walks to concealment")
-		var hidden_car := Vector3.INF
-		# A pursuer can approach around a corner, not only on fixture spawn lanes.
-		for x in range(-8, 9):
-			for z in range(-8, 9):
-				var position: Vector3 = target.position + Vector3(x * 2, 0, z * 2)
-				if position.distance_to(target.position) <= 18.0 and nav.clear(position, 2.0) \
-						and not ai._visible(target.position, position) and not nav.route(target.position, position).is_empty():
-					hidden_car = position
-					break
-			if hidden_car != Vector3.INF:
-				break
-		_check(hidden_car != Vector3.INF, "city cover has a nearby occluded approach for rush test")
-		if hidden_car != Vector3.INF:
-			car.position = hidden_car
-			var rush_start: Vector3 = target.position
-			var rush_seen := false
-			var rush_distance := 0.0
-			var shots_before: int = ai.metrics.shots
-			for tick in 420:
-				lab.service(1.0 / 60.0)
-				rush_seen = rush_seen or target.ai_state == "rush"
-				rush_distance = maxf(rush_distance, target.position.distance_to(rush_start))
-			print("AMBUSH_RUSH moved=%.2f shots=%d" % [rush_distance, ai.metrics.shots - shots_before])
-			_check(rush_seen and rush_distance > 2.0,
-				"concealed ambusher physically rushes out rather than holding a peek point")
-			_check(ai.metrics.shots > shots_before, "real ambush rush obtains sight and fires")
+	# Same known building, four vehicle sides: verify actual repositioning rather
+	# than only changing a requested goal. Manual AI ticks avoid teleport-sweep
+	# run-overs as the test jumps the car between observation stations.
+	lab.configure(true, 1, 1.0, true)
+	ai.configure("ambusher", 3.0, 32.0, 1.0, false)
+	target = lab._fixtures[0]
+	brain = ai.brains[target.target_id]
+	nav = ai._navigation(target)
+	nav.advance(30000)
+	var building: Dictionary = nav.blocks[1]
+	target.position = building.center + Vector3(17, 0.98, 0)
+	var initial_cover_id := -1
+	var orbit_shots: int = ai.metrics.shots
+	for side in [Vector3.LEFT, Vector3.FORWARD, Vector3.RIGHT, Vector3.BACK]:
+		car.position = building.center + side * 24.0 + Vector3.UP
+		var toward: Vector3 = (building.center - car.position).normalized()
+		car.rotation.y = atan2(-toward.x, -toward.z)
+		car.linear_velocity = Vector3.ZERO
+		for tick in 900:
+			ai.begin(1.0 / 60.0)
+			target.position = ai.move(target, 1.0 / 60.0)
+			ai.finish(1.0 / 60.0)
+		if initial_cover_id < 0:
+			initial_cover_id = brain.cover_id
+		_check(brain.cover_id == 1 and brain.cover_id == initial_cover_id, "circling retains the same building identity")
+		_check((target.position - Vector3(building.center)).dot(car.position - Vector3(building.center)) < 0,
+			"sprite physically follows opposite side as car circles building")
+		_check(not ai._visible(target.position, car.position), "repositioned sprite is actually occluded by city geometry")
+	_check(ai.metrics.shots == orbit_shots, "facing/circling the building does not trigger premature attacks")
+	var rush_start: Vector3 = target.position
+	var rush_seen := false
+	var rush_distance := 0.0
+	var shots_before: int = ai.metrics.shots
+	car.rotation.y += PI
+	for tick in 900:
+		lab.service(1.0 / 60.0)
+		rush_seen = rush_seen or target.ai_state == "rush"
+		rush_distance = maxf(rush_distance, target.position.distance_to(rush_start))
+	print("AMBUSH_OBJECT_RUSH moved=%.2f shots=%d" % [rush_distance, ai.metrics.shots - shots_before])
+	_check(rush_seen and rush_distance > 2.0, "turning away triggers real movement out from the tracked building")
+	_check(ai.metrics.shots > shots_before, "opportunity rush obtains sight and fires")
 	# The wall, rather than the car behind it, ends the bullet.
 	car.position = Vector3(0, 1, 0)
 	await physics_frame
@@ -291,6 +306,7 @@ func _run() -> void:
 	# Representative supported cohort: collect actual achieved states over time,
 	# not only requested profiles or successful cover-position queries.
 	car.position = Vector3(-63, 1, 80)
+	car.rotation = Vector3.ZERO
 	lab.configure(true, 64, 1.0, true)
 	ai.configure("ambusher", 3.0, 32.0, 1.0, false)
 	var concealed := {}
@@ -310,6 +326,8 @@ func _run() -> void:
 		if not concealed.has(member.target_id):
 			print("AMBUSH_NOT_HIDDEN id=%d position=%s cover=%s state=%s" % [member.target_id, member.position, ai.brains[member.target_id].cover, member.ai_state])
 	_check(prepared.size() == 64 and concealed.size() >= 48, "64-sprite cohort finds cover and most physically hide within 40 seconds")
+	_check(ai.metrics.get("max_cover_attempts", 0) <= 2, "cover work bounded to two candidates per queued job")
+	_check(nav.cover_anchors.size() == 14, "cover geometry cache does not grow with cohort or resets")
 	# Actual extended motion payloads fit the budget; stale ticks/generations
 	# cannot overwrite current state. The configuration stream commits atomically.
 	lab.configure(true, 256, 2.0, false)

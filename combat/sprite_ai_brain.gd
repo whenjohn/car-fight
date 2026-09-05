@@ -10,6 +10,8 @@ static func initial(id: int, profile: String, home: Vector3) -> Dictionary:
 		"cooldown": float(id % 10) * 0.1, "aim": 0.0, "wander": 0,
 		"evading": false, "cover": Vector3.INF, "peek": Vector3.INF,
 		"hidden": 0.0, "burst": 0, "cover_retry": 0.0, "cover_cursor": 0, "rush_left": 0.0,
+		"cover_id": -1, "cover_sector": -1, "cover_choices": [], "cover_shifted": false,
+		"prepared": false, "closest_approach": INF,
 		"pace": random.randf_range(0.88, 1.12), "motion_age": 0.0,
 		"drift_phase": random.randf_range(0.0, TAU), "drift_period": random.randf_range(3.0, 6.0),
 		"drift_bias": random.randf_range(-0.18, 0.18),
@@ -117,6 +119,8 @@ static func _ambush(s: Dictionary, result: Dictionary, position: Vector3,
 	if car.is_empty():
 		s.rush_left = 0.0
 		s.hidden = 0.0
+		s.prepared = false
+		s.closest_approach = INF
 		s.aim = 0.0
 		result.state = "wait" if s.cover == Vector3.INF else "cover"
 		result.destination = position if s.cover == Vector3.INF else s.cover
@@ -140,16 +144,12 @@ static func _ambush(s: Dictionary, result: Dictionary, position: Vector3,
 			return
 		s.rush_left = 0.0
 		s.hidden = 0.0
+		s.prepared = false
+		s.closest_approach = INF
 		s.route_clock = 0.0
 	s.aim = 0.0
+	result.speed *= 1.5
 	var arrived: bool = s.cover != Vector3.INF and planar(position, s.cover).length() < 0.6
-	# A spot is not cover just because the navigation job once called it cover.
-	# Recheck actual sight at arrival; only a prepared trap may spring on exposure.
-	if arrived and visible and (s.hidden < 1.0 or distance > 18.0):
-		s.cover = Vector3.INF
-		s.peek = Vector3.INF
-		s.hidden = 0.0
-		s.cover_retry = 0.0
 	if s.cover == Vector3.INF:
 		result.state = "seek_cover"
 		if s.cover_retry <= 0.0:
@@ -157,20 +157,36 @@ static func _ambush(s: Dictionary, result: Dictionary, position: Vector3,
 			s.cover_retry = 2.0
 		return
 	result.destination = s.cover
-	result.state = "cover"
-	if not arrived:
-		s.hidden = 0.0
-		return
-	result.state = "hide"
-	if not visible:
+	result.state = "shadow" if s.prepared else "cover"
+	if not visible and (arrived or s.prepared):
 		s.hidden = minf(1.0, s.hidden + delta)
-	if s.hidden >= 1.0 and distance <= 18.0:
-		s.rush_left = 6.0
+		s.prepared = s.prepared or s.hidden >= 1.0
+		if arrived:
+			result.state = "hide"
+	elif visible:
+		s.hidden = 0.0
+	# Treat circling as a reason to reposition, not a proximity attack trigger.
+	if (s.cover_shifted or (arrived and visible)) and s.cover_retry <= 0.0:
+		result.seek_cover = true
+		s.cover_retry = 0.5
+	var object_distance := float(car.get("cover_distance", distance))
+	var toward_cover := planar(car.position, car.get("cover_center", position)).normalized()
+	var velocity: Vector3 = car.velocity
+	velocity.y = 0.0
+	var forward: Vector3 = car.get("forward", Vector3.ZERO)
+	forward.y = 0.0
+	var departing := velocity.dot(toward_cover) < -1.0
+	var turned_away := forward.normalized().dot(toward_cover) < -0.35
+	if s.prepared:
+		s.closest_approach = minf(s.closest_approach, object_distance)
+	var passed: bool = s.closest_approach <= 18.0 and object_distance > s.closest_approach + 1.0 and departing
+	if s.prepared and object_distance <= 24.0 and (passed or turned_away):
+		s.rush_left = 10.0
 		s.burst = 0
 		s.hidden = 0.0
 		s.route_clock = 0.0
 		result.state = "rush"
-		result.speed *= 1.5
+		result.seek_cover = false
 		result.destination = car.position
 
 static func _aim(s: Dictionary, result: Dictionary, delta: float, settings: Dictionary) -> void:

@@ -2,6 +2,43 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner requested object-aware Ambusher hiding: run to cover, keep the same
+  object between sprite and circling car, then rush a passing/turned-away car.
+  Also explicitly required bounded object tracking to protect the accepted
+  64-live performance target. This supersedes the proximity-trigger pass below.
+- Implemented a shared registry of the 14 static city buildings with eight
+  cached anchors each, current capsule radius/height eligibility, persistent
+  per-brain object ID/sector and at most 14 candidate IDs. Dynamic crates,
+  trees/decor are excluded for now; no new physics bodies, per-frame scene scans
+  or network fields. Read sibling `NETWORK_SAFE_GAMEPLAY.md`; network work stays
+  deferred. Existing 5 Hz staggered decisions and four route jobs/tick retained;
+  cover jobs now check at most two candidates each, with sector hysteresis and
+  0.5-second reposition / two-second acquisition retry bounds.
+- Ambushers run at the existing 1.5x cap into/around real occluding cover. One
+  second genuinely hidden prepares the trap; circling/facing alone no longer
+  triggers. Within 24 units of the building surface, facing away or departing
+  after passing close triggers a current-player rush, then return after three
+  shots or ten seconds. Actual sight still required to fire. Preparation survives
+  brief exposure during repositioning, but resets on player change, lost cover
+  or rush completion. No teleport/invisibility; cars can outpace the reposition.
+- Regressions added before implementation and observed failing on old behavior.
+  Fast check, cover, AI decision, runtime and population tests PASS. Physical four-side
+  station test retained building ID 1, reached actual opposite-side occlusion
+  without shots, then turning away caused 32.22-unit peak movement and two shots.
+  Stationary cohort: 64/64 reached concealment within 40 simulated seconds.
+  Detailed CPU evidence/limitations and commands are in `docs/SPRITE_AI.md`.
+- Matched 64-live headless sprite-service probe: moving median/P95 changed from
+  0.640/1.158 ms to 0.756/1.279 ms; first after sample P95 was 1.527 ms. Final
+  preparation P95/max 1.312/5.985 ms. New behavior emitted 136 shots versus zero
+  before, with 213 retargets; maximum four jobs/tick. Diagnostic revival outside
+  timer kept all 64 active; no gameplay immunity added. Logs retained under
+  `.crash-runs/ambush-cover.W6rUWm/`. Thermal equality unavailable. Small measured
+  service increase is NOT rendered FPS or network acceptance.
+- Next: owner observes continuous circling/opportunities with 64 Ambushers and
+  checks sustained FPS; previous monitored run `20260905-025721` ended cleanly.
+  No new rendered launch yet. Engine/renderer, sprite sizing, spawners, accepted
+  Attacker/Evader tuning and network transport/schema remain unchanged.
+
 - Owner rejected baseline Ambusher: exposed standing and no convincing rush.
   Confirmed implementation only searched after sight, required a visible peek
   point, fell back to Basic shooting on failure and attacked from that peek.

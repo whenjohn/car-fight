@@ -162,8 +162,12 @@ func _run() -> void:
 	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 0.5, settings)
 	_check(ambush.state == "hide" and not ambush.fire, "ambush waits concealed")
 	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 0.5, settings)
+	_check(ambush.state == "hide", "nearby car alone does not trigger an ambush")
+	seen.forward = seen.position.normalized()
+	seen.velocity = seen.forward * 3.0
+	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 0.2, settings)
 	_check(ambush.state == "rush" and ambush.destination == seen.position and is_equal_approx(ambush.speed, 4.5),
-		"concealed ambusher launches full rush toward car, not a peek point")
+		"turned-away car triggers full rush, not a peek point")
 	seen.visible = true
 	for shot in 3:
 		seen.position.x += 1.0
@@ -172,13 +176,13 @@ func _run() -> void:
 	ambush = brain.decide(ambusher, ambusher.peek, seen, 0.2, settings)
 	_check(ambush.state == "cover" and not ambush.fire, "three-shot burst returns to cover")
 	ambush = brain.decide(ambusher, ambusher.cover, seen, 0.2, settings)
-	_check(ambush.state == "seek_cover" and ambush.seek_cover, "exposed former cover is rejected, never counted as hidden")
+	_check(ambush.seek_cover and not ambusher.prepared, "exposed former cover requests a new hiding side, never counted as hidden")
 	ambusher = brain.initial(10000, "ambusher", Vector3.ZERO)
 	ambusher.cover = Vector3.ZERO
 	seen.visible = false
 	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 1.0, settings)
 	seen.position = Vector3(0, 0, -80)
-	for step in 40:
+	for step in 60:
 		ambush = brain.decide(ambusher, Vector3(0, 0, -5), seen, 0.2, settings)
 	_check(ambush.state == "cover" and not ambush.fire, "escaped player cannot cause an endless rush")
 	ambush = brain.decide(ambusher, Vector3(0, 0, -5), {}, 0.2, settings)
