@@ -24,7 +24,14 @@ var _events: Array = []
 var _next_shot := 1
 var _clock := 0.0
 var _tick := 0
-var _excluded: Array[RID] = []
+# Movement queries run synchronously, so one object can serve all fixtures.
+# Replace exclusions once per tick, not once per moving sprite. Assign a new
+# list when exclusions change (including tests); do not mutate it in place.
+var _move_query := PhysicsShapeQueryParameters3D.new()
+var _excluded: Array[RID] = []:
+	set(value):
+		_excluded = value
+		_move_query.exclude = value
 var _last_spawn := 0
 var _present_shots := {}
 var _settings_version := -1
@@ -79,6 +86,9 @@ func _apply_settings(version: int, value: String, values: Dictionary) -> void:
 	reset()
 
 func reset() -> void:
+	# Release the last fixture's shape and obsolete body exclusions on reset.
+	_move_query = PhysicsShapeQueryParameters3D.new()
+	_excluded = []
 	_debug_clock = 0.0
 	spacing.clear()
 	_spacing_clock = 0.0
@@ -375,12 +385,11 @@ func move(target, delta: float) -> Vector3:
 		# Fade the correction near the preferred gap instead of taking a
 		# full-speed step for even a tiny separation signal.
 		step = direction.limit_length(1.0) * float(decision.speed) * delta
-	var query := PhysicsShapeQueryParameters3D.new()
+	var query := _move_query
 	query.shape = target.get_child(0).shape
 	query.transform = Transform3D(Basis.IDENTITY, previous)
 	query.motion = step
 	query.collision_mask = 1
-	query.exclude = _excluded
 	var space: PhysicsDirectSpaceState3D = lab._main.get_world_3d().direct_space_state
 	var finish := previous
 	if space.intersect_shape(query, 1).is_empty():

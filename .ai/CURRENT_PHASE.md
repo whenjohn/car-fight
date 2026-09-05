@@ -2,6 +2,20 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner's 256-batched playtest at `4490e4d` felt smoother, reported ~42–50 FPS.
+  Monitored run `20260904-232809` closed cleanly. This is owner feedback, not
+  a matched rendered benchmark or guaranteed 256-live-sprite frame rate.
+- Next bounded optimization: reuse one synchronous AI movement shape query,
+  refreshing dynamic-body exclusions once per tick. Reset releases the last
+  shape/exclusions. All individual wall/overlap sweeps, pursuit, spacing,
+  randomness, navigation scheduling, sizing and network state stay unchanged.
+- Same-session headless attacker256 median/P95: 2.642/4.532 → 2.468/4.366 ms
+  (~6.6% observed median improvement). Smaller than the prior CPU pass; not
+  an FPS claim. Baseline machine load differs from earlier session readings.
+  New fresh-query equivalence regression passed before and after the change;
+  fast check, AI runtime, combat and ENet lifecycle pass with clean error scans.
+- Next: benchmark route planning separately before changing navigation. No
+  new rendered run or renderer/engine migration. Evidence in profile doc.
 - 256 CPU follow-up: cache per-tick AI status/car capsule inputs and avoid
   remote-only motion packing with zero peers. Preserve pursuit, randomness,
   spacing, all world sweeps, run-over solver and sprite sizing. No engine change.

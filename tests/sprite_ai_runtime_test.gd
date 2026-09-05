@@ -28,6 +28,37 @@ func _run() -> void:
 	car.freeze = true
 	car.position = Vector3(10, 1, 0)
 	car.linear_velocity = Vector3.ZERO
+	# Compare consecutive movement sweeps against fresh query objects. Alternate
+	# capsule sizes, origins, motions and exclusions to catch stale reused input.
+	for size in [0.5, 2.0, 1.0]:
+		lab.configure(true, 1, size, false)
+		ai.configure("attacker", 3.0, 32.0, 1.0, false)
+		var mover = lab._fixtures[0]
+		for origin in [Vector3(10, 1, -10), Vector3(0, 1, -7), Vector3(0, 1, -5)]:
+			for heading in [Vector3.BACK, Vector3.FORWARD]:
+				for ignore_wall in [false, true]:
+					mover.position = origin
+					ai.pending.clear()
+					ai.spacing.clear()
+					var excluded: Array[RID] = main._combat_dynamic_rids()
+					if ignore_wall:
+						excluded.append(wall.get_rid())
+					ai._excluded = excluded
+					ai.routes[mover.target_id] = PackedVector3Array([origin + heading * 10.0])
+					ai.brains[mover.target_id].decision = {
+						"destination": origin + heading * 10.0, "speed": 4.5, "state": "pursue"}
+					var query := PhysicsShapeQueryParameters3D.new()
+					query.shape = mover.get_child(0).shape
+					query.transform = Transform3D(Basis.IDENTITY, origin)
+					query.motion = heading * 2.25
+					query.collision_mask = 1
+					query.exclude = excluded
+					var space: PhysicsDirectSpaceState3D = main.get_world_3d().direct_space_state
+					var expected: Vector3 = origin
+					if space.intersect_shape(query, 1).is_empty():
+						expected += query.motion * float(space.cast_motion(query)[0])
+					_check(ai.move(mover, 0.5).is_equal_approx(expected),
+						"movement matches fresh sweep across size, direction, overlap and exclusions")
 	# Offline simulation still advances ticks, but remote-only snapshots have
 	# no consumers. Configuration and local practice-shot events stay separate.
 	lab.configure(true, 256, 1.0, false)

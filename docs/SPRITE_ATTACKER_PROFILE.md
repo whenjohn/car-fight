@@ -176,3 +176,42 @@ Fast check, AI runtime (including no-recipient packet regression), actual-world
 sprite combat/run-over, and ENet/mux lifecycle/load gates pass. These cover the
 local service optimization and remote publication boundary without changing
 schema, rollback or transport; the broad milestone suite is not required.
+
+## Reusable movement query (2026-09-04)
+
+Owner evaluated `4490e4d` with 256 attackers and batched drawing and reported
+smoother play around 42–50 FPS. Monitored run `20260904-232809` closed cleanly.
+This is interactive feedback, not a controlled live-count FPS comparison.
+
+The next small CPU optimization reuses one synchronous movement-query object
+and updates its dynamic-body exclusions once per tick. Each move still replaces
+the actual shape, transform, motion and mask, and performs the same overlap and
+cast checks. Reset discards the query and exclusions. Cover checks use separate
+queries; navigation, decision cadence, steering and replication are unchanged.
+
+A new 36-case runtime regression compares movement against independently built
+fresh queries: three capsule sizes, open/wall/overlap positions, both directions,
+and alternating wall exclusions. It passed against both the original and reused
+implementation, along with existing pursuit, spacing and real ambush tests.
+
+Same probe procedure as above, separate idle headless runs this session:
+
+| 256 sprites | Before median / P95 | After median / P95 |
+| --- | ---: | ---: |
+| Legacy | 1.261 / 1.858 ms | 1.317 / 2.684 ms |
+| Attacker | 2.642 / 4.532 ms | 2.468 / 4.366 ms |
+
+Observed attacker median improvement is ~6.6%, not a large new FPS step.
+Warmup maximum was 4.917 → 5.194 ms. Legacy tail noise and the considerably
+lower baseline versus the prior session demonstrate machine-load sensitivity;
+do not compare these numbers directly with the previous pass or certify the
+high-count budget from one favorable incremental-tail subtraction. No limits
+were relaxed. Logs: `/private/tmp/car-fight-query-{before,final}.log`.
+An intermediate development measurement (`query-after.log`) predates the final
+corrected implementation and is excluded from results.
+
+Fast check, AI runtime (fresh-query oracle plus behavior), world combat and ENet
+lifecycle pass with clean error scans. ENet run `sprite-ai-network.vTukQQ`
+checks reset/reconfiguration with live clients;
+no wire schema, authority, rollback or transport changed, so the broad milestone
+suite is not required. Rendered acceptance of this small follow-up is pending.
