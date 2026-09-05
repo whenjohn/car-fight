@@ -2,6 +2,25 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner authorized trying optimization and explicitly ruled out engine changes.
+  First pass stays on Godot 4.7.1 Compatibility: avoids redundant appearance/
+  color/speed updates, bounds debug labels/markers to nearest 16 living sprites
+  at 5 Hz, and adds conservative rejection before unchanged precise run-over
+  collision math. No pursuit, spacing, art-size defaults or network changes.
+- Optimized rendered run `20260904-224724` closed cleanly with no engine/script
+  errors. Median/P95: debug off 52.503/61.991 ms, debug on 60.107/67.747 ms,
+  versus historical 69.659/79.276 and 135.497/206.270. Different instrumentation,
+  surviving counts and machine load limit exact speedup claims. Approximately
+  19/17 FPS is an improvement, NOT smooth 256-sprite acceptance.
+- Final fast check, sprite appearance/contact, AI runtime and sprite combat
+  gates selected for local appearance/debug and collision optimization.
+  Collision coverage compares 2,000 seeded translated/rotated cases against
+  the original precise solver; no shared schema/transport changed, so no
+  repeated broad suite. All four gates pass; focused runtime logs are
+  `/private/tmp/car-fight-opt-{sprite,ai,combat}.log`.
+- Render runner hook removed from gameplay source. Evidence and remaining work:
+  `docs/SPRITE_ATTACKER_PROFILE.md`. Next: further movement and batched sprite
+  presentation investigation within the same engine, not a platform migration.
 - Latest request: profile the 256-attacker slowdown, not implement a fix.
   Rendered investigation at `585525d` is recorded in
   `docs/SPRITE_ATTACKER_PROFILE.md`. Temporary timers were removed; gameplay

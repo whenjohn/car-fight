@@ -68,12 +68,27 @@ func _process(delta: float) -> void:
 	_flash = maxf(0.0, _flash - delta)
 	if visual != null:
 		visual.heading = heading
-		visual.modulate = Color(2.0, 2.0, 2.0) if _flash > 0.0 else Color.WHITE
+		var color := Color(2.0, 2.0, 2.0) if _flash > 0.0 else Color.WHITE
+		if visual.modulate != color:
+			visual.modulate = color
 
 ## Conservative advancement along two translating/rotating capsules. The
 ## separation bound includes translation, rotation and target movement, so a
 ## fast crossing cannot tunnel between endpoint overlap tests.
 static func swept_vehicle_contact(previous: Transform3D, current: Transform3D,
+		vehicle_radius: float, vehicle_height: float, target_from: Vector3,
+		target_to: Vector3, target_radius: float, target_height: float) -> bool:
+	# Enclosing spheres swept along both centre segments conservatively bound
+	# every capsule orientation. Reject distant pairs before interpolation/math.
+	var reach := maxf(vehicle_radius, vehicle_height * 0.5) + maxf(target_radius, target_height * 0.5) + 0.001
+	for axis in 3:
+		if maxf(previous.origin[axis], current.origin[axis]) + reach < minf(target_from[axis], target_to[axis]) \
+				or maxf(target_from[axis], target_to[axis]) + reach < minf(previous.origin[axis], current.origin[axis]):
+			return false
+	return _swept_vehicle_contact_precise(previous, current, vehicle_radius, vehicle_height,
+		target_from, target_to, target_radius, target_height)
+
+static func _swept_vehicle_contact_precise(previous: Transform3D, current: Transform3D,
 		vehicle_radius: float, vehicle_height: float, target_from: Vector3,
 		target_to: Vector3, target_radius: float, target_height: float) -> bool:
 	var half_car := maxf(vehicle_height * 0.5 - vehicle_radius, 0.0)

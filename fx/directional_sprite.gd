@@ -18,8 +18,10 @@ var manual_direction := -1
 var playback_rate := 1.0
 var frozen := false
 var _key := ""
+var _appearance_key := ""
 
 func _ready() -> void:
+	_appearance_key = "%s/%d/%s" % [sample, resolution, world_height]
 	billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 	texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
@@ -111,6 +113,10 @@ static func _load_modern_clip(character: String, action: String, direction: int)
 	return result
 
 func _process(_delta: float) -> void:
+	# Direction/animation changes do not change geometry, alpha policy or
+	# filtering. Avoid invalidating all native render properties on each turn.
+	if _appearance_key != "%s/%d/%s" % [sample, resolution, world_height]:
+		_ready()
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return
@@ -125,7 +131,6 @@ func _process(_delta: float) -> void:
 		var finished := sprite_frames != null and not is_playing() and not frozen
 		sprite_frames = load_clip(resolution, clip, direction, sample)
 		_key = next
-		_ready()
 		if sprite_frames != null:
 			play("default")
 			if old_clip == clip:
@@ -133,7 +138,9 @@ func _process(_delta: float) -> void:
 				if finished and clip in ["attack", "death"]:
 					set_frame_and_progress(sprite_frames.get_frame_count("default") - 1, 1.0)
 					pause()
-	speed_scale = 0.0 if frozen else playback_rate
+	var rate := 0.0 if frozen else playback_rate
+	if speed_scale != rate:
+		speed_scale = rate
 
 func replay() -> void:
 	if sprite_frames != null:

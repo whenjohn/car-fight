@@ -158,6 +158,13 @@ func _run() -> void:
 	# Actual extended motion payloads fit the budget; stale ticks/generations
 	# cannot overwrite current state. The configuration stream commits atomically.
 	lab.configure(true, 256, 2.0, false)
+	var debug_set: Array = ai.debug_targets(Vector3.ZERO)
+	_check(debug_set.size() == 16, "debug selection bounded at 256 sprites")
+	var last_distance := -1.0
+	for member in debug_set:
+		var distance: float = member.position.distance_squared_to(Vector3.ZERO)
+		_check(distance >= last_distance, "debug selection nearest first")
+		last_distance = distance
 	var states: Array = lab.states()
 	for batch in ai.batches(states):
 		_check(var_to_bytes([lab.generation, batch, 100]).size() <= 1000, "real motion payload byte limit")

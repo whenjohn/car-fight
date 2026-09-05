@@ -8,6 +8,19 @@ func _init() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
+	# Broad-phase rejection must match the original swept contact solver,
+	# including rotating vehicles and both moving bodies.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 25677
+	for trial in 2000:
+		var before := Transform3D(Basis(Vector3.FORWARD, rng.randf_range(-PI, PI)), Vector3(rng.randf_range(-10, 10), 1, rng.randf_range(-10, 10)))
+		var after := Transform3D(Basis(Vector3.FORWARD, rng.randf_range(-PI, PI)), Vector3(rng.randf_range(-10, 10), 1, rng.randf_range(-10, 10)))
+		var start := Vector3(rng.randf_range(-20, 20), 1, rng.randf_range(-20, 20))
+		var finish := start + Vector3(rng.randf_range(-4, 4), 0, rng.randf_range(-4, 4))
+		var size := rng.randf_range(0.5, 2.0)
+		_check(TARGET.swept_vehicle_contact(before, after, 0.8, 4.0, start, finish, 0.35 * size, 1.8 * size)
+			== TARGET._swept_vehicle_contact_precise(before, after, 0.8, 4.0, start, finish, 0.35 * size, 1.8 * size),
+			"contact broad phase preserves translating/rotating outcomes")
 	for size in [1.0, 2.0]:
 		var positions := LAB.spawn_positions(Vector3.ZERO, 256, size)
 		_check(positions.size() == 256, "spread layout fills maximum count")
@@ -48,6 +61,13 @@ func _run() -> void:
 	sprite.manual_direction = 6
 	sprite._process(0.0)
 	_check(sprite.frame == 7 and is_equal_approx(sprite.frame_progress, 0.4), "direction change preserves progress")
+	var configured: String = sprite._appearance_key
+	_check(not configured.is_empty(), "appearance configured once")
+	sprite.world_height = 2.1
+	sprite._process(0.0)
+	_check(sprite._appearance_key != configured, "size changes still invalidate appearance without changing clips")
+	sprite.world_height = 1.8
+	sprite._process(0.0)
 	var width := sprite.pixel_size * 128.0
 	sprite.resolution = 512
 	sprite._process(0.0)

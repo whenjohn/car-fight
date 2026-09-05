@@ -372,7 +372,7 @@ func _build_window() -> void:
 		ai.configure(ai.mode, ai.settings.speed, ai.settings.detection, v, ai.settings.auto_fire), true)
 	_option(root, "Car auto-fire (reset)", ["Off in AI mode", "On"], 1 if ai.settings.auto_fire else 0, func(i):
 		ai.configure(ai.mode, ai.settings.speed, ai.settings.detection, ai.settings.interval, i == 1), true)
-	_button(root, "Show / hide AI decisions", func(): ai.show_debug = not ai.show_debug)
+	_button(root, "Show / hide AI decisions (nearest 16)", func(): ai.show_debug = not ai.show_debug)
 	var available: Array[String] = []
 	var labels: Array[String] = []
 	for i in VISUAL.SAMPLES.size():

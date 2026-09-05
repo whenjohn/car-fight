@@ -112,3 +112,36 @@ when needed, then target measured movement/contact work and changing-sprite
 presentation independently. Preserve collision and
 pursuit outcomes, and repeat this rendered comparison. An implementation
 requires a separate owner decision; no optimization is included in this profile.
+
+## First optimization pass — owner approved
+
+Implemented without changing Godot, Compatibility, art/size defaults, AI
+pursuit/spacing, simulation cadence or wire state:
+
+- Reapply sprite appearance only when character, resolution or world height
+  changes, not on each animation/direction change. Preserve playback progress,
+  finished deaths and size controls. Avoid unchanged color/speed assignments.
+- Bound debug display to the nearest 16 living sprites, refreshed at 5 Hz.
+  Update text only on changes, omit nonexistent cover markers, and release
+  nodes for sprites leaving the selection or when debug is disabled.
+- Conservatively reject distant swept car/sprite bounding volumes before the
+  original precise capsule-contact solver. Two thousand seeded comparisons
+  cover translated/rotated capsules; the precise solver is unchanged.
+
+Monitored run `20260904-224724` completed cleanly. Same phase setup as the
+earlier detailed profile (15-second warmup, six-second sample, fixed car,
+256 spawned survivors), without the old per-call timer overhead:
+
+| Setting | Earlier median / P95 | Optimized median / P95 |
+| --- | ---: | ---: |
+| Debug off | 69.659 / 79.276 ms | 52.503 / 61.991 ms |
+| Debug on | 135.497 / 206.270 ms | 60.107 / 67.747 ms |
+
+Optimized endpoint alive counts were 224/228 and draw counts 355/366.
+Results: `.crash-runs/attacker-profile/optimized-results.json`.
+These are observed improvements across separate runs, not an isolated exact
+speedup: earlier timers added overhead, machine load and trajectories differ,
+and the debug display now intentionally shows fewer entities. This first pass
+does NOT establish smooth 256-attacker play: approximately 19 FPS without debug
+and 17 with it remain below the desired experience. Full-frame movement and
+batched sprite presentation remain the next measured optimization candidates.

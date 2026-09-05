@@ -43,7 +43,9 @@ Defaults: movement 3 units/second, attack/evasion 1.5× movement, detection 32 u
 shot interval 1 second, aim delay at least 0.35 seconds. Decisions run at 5 Hz,
 so transitions are quantized to that cadence. Bullet speed is 22 units/second,
 lifetime two seconds. Show AI decisions displays profile/state labels on clients
-and server/offline destination/cover/peek markers. All obey depth occlusion.
+and server/offline destination/cover/peek markers for the nearest 16 living
+sprites to the camera. Debug facts refresh at 5 Hz; invalid cover markers are
+not allocated, and leaving the selection releases nodes. All obey depth occlusion.
 Preview animation controls remain presentation-only; real deaths override them.
 
 ## Network feature contract

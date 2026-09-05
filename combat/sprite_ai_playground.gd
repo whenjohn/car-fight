@@ -31,6 +31,8 @@ var _settings_version := -1
 var _was_connected := false
 var spacing := {}
 var _spacing_clock := 0.0
+var _debug_clock := 0.0
+const DEBUG_LIMIT := 16
 
 func setup(owner_lab: Node) -> void:
 	lab = owner_lab
@@ -77,6 +79,7 @@ func _apply_settings(version: int, value: String, values: Dictionary) -> void:
 	reset()
 
 func reset() -> void:
+	_debug_clock = 0.0
 	spacing.clear()
 	_spacing_clock = 0.0
 	brains.clear()
@@ -533,9 +536,35 @@ func _process(delta: float) -> void:
 			if visuals.has(id):
 				visuals[id].queue_free()
 				visuals.erase(id)
-	for target in lab._fixtures:
+	_debug_clock -= delta
+	if not show_debug:
+		for container in [labels, markers]:
+			for node in container.values():
+				node.queue_free()
+			container.clear()
+		_debug_clock = 0.0
+		return
+	if _debug_clock > 0.0 or lab._main.call("_is_headless"):
+		return
+	_debug_clock = 0.2
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var selected := debug_targets(camera.global_position)
+	var selected_ids := {}
+	for target in selected:
+		selected_ids[target.target_id] = true
+	for id in labels.keys():
+		if not selected_ids.has(id):
+			labels[id].queue_free()
+			labels.erase(id)
+	for key in markers.keys():
+		if not selected_ids.has(int(str(key).get_slice(":", 0))):
+			markers[key].queue_free()
+			markers.erase(key)
+	for target in selected:
 		var id: int = target.target_id
-		if show_debug and not lab._main.call("_is_headless") and not labels.has(id):
+		if not labels.has(id):
 			var label := Label3D.new()
 			label.font_size = 28
 			label.pixel_size = 0.015
@@ -545,18 +574,30 @@ func _process(delta: float) -> void:
 		if labels.has(id):
 			labels[id].visible = show_debug and target.health > 0
 			labels[id].global_position = target.global_position + Vector3.UP * (target.height() * 0.5 + 0.3)
-			labels[id].text = target.ai_profile + " / " + target.ai_state
+			var caption: String = target.ai_profile + " / " + target.ai_state
+			if labels[id].text != caption:
+				labels[id].text = caption
 			# Destinations are server debug facts; clients show replicated state
 			# labels without inventing routes from smoothed presentation.
 			if multiplayer.is_server() and show_debug and brains.has(id):
 				for kind in ["destination", "cover", "peek"]:
 					var key := "%d:%s" % [id, kind]
 					var point: Vector3 = brains[id].decision.destination if kind == "destination" else brains[id][kind]
+					if point == Vector3.INF and not markers.has(key):
+						continue
 					if not markers.has(key):
 						markers[key] = _dot(target.position, Color.CYAN if kind == "destination" else Color.GREEN, 0.16)
 					markers[key].visible = point != Vector3.INF and target.health > 0
 					if point != Vector3.INF:
 						markers[key].global_position = point
-	if not show_debug:
-		for marker in markers.values():
-			marker.visible = false
+
+func debug_targets(origin: Vector3) -> Array:
+	var candidates: Array = []
+	for target in lab._fixtures:
+		if target.health > 0:
+			candidates.append(target)
+	candidates.sort_custom(func(a, b):
+		var da: float = a.position.distance_squared_to(origin)
+		var db: float = b.position.distance_squared_to(origin)
+		return a.target_id < b.target_id if da == db else da < db)
+	return candidates.slice(0, DEBUG_LIMIT)
