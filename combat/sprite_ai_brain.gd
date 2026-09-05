@@ -3,11 +3,16 @@ extends RefCounted
 const PROFILES := ["basic", "attacker", "evader", "ambusher"]
 
 static func initial(id: int, profile: String, home: Vector3) -> Dictionary:
+	var random := RandomNumberGenerator.new()
+	random.seed = id * 7919 + 17
 	return {"id": id, "profile": profile, "home": home, "state": "wander",
 		"destination": home, "target": 0, "last_seen": home, "lost": 4.0,
 		"cooldown": float(id % 10) * 0.1, "aim": 0.0, "wander": 0,
 		"evading": false, "cover": Vector3.INF, "peek": Vector3.INF,
-		"hidden": 0.0, "burst": 0, "cover_retry": 0.0}
+		"hidden": 0.0, "burst": 0, "cover_retry": 0.0,
+		"pace": random.randf_range(0.88, 1.12), "motion_age": 0.0,
+		"drift_phase": random.randf_range(0.0, TAU), "drift_period": random.randf_range(3.0, 6.0),
+		"drift_bias": random.randf_range(-0.18, 0.18)}
 
 static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 		delta: float, settings: Dictionary) -> Dictionary:
@@ -22,12 +27,13 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 	var destination: Vector3 = s.last_seen
 	var distance := planar(position, destination).length()
 	var result := {"state": "wander", "destination": position, "fire": false,
-		"speed": float(settings.speed), "seek_cover": false}
+		"speed": float(settings.speed), "seek_cover": false, "steer": 0.0}
 	var profile: String = s.profile
 	if profile == "attacker":
 		# The hunter knows the eligible player's current position, including
 		# behind cover. Shooting still requires actual sight and weapon range.
-		result.speed *= 1.5
+		result.speed *= 1.5 * s.pace
+		s.motion_age += delta
 		result.state = "hunt"
 		if not car.is_empty():
 			s.last_seen = car.position
@@ -35,6 +41,7 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 			if not visible or distance > 6.0:
 				result.destination = car.position
 				result.state = "pursue"
+				result.steer = s.drift_bias + 0.18 * sin(s.motion_age * TAU / s.drift_period + s.drift_phase)
 			if visible and distance <= 18.0:
 				_aim(s, result, delta, settings)
 				if distance > 6.0 and not result.fire:

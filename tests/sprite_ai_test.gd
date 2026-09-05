@@ -30,7 +30,22 @@ func _run() -> void:
 		_check(hunt.state == "pursue" and hunt.destination == hidden.position,
 			"attacker tracks moving player beyond detection and never times out")
 		_check(not hunt.fire, "attacker cannot shoot through cover")
-		_check(is_equal_approx(hunt.speed, 4.5), "attacker uses aggressive approach speed")
+		_check(hunt.speed >= 3.96 and hunt.speed <= 5.04, "attacker pace stays within twelve percent")
+		_check(absf(hunt.steer) <= 0.36, "movement variation stays forward-directed")
+	var twin_a: Dictionary = brain.initial(10001, "attacker", Vector3.ZERO)
+	var twin_b: Dictionary = brain.initial(10001, "attacker", Vector3.ZERO)
+	var other: Dictionary = brain.initial(10002, "attacker", Vector3.ZERO)
+	var previous_steer := 0.0
+	var changed := false
+	for step in 100:
+		var a: Dictionary = brain.decide(twin_a, Vector3.ZERO, hidden, 0.2, settings)
+		var b: Dictionary = brain.decide(twin_b, Vector3.ZERO, hidden, 0.2, settings)
+		_check(a == b, "same seeded hunter reproduces movement")
+		if step > 0:
+			_check(absf(a.steer - previous_steer) < 0.09, "steering variation changes gently")
+			changed = changed or not is_equal_approx(a.steer, previous_steer)
+		previous_steer = a.steer
+	_check(changed and twin_a.pace != other.pace, "individual hunters differ and weave over time")
 	seen.position = Vector3(0, 0, -15)
 	var approach: Dictionary = brain.decide(hunter, Vector3.ZERO, seen, 0.4, settings)
 	_check(approach.fire and approach.destination == seen.position, "attacker fires while closing distance")
@@ -39,6 +54,7 @@ func _run() -> void:
 	_check(close.destination == Vector3.ZERO and close.state != "retreat", "close attacker holds and fights instead of retreating")
 	var waiting: Dictionary = brain.decide(hunter, Vector3.ZERO, {}, 0.2, settings)
 	_check(waiting.destination == Vector3.ZERO and not waiting.fire, "no eligible player means wait, not chase stale position")
+	_check(waiting.steer == 0.0 and close.steer == 0.0, "variation does not create idle wandering")
 	var evader: Dictionary = brain.initial(10000, "evader", Vector3.ZERO)
 	seen.position = Vector3(0, 0, -5)
 	var evade: Dictionary = brain.decide(evader, Vector3.ZERO, seen, 0.2, settings)

@@ -2,6 +2,17 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Latest tuning: owner requested randomness in attacker movement. Added
+  deterministic per-fixture pace (±12%), left/right preference and gentle
+  3–6-second steering variation (up to ~21 degrees), faded near waypoints.
+  Persistent pursuit, firing cadence, spacing and world sweeps remain intact.
+  Only server decisions generate steering; no new replicated fields or RPCs.
+- Fast check and focused brain/runtime gates pass, covering repeatable seeds,
+  varied individuals, smooth bounded steering, no idle drift, building pursuit
+  and spacing. Logs: `/private/tmp/car-fight-random-{brain,runtime}.log`.
+  No broad suite required for this localized steering tune. High-count rendered
+  performance has not been rebenchmarked for the variation.
+- Previous batched interactive run `20260904-230807` closed cleanly.
 - Latest owner request: try batched sprite drawing, with no engine/backend
   change. Added opt-in MultiMesh presentation for survivor/thug, original
   AnimatedSprite3D clocks retained. AI, hitboxes, spacing, wire data and sizing

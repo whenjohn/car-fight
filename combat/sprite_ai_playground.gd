@@ -361,6 +361,9 @@ func move(target, delta: float) -> Vector3:
 	var direction := Vector3.ZERO
 	if previous.distance_to(decision.destination) >= 0.6 and not route.is_empty():
 		direction = BRAIN.planar(previous, route[0]).limit_length(1.0)
+		# Fade near waypoints so personality does not prevent corner arrival.
+		var fade := clampf(previous.distance_to(route[0]) / 2.0, 0.0, 1.0)
+		direction = direction.rotated(Vector3.UP, float(decision.get("steer", 0.0)) * fade)
 	# Soft spacing, not rigid crowd collision: hunters can squeeze through
 	# passages. Existing world sweeps still validate the combined movement.
 	direction += separation * 1.4

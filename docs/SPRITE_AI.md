@@ -33,6 +33,12 @@ and counters only: no damage, resources, impulses, shield or det interactions.
   stacking: preferred center spacing is 2.5 units, increased when the actual
   capsule diameter plus 1.5 units requires it. Separation also works while
   holding firing distance; narrow passages can temporarily compress the group.
+  Each hunter has a seeded pace variation of ±12%, a small left/right approach
+  preference, and a gentle 3–6-second steering variation. Steering stays within
+  about 21 degrees of the route direction and fades near waypoints. It does
+  not add idle wandering, change fire cadence or bypass spacing/world sweeps.
+  Seeds derive from fixture IDs, so resets reproduce the same personalities.
+  Variation is evaluated at the existing server decision cadence, not on clients.
 - Evader retreats inside ten units, resumes firing outside fourteen, and
   sidesteps a projected collision within one second. It does not read bullets
   or player input to predict intent.
