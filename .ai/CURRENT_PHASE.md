@@ -1,5 +1,25 @@
 # Current phase
 
+## First rendered trace analyzed, 2026-09-05
+
+- Owner finished the `6e47ca6` trace-enabled playtest. Both clients exited zero,
+  isolated server stopped, completed job removed; production PID 57599/UDP 10080
+  unchanged. No engine/script errors or display precursor; final states current.
+- Read the first-rendered-result section in `docs/NETWORK_PRESENTATION_TRACE.md`.
+  Both 120-second traces saved with zero dropped records. Alpha cruised; Bravo
+  was the focused observer. No specific owner-marked hitch/new feel verdict.
+- New evidence: both clients had 6.1/6.3-second wall callback gaps around
+  02:07:47, hidden by 65-69 ms Godot deltas. Network-loop maxima reached
+  5.9/6.0 seconds; Alpha rollback reached 5.7 seconds. CPU_Speed_Limit hit 24.
+  Timers include scheduling delays, not CPU time; exact subsystem cause unknown.
+- Bravo's earlier seconds 30-60 had 930/930 body samples interpolating with no
+  hold/extrapolate. Whole-window processing stalls and cursor recovery are
+  stronger next leads than blindly increasing the snapshot buffer. No tuning
+  applied; detailed capture covers only the first two minutes, not all play.
+- Next: targeted network/simulation profiling and a focused cursor-recovery
+  characterization for wall-time versus engine-delta gaps. Keep two-client
+  workflow; macOS/browser validation remains planned for later, not cleared.
+
 ## Trace-enabled cruise playtest active, 2026-09-05
 
 - Owner approved this rendered test. Both monitored native clients connected

@@ -86,6 +86,71 @@ movement, and presentation delays are unchanged. No new networked objects or
 traffic are introduced. The full suite was not rerun for opt-in diagnostics;
 previously recorded milestone failures remain open.
 
+## First rendered trace result, 2026-09-05
+
+Run `.crash-runs/two-client-20260905-020617/`, runtime `6e47ca6`.
+Both clients exited zero around 02:10:10 local; isolated server cleanup completed
+and the non-restarting job was removed. Production remained PID 57599/UDP 10080.
+No engine/script errors or Intel display precursor appeared in completed logs.
+Startup clock-adjustment warnings remained; final applied states were current
+with zero rejects in the final windows, not persistent stale-state lockout.
+
+Alpha drove with P cruise while Bravo was the focused observer throughout the
+post-warmup trace. The detailed traces cover approximately 02:06:27-02:08:27
+and 02:06:30-02:08:30 America/Chicago, not the entire play session. Both have zero
+dropped records (15,832 / 16,031 records). Owner reported completion but did not
+mark a specific hitch time or give a new smoothness verdict for this run.
+
+The following callback statistics exclude the first 30 seconds of each trace.
+Unlike the older interval maxima, these are percentiles over recorded monotonic
+callback gaps. They still are not GPU presentation timestamps.
+
+| Measurement | Alpha | Bravo |
+| --- | ---: | ---: |
+| Recorded frame callbacks | 2,457 | 2,048 |
+| Median wall gap | 28.5 ms | 33.0 ms |
+| p95 / p99 wall gap | 59.6 / 185.3 ms | 67.4 / 237.5 ms |
+| Largest wall gap | 6,134.5 ms | 6,252.3 ms |
+| Gaps above 100 ms | 51 | 48 |
+| Body samples: interp / extra / hold | 2,400 / 2 / 55 | 1,977 / 11 / 57 |
+
+Around 02:07:47 both clients had six-second callback gaps; their corresponding
+Godot deltas were only 69.1 / 65.1 ms. Later telemetry reports captured network
+loop interval maxima of 5,883.7 / 6,046.5 ms. Alpha's rollback interval maximum
+was 5,716.9 ms; Bravo's was 493.9 ms. These are elapsed durations (including
+descheduling), not proof that scripts consumed that much CPU time. Interval
+maxima need not refer to the exact same loop; do not add them together.
+
+macOS CPU_Speed_Limit reached 24 at 02:07:36. Process sampling also has a gap
+around the event, supporting shared host pressure rather than merely slow packet
+delivery. The focused observer stalled too, so unfocused-client throttling alone
+does not explain this run. There was no recorded thermal warning; the power
+limit does not establish a specific thermal, CPU, GPU or scheduling root cause.
+The long event precedes both trace flushes by about 40 seconds, so it was not
+caused by final trace serialization. Collection overhead has not been isolated.
+
+Before the severe event, seconds 30-60 of Bravo's trace had 930 body observations,
+all interpolating (no hold/extrapolate), despite callback p95 46.6 ms. This is
+evidence against constant snapshot starvation as the sole explanation for subtle
+stutter, not proof that interpolation is perfect. Mode counts are sample-weighted,
+not percentages of wall time. During recovery, effective presentation delay
+temporarily exceeded the selected 75 ms (post-30-second maxima 494 / 537 ms).
+This makes render-cursor recovery another measured lead, not permission to change
+the delay or bypass clock/replay safeguards.
+
+The monitor captured `client-stall-1788592066.sample.txt` in both client folders.
+Bravo's sample starts at 02:07:48.105, during recovery rather than the initial
+six-second gap; many Godot frames are unsymbolicated. It does not identify a
+specific gameplay function as the root cause. Completed server/launcher evidence
+is in `.network-runs/trace-6e47ca6-2026-09-05/`.
+
+Next priority: break down expensive network/simulation iterations and their
+recovery with targeted profiling, retaining the two-client scenario. Separately
+characterize cursor recovery when Godot delta differs from elapsed wall time.
+Do not simply increase the interpolation buffer: the focused observer had ample
+samples during the earlier observation slice. No runtime tuning was applied
+while analyzing this run.
+
 ## Later platform gate
 
 The owner requested a macOS-native plus browser playtest later, not now. After
