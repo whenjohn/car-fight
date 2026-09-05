@@ -2,6 +2,30 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Latest request was rendered profiling of drops near 20 FPS and apparent
+  ~50-FPS ceiling, not another fix. Baseline `79615ad`; no gameplay changes.
+  Full report: `docs/SPRITE_FRAME_DROPS_2026-09-05.md`.
+- Runtime max_fps=0, VSync enabled; no configured 50 cap. Ordinary attacker
+  frames measured 22.5 ms control / 24.3 ms instrumented. Simulation averages
+  7.56 ms/frame, sprite presentation scripts 4.80 ms, render CPU elapsed 5.98 ms.
+  Route searches only 0.190 ms/frame: not the leading CPU target.
+- Moving-car phase reproduced P95 55.076 ms, max 75.28 ms. Mac reported CPU
+  speed limits falling from 100 to 51/41 while ~22–25 ms frames became ~53–57.
+  Per-tick costs rose and ~1–2 sprite services/frame became ~3–4, amplifying
+  dips. Exact thermal/power trigger is not established; no system settings
+  were changed. Prior owner's run `20260905-000717` closed cleanly but ended
+  with CPU speed limit 24, versus 100 for the earlier smoother run.
+- Eight-phase monitored run `20260905-001325` completed cleanly with no script/
+  engine errors. Raw frames and instrumentation: `.crash-runs/frame-cost-1788585220/`.
+  GPU timing returned zero despite enabling measurement: unavailable, not free.
+  Background load, timer overhead and varying live counts limit exact A/B claims.
+- Temporary instrumentation passed two-pass import then was fully removed;
+  source matches `79615ad`. Only documentation changed; source-restoration and
+  diff checks are sufficient. No new optimization, wire or display-policy change.
+- Next recommendation: reduce remaining sprite presentation/animation and
+  batch-upload work, then movement/contact costs; record OS CPU limits during
+  comparisons. Do not prioritize route-cache changes or lower tick rates on
+  this evidence. Owner decision required before implementing the next fix.
 - Owner's 256-batched playtest at `4490e4d` felt smoother, reported ~42–50 FPS.
   Monitored run `20260904-232809` closed cleanly. This is owner feedback, not
   a matched rendered benchmark or guaranteed 256-live-sprite frame rate.
