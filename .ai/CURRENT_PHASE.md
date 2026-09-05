@@ -2,6 +2,14 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner observed the grass Ambusher, said "I like it", and requested committing
+  this version for now. Keep the current behavior and camouflage as the accepted
+  iteration. Explained that hiding uses green tint at 22% opacity, not complete
+  invisibility; hitboxes remain active and rush/death restores visibility.
+  Implementation is already committed as `2bdd129`; this records owner feedback.
+  No new FPS figures or sustained performance acceptance were provided. No
+  behavior changes or test reruns needed for this documentation-only checkpoint.
+
 - Owner requested starting the grass-Ambusher playtest. Launched gameplay
   `2bdd129` in monitored run `20260905-040430`, client PID 22018: offline,
   64 initial Ambushers, survivor sample, batched drawing, inset window at 100,100.
