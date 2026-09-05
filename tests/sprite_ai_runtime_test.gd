@@ -81,6 +81,48 @@ func _run() -> void:
 	observed = ai._observe(hunter_target, hunter_state, ai._cars())
 	_check(observed.is_empty(), "hunter still respects player cloak")
 	car.set("is_cloaked", false)
+	# A close pair spreads even while holding firing distance; distant hunters
+	# remain unaffected. Separation must also resolve exact spawn overlaps.
+	lab.configure(true, 3, 1.0, false)
+	ai.configure("attacker", 3.0, 32.0, 1.0, false)
+	var left = lab._fixtures[0]
+	var right = lab._fixtures[1]
+	var distant = lab._fixtures[2]
+	left.position = Vector3(10, 1, 10)
+	right.position = Vector3(10.3, 1, 10)
+	distant.position = Vector3(20, 1, 10)
+	ai._refresh_spacing()
+	_check(ai.spacing[left.target_id].x < 0 and ai.spacing[right.target_id].x > 0,
+		"crowded attackers steer apart")
+	_check(ai.spacing[distant.target_id] == Vector3.ZERO, "spacing leaves loose group alone")
+	ai.brains[left.target_id].decision = {"destination": left.position, "speed": 4.5, "state": "aim"}
+	ai._excluded = main._combat_dynamic_rids()
+	_check(ai.move(left, 1.0 / 60).x < left.position.x, "holding attacker still makes room")
+	right.position = left.position
+	ai._refresh_spacing()
+	_check(ai.spacing[left.target_id].dot(ai.spacing[right.target_id]) < 0,
+		"exact overlap gets opposing deterministic steering")
+	right.health = 0
+	ai._refresh_spacing()
+	_check(ai.spacing[left.target_id] == Vector3.ZERO, "dead neighbors do not repel")
+	ai.reset()
+	_check(ai.spacing.is_empty(), "reset clears cached separation")
+	lab.configure(true, 16, 1.0, false)
+	ai.configure("attacker", 3.0, 32.0, 1.0, false)
+	car.position = Vector3(10, 1, 16)
+	for member in lab._fixtures:
+		member.position = Vector3(10, 1, 10)
+	ai.reset()
+	for tick in 360:
+		lab.service(1.0 / 60)
+	var nearest_total := 0.0
+	for member in lab._fixtures:
+		var nearest := INF
+		for other in lab._fixtures:
+			if member != other:
+				nearest = minf(nearest, member.position.distance_to(other.position))
+		nearest_total += nearest
+	_check(nearest_total / 16.0 > 1.0, "stacked pack spreads into separate hunters over time")
 	# Real city cover, independent of mesh presentation and visual sizing.
 	lab.configure(true, 1, 1.0, false)
 	ai.configure("ambusher", 3.0, 48.0, 1.0, false)

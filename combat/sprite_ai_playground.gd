@@ -29,6 +29,8 @@ var _last_spawn := 0
 var _present_shots := {}
 var _settings_version := -1
 var _was_connected := false
+var spacing := {}
+var _spacing_clock := 0.0
 
 func setup(owner_lab: Node) -> void:
 	lab = owner_lab
@@ -75,6 +77,8 @@ func _apply_settings(version: int, value: String, values: Dictionary) -> void:
 	reset()
 
 func reset() -> void:
+	spacing.clear()
+	_spacing_clock = 0.0
 	brains.clear()
 	routes.clear()
 	pending.clear()
@@ -157,6 +161,10 @@ func begin(delta: float) -> void:
 		if not nav.ready:
 			nav.advance(512)
 	var cars := _cars()
+	_spacing_clock -= delta
+	if _spacing_clock <= 0.0:
+		_spacing_clock = 0.2
+		_refresh_spacing()
 	for target in lab._fixtures:
 		if target.health <= 0:
 			pending.erase(target.target_id)
@@ -298,6 +306,43 @@ func _position_clear(target, position: Vector3) -> bool:
 	query.exclude = _excluded
 	return lab._main.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
+func _refresh_spacing() -> void:
+	spacing.clear()
+	var hunters: Array = []
+	var gap := 2.5
+	for target in lab._fixtures:
+		if target.health > 0 and brains[target.target_id].profile == "attacker":
+			hunters.append(target)
+			gap = maxf(gap, target.radius() * 2.0 + 1.5)
+	# Snapshot positions once at 5 Hz. At most 16 representatives per cell
+	# bound each query to 9 * 16 candidates even in a fully stacked crowd.
+	var cells := {}
+	for target in hunters:
+		var cell := Vector2i(floori(target.position.x / gap), floori(target.position.z / gap))
+		if not cells.has(cell):
+			cells[cell] = []
+		if cells[cell].size() < 16:
+			cells[cell].append({"id": target.target_id, "position": target.position})
+	for target in hunters:
+		var cell := Vector2i(floori(target.position.x / gap), floori(target.position.z / gap))
+		var push := Vector3.ZERO
+		for x in range(-1, 2):
+			for z in range(-1, 2):
+				for other in cells.get(cell + Vector2i(x, z), []):
+					if other.id == target.target_id:
+						continue
+					var away := BRAIN.planar(other.position, target.position)
+					var distance := away.length()
+					if distance >= gap:
+						continue
+					if distance < 0.001:
+						var angle := float((other.id + target.target_id) * 137 % 360) * PI / 180.0
+						away = Vector3(cos(angle), 0, sin(angle)) * (1.0 if target.target_id < other.id else -1.0)
+					else:
+						away /= distance
+					push += away * (1.0 - distance / gap)
+		spacing[target.target_id] = push.limit_length(1.0)
+
 func move(target, delta: float) -> Vector3:
 	var previous: Vector3 = target.position
 	var state: Dictionary = brains[target.target_id]
@@ -305,18 +350,25 @@ func move(target, delta: float) -> Vector3:
 	if pending.has(target.target_id):
 		target.walking = false
 		return previous
-	if previous.distance_to(decision.destination) < 0.6:
-		target.walking = false
-		return previous
+	var separation: Vector3 = spacing.get(target.target_id, Vector3.ZERO)
 	var route: PackedVector3Array = routes.get(target.target_id, PackedVector3Array())
 	while not route.is_empty() and previous.distance_to(route[0]) < 0.5:
 		route.remove_at(0)
 	routes[target.target_id] = route
-	if route.is_empty():
+	var direction := Vector3.ZERO
+	if previous.distance_to(decision.destination) >= 0.6 and not route.is_empty():
+		direction = BRAIN.planar(previous, route[0]).limit_length(1.0)
+	# Soft spacing, not rigid crowd collision: hunters can squeeze through
+	# passages. Existing world sweeps still validate the combined movement.
+	direction += separation * 1.4
+	if direction.length_squared() < 0.0025:
 		target.walking = false
 		return previous
-	var direction := BRAIN.planar(previous, route[0])
 	var step := direction.limit_length(float(decision.speed) * delta)
+	if state.profile == "attacker":
+		# Fade the correction near the preferred gap instead of taking a
+		# full-speed step for even a tiny separation signal.
+		step = direction.limit_length(1.0) * float(decision.speed) * delta
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = target.get_child(0).shape
 	query.transform = Transform3D(Basis.IDENTITY, previous)

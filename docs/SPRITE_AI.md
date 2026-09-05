@@ -27,6 +27,10 @@ and counters only: no damage, resources, impulses, shield or det interactions.
   times out or retreats. It fires with clear sight inside 18 units while closing
   to six units, then holds until the player moves away. Cloaked, editing, RC and
   other-map players remain excluded; without an eligible player it waits.
+  Hunters use soft neighbor separation to stay loosely grouped rather than
+  stacking: preferred center spacing is 2.5 units, increased when the actual
+  capsule diameter plus 1.5 units requires it. Separation also works while
+  holding firing distance; narrow passages can temporarily compress the group.
 - Evader retreats inside ten units, resumes firing outside fourteen, and
   sidesteps a projected collision within one second. It does not read bullets
   or player input to predict intent.
@@ -83,7 +87,11 @@ Routing uses a two-unit grid inflated for capsule and cell-corner clearance;
 initial grid preparation is limited to 512 cells per tick, with routing held
 until complete. It is not a synchronous full-grid build on the first AI tick.
 Physics sweeps retain final authority. Cover/peek positions also require actual
-world clearance. No sprite-to-sprite collision or crowd solver is added.
+world clearance. Attackers add server-only soft separation at 5 Hz using spatial
+cells, capped at 16 representatives per cell and nine cells per hunter query.
+Cached steering clears on reset and ignores dead/non-attacker sprites. The
+combined steering uses existing capsule sweeps and the same speed cap; no rigid
+sprite-to-sprite collision, additional RPC fields or rollback state is added.
 
 Active shots are capped at `count * (ceil(2 / shot_interval) + 1)`; full capacity
 defers firing without accumulating requests. Event batches flush each service
@@ -161,6 +169,13 @@ performance limitation, not an accepted 256-hunter capacity claim. Interactive
 tuning stays at 16; optimize/revalidate high-count pursuit before accepting it.
 Brain/runtime regressions cover persistent moving hidden targets, actual routes
 around a building, fire while approaching, no close retreat and cloak exclusion.
+
+Final soft-spacing probe (`attacker/spacing-probe-final.log` in the same log root):
+matched legacy/attacker P95 was 0.355/0.734 ms at 16, 1.327/3.105 ms at 64,
+and 5.477/8.910 ms at 256. Maximum attacker warmup was 10.829 ms. The existing
+256-hunter performance limitation remains; no budget was relaxed. Runtime tests
+also cover close-pair separation, exact overlaps, firing-position spacing,
+dead-neighbor exclusion, reset, and a stacked 16-hunter pack spreading over time.
 
 ### Network evidence and remaining gates
 

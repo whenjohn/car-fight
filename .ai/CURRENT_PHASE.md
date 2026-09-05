@@ -2,6 +2,26 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Latest tuning: owner requested loose attacker groups instead of run-over
+  clumps. Added server-only 5 Hz soft separation, preferred center gap 2.5 units
+  or actual capsule diameter + 1.5, with bounded spatial-neighbor sampling.
+  Existing sweeps/speed caps still govern movement, including making room while
+  firing. Other profiles, sprite sizing, replication and rollback are unchanged.
+- Fast check and focused runtime regression pass, including a fully stacked
+  16-hunter group spreading, opposing overlap steering, hold-position spacing,
+  dead exclusion and reset. Full suite is not required for this local steering
+  change; existing AI network lifecycle is checked separately.
+- Final spacing probe: 16-attacker P95 0.734 ms, 256 P95 8.910 ms versus matched
+  legacy 5.477 ms; warmup maximum 10.829 ms. High-count performance remains
+  unaccepted under unchanged budgets. Logs: `attacker/spacing-*.log` under
+  `.network-runs/sprite-ai/`.
+- First spacing ENet gate failed observer-disconnect timing, then logged
+  inactive-peer errors in unchanged Main/player/dots paths after shutdown.
+  Preserved run `car-fight-sprite-ai-network.xZqWd2`; isolated retry passed with
+  clean logs (`car-fight-sprite-ai-network.19DNk0`, payload max 904 bytes).
+  Final local steering polish fades small corrections to avoid full-speed
+  spacing jitter; runtime and load checks rerun for that final adjustment.
+- Previous attacker playtest `20260904-220627` closed cleanly.
 - Worktree: `/Users/johnnguyen/Projects/car-fight-sprite-ai`.
 - Branch: `codex/sprite-ai`, created from current `master@9a25b09`.
 - Required ignored city/tree assets copied with `scripts/sync_local_assets.sh`.
