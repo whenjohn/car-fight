@@ -8,6 +8,8 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/follow_controller_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/ramming_lab_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/sprite_test_lab_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/sprite_ai_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/sprite_ai_runtime_test.gd -- --offline --no-drone
 "$godot_bin" --headless --path "$project_root" --script res://tests/sprite_combat_test.gd -- --offline --no-drone
 "$godot_bin" --headless --path "$project_root" --script res://tests/scatter_props_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/oil_slick_test.gd
@@ -51,6 +53,8 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$project_root/scripts/webrtc_turn_harness_lifecycle_test.sh"
 "$project_root/scripts/offline_test.sh"
 "$project_root/scripts/sprite_network_test.sh"
+"$project_root/scripts/sprite_ai_network_test.sh" enet
+"$project_root/scripts/sprite_ai_network_test.sh" mux
 "$project_root/scripts/network_test.sh"
 "$project_root/scripts/mixed_transport_test.sh"
 "$project_root/scripts/join_transient_test.sh"

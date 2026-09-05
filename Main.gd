@@ -4042,6 +4042,9 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 	_step_server_bolts(delta)
 	_service_homing_missiles(tick)
 	_service_shield_drone(tick)
+	if _sprite_test_lab != null and _sprite_test_lab.ai != null \
+			and _sprite_test_lab.ai.suppress_auto_fire():
+		return
 	for player_node in _players.get_children():
 		var body := player_node as RigidBody3D
 		if body == null or int(body.get("map_id")) != MAP_LAYOUT.CITY:

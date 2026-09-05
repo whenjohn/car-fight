@@ -46,6 +46,9 @@ rules.
 - `./scripts/check.sh`: quiet two-pass import, shell/Node syntax, complete-suite
   test-manifest coverage, orphan UID, and staged/unstaged diff checks.
 - `docs/QUALITY_GATES.md`: choose the smallest tests that cover a change.
+- `docs/SPRITE_AI.md`: sprite AI experiment contract, network cost/lifecycle
+  evidence and remaining acceptance; current networking guidance was read from
+  the sibling networking worktree before implementation.
 - `./scripts/test.sh`: expensive comprehensive milestone gate; do not run it
   after every localized change.
 - Rendered validation must use the monitored safe-window wrappers and requires

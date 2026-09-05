@@ -1,5 +1,8 @@
 # Car Fight
 
+Opt-in sprite behavior experiments: see [Sprite AI playground](docs/SPRITE_AI.md)
+for Basic, Attacker, Evader and building-cover Ambusher profiles and validation.
+
 The project briefly shipped a Godot 4.6.3 Forward+ baseline before returning
 to Godot 4.7.1 Compatibility for Intel stability. Read
 [`GODOT_46_TO_47_HISTORY.md`](GODOT_46_TO_47_HISTORY.md) before changing the

@@ -7,10 +7,44 @@
 - Required ignored city/tree assets copied with `scripts/sync_local_assets.sh`.
 - Owner's session scope: add basic sprite logic, attacking, evading, and
   ambush (hide, then attack), with room to experiment with other behaviors.
-- Setup checkpoint only: no AI behavior implemented or rendered run launched.
-- Next: extend the existing server-owned lightweight sprite fixture with
-  selectable behaviors; define attack effects and cover selection against
-  existing combat/world rules, and add focused movement regression coverage.
+- Implemented Basic, Attacker, Evader and real building-cover Ambusher profiles,
+  plus Mixed, in the existing sprite lab. AI shots are feedback only; car
+  auto-fire can be toggled and starts suppressed in AI mode. Ordinary launch
+  and legacy sprite movement defaults remain unchanged.
+- Launch for the next owner-approved visual pass:
+  `CAR_FIGHT_SPRITE_AI=mixed CAR_FIGHT_SPRITE_SAMPLE=survivor ./scripts/play_monitored.sh --offline --sprite-test`.
+  Default count is 16. Modern local art was physically copied from canonical.
+- Network guidance rechecked at networking branch `14d103b`. Reused its exact
+  connection-state helper/UID; did not merge its other pending fixes. Explicit
+  feature contract, bounds, commands and evidence: `docs/SPRITE_AI.md`.
+- Server-only decisions, capsule sweeps and practice shots; lightweight motion
+  snapshots, byte-bounded configuration and shot events; no new rollback bodies
+  or player inputs. Navigation builds incrementally (512 cells/tick), with at
+  most four route jobs/tick. Sprite sizing remains owned by the other session.
+- Fast check, AI brain/navigation/runtime tests, existing sprite contracts,
+  live sprite combat and targeting regression pass. The finalized AI ENet and
+  mux gates pass with all three process logs clean, including non-owner denial,
+  owner transfer, same-process scene-reconstruction reconnect and active AI.
+- AI load gates exercised 16/64/256 sprites with two clients; largest serialized
+  payload 904 bytes. Final headless 256 service: legacy median/P95 2.336/3.562 ms,
+  mixed AI 2.908/4.567 ms. Full-frame/rendered capacity remains unmeasured.
+- Complete suite was attempted and remaining gates continued without repeating
+  already-passing tests. It is NOT a clean overall PASS: the old vehicle-size
+  source assertion expects absent `Show Collision Capsule` text, and reproduces
+  on canonical master. General network/combat harnesses also print PASS despite
+  inactive-peer shutdown errors from unchanged callbacks; these are the fixes
+  being handled in the networking worktree. Preserve their work ownership.
+- Feature integration errors found by broad tests (autoload access during
+  preload and auto-fire calls without an instantiated lab) were fixed; affected
+  sprite and targeting regressions reran cleanly. The state-codec negative
+  control intentionally logs a truncated-payload decoder error.
+- Logs: `.network-runs/sprite-ai/`, including final probe, final ENet, full-suite
+  attempt and resumed tails; clean AI process logs copied to `enet-gate/` and
+  `mux-gate/`, and existing shutdown-error evidence to `baseline-shutdown/`.
+- Next: owner-approved monitored playtest at 16; tune behavior from actual feel.
+  Before merge, integrate the separately-owned networking/sizing work and rerun
+  affected lifecycle/size gates. Browser, TURN and rendered acceptance are open.
+  No rendered run, master merge or production deployment performed.
 
 ## Canonical baseline
 

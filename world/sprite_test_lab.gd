@@ -4,6 +4,12 @@ const TARGET := preload("res://combat/sprite_target.gd")
 const VISUAL := preload("res://fx/directional_sprite.gd")
 const COUNTS := [1, 16, 64, 128, 256]
 const CITY := preload("res://world/city_layout.gd")
+const AI := preload("res://combat/sprite_ai_playground.gd")
+var ai
+var _motion_tick := 0
+var _configuration_version := -1
+var _configuration_parts := {}
+var _configuration_meta: Array = []
 var requested := false
 var enabled := false
 var owner_id := 1
@@ -35,6 +41,10 @@ func setup(main: Node3D, targets: Node3D, players: Node3D, start: bool) -> void:
 	_targets = targets
 	_players = players
 	requested = start
+	ai = AI.new()
+	ai.name = "SpriteAI"
+	add_child(ai)
+	ai.setup(self)
 	var requested_sample := OS.get_environment("CAR_FIGHT_SPRITE_SAMPLE")
 	if requested_sample in VISUAL.SAMPLES and VISUAL.sample_available(requested_sample):
 		_sample = requested_sample
@@ -50,7 +60,7 @@ func setup(main: Node3D, targets: Node3D, players: Node3D, start: bool) -> void:
 		check.call_deferred("run", self, main)
 
 func service(delta: float) -> void:
-	if not multiplayer.is_server():
+	if not ai.connected() or not multiplayer.is_server():
 		return
 	if requested and not _started and _players.get_child_count() > 0:
 		_started = true
@@ -58,11 +68,15 @@ func service(delta: float) -> void:
 		configure(true, count, body_scale, moving)
 	if not enabled:
 		return
+	_motion_tick += 1
+	ai.begin(delta)
 	for target in _fixtures:
 		if target.health <= 0:
 			continue
 		var previous: Vector3 = target.position
-		if target.walking:
+		if ai.active():
+			target.position = ai.move(target, delta)
+		elif target.walking:
 			target.age += delta
 			# Eight straight headings, each traversed for one second, form a loop.
 			var sector := int(target.age) % 8
@@ -94,15 +108,19 @@ func service(delta: float) -> void:
 		var collision := car.get_node_or_null("Collision") as CollisionShape3D
 		if collision != null:
 			_previous_cars[car.get_instance_id()] = collision.global_transform.orthonormalized()
+	ai.finish(delta)
 	_snapshot_clock += delta
 	if _snapshot_clock >= 0.1:
 		_snapshot_clock = 0.0
 		# Keep each unreliable packet below ENet's MTU at the 64-target gate.
 		var snapshot := states()
-		for offset in range(0, snapshot.size(), 16):
-			_sync_motion.rpc(generation, snapshot.slice(offset, offset + 16))
+		for batch in AI.batches(snapshot):
+			ai.record_payload("sprite_motion", [generation, batch, _motion_tick], multiplayer.get_peers().size())
+			_sync_motion.rpc(generation, batch, _motion_tick)
 
 func configure(active: bool, amount: int, size: float, walk: bool) -> void:
+	if not ai.connected():
+		return
 	if not multiplayer.is_server():
 		_request_configuration.rpc_id(1, active, amount, size, walk)
 		return
@@ -121,7 +139,58 @@ func configure(active: bool, amount: int, size: float, walk: bool) -> void:
 			var position: Vector3 = positions[index]
 			spawn.append([10000 + index, position,
 				Vector3.FORWARD.rotated(Vector3.UP, (index % 8) * PI / 4.0), 0, index * 0.19])
-	_apply_configuration.rpc(generation + 1, active, selected_count, selected_scale, walk, owner_id, spawn)
+	var version := generation + 1
+	_apply_configuration(version, active, selected_count, selected_scale, walk, owner_id, spawn)
+	_send_configuration(0)
+
+func _send_configuration(peer_id: int) -> void:
+	var parts := AI.batches(states())
+	if parts.is_empty():
+		parts.append([])
+	for index in parts.size():
+		var meta := [generation, enabled, count, body_scale, moving, owner_id, parts.size()]
+		ai.record_payload("sprite_configuration", [meta, index, parts[index]],
+			1 if peer_id > 0 else multiplayer.get_peers().size())
+		if peer_id > 0:
+			_configuration_part.rpc_id(peer_id, meta, index, parts[index])
+		else:
+			_configuration_part.rpc(meta, index, parts[index])
+
+@rpc("authority", "call_remote", "reliable")
+func _configuration_part(meta: Array, index: int, entries: Array) -> void:
+	if meta.size() != 7 or int(meta[0]) <= generation or int(meta[6]) < 1 \
+			or int(meta[6]) > 256 or index < 0 or index >= int(meta[6]):
+		return
+	if int(meta[0]) < _configuration_version:
+		return
+	if int(meta[0]) != _configuration_version:
+		_configuration_version = int(meta[0])
+		_configuration_parts.clear()
+		_configuration_meta = meta
+	if meta != _configuration_meta:
+		return
+	_configuration_parts[index] = entries
+	if _configuration_parts.size() != int(meta[6]):
+		return
+	var complete: Array = []
+	for part in int(meta[6]):
+		complete.append_array(_configuration_parts[part])
+	if complete.size() != (int(meta[2]) if bool(meta[1]) else 0):
+		return
+	_configuration_parts.clear()
+	_apply_configuration(int(meta[0]), bool(meta[1]), int(meta[2]), float(meta[3]), bool(meta[4]), int(meta[5]), complete)
+
+func retire() -> void:
+	enabled = false
+	_configuration_parts.clear()
+	_configuration_version = -1
+	generation = 0
+	_started = false
+	for target in _fixtures:
+		_targets.remove_child(target)
+		target.queue_free()
+	_fixtures.clear()
+	_previous_cars.clear()
 
 static func spawn_positions(anchor: Vector3, amount: int, size: float) -> Array[Vector3]:
 	var candidates: Array[Vector3] = []
@@ -172,6 +241,7 @@ func _apply_configuration(version: int, active: bool, amount: int, size: float,
 	if version < generation:
 		return
 	generation = version
+	_motion_tick = 0
 	enabled = active
 	count = amount
 	body_scale = size
@@ -193,30 +263,46 @@ func _apply_configuration(version: int, active: bool, amount: int, size: float,
 		_targets.add_child(target)
 		target.set_hit_count(int(state[3]))
 		_fixtures.append(target)
+		_apply_ai_state(target, state)
+	if ai != null:
+		ai.reset()
 	print("SPRITE_TEST_STATE generation=%d count=%d owner=%d" % [generation, _fixtures.size(), owner_id])
 
 func states() -> Array:
 	var result: Array = []
 	for target in _fixtures:
-		result.append([target.target_id, target.position, target.heading, target.hit_count, target.age])
+		var state := [target.target_id, target.position, target.heading, target.hit_count, target.age]
+		if ai != null and ai.mode != "legacy":
+			state.append_array([target.ai_state, target.ai_profile, target.attack_serial, target.walking])
+		result.append(state)
 	return result
 
 func send_state_to(peer_id: int) -> void:
-	if generation > 0:
-		_apply_configuration.rpc_id(peer_id, generation, enabled, count, body_scale, moving, owner_id, states())
+	if ai.connected() and generation > 0:
+		_send_configuration(peer_id)
+		ai.send_state_to(peer_id)
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _sync_motion(version: int, snapshot: Array) -> void:
+func _sync_motion(version: int, snapshot: Array, tick: int = 0) -> void:
 	if version != generation:
 		return
 	for state in snapshot:
 		var target := _targets.get_node_or_null("Target_%02d" % int(state[0]))
-		if target != null and target.health > 0:
+		if target != null and target.health > 0 and tick > target.motion_tick:
+			target.motion_tick = tick
 			target.network_position = state[1]
 			target.heading = state[2]
+			_apply_ai_state(target, state)
+
+func _apply_ai_state(target, state: Array) -> void:
+	if state.size() >= 9:
+		target.ai_state = str(state[5])
+		target.ai_profile = str(state[6])
+		target.attack_serial = int(state[7])
+		target.walking = bool(state[8])
 
 func set_hits(id: int, hits: int) -> void:
-	if not multiplayer.is_server():
+	if not ai.connected() or not multiplayer.is_server():
 		return
 	var target := _targets.get_node_or_null("Target_%02d" % id)
 	if target != null and target.health > 0:
@@ -275,6 +361,18 @@ func _build_window() -> void:
 		configure(enabled, count, v, moving), true)
 	_option(root, "Movement (reset)", ["Stationary", "Mixed walking"], 1, func(i):
 		configure(enabled, count, body_scale, i == 1), true)
+	_option(root, "AI profile (reset)", ["Legacy movement", "Basic", "Attacker", "Evader", "Ambusher", "Mixed AI"],
+		AI.MODES.find(ai.mode), func(i):
+		ai.configure(AI.MODES[i], ai.settings.speed, ai.settings.detection, ai.settings.interval, ai.settings.auto_fire), true)
+	_spin(root, "AI speed (reset)", 0.5, 8.0, 0.5, ai.settings.speed, func(v):
+		ai.configure(ai.mode, v, ai.settings.detection, ai.settings.interval, ai.settings.auto_fire), true)
+	_spin(root, "AI detection (reset)", 8, 48, 2, ai.settings.detection, func(v):
+		ai.configure(ai.mode, ai.settings.speed, v, ai.settings.interval, ai.settings.auto_fire), true)
+	_spin(root, "Shot interval (reset)", 0.5, 3, 0.25, ai.settings.interval, func(v):
+		ai.configure(ai.mode, ai.settings.speed, ai.settings.detection, v, ai.settings.auto_fire), true)
+	_option(root, "Car auto-fire (reset)", ["Off in AI mode", "On"], 1 if ai.settings.auto_fire else 0, func(i):
+		ai.configure(ai.mode, ai.settings.speed, ai.settings.detection, ai.settings.interval, i == 1), true)
+	_button(root, "Show / hide AI decisions", func(): ai.show_debug = not ai.show_debug)
 	var available: Array[String] = []
 	var labels: Array[String] = []
 	for i in VISUAL.SAMPLES.size():
@@ -352,12 +450,18 @@ func _process(delta: float) -> void:
 		sprite.playback_rate = _rate
 		sprite.frozen = _paused and target.health > 0
 		sprite.clip = "death" if target.health == 0 else _preview if _preview != "automatic" \
+			else "attack" if ai.active() and target.ai_state in ["aim", "fire"] \
 			else "walk" if target.walking else "idle"
+		if target.attack_serial > target.presented_attack_serial:
+			target.presented_attack_serial = target.attack_serial
+			if target.health > 0 and _preview == "automatic":
+				sprite.replay()
 	if _status != null:
-		var can_control := multiplayer.is_server() or (generation > 0 and multiplayer.get_unique_id() == owner_id)
+		var can_control: bool = ai.connected() and (multiplayer.is_server() or (generation > 0 and multiplayer.get_unique_id() == owner_id))
 		_status.text = "%d targets · %s · %dpx · 3 hits or one run-over\n%s" % [_fixtures.size(), _sample,
 			_resolution if _sample == "ghoul" else VISUAL.native_size(_sample),
 			"Host controls available" if can_control else "Host must launch with --sprite-test"]
+		_status.text += "\nAI: %s · shots %d · car hits %d (feedback only)" % [ai.mode, ai.metrics.shots, ai.metrics.hits]
 		for control in _host_controls:
 			control.set_block_signals(true)
 			match str(control.get_meta("setting", "")):
@@ -367,6 +471,16 @@ func _process(delta: float) -> void:
 					(control as OptionButton).select(1 if moving else 0)
 				"Body scale (reset)":
 					(control as SpinBox).value = body_scale
+				"AI profile (reset)":
+					(control as OptionButton).select(AI.MODES.find(ai.mode))
+				"AI speed (reset)":
+					(control as SpinBox).value = ai.settings.speed
+				"AI detection (reset)":
+					(control as SpinBox).value = ai.settings.detection
+				"Shot interval (reset)":
+					(control as SpinBox).value = ai.settings.interval
+				"Car auto-fire (reset)":
+					(control as OptionButton).select(1 if ai.settings.auto_fire else 0)
 			control.set_block_signals(false)
 			if control is BaseButton:
 				control.disabled = not can_control

@@ -13,6 +13,11 @@ var visual
 var _flash := 0.0
 var _collision: CollisionShape3D
 var network_position := Vector3.INF
+var ai_profile := "legacy"
+var ai_state := "idle"
+var attack_serial := 0
+var presented_attack_serial := 0
+var motion_tick := -1
 
 func setup(id: int, size: float, with_presentation: bool) -> void:
 	target_id = id
