@@ -2,6 +2,17 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Managed-animation rendered retry `20260905-011034` completed both phases
+  and closed cleanly at `625c3f9`, with no engine/script errors. Window remained
+  1280x720; recorded CPU speed limits stayed 100. Median/P95: 25.869/30.445 and
+  25.076/31.065 ms, versus before 28.832/34.659 and 29.321/35.162. Roughly
+  35 → 39–40 FPS in this controlled fixed-car scene, not stable 60 acceptance.
+  Timed phases each retain all 256 rendered sprites/corpses; alive 226/227.
+  Artifacts `.crash-runs/sprite-batch-1788588654/`. Details in batch prototype doc.
+- This is a modest observed 10–14% median frame-time reduction across separate
+  runs; machine load and small survivor-count differences limit exact claims.
+  No gameplay/network changes in retry. Owner feel and full managed-path
+  rendered visual acceptance remain separate; performance-only runner used.
 - Owner authorized next offline FPS optimization, explicitly no networking yet.
   Implemented managed batch animation: disable hidden directional script
   callbacks, retain four canonical frame sets and independent native clocks,
@@ -17,8 +28,8 @@
   limit100 at start/end. Results `.crash-runs/sprite-batch-1788586184/`.
 - After-run `20260905-003246` closed cleanly but was resized repeatedly and
   closed before its first benchmark result. It is INVALID as an A/B result.
-  No FPS gain or visual acceptance claimed. Asked owner asynchronously to
-  permit an untouched rerun; rendered comparison remains pending.
+  That interrupted run supports no FPS or visual acceptance claim. Owner
+  approved the successful untouched retry recorded above.
 - Existing batch probe now supports `CAR_FIGHT_BATCH_PERF_ONLY=1` for two
   batched phases, without original-drawing phases or screenshot tail. Functional
   offline tests do not establish performance; no network tests/deployment run.

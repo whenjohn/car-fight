@@ -38,6 +38,9 @@ CAR_FIGHT_SPRITE_BATCHED=1 CAR_FIGHT_SPRITE_AI=attacker CAR_FIGHT_SPRITE_COUNT=2
 
 ## Initial same-process A/B
 
+The historical results below describe the initial drawing prototype; the
+managed-animation follow-up is recorded at the end of this document.
+
 Monitored run `20260904-225555` closed cleanly, no engine/script errors.
 256 spawned survivor attackers, fixed car at (0,1,0), debug off, 15 seconds
 convergence followed by six seconds per sample. Other car combat suppressed;
@@ -94,3 +97,47 @@ construction path. No RPC/schema or physics change requires a broad suite here.
 Design references: [Godot MultiMesh](https://docs.godotengine.org/en/stable/classes/class_multimesh.html)
 and [spatial shader reference](https://docs.godotengine.org/en/stable/tutorials/shaders/shader_reference/spatial_shader.html).
 Instancing reduces drawing overhead, not AI or collision cost.
+
+## Managed-animation follow-up (2026-09-05)
+
+At `625c3f9`, the batch disables hidden directional script callbacks, retains
+four canonical frame sets and selects facing directly in instance data. Native
+clocks remain independent. Headless contracts cover actual clock advancement,
+different individual frame positions, eight facings, completed deaths, replay,
+freeze/rate controls, sizes, sample changes and original-renderer restoration.
+Those tests, AI runtime and fast check pass. No simulation or networking changes.
+
+Before/after use the same offline fixed-car attacker scenario, 256 survivors,
+size 1, batched drawing, debug off, 15-second warmup then six seconds measured,
+twice per run. `CAR_FIGHT_BATCH_PERF_ONLY=1` selects these two batched phases
+without the original-drawing/screenshot tail. Full command:
+
+```sh
+CAR_FIGHT_BATCH_PERF_ONLY=1 CAR_FIGHT_SPRITE_BATCHED=1 CAR_FIGHT_SPRITE_AI=attacker CAR_FIGHT_SPRITE_COUNT=256 CAR_FIGHT_SPRITE_SAMPLE=survivor CAR_FIGHT_SPRITE_VISUAL_CHECK=batch ./scripts/play_monitored.sh --offline --sprite-test
+```
+
+| Phase | Before median / P95, ms | After median / P95, ms |
+| --- | ---: | ---: |
+| First | 28.832 / 34.659 | 25.869 / 30.445 |
+| Repeat | 29.321 / 35.162 | 25.076 / 31.065 |
+
+Approximately 34–35 → 39–40 FPS by reciprocal median; a modest observed
+10–14% reduction in median frame time, **not stable 60 FPS acceptance**.
+This is not directly comparable to the owner's earlier 42–50 FPS interactive
+driving: camera, convergence and surviving counts differ. All 256 sprites and
+corpses remained batched, with endpoint alive counts 225/226 before, 226/227
+after and draw counts 160/166 versus 162/168. Small trajectory differences,
+machine load and separate-run timing prevent an exact isolated speedup claim.
+
+Before run `20260905-002924`, data `sprite-batch-1788586184`, and after retry
+`20260905-011034`, data `sprite-batch-1788588654`, both closed cleanly. The retry
+has no engine/script errors and stayed at 1280x720; its five-second CPU-limit
+samples remained 100, as did before-run start/end readings. The usual long
+startup pause is outside timed windows. Intermediate after-run `20260905-003246`
+was resized/closed before a result and is excluded, not counted as a performance
+failure or success. Evidence directories are under `.crash-runs/`.
+
+No new gameplay tests are needed for this documentation-only retry. A full
+managed-path rendered visual check and owner feel acceptance remain separate
+from this performance-only result; the original prototype's earlier screenshot
+acceptance is not silently extended to the managed implementation.
