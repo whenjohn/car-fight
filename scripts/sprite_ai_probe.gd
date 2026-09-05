@@ -16,8 +16,11 @@ func _run() -> void:
 	var car = main.local_player()
 	car.freeze = true
 	car.position = Vector3(0, 1, 0)
+	var selected := OS.get_environment("CAR_FIGHT_AI_PROBE_MODE")
+	if selected not in ["mixed", "attacker"]:
+		selected = "mixed"
 	for amount in [16, 64, 256]:
-		for mode in (["legacy", "mixed"] if lab.get("ai") != null else ["legacy"]):
+		for mode in (["legacy", selected] if lab.get("ai") != null else ["legacy"]):
 			lab.configure(true, amount, 1.0, true)
 			if lab.get("ai") != null:
 				lab.ai.configure(mode, 3.0, 32.0, 1.0, false)

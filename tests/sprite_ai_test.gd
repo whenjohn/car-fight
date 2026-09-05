@@ -11,9 +11,10 @@ func _run() -> void:
 		quit(1)
 		return
 	var brain = script.new()
-	var seen := {"id": 2, "position": Vector3(0, 0, -15), "velocity": Vector3.ZERO, "visible": true}
+	var seen := {"id": 2, "position": Vector3(0, 0, -5), "velocity": Vector3.ZERO, "visible": true}
 	var settings := {"speed": 3.0, "detection": 32.0, "interval": 1.0}
 	for profile in ["basic", "attacker", "evader"]:
+		seen.position = Vector3(0, 0, -15 if profile == "evader" else -5)
 		var state: Dictionary = brain.initial(10000, profile, Vector3.ZERO)
 		var result: Dictionary = brain.decide(state, Vector3.ZERO, seen, 0.2, settings)
 		_check(result["state"] == "aim", profile + " aims at visible car in range")
@@ -21,6 +22,23 @@ func _run() -> void:
 		_check(result["fire"], profile + " fires after aiming delay")
 		result = brain.decide(state, Vector3.ZERO, seen, 0.1, settings)
 		_check(not result["fire"], "cooldown prevents duplicate shot")
+	var hunter: Dictionary = brain.initial(10000, "attacker", Vector3(30, 0, 30))
+	var hidden := {"id": 2, "position": Vector3(0, 0, -90), "velocity": Vector3.ZERO, "visible": false}
+	for step in 150:
+		hidden.position.x = float(step)
+		var hunt: Dictionary = brain.decide(hunter, Vector3.ZERO, hidden, 0.2, settings)
+		_check(hunt.state == "pursue" and hunt.destination == hidden.position,
+			"attacker tracks moving player beyond detection and never times out")
+		_check(not hunt.fire, "attacker cannot shoot through cover")
+		_check(is_equal_approx(hunt.speed, 4.5), "attacker uses aggressive approach speed")
+	seen.position = Vector3(0, 0, -15)
+	var approach: Dictionary = brain.decide(hunter, Vector3.ZERO, seen, 0.4, settings)
+	_check(approach.fire and approach.destination == seen.position, "attacker fires while closing distance")
+	seen.position = Vector3(0, 0, -3)
+	var close: Dictionary = brain.decide(hunter, Vector3.ZERO, seen, 0.2, settings)
+	_check(close.destination == Vector3.ZERO and close.state != "retreat", "close attacker holds and fights instead of retreating")
+	var waiting: Dictionary = brain.decide(hunter, Vector3.ZERO, {}, 0.2, settings)
+	_check(waiting.destination == Vector3.ZERO and not waiting.fire, "no eligible player means wait, not chase stale position")
 	var evader: Dictionary = brain.initial(10000, "evader", Vector3.ZERO)
 	seen.position = Vector3(0, 0, -5)
 	var evade: Dictionary = brain.decide(evader, Vector3.ZERO, seen, 0.2, settings)

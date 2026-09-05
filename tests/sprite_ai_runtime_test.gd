@@ -54,6 +54,33 @@ func _run() -> void:
 			lab.service(1.0 / 60)
 		_check(ai.metrics.shots == shots_before, "dead sprite cannot shoot")
 		_check(ai.shots.is_empty(), "shots expire within lifetime")
+	# Attacker acquisition is independent of detection distance and sight.
+	lab.configure(true, 1, 1.0, false)
+	ai.configure("attacker", 3.0, 8.0, 1.0, false)
+	var hunter_target = lab._fixtures[0]
+	hunter_target.position = Vector3(-8, 1, -32)
+	hunter_target.home = hunter_target.position
+	car.position = Vector3(-55, 1, -32)
+	ai.reset()
+	ai._excluded = main._combat_dynamic_rids()
+	var hunter_state: Dictionary = ai.brains[hunter_target.target_id]
+	var observed: Dictionary = ai._observe(hunter_target, hunter_state, ai._cars())
+	_check(not observed.is_empty() and not observed.visible,
+		"attacker acquires player beyond detection behind a real building")
+	var hunter_nav = ai._navigation(hunter_target)
+	hunter_nav.advance(30000)
+	var start_distance: float = hunter_target.position.distance_to(car.position)
+	for tick in 480:
+		lab.service(1.0 / 60)
+	_check(hunter_target.position.distance_to(hunter_target.home) > 5.0,
+		"attacker actually routes away from home around the building")
+	_check(hunter_state.target == int(car.name), "attacker retains its player beyond old three-second timeout")
+	_check(hunter_target.position.distance_to(car.position) < start_distance,
+		"continued pursuit closes distance around cover")
+	car.set("is_cloaked", true)
+	observed = ai._observe(hunter_target, hunter_state, ai._cars())
+	_check(observed.is_empty(), "hunter still respects player cloak")
+	car.set("is_cloaked", false)
 	# Real city cover, independent of mesh presentation and visual sizing.
 	lab.configure(true, 1, 1.0, false)
 	ai.configure("ambusher", 3.0, 48.0, 1.0, false)

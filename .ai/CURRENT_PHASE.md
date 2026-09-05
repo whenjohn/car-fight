@@ -48,7 +48,20 @@
 - Owner approved interactive testing. Opened monitored offline run
   `20260904-205333` at `a920836`, with 16 Mixed AI survivors and auto-fire off.
   Startup reached the fixture and logged a 6.96-second initial stall; behavior
-  acceptance and final monitor outcome remain pending owner evaluation.
+  acceptance remains with the owner; the monitor subsequently closed cleanly.
+- Owner requested aggressive, continuous Attacker pursuit. Attacker now tracks
+  eligible players across the map/behind cover, moves at 1.5× speed, shoots while
+  closing inside 18 units, holds at six and never retreats or gives up. Cloak
+  and existing eligibility exclusions remain respected. Other profiles and
+  sprite sizing are unchanged.
+- Attacker tuning checks pass: fast check, brain/navigation and real-world
+  runtime regressions, plus ENet AI lifecycle gate with clean process logs
+  (`car-fight-sprite-ai-network.BKXEhB`, max payload 904, max four route jobs).
+  These cover the changed decisions/movement and existing replicated lifecycle;
+  no wire/input/transport schema changed, so no repeated broad suite this turn.
+- All-attacker load probe is NOT accepted at 256: incremental P95 2.611 ms
+  and warmup 11.879 ms exceed the existing 2/8 ms limits. Details and raw log
+  location are in `docs/SPRITE_AI.md`; interactive tuning remains at 16.
 
 ## Canonical baseline
 

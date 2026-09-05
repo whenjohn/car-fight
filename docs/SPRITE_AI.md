@@ -21,8 +21,12 @@ Existing three-hit and run-over deaths remain. AI bullets provide hit flashes
 and counters only: no damage, resources, impulses, shield or det interactions.
 
 - Basic wanders within eight units of home and shoots a visible car within 24.
-- Attacker pursues and shoots from 12–18 units, remembers a last seen position
-  for three seconds, then returns home.
+- Attacker relentlessly hunts an eligible player across the map at 1.5× speed,
+  tracking their current position even behind buildings (not just last sight).
+  It ignores the detection slider, keeps its target while eligible, and never
+  times out or retreats. It fires with clear sight inside 18 units while closing
+  to six units, then holds until the player moves away. Cloaked, editing, RC and
+  other-map players remain excluded; without an eligible player it waits.
 - Evader retreats inside ten units, resumes firing outside fourteen, and
   sidesteps a projected collision within one second. It does not read bullets
   or player input to predict intent.
@@ -31,7 +35,7 @@ and counters only: no damage, resources, impulses, shield or det interactions.
   car approaches within eighteen units, fires three shots, and returns to cover.
   If no cover is reachable it temporarily behaves like Basic and retries.
 
-Defaults: movement 3 units/second, evasion 1.5× movement, detection 32 units,
+Defaults: movement 3 units/second, attack/evasion 1.5× movement, detection 32 units,
 shot interval 1 second, aim delay at least 0.35 seconds. Decisions run at 5 Hz,
 so transitions are quantized to that cadence. Bullet speed is 22 units/second,
 lifetime two seconds. Show AI decisions displays profile/state labels on clients
@@ -146,6 +150,18 @@ increment is 1.005 ms and warmup maximum 6.005 ms. These provisional local limit
 leave headroom within a 16.67 ms tick; they do not establish a budget for the
 rest of the frame or additional peers. Existing correction limits remain intact.
 
+### Aggressive attacker tuning, 2026-09-04
+
+Run the same probe with `CAR_FIGHT_AI_PROBE_MODE=attacker` for all hunters.
+Evidence: `.network-runs/sprite-ai/attacker/probe.log`. Matched legacy/attacker
+P95 service times were 0.412/0.659 ms (16), 1.720/2.537 ms (64), and
+5.918/8.529 ms (256). The 256 increment of 2.611 ms and attacker warmup maximum
+11.879 ms exceed the provisional limits above. This is an unresolved high-count
+performance limitation, not an accepted 256-hunter capacity claim. Interactive
+tuning stays at 16; optimize/revalidate high-count pursuit before accepting it.
+Brain/runtime regressions cover persistent moving hidden targets, actual routes
+around a building, fire while approaching, no close retreat and cloak exclusion.
+
 ### Network evidence and remaining gates
 
 Final ENet gate: `car-fight-sprite-ai-network.qGn0KI`; mux gate (one native ENet,
@@ -191,5 +207,5 @@ the tail's `ALL_TESTS PASS` marker as a clean full-suite result:
   test-harness issues were fixed and their focused tests rerun successfully.
 
 Before merge, combine the separately owned fixes, check sizing compatibility,
-and rerun affected gates. The next product step is a separately approved monitored
-16-sprite visual/behavior check; no rendered validation or deployment has occurred.
+and rerun affected gates. The owner has approved monitored 16-sprite interactive
+tuning; behavior acceptance remains with the owner. No deployment has occurred.

@@ -24,6 +24,27 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 	var result := {"state": "wander", "destination": position, "fire": false,
 		"speed": float(settings.speed), "seek_cover": false}
 	var profile: String = s.profile
+	if profile == "attacker":
+		# The hunter knows the eligible player's current position, including
+		# behind cover. Shooting still requires actual sight and weapon range.
+		result.speed *= 1.5
+		result.state = "hunt"
+		if not car.is_empty():
+			s.last_seen = car.position
+			distance = planar(position, car.position).length()
+			if not visible or distance > 6.0:
+				result.destination = car.position
+				result.state = "pursue"
+			if visible and distance <= 18.0:
+				_aim(s, result, delta, settings)
+				if distance > 6.0 and not result.fire:
+					result.state = "pursue"
+			else:
+				s.aim = 0.0
+		else:
+			s.aim = 0.0
+		s.state = result.state
+		return result
 	if profile == "ambusher" and s.cover != Vector3.INF and not car.is_empty():
 		if s.state in ["peek", "aim", "fire"] and s.burst < 3:
 			result.destination = s.peek
@@ -73,15 +94,8 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 			s.aim = 0.0
 			s.state = result.state
 			return result
-	if visible and distance <= (18.0 if profile == "attacker" else 24.0):
-		if profile == "attacker" and distance < 12.0:
-			result.destination = position + planar(destination, position).normalized() * 4.0
-			result.state = "retreat"
-		else:
-			_aim(s, result, delta, settings)
-	elif profile == "attacker" and s.lost <= 3.0:
-		result.destination = destination
-		result.state = "pursue"
+	if visible and distance <= 24.0:
+		_aim(s, result, delta, settings)
 	else:
 		if s.lost <= 3.0:
 			result.state = "watch"
@@ -90,8 +104,8 @@ static func decide(s: Dictionary, position: Vector3, car: Dictionary,
 				s.wander += 1
 				var angle := fmod(float(s.id * 37 + s.wander * 137), 360.0) * PI / 180.0
 				s.destination = s.home + Vector3(sin(angle), 0, cos(angle)) * 8.0
-			result.destination = s.destination if profile != "attacker" else s.home
-			result.state = "wander" if profile != "attacker" else "return"
+			result.destination = s.destination
+			result.state = "wander"
 	if result.state not in ["aim", "fire"]:
 		s.aim = 0.0
 	s.state = result.state

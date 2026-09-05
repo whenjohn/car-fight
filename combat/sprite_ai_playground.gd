@@ -223,6 +223,23 @@ func _cars() -> Array[Dictionary]:
 
 func _observe(target, state: Dictionary, cars: Array[Dictionary]) -> Dictionary:
 	var chosen: Dictionary = {}
+	if state.profile == "attacker":
+		var nearest := INF
+		for car in cars:
+			var distance: float = target.position.distance_squared_to(car.position)
+			if int(car.id) == int(state.target):
+				chosen = car.duplicate()
+				break
+			if distance < nearest:
+				nearest = distance
+				chosen = car.duplicate()
+		state.target = chosen.get("id", 0)
+		if not chosen.is_empty():
+			# Range filtering bounds ray work even when the hunter pursues across
+			# the whole city. Existing eligible-player filtering still applies.
+			chosen.visible = target.position.distance_squared_to(chosen.position) <= 18.0 * 18.0 \
+				and _visible(target.position, chosen.position)
+		return chosen
 	var best := float(settings.detection) * float(settings.detection)
 	for car in cars:
 		var distance: float = target.position.distance_squared_to(car.position)
@@ -314,7 +331,8 @@ func move(target, delta: float) -> Vector3:
 		routes.erase(target.target_id)
 		target.walking = false
 	else:
-		target.heading = direction.normalized()
+		if decision.state != "fire":
+			target.heading = direction.normalized()
 		target.walking = true
 	return finish
 
