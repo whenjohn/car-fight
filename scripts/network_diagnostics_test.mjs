@@ -6,6 +6,27 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { capture, captureOptions } from './network_packet_capture.mjs';
 import { analyze, packetSummaries } from './network_diagnostics_report.mjs';
+import { startupSummary } from './network_startup_report.mjs';
+
+const startupRow = (time, x, generation = 1) => ({ event: 'startup_sample', mono_usec: time,
+  epoch: 0, body_id: '42', instance_id: 123, generation, tick: 90, tickrate: 60,
+  reference_seconds: 2.5, physics: { position: [x, 0, 0] }, node_position: [x, 0, 0],
+  recorded_cursor: [12, 0] });
+const startupRows = [startupRow(1000, 0), startupRow(17000, 1), startupRow(33000, 0),
+  startupRow(49000, 2), startupRow(65000, 0, 2)];
+const finishStartup = rows => [...rows, { event: 'complete', records: rows.length, dropped: 0, startup_dropped: 0 }];
+const startup = startupSummary(finishStartup(startupRows));
+assert.deepEqual(startup.quality_warnings, []);
+assert.equal(startup.return_to_first_pose_count, 1);
+assert.equal(startup.backwards_step_count, 1);
+assert.equal(startup.identities, 2);
+assert.equal(startup.reference_minus_tick_ms.max, 1000);
+assert.equal(startupSummary(finishStartup([])).quality_warnings.length, 1);
+assert(startupSummary(startupRows).quality_warnings.length > 0);
+assert(startupSummary([...startupRows, { event: 'complete', records: 5, dropped: 0, startup_dropped: 1 }])
+  .quality_warnings.some(x => x.includes('startup sample drops')));
+assert(startupSummary(finishStartup([startupRow(1000, 0), startupRow(1000, 1)]))
+  .quality_warnings.includes('non-increasing sample timestamps'));
 
 const host = '100.113.2.60', port = 12780, localPort = 49001;
 const stages = [{ event: 'config' }, { event: 'clock_anchor', mono_usec: 0, unix_usec: 1000000, read_span_usec: 0 },

@@ -1,5 +1,39 @@
 # Current phase
 
+## Startup trace implemented and characterized, 2026-09-05
+
+- Added opt-in local startup samples and sync/panic events to the existing
+  network stage trace. Enable `CAR_FIGHT_STARTUP_TRACE_SECONDS=25` alongside
+  the existing stage path/duration. No gameplay, clock, transport, input/schema,
+  presentation defaults or server deployment changes. Read the instrumentation
+  follow-up in `docs/NETWORK_DIAGNOSTICS.md` before the next trial.
+- `zsh scripts/startup_trace_test.sh` captures a moving headless client on local
+  ENet, once clean and once with the existing six-second post-sync JOINSTALL.
+  Both evidence checks passed, zero record drops/errors; all child processes
+  stopped. Logs `/var/folders/nt/tp7j7qtx2cgc39ftxymn6kfw0000gn/T/car-fight-startup.Rw96DP/`.
+  No three-return reproduction: control had a 1.371-unit early backward physics
+  step, stalled case a 0.275-unit early step. The six-second pause caused one
+  reliable state recovery but no clock panic. These are characterizations, not
+  network/visual acceptance; fast import/check overlapped part of the control.
+- Separate injected-clock characterization using actual unchanged NetworkTime
+  loop: a +6.109638-second reference correction without a long frame remains
+  5.860 seconds behind after one second, 3.610 after ten, and settles around
+  25 seconds (max clock stretch 1.25). This is a concrete slow-catchup mechanism,
+  not a reproduction of the entire startup snapback. Script retained ignored at
+  `.network-runs/startup-clock-characterization.gd`.
+- Focused startup/stage, Node diagnostics, presentation trace, remote transport
+  and existing pause-clock tests passed; fast check passed. Harness failed
+  promptly as expected with `GODOT_BIN=/usr/bin/false`. Initial development runs
+  had compile/fixture errors; fixed before clean reruns. Found unused netfox
+  `get_last_known_input()` calls nonexistent history `keys()`; left vendored code
+  unchanged and use guarded `get_latest_tick()` for diagnostic reads.
+- Next: reproduce moving join with a delayed initial timestamp/large reference
+  correction, rather than treating a post-sync pause as equivalent. Then scope
+  startup time/readiness recovery with focused clock/join/reconnect coverage.
+  Human confirmation still needs an approved monitored run with this trace;
+  no rendered clients or macai2 test service launched this turn. Skid FX remains
+  deferred, elapsed cursor opt-in unchanged, 2.800-unit later stall outlier open.
+
 ## Startup snapback reported by owner, 2026-09-05
 
 - Owner reports a longstanding sequence of roughly three move/return-to-start

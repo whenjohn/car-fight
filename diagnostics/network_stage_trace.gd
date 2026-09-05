@@ -2,6 +2,7 @@ extends Node
 ## Opt-in signal-boundary timings. Durations include OS scheduling/waits, not just CPU work.
 
 const RECORD_CAP := 30000
+const STARTUP_SAMPLE_CAP := 6000
 var _path := ""
 var _deadline_usec := 0
 var _records: Array[Dictionary] = []
@@ -17,6 +18,10 @@ var _stage_start := -1
 var _stage := ""
 var _endpoint_recorded := false
 var _network_time: Node
+var _startup_deadline_usec := 0
+var _startup_samples := 0
+var _startup_dropped := 0
+var _epoch := 0
 
 
 func _ready() -> void:
@@ -25,14 +30,19 @@ func _ready() -> void:
 	var path := OS.get_environment("CAR_FIGHT_NETWORK_STAGE_TRACE_PATH")
 	var seconds := float(OS.get_environment("CAR_FIGHT_NETWORK_DIAGNOSTICS_SECONDS"))
 	if not path.is_empty() and seconds > 0.0:
-		start(path, seconds)
+		start(path, seconds, float(OS.get_environment("CAR_FIGHT_STARTUP_TRACE_SECONDS")))
 
 
-func start(path: String, seconds: float) -> void:
+func start(path: String, seconds: float, startup_seconds: float = 0.0) -> void:
 	if _running or path.is_empty() or seconds <= 0.0:
 		return
 	_path = path
 	_deadline_usec = _now_usec() + int(minf(seconds, 300.0) * 1000000.0)
+	_startup_deadline_usec = mini(_deadline_usec,
+		_now_usec() + int(minf(startup_seconds, 60.0) * 1000000.0)) if startup_seconds > 0.0 else 0
+	_startup_samples = 0
+	_startup_dropped = 0
+	_epoch = 0
 	_records.clear()
 	_dropped = 0
 	_running = true
@@ -42,6 +52,8 @@ func start(path: String, seconds: float) -> void:
 	_record({"event": "config", "version": 1, "pid": OS.get_process_id(),
 		"user_args": OS.get_cmdline_user_args(), "record_cap": RECORD_CAP,
 		"duration_seconds": minf(seconds, 300.0),
+		"startup_seconds": maxf(0.0, minf(startup_seconds, minf(seconds, 60.0))),
+		"startup_sample_cap": STARTUP_SAMPLE_CAP,
 		"timing": "elapsed signal boundaries; not CPU time; nested spans overlap"})
 	_anchor()
 	var rollback := get_node("/root/NetworkRollback")
@@ -55,6 +67,9 @@ func start(path: String, seconds: float) -> void:
 	_connect(Signal(rollback, "on_record_tick"), _record_state)
 	_connect(Signal(rollback, "after_loop"), _end_rollback)
 	_connect(Signal(get_node("/root/NetworkEvents"), "on_client_stop"), _reset_epoch)
+	if _startup_deadline_usec > 0:
+		_connect(Signal(_network_time, "after_sync"), _startup_synced)
+		_connect(Signal(get_node("/root/NetworkTimeSynchronizer"), "on_panic"), _startup_panic)
 	set_process(true)
 
 
@@ -103,10 +118,94 @@ func _process(delta: float) -> void:
 		"engine_delta_usec": delta * 1000000.0,
 		"focused": DisplayServer.window_is_focused()})
 	_last_frame_usec = now
+	_sample_startup(now)
 	if now - _last_anchor_usec >= 1000000:
 		_anchor()
 	if now >= _deadline_usec:
 		finish()
+
+
+func _startup_clock() -> Dictionary:
+	var synced := bool(_network_time.call("is_initial_sync_done"))
+	return {"mono_usec": _now_usec(), "epoch": _epoch,
+		"tick": int(_network_time.get("tick")), "initial_sync_done": synced,
+		"reference_seconds": get_node("/root/NetworkTimeSynchronizer").call("get_time") if synced else null,
+		"tickrate": int(_network_time.get("tickrate"))}
+
+
+func _startup_event(event: String, extra: Dictionary = {}) -> void:
+	if not _running or _startup_deadline_usec <= 0 or _now_usec() >= _startup_deadline_usec:
+		return
+	var record := _startup_clock()
+	record["event"] = event
+	record.merge(extra)
+	_record(record)
+
+
+func _startup_synced() -> void:
+	_startup_event("startup_sync")
+
+
+func _startup_panic(offset: float) -> void:
+	_startup_event("startup_panic", {"offset_seconds": offset})
+
+
+func _sample_startup(now: int) -> void:
+	if not _running or _startup_deadline_usec <= 0 or now >= _startup_deadline_usec:
+		return
+	if _startup_samples >= STARTUP_SAMPLE_CAP:
+		_startup_dropped += 1
+		return
+	var main := get_tree().current_scene
+	if main == null or not main.has_method("local_player"):
+		return
+	var body := main.call("local_player") as RigidBody3D
+	# local_player already checks connected-peer state; never retain bodies across frames.
+	if body == null or not body.is_node_ready():
+		return
+	var record := _startup_clock()
+	record["event"] = "startup_sample"
+	record["history_start"] = get_node("/root/NetworkRollback").get("history_start")
+	record["display_tick"] = get_node("/root/NetworkRollback").get("display_tick")
+	record.merge(_startup_body_snapshot(body))
+	_record(record)
+	_startup_samples += 1
+
+
+static func _vec3(value: Vector3) -> Array:
+	return [value.x, value.y, value.z]
+
+
+static func _physics_snapshot(value: Variant) -> Variant:
+	if not value is Array or value.size() < 3 \
+			or not value[0] is Vector3 or not value[2] is Vector3:
+		return null
+	return {"position": _vec3(value[0]), "velocity": _vec3(value[2])}
+
+
+static func _startup_body_snapshot(body: RigidBody3D) -> Dictionary:
+	var record := {"body_id": str(body.name), "instance_id": body.get_instance_id(),
+		"generation": body.get("remote_state_generation"),
+		"node_position": _vec3(body.global_position),
+		"presented_position": _vec3(body.call("presented_position")),
+		"physics": _physics_snapshot(body.get("physics_state"))}
+	var sync := body.get_node_or_null("RollbackSynchronizer")
+	if sync == null:
+		return record
+	var latest := int(sync.call("get_last_known_state"))
+	var input_tick := -1 if sync._inputs.is_empty() else int(sync._inputs.get_latest_tick())
+	record.merge({"latest_state_tick": latest, "latest_input_tick": input_tick,
+		"consumed_authority_tick": sync._consumed_authority_tick,
+		"prediction_frontier_tick": sync._prediction_frontier_tick})
+	# Exact history entries, not fallback get_history(). This is sampled mutable
+	# simulation history, not a packet-receipt/application event or pristine wire state.
+	record["history_at_latest_state"] = _physics_snapshot(
+		sync._states.get_snapshot(latest).get_value(":physics_state"))
+	var input: Variant = sync._inputs.get_snapshot(input_tick)
+	var cursor: Variant = input.get_value("Input:cursor_offset")
+	record["recorded_cursor"] = [cursor.x, cursor.y] if cursor is Vector2 else null
+	record["recorded_editing"] = input.get_value("Input:editing")
+	return record
 
 
 func _begin_loop() -> void:
@@ -179,10 +278,11 @@ func _reset_loop() -> void:
 
 
 func _reset_epoch() -> void:
+	_epoch += 1
 	_reset_loop()
 	_last_frame_usec = -1
 	_endpoint_recorded = false
-	_record({"event": "connection_epoch", "mono_usec": _now_usec()})
+	_record({"event": "connection_epoch", "mono_usec": _now_usec(), "epoch": _epoch})
 
 
 func publication_started() -> int:
@@ -217,7 +317,9 @@ func finish() -> void:
 	for data in _records:
 		file.store_line(JSON.stringify(data))
 	file.store_line(JSON.stringify({"event": "complete", "records": _records.size(),
-		"dropped": _dropped, "mono_usec": _now_usec(), "flush_started_usec": flush_started}))
+		"dropped": _dropped, "startup_samples": _startup_samples,
+		"startup_dropped": _startup_dropped,
+		"mono_usec": _now_usec(), "flush_started_usec": flush_started}))
 	file.close()
 	_records.clear()
 	print("[network-stage-trace-complete] path=%s dropped=%d" % [_path, _dropped])

@@ -73,6 +73,82 @@ decision. Any clock/recovery fix needs focused characterization plus pause,
 join-transient and reconnect gates; rendered confirmation still requires an
 approved monitored run. No runtime changes or new runs were made for this review.
 
+### Instrumentation follow-up
+
+The existing stage recorder now accepts `CAR_FIGHT_STARTUP_TRACE_SECONDS` (off
+by default, at most 60 seconds and never beyond the parent trace duration).
+It records at most 6,000 local-body frame samples, under the shared 30,000-record
+cap. `startup_samples`/`startup_dropped` in the completion footer expose the
+additional sample limit. Shared-cap losses still appear in `dropped`.
+
+Each sample includes monotonic time, connection epoch, node instance/spawn
+generation, tick/reference clock, direct physics pose/velocity, Node3D pose and
+presented position, latest state/input ticks, consumed authority/prediction
+frontier, exact history at the latest state tick, and recorded cursor/editing.
+Missing history/input is null, not zero or an older fallback. Samples read the
+local body afresh through the connected-peer guard; no retiring nodes are cached.
+Sync and panic signals are observed only when explicitly enabled and all
+observers disconnect when the parent recorder stops.
+
+Sampling occurs at the existing stage recorder's process callback, not at every
+state application or after every presentation callback. Node, physics and visual
+poses can therefore represent different update phases. The state history is
+mutable simulation history, not a preserved authoritative packet; its latest
+tick can initially be a seeded sentinel. Do not equate these fields with exact
+server-state receipt or application timestamps. The trace adds no RPCs, replicated
+objects, simulation writes, readiness gates or clock changes. Cost is bounded to
+one local body and retained input history per sampled frame; no matched rendered
+overhead measurement has been made.
+
+Run the bounded, local headless characterization:
+
+```bash
+zsh scripts/startup_trace_test.sh
+node scripts/network_startup_report.mjs /absolute/run/startup.jsonl
+```
+
+The harness uses the pinned Godot, local ENet port 11980 (override with
+`CAR_FIGHT_STARTUP_TEST_PORT`), one client with existing `--script right`, and
+separate no-stall/six-second-post-sync-stall cases. It checks readiness, bounded
+client completion, engine errors, complete traces and actual movement. PASS is
+evidence capture, not a correction ceiling or a smooth-play verdict. The report
+flags returns within 0.1 units of the first sampled pose after moving at least
+0.25 units away, and backward steps above 0.1 units under similar recorded intent.
+These thresholds select candidates, not bugs; collisions/turns can qualify.
+Identity changes are never joined into a motion delta. CLI exit 2 denotes
+incomplete/missing evidence; exit 0 does not establish acceptable networking.
+
+First headless results: `car-fight-startup.Rw96DP` under the local temporary
+directory recorded 578/235 samples, no drops/errors, and no return-to-first-pose
+candidates. The control's largest early backward physics step was 1.371 units;
+the stall case's early step was 0.275 units. A later 0.102-unit backward step
+occurred while travelling sideways, illustrating why candidates are not proof.
+The six-second pause used one reliable state recovery and did not cause the
+multi-second clock panic seen in rendered startup. Some fast import/check work
+overlapped the control: do not use these runs as matched performance evidence.
+
+Separate socket-free characterization, using the actual unchanged NetworkTime
+loop and injected test clocks, stepped only the reference clock by +6.109638
+seconds while callbacks advanced normally at 60 Hz. With existing maximum
+stretch 1.25, reference-minus-tick lag was 5.860 seconds after one second, 3.610
+after ten, 1.110 after twenty, and about -0.007 after twenty-five. The zero-offset
+control stayed within one tick. Retained script:
+`.network-runs/startup-clock-characterization.gd`. This establishes slow catchup
+after a reference jump without a pause, not its upstream cause or the owner's
+exact three-reset sequence. `_set_timestamp()` seeds from the received timestamp;
+a delayed initial timestamp remains a hypothesis to reproduce with moving input.
+
+Validation: stage/startup fixture (real synchronizer/history, separate pose
+sources, missing history, replacement, deadline/cap/flush), Node report fixtures,
+presentation trace, remote-position transport, and existing pause-clock regression
+passed; fast check passed. The new harness also rejected a failed server command
+as expected. Initial compile/fixture errors were fixed before clean reruns.
+Diagnostic integration exposed an unused vendored getter bug:
+`RollbackSynchronizer.get_last_known_input()` calls nonexistent history `keys()`.
+No vendored repair was made; the trace uses guarded `get_latest_tick()` instead.
+No new rendered, browser, macai2 or deployment run; shared-clock changes still
+require the larger gates described above before promotion.
+
 ## Next approved capture
 
 Use the isolated macai2 server, not production. Refresh its project/autoload and
