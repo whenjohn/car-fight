@@ -24,6 +24,20 @@ func _run() -> void:
 	_check(VISUAL.direction_index(Vector3.FORWARD, Vector3.FORWARD.rotated(Vector3.UP, TAU)) == 0, "angle wraps")
 	_check(VISUAL.direction_index(Vector3.RIGHT, Vector3.BACK) == 6, "east faces screen right")
 	_check(VISUAL.direction_index(Vector3.LEFT, Vector3.BACK) == 2, "west faces screen left")
+	var attack_duration := LAB.automatic_attack_duration("knight", 1.0)
+	_check(is_equal_approx(attack_duration, 1.25), "knight automatic attack plays all 15 frames at 12 FPS")
+	_check(is_equal_approx(LAB.automatic_attack_duration("knight", 2.0), 0.625), "attack window follows playback rate")
+	var attack_cycle := LAB.automatic_attack_cycle(10000, attack_duration)
+	var attack_start := fposmod(attack_cycle - LAB.automatic_attack_offset(10000, attack_cycle), attack_cycle)
+	_check(LAB.automatic_clip(10000, true, attack_start + attack_duration * 0.5, attack_duration) == "attack",
+		"automatic sequence includes complete attack window")
+	_check(LAB.automatic_clip(10000, true, attack_start + attack_duration + 0.01, attack_duration) == "walk",
+		"walking fixture resumes walk after attack")
+	_check(LAB.automatic_clip(10000, false, attack_start + attack_duration + 0.01, attack_duration) == "idle",
+		"stationary fixture resumes idle after attack")
+	_check(not is_equal_approx(LAB.automatic_attack_offset(10000, attack_cycle),
+		LAB.automatic_attack_offset(10001, LAB.automatic_attack_cycle(10001, attack_duration))),
+		"fixture attack schedules are staggered")
 	for size in [128, 512]:
 		for action in ["idle", "walk", "attack", "death"]:
 			for direction in VISUAL.DIRECTIONS:

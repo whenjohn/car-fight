@@ -27,6 +27,7 @@ var _preview := "automatic"
 var _direction := -1
 var _rate := 1.0
 var _paused := false
+var _presentation_age := 0.0
 var _metrics_clock := 0.0
 var _frame_times: Array[float] = []
 
@@ -283,7 +284,7 @@ func _build_window() -> void:
 			labels.append(VISUAL.SAMPLE_LABELS[i])
 	_option(root, "Character (local)", labels, available.find(_sample), func(i): _sample = available[i])
 	_option(root, "Ghoul resolution", ["128", "512"], 1 if _resolution == 512 else 0, func(i): _resolution = [128, 512][i])
-	_option(root, "Preview", ["Automatic", "Idle", "Walk", "Attack", "Death"],
+	_option(root, "Preview", ["Automatic + attacks", "Idle", "Walk", "Attack", "Death"],
 		["automatic", "idle", "walk", "attack", "death"].find(_preview), func(i):
 		_preview = ["automatic", "idle", "walk", "attack", "death"][i])
 	_option(root, "Facing", ["Camera-relative", "S", "SW", "W", "NW", "N", "NE", "E", "SE"], _direction + 1,
@@ -342,6 +343,9 @@ func _spin(root: Control, title: String, low: float, high: float, step: float,
 		_host_controls.append(spin)
 
 func _process(delta: float) -> void:
+	if not _paused:
+		_presentation_age += delta
+	var attack_duration := automatic_attack_duration(_sample, _rate)
 	for target in _fixtures:
 		if target.visual == null:
 			continue
@@ -351,8 +355,8 @@ func _process(delta: float) -> void:
 		sprite.manual_direction = _direction
 		sprite.playback_rate = _rate
 		sprite.frozen = _paused and target.health > 0
-		sprite.clip = "death" if target.health == 0 else _preview if _preview != "automatic" \
-			else "walk" if target.walking else "idle"
+		sprite.clip = "death" if target.health == 0 else _preview if _preview != "automatic" else \
+			automatic_clip(target.target_id, target.walking, _presentation_age, attack_duration)
 	if _status != null:
 		var can_control := multiplayer.is_server() or (generation > 0 and multiplayer.get_unique_id() == owner_id)
 		_status.text = "%d targets · %s · %dpx · 3 hits or one run-over\n%s" % [_fixtures.size(), _sample,
@@ -385,3 +389,23 @@ func _process(delta: float) -> void:
 				Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)])
 			_metrics_clock = 0.0
 			_frame_times.clear()
+
+static func automatic_attack_duration(character: String, playback_rate: float) -> float:
+	var frame_count: float = {"ghoul": 70.0, "survivor": 14.0, "thug": 8.0, "knight": 15.0}.get(character, 12.0)
+	return frame_count / (12.0 * maxf(playback_rate, 0.01))
+
+static func automatic_attack_cycle(target_id: int, attack_duration: float) -> float:
+	var seed := posmod(target_id * 1103515245 + 12345, 2147483647)
+	return attack_duration + 3.0 + float(seed % 401) / 100.0
+
+static func automatic_attack_offset(target_id: int, cycle: float) -> float:
+	var seed := posmod(target_id * 1664525 + 1013904223, 2147483647)
+	return float(seed % 10000) / 10000.0 * cycle
+
+static func automatic_clip(target_id: int, walking: bool, elapsed: float,
+		attack_duration: float) -> String:
+	var cycle := automatic_attack_cycle(target_id, attack_duration)
+	var phase := fposmod(elapsed + automatic_attack_offset(target_id, cycle), cycle)
+	if phase < attack_duration:
+		return "attack"
+	return "walk" if walking else "idle"

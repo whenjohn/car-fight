@@ -29,6 +29,10 @@ CAR_FIGHT_SPRITE_SAMPLE=knight CAR_FIGHT_SPRITE_COUNT=16 \
 
 It also appears as **HD knight (128px)** under Debug → Sprite test… →
 Character (local). Missing local art is omitted and falls back to the ghoul.
+Leave Preview on **Automatic + attacks** to see staggered melee animations.
+Each fixture receives a stable varied interval, with enough time to play all
+15 melee frames at the selected playback speed. This is presentation only:
+the sequence does not choose targets, deal damage or affect movement.
 
 ## Test mapping
 

@@ -68,6 +68,13 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   `docs/SPRITE_KNIGHT_SAMPLE.md`. Fast check, expanded sprite contracts and
   live offline sprite combat pass. Interactive monitored run
   `20260904-185655` is open with 16 knights for owner visual evaluation.
+  Owner asked to see melee without selecting the manual Attack preview.
+  Automatic preview now inserts complete, staggered pseudo-random attack clips
+  between idle/walk intervals. Timing follows playback speed and is derived
+  locally from fixture IDs, so no network state or synchronized gameplay was
+  added. Manual Attack preview remains available. Expanded sequence contracts
+  and fast check pass. Monitored run `20260904-190244` was opened with 16
+  knights for owner evaluation of the automatic melee timing.
 - Baked-shadow trial for modern samples: confirmed translucent shadows in the
   downloaded PNGs. Changed modern-only alpha discard to opaque-prepass blending
   and ground registration from row 88 to 91 to retain soft pixels and avoid

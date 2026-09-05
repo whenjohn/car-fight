@@ -44,7 +44,9 @@ A third SmallScaleInt comparison, the free HD knight, is supported when its
 local archive is installed. See [knight sample setup](SPRITE_KNIGHT_SAMPLE.md).
 
 - The supplied ghoul is sample sprite art. No enemy AI or attacks are added.
-- All four clips have eight directions. Camera-relative facing works in
+- All four clips have eight directions. Automatic preview now intersperses
+  deterministic, staggered attack clips among idle/walk presentation so a
+  crowd does not attack in unison. These attacks are visual-only. Camera-relative facing works in
   orthographic and perspective views; manual facing is available for inspection.
 - The 128px default and 512px comparison share world scale and source-frame
   registration. Clips load on demand and share atlases across instances.
