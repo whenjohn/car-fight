@@ -107,17 +107,31 @@ func reset() -> void:
 	_clock = 0.0
 	_tick = 0
 	for target in lab._fixtures:
-		var profile: String = BRAIN.PROFILES[(target.target_id - 10000) % 4] if mode == "mixed" else mode
-		var state := BRAIN.initial(target.target_id, profile, target.home)
-		state["perception"] = float(target.target_id % 12) / 60.0
-		state["route_clock"] = 0.0
-		state["car"] = {}
-		state["decision"] = {"destination": target.position, "speed": 0.0, "state": "idle"}
-		brains[target.target_id] = state
-		if connected() and multiplayer.is_server():
-			target.ai_profile = profile
-			target.ai_state = "idle"
-			target.attack_serial = 0
+		add_fixture(target)
+
+func add_fixture(target) -> void:
+	var profile: String = BRAIN.PROFILES[(target.target_id - 10000) % 4] if mode == "mixed" else mode
+	var state := BRAIN.initial(target.target_id, profile, target.home)
+	state["perception"] = float(target.target_id % 12) / 60.0
+	state["route_clock"] = 0.0
+	state["car"] = {}
+	state["decision"] = {"destination": target.position, "speed": 0.0, "state": "idle"}
+	brains[target.target_id] = state
+	if connected() and multiplayer.is_server():
+		target.ai_profile = profile
+		target.ai_state = "idle"
+		target.attack_serial = 0
+
+func forget_fixture(id: int) -> void:
+	for container in [brains, routes, pending, spacing]:
+		container.erase(id)
+	if labels.has(id):
+		labels[id].queue_free()
+		labels.erase(id)
+	for key in markers.keys():
+		if int(str(key).get_slice(":", 0)) == id:
+			markers[key].queue_free()
+			markers.erase(key)
 
 func _disconnected() -> void:
 	_settings_version = -1

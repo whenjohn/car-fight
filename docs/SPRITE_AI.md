@@ -56,6 +56,60 @@ sprites to the camera. Debug facts refresh at 5 Hz; invalid cover markers are
 not allocated, and leaving the selection releases nodes. All obey depth occlusion.
 Preview animation controls remain presentation-only; real deaths override them.
 
+## Offline population prototype (2026-09-05)
+
+Working target: **64 living sprites**, following the measured 57–63 average FPS
+at true 64 in the [count experiment](SPRITE_BATCH_PROTOTYPE.md). Not a locked-60
+guarantee; replenishment and corpses still need sustained rendered acceptance.
+
+In offline play, open **Debug → Sprite test → Population (offline)**, directly
+below Disable test, and select **Maintain 56–64 (reset)**. This explicitly resets
+the fixture to 64 using the currently selected profile, size and movement settings.
+Choose Attacker to keep the population hunting. The controller also works with
+Basic, Evader, Ambusher, Mixed and legacy movement without retuning those behaviors.
+The status at the top reports living sprites, retained corpses, whether it is
+refilling, cumulative replacements and blocked candidate attempts (not failures).
+
+- Hold while living count is 56–64. Below 56, refill until 64, at most one birth
+  per 0.25 simulation seconds / service call. Large losses may temporarily take
+  the count well below the band; no immediate full-wave replacement or queued
+  catch-up requests. The existing simulation tick catch-up policy is unchanged.
+- Use 64 cached, round-robin street spawn points distributed through the city.
+  They are logical positions, not visible/destructible buildings. Try at most
+  eight candidates per spawn interval. Reject positions within 12 horizontal
+  units of a player, within combined capsule radii + 1.5 units of another living
+  sprite, or overlapping actual world bodies using the current capsule. Occupied
+  points wait; the controller never forces a spawn into an obstacle. There is no
+  off-camera spawning guarantee and camera state never controls simulation.
+- Keep corpses for about five simulation seconds, at most 16 after each controller
+  pass, removing oldest first under pressure. At most 64 living + 16 retained
+  corpses / 80 fixture objects. Cleanup releases per-sprite AI, route, pending,
+  spacing, debug and managed-animation references. Queued frees finish at the
+  frame boundary; existing practice shots finish normally within their lifetime.
+- Replacement IDs increase within the fixture generation. New sprites inherit
+  the current profile/size and seeded individual variation; surviving brains,
+  routes, shots and generation are not reset by births. Profile/size resets
+  preserve the population selection and clear the old population's history.
+- Off stops both replacement and corpse cleanup, leaving the current fixture
+  for inspection. Disable test clears it; selecting another target count turns
+  population control off. Ordinary launch remains unchanged, default off.
+
+Scope/authority: this is an **offline-only lifecycle prototype** of the existing
+fixture family. Both the offline role and `OfflineMultiplayerPeer` are required;
+the online UI is disabled and the simulation rechecks the gate. No new RPC,
+codec, rollback state, transport or deployment change. Dynamic membership is
+NOT implemented for network peers; do not enable it online without a separately
+approved generation-safe spawn/despawn contract, reconstruction and load gates.
+
+Focused checks: `tests/sprite_population_test.gd` exercises 64-live replenishment,
+twelve 20-death waves, bounds, identity, actual obstacle/player/neighbor checks,
+profile and size inheritance, UI wiring, stop/reset/retire and offline gating.
+It also calls the ordinary lab service, but its accelerated lifecycle loops are
+not FPS measurements. Existing AI runtime and sprite fixture/batch tests cover
+the shared initialization and individual presentation-release changes; the
+offline smoke gate covers ordinary startup/driving. Network tests and rendered
+population/FPS acceptance remain deferred, not implicitly passed.
+
 ## Network feature contract
 
 Guidance read from the networking worktree's `docs/NETWORK_SAFE_GAMEPLAY.md`,
@@ -126,6 +180,7 @@ bullet sweeps; the headless service probe includes those costs.
 ./scripts/check.sh
 /Applications/Godot47.app/Contents/MacOS/Godot --headless --path . --script res://tests/sprite_ai_test.gd
 /Applications/Godot47.app/Contents/MacOS/Godot --headless --path . --script res://tests/sprite_ai_runtime_test.gd -- --offline --no-drone
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . --script res://tests/sprite_population_test.gd -- --offline --no-drone
 /Applications/Godot47.app/Contents/MacOS/Godot --headless --path . --script res://scripts/sprite_ai_probe.gd -- --offline --no-drone
 ./scripts/sprite_ai_network_test.sh enet
 ./scripts/sprite_ai_network_test.sh mux

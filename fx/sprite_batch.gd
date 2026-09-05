@@ -52,6 +52,11 @@ func clear() -> void:
 func _exit_tree() -> void:
 	clear()
 
+func release_sprite(sprite) -> void:
+	# Individual despawns must not retain references across population waves.
+	_managed.erase(sprite)
+	sprite.release_batch()
+
 func _process(_delta: float) -> void:
 	if lab == null:
 		return

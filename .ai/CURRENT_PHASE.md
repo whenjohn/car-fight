@@ -2,6 +2,34 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Implemented optional **offline population spawners** after recording the
+  accepted 64-live target in `f618961`. Debug → Sprite test → Population (offline)
+  → Maintain 56–64 (reset), immediately below Disable test. Monitor at the top
+  reports living/corpse counts, refill state, replacements and blocked attempts.
+  Defaults remain off; no networking or engine/sizing changes.
+- Below 56 living, replace gradually toward 64: one per 0.25 simulation seconds,
+  at most eight candidate checks per interval across 64 cached street points.
+  Actual capsule/world, player-distance and neighbor checks prevent unsafe births.
+  Corpses expire after about five seconds; retain at most 16 per controller pass,
+  at most 80 fixtures total. No queued spawn backlog; existing tick policy unchanged.
+- Per-generation monotonic IDs, per-newborn brain setup, per-despawn AI/debug
+  and managed-animation cleanup avoid resetting survivors or retaining references
+  through waves. Newborns inherit the selected behavior and actual size. Off stops
+  both refill and cleanup; Disable test clears fixtures. Different count turns it
+  off; same-count profile/size resets preserve the population selection.
+- Validation PASS: `./scripts/check.sh`, new `sprite_population_test.gd` (12
+  twenty-death waves, counts/identity/bounds, real obstacle/player/neighbor checks,
+  inheritance, ordinary service/UI wiring, stop/reset/retire/offline gate), existing
+  `sprite_ai_runtime_test.gd`, `sprite_test_lab_test.gd`, and `scripts/offline_test.sh`.
+  Final runs exited cleanly, no engine/script errors. Initial new-test setup failed
+  obstacle registration because stopped NetworkTime also pauses Rapier space steps;
+  fixed the harness with an explicit physics step. Also corrected its cursor when
+  replacing candidate points. No collision behavior was relaxed to pass the test.
+- These headless gates cover the changed lifecycle/shared initialization and
+  presentation release, not rendered FPS. No network test or deployment performed.
+  Next: approved monitored playtest of repeated kills/replenishment at 64, then
+  tune Evader and Ambusher individually. Sustained moving-player/spawner FPS and
+  birth/death visual acceptance remain unmeasured. Details: `docs/SPRITE_AI.md`.
 - Owner accepted **64 living sprites** as the working population target.
   Hold there for behavior development; the measured 57–63 average FPS is not
   a locked-60 guarantee. No further speculative optimization or engine change.

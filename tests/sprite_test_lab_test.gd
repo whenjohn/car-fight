@@ -191,6 +191,9 @@ func _run() -> void:
 		_check(fixture.visual.frame > 1 and companion.visual.frame > 4, "native clocks advance with directional scripts disabled")
 		_check(fixture.visual.frame != companion.visual.frame, "shared resources do not synchronize individual clocks")
 		batch.lab._fixtures.erase(companion)
+		batch.release_sprite(companion.visual)
+		_check(not companion.visual in batch._managed and not companion.visual.batch_managed,
+			"individual despawn releases managed presentation reference")
 		companion.free()
 		if VISUAL.sample_available("thug"):
 			fixture.visual.sample = "thug"

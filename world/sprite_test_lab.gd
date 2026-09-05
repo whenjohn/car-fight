@@ -7,6 +7,7 @@ const CITY := preload("res://world/city_layout.gd")
 const AI := preload("res://combat/sprite_ai_playground.gd")
 var ai
 var batch
+var population
 var _motion_tick := 0
 var _configuration_version := -1
 var _configuration_parts := {}
@@ -46,6 +47,9 @@ func setup(main: Node3D, targets: Node3D, players: Node3D, start: bool) -> void:
 	ai.name = "SpriteAI"
 	add_child(ai)
 	ai.setup(self)
+	population = preload("res://world/sprite_population.gd").new()
+	add_child(population)
+	population.lab = self
 	if main.has_method("_is_headless") and not main.call("_is_headless"):
 		batch = preload("res://fx/sprite_batch.gd").new()
 		add_child(batch)
@@ -120,6 +124,7 @@ func service(delta: float) -> void:
 				break
 	_previous_cars = current_cars
 	ai.finish(delta)
+	population.service(delta)
 	_snapshot_clock += delta
 	if _snapshot_clock >= 0.1:
 		_snapshot_clock = 0.0
@@ -209,6 +214,7 @@ func retire() -> void:
 		target.queue_free()
 	_fixtures.clear()
 	_previous_cars.clear()
+	population.reset()
 
 static func spawn_positions(anchor: Vector3, amount: int, size: float) -> Array[Vector3]:
 	var candidates: Array[Vector3] = []
@@ -286,6 +292,7 @@ func _apply_configuration(version: int, active: bool, amount: int, size: float,
 		_apply_ai_state(target, state)
 	if ai != null:
 		ai.reset()
+	population.reset()
 	print("SPRITE_TEST_STATE generation=%d count=%d owner=%d" % [generation, _fixtures.size(), owner_id])
 
 func states() -> Array:
@@ -375,6 +382,8 @@ func _build_window() -> void:
 	root.add_child(_status)
 	_button(root, "Enable / reset near car", func(): configure(true, count, body_scale, moving), true)
 	_button(root, "Disable test", func(): configure(false, count, body_scale, moving), true)
+	_option(root, "Population (offline)", ["Off", "Maintain 56–64 (reset)"], 1 if population.enabled else 0,
+		func(i): population.set_enabled(i == 1), true)
 	_option(root, "Targets", ["1", "16", "64", "128", "256"], COUNTS.find(count), func(i):
 		configure(enabled, COUNTS[i], body_scale, moving), true)
 	_spin(root, "Body scale (reset)", 0.5, 2.0, 0.25, 1.0, func(v):
@@ -485,9 +494,12 @@ func _process(delta: float) -> void:
 			_resolution if _sample == "ghoul" else VISUAL.native_size(_sample),
 			"Host controls available" if can_control else "Host must launch with --sprite-test"]
 		_status.text += "\nAI: %s · shots %d · car hits %d (feedback only)" % [ai.mode, ai.metrics.shots, ai.metrics.hits]
+		_status.text += "\n" + population.status()
 		for control in _host_controls:
 			control.set_block_signals(true)
 			match str(control.get_meta("setting", "")):
+				"Population (offline)":
+					(control as OptionButton).select(1 if population.enabled else 0)
 				"Targets":
 					(control as OptionButton).select(COUNTS.find(count))
 				"Movement (reset)":
@@ -506,7 +518,7 @@ func _process(delta: float) -> void:
 					(control as OptionButton).select(1 if ai.settings.auto_fire else 0)
 			control.set_block_signals(false)
 			if control is BaseButton:
-				control.disabled = not can_control
+				control.disabled = not can_control or (control.get_meta("setting", "") == "Population (offline)" and not population.available())
 			elif control is SpinBox:
 				control.editable = can_control
 	if requested and not _main.call("_is_headless"):
