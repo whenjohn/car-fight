@@ -2,6 +2,13 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner requested starting the grass-Ambusher playtest. Launched gameplay
+  `2bdd129` in monitored run `20260905-040430`, client PID 22018: offline,
+  64 initial Ambushers, survivor sample, batched drawing, inset window at 100,100.
+  Offline readiness and count confirmed; no startup errors seen. Population
+  remains opt-in in the existing UI. Await camouflage, pass timing and FPS notes;
+  no visual/performance acceptance yet. Supersedes "no grass-version launch" below.
+
 - Owner rejected building Ambusher as too complicated and requested grass:
   run there, blend in, rush from behind after the vehicle passes. Replaced
   building selection/sector circling with the existing single grass field at
