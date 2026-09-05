@@ -62,6 +62,9 @@
 - All-attacker load probe is NOT accepted at 256: incremental P95 2.611 ms
   and warmup 11.879 ms exceed the existing 2/8 ms limits. Details and raw log
   location are in `docs/SPRITE_AI.md`; interactive tuning remains at 16.
+- Opened owner-approved offline monitored run `20260904-220627` at `1908a3d`
+  with 16 Attacker survivors. Safe decorated-window wrapper is active; final
+  monitor outcome and owner evaluation are pending.
 
 ## Canonical baseline
 
