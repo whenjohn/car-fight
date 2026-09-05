@@ -1,5 +1,28 @@
 # Current phase
 
+## Packet-correlated diagnostic playtest active, 2026-09-05
+
+- Owner successfully started the short ignored `.network-runs/capture.mjs`
+  helper in Terminal. Verified live tcpdump PID 4732 on utun6, filtered only to
+  UDP host 100.113.2.60 port 12780, before launching clients. Capture output:
+  `.network-runs/capture-1788596366046/`; bounded 180 seconds from about 03:19:26.
+  Startup delay means packet coverage will end before the 120-second game traces;
+  correlate only the overlap, do not claim full coverage or capture success yet.
+- Fresh launcher/server evidence: `.network-runs/diagnostic-1788596366046/`.
+  Non-restarting job `com.whenjohn.car-fight-diagnostic-1788596366046` in gui/501.
+  Isolated server PID 63920, UDP 12780/TCP 12781; production unchanged.
+- Both clients reported CLIENT_READY. Run:
+  `.crash-runs/two-client-20260905-032049/`; Alpha subrun 20260905-032049,
+  PID 4806, peer 2104429417; Bravo subrun 20260905-032052, PID 4869,
+  peer 730769446. Both startup args contain P cruise and presentation tracing;
+  stage tracing enabled for clients/server, unchanged fixed legacy settings.
+- Early Bravo log includes guarded stale rollback and authority-probe misses;
+  no SCRIPT ERROR/ERROR matches at readiness check. Do not equate connected
+  status with a clean test. Await owner feedback and analyze complete logs.
+- After both windows close, verify server cleanup, remove completed job, read
+  capture.json/drop stats and generate separate client reports with server stages.
+  Preserve the earlier premature run; these new output prefixes do not overwrite it.
+
 ## Premature diagnostic launch stopped, 2026-09-05
 
 - Owner clarified that "started" meant opening Terminal, not running capture.
