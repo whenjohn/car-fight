@@ -323,3 +323,88 @@ Before any future shared schema/netfox/authority merge, run the directly
 affected focused gates plus the full milestone suite as required by
 [quality gates](QUALITY_GATES.md). This review changed documentation only;
 no networking optimization has yet been implemented or deployed.
+
+## Implementation follow-up: packed input, 2026-09-04
+
+The audit above describes the pre-fix baseline. The owner subsequently approved
+the first codec/schema fix in the same worktree, without deployment or default
+changes. The following evidence supersedes finding 1's implementation status,
+not the other findings or platform acceptance gaps.
+
+### Changes and compatibility
+
+- Format 2 registers `drop_troops` at mask bit 10, `tractor` at 11, and `editing`
+  at 12. Cursor and the first ten control bits retain their previous encoding.
+  Each snapshot remains six payload bytes, plus a four-byte history header.
+- Format 1 and unknown versions are explicitly rejected. There is no protocol
+  negotiation or automatic downgrade to old executables: update both ends before
+  opting into packing. Matching builds still accept legacy Variant arrays with
+  packing disabled, and receive behavior does not depend on the send flag.
+- Packed receive validates the sender-owned registered schema, header, exact
+  length/count, and reserved mask bits before netfox decodes it. Bad packed
+  envelopes cannot fall through into the flat Variant decoder. Unsupported send
+  schemas/values fall back unchanged, without silently coercing control types.
+- The input queue threshold selects 4 KiB for actual packed output and 16 KiB
+  for Variant output, rather than using the requested packing flag.
+- `[packed-input]` diagnostics identify version 2 and cumulative `packed`,
+  `fallbacks`, `encoded_bytes`, `received`, and `rejects`. Encoding counters include
+  attempts later dropped by queue pressure; bytes measure the serialized input
+  array only. `NETAPP` still counts actual submitted RPC argument bytes. Neither
+  measures UDP/SCTP/encryption overhead or confirms authoritative application.
+- `scripts/mixed_transport_test.sh` accepts `CAR_FIGHT_PACKED_INPUT=1` for its
+  shared-world case and requires packing/receive evidence with no fallbacks or
+  rejects. Its default and the subsequent lifecycle controls remain unchanged.
+
+### Focused verification
+
+The replacement `input_codec_test.gd` spawns through `Main._spawn_player()` and
+executes the player's real `_ready()` registration under an offline SceneTree.
+It failed against the original codec on the live schema assertion. After the
+fix it passes all 8,192 control combinations, pinned changed-bit assignments,
+cursor boundaries, three-snapshot netfox encode/decode/apply with input-owner
+sanitization, malformed/version/schema cases, the 255-snapshot limit, actual
+encoding counters/thresholds, disabled packing, and mux recipient policy.
+The troop-drop round-trip is through netfox history, not a live troop-spawn
+combat scenario.
+
+Commands and results:
+
+```bash
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tests/input_codec_test.gd -- --offline
+# INPUT_CODEC_TEST PASS
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tests/state_bundle_coalescing_test.gd
+# STATE_BUNDLE_COALESCING_TEST PASS
+./scripts/check.sh
+# FAST_CHECK PASS
+CAR_FIGHT_PACKED_INPUT=1 ./scripts/network_test.sh combined
+# PASS: worst correction 1.375, reference rejections 2
+CAR_FIGHT_PACKED_INPUT=1 ./scripts/mixed_transport_test.sh
+# PASS: worst correction 0.385
+```
+
+The native run enabled only packed input/telemetry, leaving the ordinary state
+path and its defaults intact. Steady `NETAPP` input intervals measured 60 logical
+bytes/message (for example 128 messages / 7,680 bytes), versus 496 in the audit.
+Both native senders reported zero fallbacks, and the server reported 326 valid
+packed receives / zero rejects at its first codec window. The mixed mux run
+reported 245 ENet-client and 207 WebRTC-client packed attempts at their first
+windows, zero fallbacks/rejects, and 551 server receives by its second window.
+These are different reporting windows, not synchronized packet-loss counts.
+
+Local evidence is retained under ignored
+`.network-runs/packed-input-2026-09-04/`: `car-fight-network.vkW6kV` and
+`car-fight-mixed.redMYf`. ENet still emits the previously recorded inactive-peer
+shutdown errors despite gate PASS. Mixed shared-gameplay and transport-door
+control logs contain no engine/script errors; its intentional peer-ID collision
+reports the expected signaling closure. Sandboxed unit checks emitted a macOS
+certificate-store permission error; the final codec run with that permission
+passed without engine errors (its intentional malformed-packet reject is logged).
+
+The final malformed-envelope hardening was rechecked by the codec regression;
+it does not change valid packets exercised by the live runs. No broad suite,
+real browser, TURN, packaged-platform, mobile, or rendered test was run. The
+native WebRTC extension gate does not substitute for browser acceptance. Run
+the full milestone suite before any shared-schema/netfox merge, and retain the
+review's lifecycle and platform work before promoting networking defaults.

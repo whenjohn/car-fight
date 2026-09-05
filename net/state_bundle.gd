@@ -24,10 +24,12 @@ var _state_rate_divisor := 1
 var input_broadcast := true
 ## Packed input wire codec (net/input_codec.gd), default OFF = today's Variant wire exactly. The SEND side
 ## is gated on this flag; the RECEIVE side is type-driven (a packed payload is [PackedByteArray] with a
-## magic byte) and accepts both formats regardless, so mixed peers interop — the flag is still passed to
+## magic byte) and accepts both formats on matching builds — the flag is still passed to
 ## every peer for A/B hygiene and so _gather() quantizes at the source on the owner.
 const INPUT_CODEC := preload("res://net/input_codec.gd")
 var input_packing := false
+var input_codec_stats := {"packed": 0, "fallbacks": 0, "encoded_bytes": 0,
+	"received": 0, "rejects": 0}
 ## Packed STATE wire codec (net/state_codec.gd), default OFF = today's Variant wire exactly. Send-side
 ## gated on this flag; receive is type-driven (magic-tagged payloads) and accepts both formats, so mixed
 ## peers interop — the harness still passes the flag to every peer for A/B hygiene. WIRE-ONLY per plan
@@ -285,7 +287,8 @@ func set_input_packing(enabled: bool) -> void:
 ## doubles as the stale-build detector, and is ALLOWLISTED in webrtc_stats.mjs (a tag missing from that
 ## regex silently never reaches browser.log — the Phase 0 lesson).
 func echo_input_packing() -> void:
-	print("[packed-input] enabled=%d" % (1 if input_packing else 0))
+	print("[packed-input] enabled=%d version=%d" % [
+		1 if input_packing else 0, INPUT_CODEC.FORMAT_VERSION])
 
 func set_state_packing(enabled: bool) -> void:
 	state_packing = enabled
@@ -326,14 +329,20 @@ func unpack_state_diff(data: PackedByteArray) -> Variant:
 	return out
 
 ## Periodic codec diagnostics (~every 5s at 60Hz), only while packing and only when something moved.
-## Deadband/clamps/fallbacks count on the sender, rejects on the receiver; the [packed-state] tag is
-## allowlisted in webrtc_stats.mjs so the browser's counts reach browser.log.
+## Both codec tags are allowlisted in webrtc_stats.mjs for browser log collection.
 func _report_codec_counters() -> void:
-	if not state_packing or NetworkTime.tick - _codec_report_tick < 300:
+	if NetworkTime.tick - _codec_report_tick < 300:
 		return
 	_codec_report_tick = NetworkTime.tick
-	if STATE_CODEC.deadband_dropped + STATE_CODEC.clamped + STATE_CODEC.pack_fallbacks \
-			+ STATE_CODEC.rejects > 0:
+	if input_codec_stats.packed + input_codec_stats.fallbacks \
+			+ input_codec_stats.received + input_codec_stats.rejects > 0:
+		# Cumulative encoding attempts, including queue-dropped sends. Actual RPC
+		# message bytes remain in NETAPP; neither counter measures transport overhead.
+		print("[packed-input] version=%d packed=%d fallbacks=%d encoded_bytes=%d received=%d rejects=%d" % [
+			INPUT_CODEC.FORMAT_VERSION, input_codec_stats.packed, input_codec_stats.fallbacks,
+			input_codec_stats.encoded_bytes, input_codec_stats.received, input_codec_stats.rejects])
+	if state_packing and (STATE_CODEC.deadband_dropped + STATE_CODEC.clamped \
+			+ STATE_CODEC.pack_fallbacks + STATE_CODEC.rejects > 0):
 		print("[packed-state] deadband_dropped=%d clamped=%d fallbacks=%d rejects=%d" % [
 			STATE_CODEC.deadband_dropped, STATE_CODEC.clamped, STATE_CODEC.pack_fallbacks,
 			STATE_CODEC.rejects])
@@ -343,16 +352,24 @@ func _report_codec_counters() -> void:
 func pack_input(data: Array, props: Array, peer: int = 0) -> Array:
 	if not peer_uses_packed_input(peer):
 		return data
-	return INPUT_CODEC.pack(data, props)
+	var wire := INPUT_CODEC.pack(data, props)
+	if not data.is_empty():
+		var counter := "packed" if INPUT_CODEC.is_packed(wire) else "fallbacks"
+		input_codec_stats[counter] += 1
+		input_codec_stats.encoded_bytes += var_to_bytes(wire).size()
+	return wire
 
 ## Receive seam: type-driven, flag-independent. Returns [] on a malformed/mismatched packed payload —
 ## loud, and the transmitter then applies nothing for that message.
-func unpack_input(data: Array) -> Array:
-	if not INPUT_CODEC.is_packed(data):
+func unpack_input(data: Array, props: Array) -> Array:
+	if data.is_empty() or not data[0] is PackedByteArray:
 		return data
-	var out: Array = INPUT_CODEC.unpack(data)
+	var out: Array = INPUT_CODEC.unpack(data, props)
 	if out.is_empty():
-		print("[packed-input] reject: malformed or version-mismatched payload")
+		input_codec_stats.rejects += 1
+		print("[packed-input] reject: malformed payload or version/schema mismatch")
+	else:
+		input_codec_stats.received += 1
 	return out
 
 ## Server-side: a callable taking a peer id and returning that peer's current transport send-queue bytes.

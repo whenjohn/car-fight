@@ -1,5 +1,36 @@
 # Current phase
 
+## Active worktree: packed-input fix, 2026-09-04
+
+- Owner authorized the first bounded implementation in
+  `/Users/johnnguyen/Projects/car-fight-networking`, branch
+  `codex/networking-review`. No merge, deployment, or networking default changes.
+- Packed input now covers the real 14-property player schema, including troop
+  drop, with explicit wire format 2. Version 1/unknown versions, malformed
+  packed envelopes, and mismatched receiver schemas reject without decoding.
+  Matching builds accept both packed and legacy Variant inputs; there is no
+  old-build capability negotiation. Upgrade both ends before enabling packing.
+- Send-queue thresholds now follow the actual payload, including schema
+  fallback. Codec diagnostics count packed/fallback attempts, serialized bytes,
+  successful unpacking, and rejects; NETAPP retains actual message accounting.
+- Replaced the self-referential codec fixture with production player spawning
+  and registration. Confirmed it failed before the fix; now covers all 8,192
+  control masks, fixed version-2 bit positions, netfox redundant history and
+  owner sanitization, cursor boundaries, malformed/versioned input, fallback
+  thresholds, and mux routing. The test command now includes `-- --offline`.
+- Focused codec test and state-bundle coalescing assertions passed; fast check
+  passed. Headless packed-input-only combined ENet gate passed at 1.375 units;
+  local mixed ENet/WebRTC gate passed at 0.385. Both paths report no codec
+  fallbacks/rejects. Steady ENet input is 60 logical bytes/message versus 496
+  in the review, not a measurement of transport bytes or improved visual feel.
+- ENet shutdown still produces the known inactive-peer errors. Mixed shared
+  gameplay logs were clean; its deliberate peer-ID collision case reports the
+  expected signaling closure. No real browser/mobile/TURN or rendered tests.
+  See the implementation follow-up in `docs/NETWORKING_REVIEW_2026-09-04.md`.
+- Next: bounded lifecycle/gate fixes from the review. Before merging this shared
+  codec/netfox change, run the full milestone suite once; it was intentionally
+  deferred at this focused worktree checkpoint.
+
 ## Active worktree: networking review, 2026-09-04
 
 - Created `/Users/johnnguyen/Projects/car-fight-networking` from updated master

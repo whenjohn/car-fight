@@ -9,6 +9,10 @@ log_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-mixed.XXXXXX")"
 server_pid=""
 enet_pid=""
 rtc_pid=""
+input_args=()
+if [[ "${CAR_FIGHT_PACKED_INPUT:-0}" == "1" ]]; then
+	input_args=(--packed-input --net-telemetry)
+fi
 
 cleanup() {
 	for process_id in "$rtc_pid" "$enet_pid" "$server_pid"; do
@@ -24,17 +28,19 @@ shared="$log_dir/shared"
 mkdir -p "$shared"
 "$godot_bin" --headless --path "$project_root" -- --server --transport mux \
 	--port "$base_port" --signal-port "$((base_port + 1))" --no-drone --ticks 720 \
+	"${input_args[@]}" \
 	>"$shared/server.log" 2>&1 &
 server_pid=$!
 sleep 0.8
 "$godot_bin" --headless --path "$project_root" -- --client --host 127.0.0.1 \
 	--port "$base_port" --name enet --script converge --ticks 300 \
+	"${input_args[@]}" \
 	>"$shared/enet.log" 2>&1 &
 enet_pid=$!
 sleep 0.8
 "$godot_bin" --headless --path "$project_root" -- --client --transport webrtc \
 	--signal-url "ws://127.0.0.1:$((base_port + 1))" --name rtc \
-	--script converge --ticks 420 >"$shared/rtc.log" 2>&1 &
+	--script converge --ticks 420 "${input_args[@]}" >"$shared/rtc.log" 2>&1 &
 rtc_pid=$!
 
 wait "$enet_pid"; enet_pid=""
@@ -76,6 +82,21 @@ if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index|Node not found
 		"$shared"/*.log; then
 	echo "Mixed-transport shared-world run emitted a runtime error; logs: $log_dir" >&2
 	exit 1
+fi
+if (( ${#input_args} > 0 )); then
+	for client in enet rtc; do
+		if ! rg -q '\[packed-input\] version=2 packed=[1-9][0-9]* fallbacks=0 .*rejects=0' \
+				"$shared/$client.log"; then
+			echo "$client did not prove version-2 input packing; logs: $log_dir" >&2
+			exit 1
+		fi
+	done
+	if ! rg -q '\[packed-input\] version=2 .*received=[1-9][0-9]* rejects=0' \
+			"$shared/server.log" \
+			|| rg -q '\[packed-input\].*(reject:|fallbacks=[1-9]|rejects=[1-9])' "$shared"/*.log; then
+		echo "Packed input receive/fallback check failed; logs: $log_dir" >&2
+		exit 1
+	fi
 fi
 
 collision="$log_dir/collision"

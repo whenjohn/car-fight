@@ -141,8 +141,8 @@ const INPUT_BACKPRESSURE_BYTES := 16384
 # the unshaped window of the next TURN acceptance run.
 const INPUT_BACKPRESSURE_BYTES_PACKED := 4096
 
-func _input_backpressure_bytes(peer: int) -> int:
-	return (INPUT_BACKPRESSURE_BYTES_PACKED if StateBundle.peer_uses_packed_input(peer)
+func _input_backpressure_bytes(wire_data: Array) -> int:
+	return (INPUT_BACKPRESSURE_BYTES_PACKED if StateBundle.INPUT_CODEC.is_packed(wire_data)
 		else INPUT_BACKPRESSURE_BYTES)
 
 func transmit_input(tick: int) -> void:
@@ -169,7 +169,7 @@ func transmit_input(tick: int) -> void:
 				# fresh packet after the queue drains. Never exempt the state-owner copy: the forced-TURN
 				# combined run proved that even 35B packed inputs can accumulate behind SCTP congestion,
 				# delivering seconds-old control and causing large authoritative corrections.
-				if StateBundle.peer_send_pressure(peer) > _input_backpressure_bytes(peer):
+				if StateBundle.peer_send_pressure(peer) > _input_backpressure_bytes(wire_data):
 					NetworkPerformance.note_app_input_backpressure_dropped(1)
 					continue
 				_submit_input.rpc_id(peer, input_tick, wire_data)
@@ -178,7 +178,7 @@ func transmit_input(tick: int) -> void:
 			var wire_data := StateBundle.pack_input(
 				input_data, _get_owned_input_props(), state_owning_peer)
 			if StateBundle.peer_send_pressure(state_owning_peer) \
-					> _input_backpressure_bytes(state_owning_peer):
+					> _input_backpressure_bytes(wire_data):
 				NetworkPerformance.note_app_input_backpressure_dropped(1)
 				return
 			_submit_input.rpc_id(state_owning_peer, input_tick, wire_data)
@@ -326,9 +326,10 @@ func _submit_input(tick: int, data: Array) -> void:
 	# Type-driven unwrap of the opt-in packed wire format ([PackedByteArray] with a magic byte); legacy
 	# flat Variant arrays pass through untouched. A malformed packed payload unpacks to [] and decode()
 	# then applies nothing — loud in the log, never garbage into the sim.
-	data = StateBundle.unpack_input(data)
 	var sender := multiplayer.get_remote_sender_id()
-	var snapshots := _input_encoder.decode(data, _input_property_config.get_properties_owned_by(sender))
+	var properties := _input_property_config.get_properties_owned_by(sender)
+	data = StateBundle.unpack_input(data, properties)
+	var snapshots := _input_encoder.decode(data, properties)
 	var earliest_received_input = _input_encoder.apply(tick, snapshots, sender)
 	if earliest_received_input >= 0:
 		_earliest_input_tick = mini(_earliest_input_tick, earliest_received_input)

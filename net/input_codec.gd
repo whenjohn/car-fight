@@ -1,25 +1,28 @@
 extends RefCounted
 ## Packed wire codec for Car Fight's rollback input stream.
 ##
-## The cursor command is encoded as a planar angle plus distance and the twelve
+## The cursor command is encoded as a planar angle plus distance and the thirteen
 ## held controls share one bit mask. Receive is type-driven, so legacy Variant
 ## arrays and packed peers can coexist during an A/B rollout.
 
 const MAGIC := 0xB7
-const FORMAT_VERSION := 1
+# Version 2 adds drop_troops before tractor/editing. Version 1 is rejected, not
+# reinterpreted: mixed packing flags work, but mixed packed schema versions do not.
+const FORMAT_VERSION := 2
 const SNAPSHOT_BYTES := 6
 const CURSOR_DISTANCE_MAX := 655.35
 
 const BOOL_PROPS := [
 	"Input:burst", "Input:reverse", "Input:cloak_held", "Input:shield_held",
 	"Input:det", "Input:area_arm_held", "Input:area_fire", "Input:homing_held",
-	"Input:rc_fire_held", "Input:rc_detonate_held", "Input:tractor", "Input:editing",
+	"Input:rc_fire_held", "Input:rc_detonate_held", "Input:drop_troops",
+	"Input:tractor", "Input:editing",
 ]
 const EXPECTED_ORDER := [
 	"Input:cursor_offset", "Input:burst", "Input:reverse", "Input:cloak_held",
 	"Input:shield_held", "Input:det", "Input:area_arm_held", "Input:area_fire",
 	"Input:homing_held", "Input:rc_fire_held", "Input:rc_detonate_held",
-	"Input:tractor", "Input:editing",
+	"Input:drop_troops", "Input:tractor", "Input:editing",
 ]
 
 
@@ -54,6 +57,15 @@ static func pack(data: Array, properties: Array) -> Array:
 	if snapshot_count <= 0 or snapshot_count > 255 \
 			or (data.size() - 1) % property_count != 0:
 		return data
+	if not data[-1] is int or data[-1] < 0 or data[-1] > 255:
+		return data
+	for snapshot_index in snapshot_count:
+		var base := snapshot_index * property_count
+		if not data[base] is Vector2 or not (data[base] as Vector2).is_finite():
+			return data
+		for index in range(1, property_count):
+			if not data[base + index] is bool:
+				return data
 	var bytes := PackedByteArray()
 	bytes.resize(4 + snapshot_count * SNAPSHOT_BYTES)
 	bytes[0] = MAGIC
@@ -83,11 +95,11 @@ static func is_packed(data: Array) -> bool:
 
 
 ## Rebuild the exact flat Variant array expected by RedundantHistoryEncoder.
-static func unpack(data: Array) -> Array:
-	if not is_packed(data):
+static func unpack(data: Array, properties: Array) -> Array:
+	if data.is_empty() or not data[0] is PackedByteArray:
 		return data
 	var bytes := data[0] as PackedByteArray
-	if bytes[1] != FORMAT_VERSION:
+	if not is_packed(data) or bytes[1] != FORMAT_VERSION or not can_pack(properties):
 		return []
 	var snapshot_count := int(bytes[3])
 	if snapshot_count <= 0 or bytes.size() != 4 + snapshot_count * SNAPSHOT_BYTES:
@@ -103,6 +115,8 @@ static func unpack(data: Array) -> Array:
 		output[base] = Vector2.ZERO if distance <= 0.0 \
 			else Vector2(cos(angle), sin(angle)) * distance
 		var mask := bytes.decode_u16(offset + 4)
+		if mask & ~((1 << BOOL_PROPS.size()) - 1):
+			return []
 		for bool_index in BOOL_PROPS.size():
 			var property_index := EXPECTED_ORDER.find(BOOL_PROPS[bool_index])
 			output[base + property_index] = (mask & (1 << bool_index)) != 0
