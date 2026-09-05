@@ -472,3 +472,84 @@ the lifecycle regression and subsequent mixed/reconnect runs. No new throughput
 or visual-feel claim follows from these short correction samples. No production
 deployment, default change, rendered/browser/mobile/TURN run, or master merge.
 The full milestone suite remains a pre-merge requirement for this branch.
+
+## Implementation follow-up: WebRTC client bootstrap, 2026-09-04
+
+### Contract and changes
+
+This slice addresses client failure handling from finding 4, not server admission
+or automatic reconnect. Authority, input/state schemas, replication rates,
+rollback/replay behavior, transport selection, and gameplay defaults are unchanged.
+The added bookkeeping is constant-size per client attempt, with constant-time
+liveness checks and no new signaling or gameplay messages.
+
+- Async signaling closure is reported even when WebSocket never reached OPEN.
+  Failure stops polling, releases pending resources, and emits one terminal
+  `failed` signal. Main retains the specific reason rather than replacing a
+  synchronous failure with a second generic error; subsequent MultiplayerAPI
+  failure/stop callbacks also preserve that first WebRTC reason.
+- An optional total connection budget covers WebSocket opening, peer assignment,
+  and SDP/ICE/DataChannel negotiation. It uses monotonic time and is never reset
+  by assignment retries. It is checked when the client processes, not by an
+  independent thread during application suspension.
+- Deadline enforcement remains disabled by default (zero). Experiments can use
+  native `--webrtc-connect-timeout-ms=30000` or browser URL
+  `webrtcConnectTimeoutMs=30000`; 30 seconds is an example, not an accepted default.
+  Closed/removed negotiation peers still fail without an enabled deadline.
+- Assigned IDs must be integers from 2 through 2147483647 before calling Godot.
+  Duplicate matching assignment resends ACK without recreating the RTC peer.
+- Gameplay establishment is latched. Later signaling loss/errors cannot turn
+  that attempt into a join failure, even if gameplay subsequently disconnects.
+  MultiplayerAPI/Main still own gameplay-disconnect handling. Explicit close
+  stops transport polling and is quiet/idempotent.
+- Failure inside an SDP/ICE callback retires the original RTC peer after the
+  engine poll unwinds. Pending callbacks are ignored once the transport closes.
+
+The lifecycle follows Godot's documented asynchronous
+[WebSocket connection and close contract](https://docs.godotengine.org/en/stable/classes/class_websocketpeer.html).
+Cleanup also accounts for the engine's
+[WebRTCMultiplayerPeer polling loop](https://github.com/godotengine/godot/blob/4.7/modules/webrtc/webrtc_multiplayer_peer.cpp):
+connection callbacks run while its peer map is being iterated, so clearing that
+map from a failure callback would be unsafe. Terminal signaling sockets are
+closed and released rather than left waiting for polling that has stopped.
+
+### Verification and limits
+
+`tests/webrtc_connection_test.gd` first reproduced the pre-OPEN refusal bug, then
+passed actual loopback TCP/WebSocket/native-WebRTC cases: refusal, silent TCP
+handshake, missing ID, missing answer, repeated ID, invalid/reserved/fractional
+IDs, closed/removed RTC negotiation, once-only failure, explicit close, and a
+failure injected inside a real SDP callback. A real connected pair delivers a
+correctly attributed packet after signaling closes and remains exempt from the
+expired bootstrap budget. A later gameplay disconnect is not reclassified.
+The 60-second timeout boundaries are checked with an injected timestamp rather
+than sleeping for a minute; this is not a slow-network/TURN measurement.
+
+A separate bounded headless Main smoke used a silent local TCP endpoint and
+`--webrtc-connect-timeout-ms=250`. It exited 2 with exactly one expected timeout
+error at 250 ms, confirming native CLI-to-transport wiring. That intentionally
+failing smoke is not an unexpected-engine-error-free gameplay run.
+
+The focused lifecycle regression and fast check passed. The final focused RTC
+log contains one native SCTP teardown warning (`SCTP reset stream 3 failed,
+errno=2`) despite passing all assertions; it is retained, not treated as clean
+teardown evidence. `CAR_FIGHT_PACKED_INPUT=1 ./scripts/mixed_transport_test.sh`
+passed on the final code at 0.300 units, with zero codec fallbacks/rejects and no
+engine/script errors in any completed log. Four bounded missing-reference diff
+warnings occurred across shared gameplay and the ENet-door control. The collision
+client established RTC before rejection and exited through CLIENT_STOPPED rather
+than a misleading signaling failure. Logs are retained in
+`.network-runs/webrtc-bootstrap-2026-09-04/car-fight-mixed.Vc6mQh/`, alongside
+`focused.log`, `lifecycle.log`, `client-timeout.log`, and `fast-check.log`.
+No complete suite,
+rendered play, browser/mobile/background-resume, packaged Windows/Linux, or TURN
+run was performed for this slice. Full milestone validation remains required
+before this branch merges.
+
+Remaining finding-4 work: server pending-peer deadlines/admission limits and
+peer-local SDP/ICE error isolation. Several server peer-error paths still call
+the global failure signal, which Main treats as fatal on a headless server;
+this is a code-review finding, not a newly reproduced exploit. Same-session
+world teardown/rejoin and browser recovery remain separate. With the deadline
+disabled, a silent but still-open attempt can still wait indefinitely. No
+deployment, master merge, or networking default promotion was performed.

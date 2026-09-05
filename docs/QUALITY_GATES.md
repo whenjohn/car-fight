@@ -78,6 +78,21 @@ accepted only with the expected CLIENT_STOPPED marker; errors still fail the run
 
 ## Gate selection
 
+For WebRTC bootstrap/lifecycle changes, also run:
+
+```bash
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tests/webrtc_connection_test.gd
+```
+
+This focused test needs local loopback socket access. It covers refusal before
+WebSocket OPEN, stalled handshake/ID/negotiation, invalid IDs, repeated failure,
+explicit close, callback-safe cleanup, and actual DataChannel packet delivery
+after signaling closes. Deadline boundaries use an injected monotonic timestamp;
+the sockets and RTC peers are real. Native extension evidence does not establish
+browser/TURN behavior or same-session recovery. Run the mixed gate for gameplay
+integration and inspect its complete logs for unexpected engine errors.
+
 | Change | Required validation | Add when integration changed |
 | --- | --- | --- |
 | Agent rules, documentation, or plans | `git diff --check`; verify affected links and commands | Nothing unless executable behavior also changed |

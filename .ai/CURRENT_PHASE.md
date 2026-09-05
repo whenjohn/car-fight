@@ -1,5 +1,40 @@
 # Current phase
 
+## Active worktree: WebRTC client bootstrap, 2026-09-04
+
+- Continuing on `codex/networking-review` in `car-fight-networking`. Fixed async
+  signaling failure before OPEN, once-only terminal failure, pending-resource
+  cleanup, explicit-close polling, invalid peer-ID handling, and preservation
+  of live DataChannels when signaling alone is lost. Main preserves the specific
+  failure through subsequent stop/failure callbacks. RTC cleanup from SDP/ICE
+  callbacks is deferred until poll unwinds.
+- Added an opt-in total monotonic connection deadline spanning signaling open,
+  assignment, and negotiation. Native `--webrtc-connect-timeout-ms=30000` or Web
+  Network URL `webrtcConnectTimeoutMs=30000` enables an experiment. Zero remains
+  the default; no silent-wait bound is claimed without opting in. No changes to
+  authority, schemas, replication rates, channel lifetimes, or gameplay tuning.
+- New `tests/webrtc_connection_test.gd` reproduced the original refusal bug and
+  now covers real socket/RTC failures, injected deadline boundaries, duplicate
+  IDs, callback-safe cleanup, explicit close, and packet delivery after signaling
+  loss. Registered in `scripts/test.sh`; run it explicitly for WebRTC lifecycle
+  changes. Native extension tests are not browser acceptance.
+- The headless Main timeout smoke exited 2 with one expected error at 250 ms.
+  Connection/frame lifecycle regression and fast check also passed. The focused
+  RTC test passed with one native SCTP reset-stream teardown warning; keep that
+  diagnostic separate from packet-delivery assertions. Evidence is under ignored
+  `.network-runs/webrtc-bootstrap-2026-09-04/`; see the review follow-up for the
+  contract, source reasoning, verification details, and limits.
+- Final packed-input mixed ENet/WebRTC gate passed at 0.300 units, with zero
+  codec fallbacks/rejects and no engine/script errors in complete logs. Four
+  bounded missing-reference diff warnings remain visible. Collision rejection
+  reached CLIENT_STOPPED normally. Final log folder: `car-fight-mixed.Vc6mQh`.
+- Next bounded work: server pending-peer deadline/admission policy and peer-local
+  signaling-error isolation. Some server SDP/ICE failures still reach Main's
+  fatal global signal; this was identified by code review, not reproduced here.
+  Same-session recovery and real browser/TURN/mobile-resume checks remain open.
+  Full milestone suite remains required before merge. No deployment, master
+  merge, rendered run, or networking default change.
+
 ## Active worktree: connection guards and complete logs, 2026-09-04
 
 - Resumed networking work on `codex/networking-review` after the owner approved

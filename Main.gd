@@ -131,6 +131,8 @@ var _signal_url := ""
 var _ice_servers: Array = []
 var _ice_relay_only := false
 var _webrtc_channel_telemetry := false
+var _webrtc_connect_timeout_ms := 0
+var _webrtc_failure_reported := false
 var _state_bundles := false
 var _input_broadcast := false
 var _packed_input := false
@@ -608,6 +610,9 @@ func _parse_args() -> void:
 			if join_stall_after_query.is_valid_int():
 				_join_stall_after_ms = maxi(0, int(join_stall_after_query))
 			_webrtc_channel_telemetry = _web_query("webrtcTelemetry") == "1"
+			var connect_timeout_query := _web_query("webrtcConnectTimeoutMs")
+			if connect_timeout_query.is_valid_int():
+				_webrtc_connect_timeout_ms = maxi(0, int(connect_timeout_query))
 			var bundles_query := _web_query("stateBundles")
 			if not bundles_query.is_empty():
 				_state_bundles = bundles_query == "1"
@@ -715,6 +720,8 @@ func _parse_args() -> void:
 			_signal_url = args[index]
 		elif arg == "--webrtc-telemetry":
 			_webrtc_channel_telemetry = true
+		elif arg.begins_with("--webrtc-connect-timeout-ms="):
+			_webrtc_connect_timeout_ms = maxi(0, int(arg.get_slice("=", 1)))
 		elif arg == "--net-telemetry":
 			_network_app_telemetry = true
 		elif arg == "--network-hud":
@@ -997,7 +1004,8 @@ func _connect_network_events() -> void:
 		_log("CLIENT_READY id=%d name=%s" % [id, _player_name])
 	)
 	NetworkEvents.on_client_stop.connect(func():
-		_network_status = "DISCONNECTED"
+		if not _webrtc_failure_reported:
+			_network_status = "DISCONNECTED"
 		_client_cruise_active = false
 		_log("CLIENT_STOPPED")
 		if _quit_after_ticks > 0:
@@ -1068,12 +1076,8 @@ func _start_server() -> void:
 		_log("server listening on udp://0.0.0.0:%d" % _port)
 
 func _start_client() -> void:
-	multiplayer.connection_failed.connect(func():
-		_network_status = "CONNECTION FAILED"
-		push_error("Connection failed to %s" % _connection_target())
-		if _quit_after_ticks > 0:
-			get_tree().quit(2)
-	)
+	_webrtc_failure_reported = false
+	multiplayer.connection_failed.connect(_on_connection_failed)
 	if _transport == "webrtc":
 		if _signal_url.is_empty():
 			_signal_url = "ws://%s:%d" % [_host, _signal_port]
@@ -1084,9 +1088,9 @@ func _start_client() -> void:
 		_webrtc_transport.connect("multiplayer_peer_ready", _on_webrtc_peer_ready,
 			CONNECT_ONE_SHOT)
 		var rtc_peer: MultiplayerPeer = _webrtc_transport.call("start_client", _signal_url,
-			_ice_servers, _ice_relay_only, 1, _webrtc_channel_telemetry)
+			_ice_servers, _ice_relay_only, 1, _webrtc_channel_telemetry, _webrtc_connect_timeout_ms)
 		if rtc_peer == null:
-			_on_webrtc_failed("Could not create WebRTC client")
+			# start_client already emitted the specific failure through failed.
 			return
 		StateBundle.set_send_pressure_provider(_webrtc_transport.peer_buffered_bytes)
 		_set_client_window_title()
@@ -1115,8 +1119,20 @@ func _on_webrtc_peer_ready(peer: MultiplayerPeer) -> void:
 
 
 func _on_webrtc_failed(message: String) -> void:
+	if _webrtc_failure_reported:
+		return
+	_webrtc_failure_reported = true
 	_network_status = "WEBRTC FAILED: %s" % message
 	if _quit_after_ticks > 0 or DisplayServer.get_name() == "headless":
+		get_tree().quit(2)
+
+
+func _on_connection_failed() -> void:
+	if _webrtc_failure_reported:
+		return
+	_network_status = "CONNECTION FAILED"
+	push_error("Connection failed to %s" % _connection_target())
+	if _quit_after_ticks > 0:
 		get_tree().quit(2)
 
 

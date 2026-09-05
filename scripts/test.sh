@@ -35,6 +35,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/server_result_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/input_codec_test.gd -- --offline
 "$godot_bin" --headless --path "$project_root" --script res://tests/connection_lifecycle_test.gd -- --offline --presentation-test
+"$godot_bin" --headless --path "$project_root" --script res://tests/webrtc_connection_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/controller_input_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/client_cruise_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/motion_trace_test.gd

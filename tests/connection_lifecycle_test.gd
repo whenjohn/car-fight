@@ -77,6 +77,13 @@ func _run() -> void:
 	root.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	main._role = "offline"
 	_check(main.local_player() != null, "offline play remains available after replacing the peer")
+	main._webrtc_failure_reported = true
+	main._network_status = "WEBRTC FAILED: original connection timeout"
+	events.on_client_stop.emit()
+	main._on_connection_failed()
+	main._on_webrtc_failed("late failure callback")
+	_check(main._network_status == "WEBRTC FAILED: original connection timeout",
+		"late stop/failure callbacks preserve the original WebRTC failure")
 	main.free()
 	if not _failed:
 		print("CONNECTION_LIFECYCLE_TEST PASS")

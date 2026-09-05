@@ -41,6 +41,10 @@ var _server_signal_peers := {}
 var _client_signal := WebSocketPeer.new()
 var _client_signal_open := false
 var _client_id := 0
+var _client_connect_started_msec := 0
+var _client_connect_timeout_msec := 0
+var _client_gameplay_connected := false
+var _closed := false
 var _next_peer_id := 2
 var _ice_servers: Array = []
 var _relay_only := false
@@ -70,6 +74,7 @@ func set_expected_failure_quiet(enabled: bool) -> void:
 
 func start_server(signaling_port: int, ice_servers: Array, relay_only := false,
 		unreliable_lifetime_ms := 1, channel_telemetry_enabled := false) -> MultiplayerPeer:
+	_closed = false
 	_mode = "server"
 	_ice_servers = ice_servers.duplicate(true)
 	_relay_only = relay_only
@@ -88,8 +93,16 @@ func start_server(signaling_port: int, ice_servers: Array, relay_only := false,
 
 
 func start_client(signaling_url: String, ice_servers: Array, relay_only := false,
-		unreliable_lifetime_ms := 1, channel_telemetry_enabled := false) -> MultiplayerPeer:
+		unreliable_lifetime_ms := 1, channel_telemetry_enabled := false,
+		connect_timeout_msec := 0) -> MultiplayerPeer:
+	close()
+	_closed = false
 	_mode = "client"
+	_client_signal_open = false
+	_client_id = 0
+	_client_gameplay_connected = false
+	_client_connect_started_msec = Time.get_ticks_msec()
+	_client_connect_timeout_msec = maxi(0, connect_timeout_msec)
 	_ice_servers = ice_servers.duplicate(true)
 	_relay_only = relay_only
 	_unreliable_lifetime_ms = clampi(unreliable_lifetime_ms, 1, 65534)
@@ -100,7 +113,8 @@ func start_client(signaling_url: String, ice_servers: Array, relay_only := false
 	if err != OK:
 		_fail("WebRTC signaling connect to %s failed: %s" % [signaling_url, error_string(err)])
 		return null
-	print("[webrtc] signaling connecting to %s; gameplay will use WebRTC DataChannels" % signaling_url)
+	print("[webrtc] signaling connecting to %s; gameplay will use WebRTC DataChannels connect_timeout_ms=%d" % [
+		signaling_url, _client_connect_timeout_msec])
 	# The MultiplayerAPI peer becomes usable after signaling assigns this client
 	# an id and create_client() is called. Main may assign it now; it remains in
 	# CONNECTION_CONNECTING until the server DataChannels open.
@@ -108,11 +122,17 @@ func start_client(signaling_url: String, ice_servers: Array, relay_only := false
 
 
 func close() -> void:
+	_closed = true
+	_mode = ""
+	_channel_telemetry_enabled = false
 	_tcp.stop()
 	for signal_peer: SignalPeer in _server_signal_peers.values():
 		signal_peer.ws.close()
 	_server_signal_peers.clear()
 	_client_signal.close()
+	# Release the socket: a graceful close alone needs continued polling, which
+	# terminal transports deliberately stop. No browser-specific close codes.
+	_client_signal = WebSocketPeer.new()
 	_rtc.close()
 
 
@@ -266,6 +286,9 @@ func _poll_server_signaling() -> void:
 
 
 func _poll_client_signaling() -> void:
+	if _mode != "client":
+		return
+	_latch_client_connected()
 	_client_signal.poll()
 	var state := _client_signal.get_ready_state()
 	if state == WebSocketPeer.STATE_OPEN and not _client_signal_open:
@@ -273,14 +296,48 @@ func _poll_client_signaling() -> void:
 		print("[webrtc] signaling open")
 	while state == WebSocketPeer.STATE_OPEN and _client_signal.get_available_packet_count() > 0:
 		if not _parse_client_message(_client_signal.get_packet()):
-			_client_signal.close(4000, "invalid signaling message")
 			_fail("WebRTC signaling server sent an invalid message")
 			return
-	if _client_signal_open and state == WebSocketPeer.STATE_CLOSED:
-		var gameplay_connected := _client_id > 0 and _rtc.has_peer(1) \
-			and bool(_rtc.get_peer(1).get("connected", false))
-		if not gameplay_connected:
+		if _closed:
+			return
+	if _client_signal.get_ready_state() == WebSocketPeer.STATE_CLOSED:
+		if not _client_gameplay_connected:
 			_fail("WebRTC signaling closed before gameplay connected")
+		return
+	_check_client_connection(Time.get_ticks_msec())
+
+
+func _latch_client_connected() -> void:
+	if not _client_gameplay_connected and _client_id > 0 and _rtc.has_peer(1) \
+			and bool(_rtc.get_peer(1).get("connected", false)):
+		_client_gameplay_connected = true
+		print("[webrtc] gameplay connected elapsed_ms=%d" % [
+			Time.get_ticks_msec() - _client_connect_started_msec])
+
+
+func _check_client_connection(now_msec: int) -> void:
+	if _mode != "client":
+		return
+	_latch_client_connected()
+	if _client_gameplay_connected:
+		return
+	if _client_id > 0 and not _rtc.has_peer(1):
+		_fail("WebRTC negotiation ended before gameplay connected")
+		return
+	if _rtc.has_peer(1):
+		var connection: WebRTCPeerConnection = _rtc.get_peer(1).connection
+		if connection.get_connection_state() in [WebRTCPeerConnection.STATE_FAILED,
+				WebRTCPeerConnection.STATE_CLOSED]:
+			_fail("WebRTC negotiation failed before gameplay connected")
+			return
+	# One monotonic attempt budget covers WebSocket, ID, SDP, ICE and channels.
+	# Retried signaling messages cannot extend it. Zero preserves current defaults.
+	if _client_connect_timeout_msec > 0 and \
+			now_msec - _client_connect_started_msec >= _client_connect_timeout_msec:
+		var stage := "negotiation" if _client_id > 0 else \
+			("peer assignment" if _client_signal_open else "signaling open")
+		_fail("WebRTC connection timed out during %s after %d ms" % [
+			stage, now_msec - _client_connect_started_msec])
 
 
 func _parse_server_message(signal_peer: SignalPeer, packet: PackedByteArray) -> bool:
@@ -307,6 +364,8 @@ func _parse_client_message(packet: PackedByteArray) -> bool:
 		return false
 	var kind: String = msg.type
 	if kind == TYPE_ID and typeof(msg.get("id")) == TYPE_FLOAT:
+		if msg.id < 2 or msg.id > 2147483647 or msg.id != floor(msg.id):
+			return false
 		var assigned_id := int(msg.id)
 		if _client_id != 0:
 			if assigned_id != _client_id:
@@ -321,6 +380,8 @@ func _parse_client_message(packet: PackedByteArray) -> bool:
 		err = _create_connection(MultiplayerPeer.TARGET_PEER_SERVER, true)
 		if err == OK:
 			_send(_client_signal, {"type": TYPE_ID_ACK, "id": _client_id})
+			if _closed:
+				return false
 			multiplayer_peer_ready.emit(_rtc)
 		return err == OK
 	if kind == TYPE_ANSWER and typeof(msg.get("sdp")) == TYPE_STRING:
@@ -363,7 +424,7 @@ func _create_connection(peer_id: int, make_offer: bool) -> Error:
 
 
 func _on_session_description(kind: String, sdp: String, peer_id: int) -> void:
-	if not _rtc.has_peer(peer_id):
+	if _closed or not _rtc.has_peer(peer_id):
 		return
 	var connection: WebRTCPeerConnection = _rtc.get_peer(peer_id).connection
 	if _relay_only:
@@ -384,6 +445,8 @@ func _on_session_description(kind: String, sdp: String, peer_id: int) -> void:
 
 
 func _on_ice_candidate(mid: String, index: int, candidate: String, peer_id: int) -> void:
+	if _closed:
+		return
 	if _relay_only:
 		var relay_candidate := " typ relay" in candidate
 		if not relay_candidate:
@@ -457,6 +520,23 @@ func _allocate_peer_id() -> int:
 
 
 func _fail(message: String) -> void:
+	if _closed:
+		return
+	if _mode == "client":
+		_latch_client_connected()
+		if _client_gameplay_connected:
+			# Signaling is no longer a prerequisite. MultiplayerAPI owns any
+			# subsequent gameplay disconnect; do not reclassify it as join failure.
+			_client_signal.close()
+			_client_signal = WebSocketPeer.new()
+			print("[webrtc] signaling stopped after gameplay connected: %s" % message)
+			return
+		# SDP/ICE callbacks can fail inside WebRTCMultiplayerPeer.poll(), which
+		# is iterating its peer map. Retire that exact peer after polling unwinds.
+		var retiring_peer := _rtc
+		(func(): retiring_peer.close()).call_deferred()
+		_rtc = WebRTCMultiplayerPeer.new()
+		close()
 	if _expected_failure_quiet:
 		print("[webrtc-test] expected failure: %s" % message)
 	else:

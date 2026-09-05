@@ -84,6 +84,14 @@ The `Web Network` export connects browsers over WebRTC while the native macOS
 client continues to use ENet. The mux server merges both into the same world;
 WebSocket carries signaling only, never gameplay data.
 
+Connection-deadline experiments are opt-in: pass
+`--webrtc-connect-timeout-ms=30000` to a native WebRTC client or add
+`webrtcConnectTimeoutMs=30000` to a Web Network URL. The value is the total
+connection-attempt budget in milliseconds, not a gameplay idle timeout; zero
+(the unchanged default) disables it. Failed attempts stop once, and an
+established gameplay connection survives signaling loss. This does not add
+automatic reconnect. Browser/TURN validation of the new deadline is still pending.
+
 ```bash
 ./scripts/web_network_build.sh release  # export build/web-network/index.html
 ./scripts/web_network_smoke.sh          # automated browser + native ENet gate
