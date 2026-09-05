@@ -34,7 +34,7 @@ func _init() -> void:
 
 	var main_source := FileAccess.get_file_as_string("res://Main.gd")
 	_check("Apply Draft & Respawn" in main_source \
-		and "Show Collision Capsule" in main_source \
+		and "Show collision capsules (all vehicles)" in main_source \
 		and "_request_vehicle_tuning_respawn.rpc_id(1" in main_source,
 		"Vehicle Model menu sends an explicit request to the server")
 	_check("_accept_vehicle_tuning_respawn" in main_source \

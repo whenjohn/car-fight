@@ -1,5 +1,46 @@
 # Current phase
 
+## Playtest preflight, 2026-09-05
+
+- UPDATE: Owner explicitly approved proceeding as a diagnostic playtest despite
+  failed preflight. Launched temporary mux PID 56284 on macai2 UDP 12780 / TCP
+  12781 and two monitored local clients, alpha/bravo, with default networking
+  flags plus HUD/telemetry. Production PID 57599 remains on UDP 10080.
+  Run: `.crash-runs/two-client-20260905-004554/`; launcher evidence:
+  `.network-runs/playtest-2026-09-05/launch.log`. Temporary user launchd job
+  `com.whenjohn.car-fight-networking-diagnostic-20260905` owns the wrapper;
+  its exit cleanup stops remote PID 56284 and copies the server log after both
+  windows close. Server also has a 216000-tick bound. Do not restart production.
+  Collect human feedback and completed logs next; this is not acceptance.
+- Owner approved two monitored macOS clients on this machine, connected to a
+  temporary networking-branch server on macai2. Production must stay untouched.
+  Read `MAC_INTEL_FULLSCREEN_FINDINGS.md`; use `scripts/play_macai2_two.sh` and
+  its existing monitor, ordinary decorated inset windows, and staggered startup.
+- Prepared source snapshot `ac9f89f` plus physical local art at
+  `macai2-ts:/Users/macai2/Projects/car-fight-network-playtest-ac9f89f`.
+  Both remote imports completed; verification had no engine/script errors.
+  Isolated mux ports: UDP 12780 / signaling TCP 12781. Production remains PID 57599,
+  canonical checkout, mux UDP 10080 / TCP 10181. Recheck before launching.
+- Full-suite attempt found a stale case-sensitive collision-menu label in
+  `tests/vehicle_size_respawn_test.gd`; corrected only the expectation to the
+  existing text. The focused test then passed; fast check passed. No gameplay,
+  networking defaults, or correction thresholds changed.
+- Milestone clearance is FAILED: default `network_test.sh` (`latency120`) failed
+  at 2.823 units and its one isolated retry at 3.615 (limit 2.0). Both largest
+  corrections occur at startup with stall signals. A similar earlier baseline
+  outlier exists; this is not yet attributed to the branch. Do not rerun until
+  relevant evidence/code changes or relax the threshold.
+- `vehicle_size_respawn_test.sh` also failed twice: observer reaches the scaled
+  state, then gets CLIENT_STOPPED when the 420-tick server ends before the
+  observer finishes. Keep harness lifetime debt separate from respawn behavior.
+- Preserved logs under `.network-runs/playtest-2026-09-05/`. Remaining gates were
+  continued separately, not counted as erasing either failure. See the networking
+  review's September 5 follow-up for the completed result and log inventory.
+- All eight final gameplay gates passed (mass collision, ball, tractor, reverse,
+  combat, RC orb, shield, DET); the overall milestone still fails the two gates
+  above. Owner chose diagnostic play, not acceptance. No production update or
+  master merge is authorized.
+
 ## Active worktree: packet-size baseline, 2026-09-04
 
 - Continuing on `codex/networking-review` in `car-fight-networking`. Added

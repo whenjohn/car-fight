@@ -691,3 +691,73 @@ Next: actual-link burst/queue/fragment measurements and the remaining harness
 terminal-log audit. No deployment, default promotion, master merge, rendered
 run, browser/TURN/device acceptance, or full milestone suite. The full suite
 remains required before merging this accumulated networking branch.
+
+## Two-client playtest preflight, 2026-09-05
+
+Owner approved the usual two macOS clients on this Intel Mac, connected to
+macai2, using a separate temporary branch server rather than production. The
+existing `play_macai2_two.sh` monitored/staggered launcher remains the intended
+human entry point. Ordinary decorated inset windows are mandatory. CPU/frame
+telemetry is diagnostic evidence, not a reason to prohibit the requested setup.
+
+The full suite was attempted on `ac9f89f`. Its first stop was a stale source-text
+assertion: the collision menu now says `Show collision capsules (all vehicles)`.
+Only the test expectation was corrected. The menu and explicit server request
+were already present; no gameplay code changed. The corrected test passed when
+the suite resumed there, and `check.sh` passed. Passed prefix tests were not
+repeated. Full clearance remains **failed**, for the following independent gates:
+
+| Gate | First attempt | One isolated retry | Evidence |
+| --- | --- | --- | --- |
+| Default ENet `network_test.sh`, latency120 | 2.823-unit worst correction | 3.615 units | `car-fight-network.ypOkAo`, `car-fight-network.cBSM4J` |
+| Vehicle-size respawn runtime | Observer exits after server ends | Same failure | `car-fight-vehicle-size.a9NiJ4`, `car-fight-vehicle-size.5G2mrX` |
+
+The ENet limit remains 2.0. Largest corrections occur at source ticks 180 and
+150, with 9-17-tick source ages and the existing classifier's `stall` signal.
+Recorded frame maxima at those samples are 37-53 ms. This does not identify
+packet fragmentation or prove the branch introduced a regression; the original
+review also recorded a 2.852-unit legacy outlier under a different, combined
+profile. The first new attempt overlapped the fast import check near the network
+phase; the isolated retry ran after that check ended and still failed. Do not
+discard either sample or claim scheduling was controlled by a fixed shape seed.
+
+In both vehicle-size runs, server and clients log the 150% capsule and generation
+change; the observer reaches tick 300 and then CLIENT_STOPPED. The server ends
+at tick 420 while the observer requests 330 client-relative ticks after its later
+join. The harness rejects that exit before evaluating its remaining assertions.
+This is evidence for a harness-lifetime fix, not proof that all respawn assertions
+passed. No blanket exit-code allowance or shortened acceptance scenario was added.
+
+All evidence is under ignored `.network-runs/playtest-2026-09-05/`. Unit-test
+output intentionally includes four malformed native SDP/ICE errors and one
+truncated state-codec parser error; these are not an allowlist for gameplay logs.
+`full-suite.log` is the original prefix, `full-suite-continuation.log` resumes at
+the corrected unit test, and `remaining-suite.log` resumes after the twice-failed
+network gate. Any suffix-only PASS marker must not be read as full-suite success.
+`network-retry.log` and `vehicle-size-retry.log` preserve isolated failures.
+
+Remote preparation is limited to a fresh source/archive copy plus local art at
+`/Users/macai2/Projects/car-fight-network-playtest-ac9f89f`; both imports completed
+and the verification log is clean. Production PID 57599 on UDP 10080 / TCP 10181
+was not changed. UDP 12780 / TCP 12781 were checked free for a temporary mux
+server, but neither that server nor rendered clients have been launched. Human
+launch is paused for the owner's decision between investigating the failed
+preflight and explicitly proceeding as a diagnostic session. Default flags
+plus telemetry were planned as the first reference, not an optimization claim.
+
+Subsequent owner decision: explicitly proceed with diagnostic play. All eight
+remaining gameplay gates passed (mass collision, ball, tractor, reverse, combat,
+RC orb, shield and DET), recorded separately in `final-gates.log`. The two
+repeated failures above still prevent milestone acceptance. No threshold changed.
+
+Launched isolated macai2 mux PID 56284 on UDP 12780 / TCP 12781, with default
+networking plus `--net-telemetry` and a 216000-tick bound. Two local monitored
+clients use the same source/runtime baseline, HUD/telemetry and a three-second
+stagger. Run: `.crash-runs/two-client-20260905-004554/`. A temporary user job,
+`com.whenjohn.car-fight-networking-diagnostic-20260905`, owns the existing
+two-client wrapper and stops only the temporary server when both clients close.
+The ordinary background command runner did not retain its first launcher;
+the user-job launch was verified with both client process IDs. Production PID
+57599 was rechecked still listening on UDP 10080. No production restart, default
+promotion or master merge occurred. Human feedback and completed logs remain
+to be collected; launch is not evidence of smooth or error-free play.
