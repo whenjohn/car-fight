@@ -117,6 +117,44 @@ func _run() -> void:
 	sprite.sample = "ghoul"
 	sprite._process(0.0)
 	_check(sprite.alpha_cut == SpriteBase3D.ALPHA_CUT_DISCARD, "ghoul restores original alpha policy")
+	if VISUAL.sample_available("survivor"):
+		var fixture := TARGET.new()
+		fixture.setup(10001, 2.0, true)
+		stage.add_child(fixture)
+		fixture.visual.sample = "survivor"
+		fixture.visual.manual_direction = 6
+		fixture.visual.clip = "death"
+		fixture.visual._process(0.0)
+		fixture.visual.set_frame_and_progress(13, 1.0)
+		fixture.visual.pause()
+		var batch := preload("res://fx/sprite_batch.gd").new()
+		stage.add_child(batch)
+		batch.setup({"enabled": true, "_sample": "survivor", "_fixtures": [fixture]})
+		batch.enabled = true
+		batch._process(0.0)
+		_check(batch.drawn == 1 and not fixture.visual.visible, "batch replaces only original drawing")
+		# Headless Dummy renderer does not retain MultiMesh upload buffers.
+		# Check uploaded values here; actual renderer is checked in visual A/B.
+		var data: Color = batch.instance_data(fixture.visual, camera)
+		_check(data.r == 13 and data.g == VISUAL.MODERN_ROWS[6], "batch preserves final death frame and facing")
+		_check(fixture.health == 3 and fixture.collision_layer == 8, "batch does not alter gameplay state")
+		var transform: Transform3D = batch.instance_transform(fixture.visual)
+		_check(is_equal_approx(transform.basis.x.length(), fixture.visual.pixel_size * 128), "batch follows actual sprite size")
+		fixture.visual.clip = "idle"
+		batch._process(0.0)
+		_check(batch.batches.has("death") and not batch.batches.has("idle"), "batch uses loaded animation, not pending next-frame intent")
+		if VISUAL.sample_available("thug"):
+			fixture.visual.sample = "thug"
+			fixture.visual._process(0.0)
+			batch.lab._sample = "thug"
+			batch._process(0.0)
+			_check(batch.character == "thug" and batch.batches.size() == 1 and batch.batches.has("idle"), "sample change retires old action batches")
+		batch.lab._sample = "ghoul"
+		batch._process(0.0)
+		_check(fixture.visual.visible and batch.batches.is_empty(), "ghoul uses original drawing")
+		batch.enabled = false
+		batch._process(0.0)
+		_check(fixture.visual.visible and batch.batches.is_empty(), "original drawing restored on toggle")
 	stage.free()
 	target.setup(10000, 1.0, false)
 	root.add_child(target)

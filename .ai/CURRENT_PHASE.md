@@ -2,6 +2,28 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Latest owner request: try batched sprite drawing, with no engine/backend
+  change. Added opt-in MultiMesh presentation for survivor/thug, original
+  AnimatedSprite3D clocks retained. AI, hitboxes, spacing, wire data and sizing
+  formulas are unchanged. Original sprites remain default and ghoul fallback.
+- Initial alternating rendered comparison `20260904-225555` closed cleanly:
+  original medians 51.364/50.892 ms, batched 32.996/32.676 ms (~20 → 30 FPS);
+  endpoint draws ~343 → 159–165. Frozen paired screenshots visually match at
+  the tested city camera. Remaining visual acceptance and 60-FPS capacity are
+  not claimed. Details: `docs/SPRITE_BATCH_PROTOTYPE.md`.
+- Final batch implementation follows actually loaded clip/facing rather than
+  next-frame lab intent. A checked-in bounded `sprite_batch_probe.gd` verifies
+  actual instance uploads on GLES, captures paired images and tests fallback.
+  Final run `20260904-230222` closed cleanly and passed real GLES uploads and
+  fallback: original medians 50.613/49.169, batched 33.268/32.379 ms.
+  Captures/results: `.crash-runs/sprite-batch-1788580961/`.
+  AI runtime, offline startup, appearance/fallback and fast gates pass.
+  Visual-only follow-up `20260904-230609` also passed actual uploads/fallback
+  and closed cleanly; held-pose captures retain a small camera-settling shift.
+- UI: Debug → Sprite test → Drawing (local prototype) → Batched modern sprites.
+  Environment: `CAR_FIGHT_SPRITE_BATCHED=1`. Four whole-city action batches,
+  capacity 256 each; no individual culling/sorting inside batches. Kept opt-in
+  pending owner visual review. No backend migration or network changes.
 - Owner authorized trying optimization and explicitly ruled out engine changes.
   First pass stays on Godot 4.7.1 Compatibility: avoids redundant appearance/
   color/speed updates, bounds debug labels/markers to nearest 16 living sprites

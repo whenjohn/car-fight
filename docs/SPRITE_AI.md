@@ -10,6 +10,8 @@ CAR_FIGHT_SPRITE_AI=mixed CAR_FIGHT_SPRITE_SAMPLE=survivor ./scripts/play_monito
 Rendered runs still follow the project's approval and safe-window rules. The
 ordinary launch and legacy sprite fixture retain their existing defaults.
 Modern art is an optional local sample, not a required character/theme change.
+An opt-in [batched drawing prototype](SPRITE_BATCH_PROTOTYPE.md) is available
+under Drawing (local prototype); original drawing remains the default.
 
 ## Controls and behavior
 

@@ -6,6 +6,7 @@ const COUNTS := [1, 16, 64, 128, 256]
 const CITY := preload("res://world/city_layout.gd")
 const AI := preload("res://combat/sprite_ai_playground.gd")
 var ai
+var batch
 var _motion_tick := 0
 var _configuration_version := -1
 var _configuration_parts := {}
@@ -45,6 +46,10 @@ func setup(main: Node3D, targets: Node3D, players: Node3D, start: bool) -> void:
 	ai.name = "SpriteAI"
 	add_child(ai)
 	ai.setup(self)
+	if main.has_method("_is_headless") and not main.call("_is_headless"):
+		batch = preload("res://fx/sprite_batch.gd").new()
+		add_child(batch)
+		batch.setup(self)
 	var requested_sample := OS.get_environment("CAR_FIGHT_SPRITE_SAMPLE")
 	if requested_sample in VISUAL.SAMPLES and VISUAL.sample_available(requested_sample):
 		_sample = requested_sample
@@ -53,9 +58,9 @@ func setup(main: Node3D, targets: Node3D, players: Node3D, start: bool) -> void:
 	var requested_count := OS.get_environment("CAR_FIGHT_SPRITE_COUNT").to_int()
 	if requested_count in COUNTS:
 		count = requested_count
-	if OS.get_environment("CAR_FIGHT_SPRITE_VISUAL_CHECK") in ["1", "close"] and main.get("_role") == "offline":
+	if OS.get_environment("CAR_FIGHT_SPRITE_VISUAL_CHECK") in ["1", "close", "batch"] and main.get("_role") == "offline":
 		var check := Node.new()
-		check.set_script(load("res://scripts/sprite_visual_check.gd"))
+		check.set_script(load("res://scripts/sprite_batch_probe.gd" if OS.get_environment("CAR_FIGHT_SPRITE_VISUAL_CHECK") == "batch" else "res://scripts/sprite_visual_check.gd"))
 		add_child(check)
 		check.call_deferred("run", self, main)
 
@@ -181,6 +186,8 @@ func _configuration_part(meta: Array, index: int, entries: Array) -> void:
 	_apply_configuration(int(meta[0]), bool(meta[1]), int(meta[2]), float(meta[3]), bool(meta[4]), int(meta[5]), complete)
 
 func retire() -> void:
+	if batch != null:
+		batch.clear()
 	enabled = false
 	_configuration_parts.clear()
 	_configuration_version = -1
@@ -240,6 +247,8 @@ func _apply_configuration(version: int, active: bool, amount: int, size: float,
 		walk: bool, owner: int, snapshot: Array) -> void:
 	if version < generation:
 		return
+	if batch != null:
+		batch.clear()
 	generation = version
 	_motion_tick = 0
 	enabled = active
@@ -373,6 +382,9 @@ func _build_window() -> void:
 	_option(root, "Car auto-fire (reset)", ["Off in AI mode", "On"], 1 if ai.settings.auto_fire else 0, func(i):
 		ai.configure(ai.mode, ai.settings.speed, ai.settings.detection, ai.settings.interval, i == 1), true)
 	_button(root, "Show / hide AI decisions (nearest 16)", func(): ai.show_debug = not ai.show_debug)
+	if batch != null:
+		_option(root, "Drawing (local prototype)", ["Original sprites", "Batched modern sprites"], 1 if batch.enabled else 0,
+			func(i): batch.enabled = i == 1)
 	var available: Array[String] = []
 	var labels: Array[String] = []
 	for i in VISUAL.SAMPLES.size():
