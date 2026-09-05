@@ -2,9 +2,14 @@
 
 ## Owner observation during elapsed trial: remote-only skid marks
 
+- Owner's follow-up motion verdict: "yes smooth very little stutter" when asked
+  whether the observed remote vehicle is smoother aside from the skid marks.
+  This is positive subjective trial evidence, not a matched A/B or permission
+  to enable the experiment by default. Owner has not yet said done; retain the
+  running trial and inspect saved traces after completion.
 - Owner sees straight-path skid marks under the other player in the observer
-  window, but no marks in that player's own window. Trial remains active;
-  owner has not said done or given a separate motion-smoothness verdict.
+  window, but no marks in that player's own window. Treat the effect discrepancy
+  separately from the positive motion verdict above.
 - Read-only trace: `GroundVehicleHull._animation_inputs()` reads current rigid
   velocity/basis and `brake_skid_amount`, while the remote visual root follows
   delayed snapshots. `_update_tire_skid_trails()` additionally reads reverse,
