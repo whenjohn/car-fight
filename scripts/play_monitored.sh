@@ -213,6 +213,9 @@ if (( sprite_test == 1 )); then
 	server_fixture_args+=(--sprite-test)
 fi
 client_user_args+=("${network_stack_args[@]}")
+if [[ "${CAR_FIGHT_CLIENT_CRUISE:-0}" == "1" ]]; then
+	client_user_args+=(--client-cruise)
+fi
 if [[ "${CAR_FIGHT_NETWORK_HUD:-0}" == "1" ]]; then
 	client_user_args+=(--network-hud --network-profile "${CAR_FIGHT_NETWORK_PROFILE:-unshaped}" \
 		--net-telemetry)

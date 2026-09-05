@@ -23,7 +23,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-CAR_FIGHT_PORT="$port" CAR_FIGHT_MONITOR_ROOT="$run_root/alpha" \
+CAR_FIGHT_CLIENT_CRUISE=1 CAR_FIGHT_PORT="$port" CAR_FIGHT_MONITOR_ROOT="$run_root/alpha" \
 	"$project_root/scripts/play_monitored.sh" \
 	--host "$host" --name alpha --position 80,100 &
 alpha_runner_pid=$!
@@ -33,7 +33,7 @@ alpha_runner_pid=$!
 # not cross the retained-history limit during simultaneous startup work.
 sleep "$second_client_delay_seconds"
 
-CAR_FIGHT_PORT="$port" CAR_FIGHT_MONITOR_ROOT="$run_root/bravo" \
+CAR_FIGHT_CLIENT_CRUISE=1 CAR_FIGHT_PORT="$port" CAR_FIGHT_MONITOR_ROOT="$run_root/bravo" \
 	"$project_root/scripts/play_monitored.sh" \
 	--host "$host" --name bravo --position 1520,100 &
 bravo_runner_pid=$!
@@ -41,6 +41,7 @@ bravo_runner_pid=$!
 echo "two-client monitored run: $run_root"
 echo "server: udp://$host:$port"
 echo "second-client stagger: ${second_client_delay_seconds}s"
+echo "P toggles cruise in either client; cruise continues while observing from the other window"
 echo "close both game windows to finish"
 
 set +e

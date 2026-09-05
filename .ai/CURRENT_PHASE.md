@@ -1,5 +1,22 @@
 # Current phase
 
+## Next playtest: P cruise enabled in both clients, 2026-09-05
+
+- Owner requested the existing P auto-drive toggle for observing one client
+  from the other. `scripts/play_macai2_two.sh` now enables it in both clients;
+  `scripts/play_monitored.sh` forwards `CAR_FIGHT_CLIENT_CRUISE=1` as
+  `--client-cruise`. Cruise starts inactive; P toggles full-speed/no-burst input
+  and continues after focus moves. No rendered session was launched.
+- Launcher configuration only: owning-client input, server body authority,
+  schema, replay/lifecycle behavior and per-tick input cost remain unchanged.
+  Ordinary unfocused manual input stays neutral. No new objects, RPCs,
+  networking defaults, production changes or deployment.
+- Validation: `scripts/check.sh` PASS; process-only zsh/Node checks exercised
+  the real monitor argument block with cruise off/on and the two-client wrapper
+  with mocked runners, verifying both flags, normal completion and client-failure
+  propagation. No sockets or rendered windows. Full suite unnecessary for this
+  launcher-only change; cross-client visual observation remains the next test.
+
 ## Clock retest completed: intermittent stutter, 2026-09-05
 
 - Owner reports no desync but intermittent stutter/jumpiness versus an older
