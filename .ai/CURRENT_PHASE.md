@@ -44,7 +44,11 @@
 - Next: owner-approved monitored playtest at 16; tune behavior from actual feel.
   Before merge, integrate the separately-owned networking/sizing work and rerun
   affected lifecycle/size gates. Browser, TURN and rendered acceptance are open.
-  No rendered run, master merge or production deployment performed.
+  No master merge or production deployment performed.
+- Owner approved interactive testing. Opened monitored offline run
+  `20260904-205333` at `a920836`, with 16 Mixed AI survivors and auto-fire off.
+  Startup reached the fixture and logged a 6.96-second initial stall; behavior
+  acceptance and final monitor outcome remain pending owner evaluation.
 
 ## Canonical baseline
 
