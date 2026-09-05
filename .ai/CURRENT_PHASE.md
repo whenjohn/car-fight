@@ -1,5 +1,28 @@
 # Current phase
 
+## Clock retest completed: intermittent stutter, 2026-09-05
+
+- Owner reports no desync but intermittent stutter/jumpiness versus an older
+  optimized session. Both clients exited zero after about six minutes; temporary
+  server stopped, user job booted out, production PID 57599 remained untouched.
+  No settings or gameplay code changed during analysis.
+- Read `docs/NETWORK_PLAYTEST_2026-09-05.md` for the result, settings, limitations
+  and next experiment. Run: `.crash-runs/two-client-20260905-010252/`; completed
+  server/derived analysis under `.network-runs/clock-retest-2026-09-05/`.
+- After first-minute warmup: median 32/33 FPS, p95 interval-maximum frame delta
+  70/68 ms, larger prediction mismatches alongside expensive processing.
+  macOS CPU_Speed_Limit fell as low as 24. State remained current rather than
+  seconds stale. No engine/script errors or display precursor in completed logs.
+  Prediction discrepancies are not direct measurements of visible snap distance.
+- Strongest lead is local frame/CPU pressure, with remote interpolation still
+  unmeasured in this fixed/legacy mode. This was not a matched comparison with
+  an older good preset: packing/bundles were off. Do not blame the optimizations
+  or dismiss the same-machine two-client workflow without a controlled A/B.
+- Next: match earlier good-session flags and profile a marked steady-state
+  hitch, with monotonic frame gaps and subsystem costs. No broad optimization
+  sweep, new smoothing, live server change, or automatic relaunch. Smoothness
+  and full milestone acceptance are still open.
+
 ## Clock-fix human retest active, 2026-09-05
 
 - Owner approved retrying the same two-client setup. Both monitored clients are
