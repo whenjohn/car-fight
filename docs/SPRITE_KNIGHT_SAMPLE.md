@@ -34,6 +34,11 @@ Each fixture receives a stable varied interval, with enough time to play all
 15 melee frames at the selected playback speed. This is presentation only:
 the sequence does not choose targets, deal damage or affect movement.
 
+**Visual size (local)** and **Playback speed (local)** are stored independently
+for the knight and every other installed character. Switching characters
+restores that character's values immediately; they autosave across launches.
+Visual size affects the billboard only, not its capsule or hit behavior.
+
 ## Test mapping
 
 - 128px cells; 15 frames × 8 directions for each selected clip.

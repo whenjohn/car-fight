@@ -38,6 +38,37 @@ func _run() -> void:
 	_check(not is_equal_approx(LAB.automatic_attack_offset(10000, attack_cycle),
 		LAB.automatic_attack_offset(10001, LAB.automatic_attack_cycle(10001, attack_duration))),
 		"fixture attack schedules are staggered")
+	var settings_path := "user://sprite_test_lab_test.cfg"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_path))
+	var saved_settings := LAB.new()
+	saved_settings.set("_settings_path", settings_path)
+	saved_settings.set("_sample", "knight")
+	saved_settings.set_character_setting("knight", "visual_scale", 1.35)
+	saved_settings.set_character_setting("knight", "playback_rate", 1.75)
+	saved_settings.set_character_setting("survivor", "visual_scale", 0.8)
+	saved_settings.set("_preview", "attack")
+	saved_settings.set("_direction", 3)
+	saved_settings.call("_save_local_settings")
+	var loaded_settings := LAB.new()
+	loaded_settings.set("_settings_path", settings_path)
+	loaded_settings.call("_load_local_settings")
+	_check(loaded_settings.get("_sample") == "knight", "selected character autosaves")
+	_check(is_equal_approx(loaded_settings.character_setting("knight", "visual_scale"), 1.35),
+		"knight visual size autosaves independently")
+	_check(is_equal_approx(loaded_settings.character_setting("survivor", "visual_scale"), 0.8),
+		"survivor visual size remains independent")
+	_check(is_equal_approx(loaded_settings.character_setting("knight", "playback_rate"), 1.75),
+		"knight playback speed autosaves")
+	_check(loaded_settings.get("_preview") == "attack" and loaded_settings.get("_direction") == 3,
+		"preview and facing autosave")
+	loaded_settings.set_character_setting_without_save("knight", "visual_scale", 20.0)
+	loaded_settings.set_character_setting_without_save("knight", "playback_rate", -2.0)
+	_check(is_equal_approx(loaded_settings.character_setting("knight", "visual_scale"), 2.0)
+		and is_equal_approx(loaded_settings.character_setting("knight", "playback_rate"), 0.25),
+		"loaded character settings stay bounded")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_path))
+	saved_settings.free()
+	loaded_settings.free()
 	for size in [128, 512]:
 		for action in ["idle", "walk", "attack", "death"]:
 			for direction in VISUAL.DIRECTIONS:

@@ -4,6 +4,7 @@ const TARGET := preload("res://combat/sprite_target.gd")
 const VISUAL := preload("res://fx/directional_sprite.gd")
 const COUNTS := [1, 16, 64, 128, 256]
 const CITY := preload("res://world/city_layout.gd")
+const SETTINGS_PATH := "user://sprite_test.cfg"
 var requested := false
 var enabled := false
 var owner_id := 1
@@ -25,9 +26,17 @@ var _resolution := 128
 var _sample := "ghoul"
 var _preview := "automatic"
 var _direction := -1
-var _rate := 1.0
 var _paused := false
 var _presentation_age := 0.0
+var _settings_path := SETTINGS_PATH
+var _sample_settings := {
+	"ghoul": {"visual_scale": 1.0, "playback_rate": 1.0},
+	"survivor": {"visual_scale": 1.0, "playback_rate": 1.0},
+	"thug": {"visual_scale": 1.0, "playback_rate": 1.0},
+	"knight": {"visual_scale": 1.0, "playback_rate": 1.0},
+}
+var _visual_scale_control: SpinBox
+var _playback_rate_control: SpinBox
 var _metrics_clock := 0.0
 var _frame_times: Array[float] = []
 
@@ -36,6 +45,7 @@ func setup(main: Node3D, targets: Node3D, players: Node3D, start: bool) -> void:
 	_targets = targets
 	_players = players
 	requested = start
+	_load_local_settings()
 	var requested_sample := OS.get_environment("CAR_FIGHT_SPRITE_SAMPLE")
 	if requested_sample in VISUAL.SAMPLES and VISUAL.sample_available(requested_sample):
 		_sample = requested_sample
@@ -282,14 +292,31 @@ func _build_window() -> void:
 		if VISUAL.sample_available(VISUAL.SAMPLES[i]):
 			available.append(VISUAL.SAMPLES[i])
 			labels.append(VISUAL.SAMPLE_LABELS[i])
-	_option(root, "Character (local)", labels, available.find(_sample), func(i): _sample = available[i])
-	_option(root, "Ghoul resolution", ["128", "512"], 1 if _resolution == 512 else 0, func(i): _resolution = [128, 512][i])
+	_option(root, "Character (local)", labels, available.find(_sample), func(i):
+		_sample = available[i]
+		_sync_character_controls()
+		_save_local_settings())
+	_visual_scale_control = _spin(root, "Visual size (local)", 0.5, 2.0, 0.05,
+		character_setting(_sample, "visual_scale"), func(v):
+			set_character_setting(_sample, "visual_scale", v))
+	_option(root, "Ghoul resolution", ["128", "512"], 1 if _resolution == 512 else 0, func(i):
+		_resolution = [128, 512][i]
+		_save_local_settings())
 	_option(root, "Preview", ["Automatic + attacks", "Idle", "Walk", "Attack", "Death"],
 		["automatic", "idle", "walk", "attack", "death"].find(_preview), func(i):
-		_preview = ["automatic", "idle", "walk", "attack", "death"][i])
+		_preview = ["automatic", "idle", "walk", "attack", "death"][i]
+		_save_local_settings())
 	_option(root, "Facing", ["Camera-relative", "S", "SW", "W", "NW", "N", "NE", "E", "SE"], _direction + 1,
-		func(i): _direction = i - 1)
-	_spin(root, "Playback speed", 0.25, 3.0, 0.25, _rate, func(v): _rate = v)
+		func(i):
+			_direction = i - 1
+			_save_local_settings())
+	_playback_rate_control = _spin(root, "Playback speed (local)", 0.25, 3.0, 0.25,
+		character_setting(_sample, "playback_rate"), func(v):
+			set_character_setting(_sample, "playback_rate", v))
+	var autosave := Label.new()
+	autosave.text = "Character, visual size, playback and preview settings autosave locally."
+	autosave.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(autosave)
 	_button(root, "Pause / resume preview", func(): _paused = not _paused)
 	_button(root, "Replay preview", func():
 		for target in _fixtures:
@@ -306,7 +333,7 @@ func _button(root: Control, title: String, callback: Callable, host: bool = fals
 		_host_controls.append(button)
 
 func _option(root: Control, title: String, options: Array, selected: int,
-		callback: Callable, host: bool = false) -> void:
+		callback: Callable, host: bool = false) -> OptionButton:
 	var row := HBoxContainer.new()
 	root.add_child(row)
 	var label := Label.new()
@@ -322,9 +349,10 @@ func _option(root: Control, title: String, options: Array, selected: int,
 	if host:
 		choice.set_meta("setting", title)
 		_host_controls.append(choice)
+	return choice
 
 func _spin(root: Control, title: String, low: float, high: float, step: float,
-		value: float, callback: Callable, host: bool = false) -> void:
+		value: float, callback: Callable, host: bool = false) -> SpinBox:
 	var row := HBoxContainer.new()
 	root.add_child(row)
 	var label := Label.new()
@@ -341,26 +369,31 @@ func _spin(root: Control, title: String, low: float, high: float, step: float,
 	if host:
 		spin.set_meta("setting", title)
 		_host_controls.append(spin)
+	return spin
 
 func _process(delta: float) -> void:
 	if not _paused:
 		_presentation_age += delta
-	var attack_duration := automatic_attack_duration(_sample, _rate)
+	var playback_rate := character_setting(_sample, "playback_rate")
+	var visual_scale := character_setting(_sample, "visual_scale")
+	var attack_duration := automatic_attack_duration(_sample, playback_rate)
 	for target in _fixtures:
 		if target.visual == null:
 			continue
 		var sprite = target.visual
 		sprite.sample = _sample
 		sprite.resolution = _resolution
+		sprite.scale = Vector3.ONE * visual_scale
 		sprite.manual_direction = _direction
-		sprite.playback_rate = _rate
+		sprite.playback_rate = playback_rate
 		sprite.frozen = _paused and target.health > 0
 		sprite.clip = "death" if target.health == 0 else _preview if _preview != "automatic" else \
 			automatic_clip(target.target_id, target.walking, _presentation_age, attack_duration)
 	if _status != null:
 		var can_control := multiplayer.is_server() or (generation > 0 and multiplayer.get_unique_id() == owner_id)
-		_status.text = "%d targets · %s · %dpx · 3 hits or one run-over\n%s" % [_fixtures.size(), _sample,
+		_status.text = "%d targets · %s · %dpx · visual %.2fx · animation %.2fx\n3 hits or one run-over · %s" % [_fixtures.size(), _sample,
 			_resolution if _sample == "ghoul" else VISUAL.native_size(_sample),
+			visual_scale, playback_rate,
 			"Host controls available" if can_control else "Host must launch with --sprite-test"]
 		for control in _host_controls:
 			control.set_block_signals(true)
@@ -389,6 +422,65 @@ func _process(delta: float) -> void:
 				Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)])
 			_metrics_clock = 0.0
 			_frame_times.clear()
+
+func character_setting(character: String, key: String) -> float:
+	var values: Dictionary = _sample_settings.get(character, {})
+	return float(values.get(key, 1.0))
+
+func set_character_setting(character: String, key: String, value: float) -> void:
+	if character not in VISUAL.SAMPLES or key not in ["visual_scale", "playback_rate"] or not is_finite(value):
+		return
+	var values: Dictionary = _sample_settings.get(character, {})
+	values[key] = clampf(value, 0.5, 2.0) if key == "visual_scale" else clampf(value, 0.25, 3.0)
+	_sample_settings[character] = values
+	_save_local_settings()
+
+func _sync_character_controls() -> void:
+	for pair in [[_visual_scale_control, "visual_scale"], [_playback_rate_control, "playback_rate"]]:
+		var control := pair[0] as SpinBox
+		if control == null:
+			continue
+		control.set_block_signals(true)
+		control.value = character_setting(_sample, pair[1])
+		control.set_block_signals(false)
+
+func _load_local_settings() -> void:
+	var config := ConfigFile.new()
+	if config.load(_settings_path) != OK:
+		return
+	for character in VISUAL.SAMPLES:
+		set_character_setting_without_save(character, "visual_scale",
+			float(config.get_value("character/" + character, "visual_scale", 1.0)))
+		set_character_setting_without_save(character, "playback_rate",
+			float(config.get_value("character/" + character, "playback_rate", 1.0)))
+	var saved_sample := str(config.get_value("presentation", "sample", "ghoul"))
+	if saved_sample in VISUAL.SAMPLES and VISUAL.sample_available(saved_sample):
+		_sample = saved_sample
+	var saved_preview := str(config.get_value("presentation", "preview", "automatic"))
+	_preview = saved_preview if saved_preview in ["automatic", "idle", "walk", "attack", "death"] else "automatic"
+	_direction = clampi(int(config.get_value("presentation", "direction", -1)), -1, 7)
+	var saved_resolution := int(config.get_value("presentation", "ghoul_resolution", 128))
+	_resolution = saved_resolution if saved_resolution in [128, 512] else 128
+
+func set_character_setting_without_save(character: String, key: String, value: float) -> void:
+	if character not in VISUAL.SAMPLES or key not in ["visual_scale", "playback_rate"] or not is_finite(value):
+		return
+	var values: Dictionary = _sample_settings.get(character, {})
+	values[key] = clampf(value, 0.5, 2.0) if key == "visual_scale" else clampf(value, 0.25, 3.0)
+	_sample_settings[character] = values
+
+func _save_local_settings() -> void:
+	var config := ConfigFile.new()
+	for character in VISUAL.SAMPLES:
+		config.set_value("character/" + character, "visual_scale", character_setting(character, "visual_scale"))
+		config.set_value("character/" + character, "playback_rate", character_setting(character, "playback_rate"))
+	config.set_value("presentation", "sample", _sample)
+	config.set_value("presentation", "preview", _preview)
+	config.set_value("presentation", "direction", _direction)
+	config.set_value("presentation", "ghoul_resolution", _resolution)
+	var error := config.save(_settings_path)
+	if error != OK:
+		push_warning("Could not autosave sprite test settings: %s" % error_string(error))
 
 static func automatic_attack_duration(character: String, playback_rate: float) -> float:
 	var frame_count: float = {"ghoul": 70.0, "survivor": 14.0, "thug": 8.0, "knight": 15.0}.get(character, 12.0)

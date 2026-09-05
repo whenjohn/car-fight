@@ -19,6 +19,13 @@ clients can inspect local presentation but cannot change server state. A server
 must start with `--sprite-test` to accept client configuration requests.
 Offline play can also enable the test from the menu without the flag.
 
+Each character set now keeps an independent local visual-size multiplier and
+animation playback speed. The selected character, these per-character values,
+preview mode, facing and ghoul resolution autosave in `user://sprite_test.cfg`.
+They restore on the next launch. Target count, physical body scale, movement,
+enabled state and pause do not autosave because they affect the shared fixture
+or are temporary session controls. Visual size never changes hitboxes.
+
 For the larger spread-out test:
 
 ```sh

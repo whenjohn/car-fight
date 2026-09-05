@@ -75,6 +75,13 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   added. Manual Attack preview remains available. Expanded sequence contracts
   and fast check pass. Monitored run `20260904-190244` was opened with 16
   knights for owner evaluation of the automatic melee timing.
+  Added per-character local visual size and playback speed,
+  plus autosave of selected character, per-character values, preview, facing
+  and ghoul resolution. Shared target count/body scale/movement and session
+  pause deliberately remain unsaved. Visual size does not alter collision.
+  Serialization/clamping and independent-value contracts plus fast check pass.
+  Monitored run `20260904-190957` is open for owner evaluation of the controls
+  and cross-launch behavior.
 - Baked-shadow trial for modern samples: confirmed translucent shadows in the
   downloaded PNGs. Changed modern-only alpha discard to opaque-prepass blending
   and ground registration from row 88 to 91 to retain soft pixels and avoid
