@@ -32,6 +32,47 @@ Nested durations overlap; never add forward/rollback/phase totals together.
 They include waiting/descheduling and are **not CPU execution times**. No vendored
 clock or rollback implementation was edited to obtain them.
 
+## Startup snapback investigation, 2026-09-05
+
+Owner reports roughly three move/return-to-start cycles on joining, followed by
+normal play; this predates the latest presentation experiment. Treat startup
+readiness/reconciliation as a networking issue to investigate, not as harmless
+FX or proof of a sustained client/server speed difference.
+
+Read-only evidence from `.crash-runs/two-client-20260905-035412/`:
+
+- Alpha `alpha/20260905-035412/client.log`: `CLIENT_READY` at line 17, initial
+  timestamp at line 22, clock panic offset 6.109638 seconds at tick 899, then
+  repeated stale-authority recovery (first full-state application tick 1309).
+- Bravo `bravo/20260905-035415/client.log`: same connection-before-initial-sync
+  ordering, clock panic offset 4.548247 seconds at tick 1078, then repeated
+  recovery (first full-state application tick 1374). Warning output is duplicated
+  by logging; duplicate lines must not be counted as separate clock resets.
+- Early periodic local positions remain at the spawn points. They cannot prove
+  or exclude short move/reset cycles between samples. No per-frame local pose
+  timeline ties these recoveries to the owner's observation.
+
+`Main._connect_network_events()` labels `on_client_start` as `CLIENT_READY`;
+that is not a settled-gameplay guarantee. `NetworkTime.start()` already waits
+for initial synchronization before activating tick processing, and
+`RollbackSynchronizer` defers its callbacks until `after_sync`. Local input is
+gathered on `before_tick_loop`. A simple initial-sync boolean guard is therefore
+not an established fix for later clock changes or stale authority recovery.
+
+Next bounded characterization: moving input from initial join, a no-stall
+control and the existing opt-in post-sync `JOINSTALL` hook. Correlate bounded
+local simulation/presented pose samples with input ticks, authoritative state
+application, time-sync/panic events, frame gaps and spawn generation. Reuse
+existing diagnostic infrastructure; the manual motion trace currently targets
+the remote player and does not fill the startup local-pose gap. Distinguish
+reconciliation, respawn and camera/interpolator movement before changing code.
+
+Do not mask the issue with an arbitrary startup delay or weaken stale-state
+guards. Preserve the coupled pause-timeline reset and rejected half-RTT seed
+decision. Any clock/recovery fix needs focused characterization plus pause,
+join-transient and reconnect gates; rendered confirmation still requires an
+approved monitored run. No runtime changes or new runs were made for this review.
+
 ## Next approved capture
 
 Use the isolated macai2 server, not production. Refresh its project/autoload and

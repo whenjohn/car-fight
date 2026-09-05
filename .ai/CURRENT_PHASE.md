@@ -1,5 +1,26 @@
 # Current phase
 
+## Startup snapback reported by owner, 2026-09-05
+
+- Owner reports a longstanding sequence of roughly three move/return-to-start
+  cycles before normal networked play. Prioritize startup synchronization
+  diagnosis alongside the unresolved 2.800-unit stall/probe outlier; skid FX
+  remains deferred. This is not established as an elapsed-cursor regression.
+- Read-only review found startup clock panics of 6.110 seconds (Alpha) and
+  4.548 seconds (Bravo), followed by repeated stale-authority full-state recovery
+  in the completed elapsed trial. These are relevant evidence, not a confirmed
+  match to the reported visible resets. See `docs/NETWORK_DIAGNOSTICS.md`,
+  "Startup snapback investigation" for paths, code boundaries and next checks.
+- `CLIENT_READY` currently means connection notification, not settled gameplay.
+  Netfox already waits for initial time sync before running its tick loop and
+  attaching rollback callbacks; do not diagnose this as simply missing that check.
+- Next: characterize moving input during join and post-sync stalls, recording
+  local pose/input, applied authority tick/pose, clock changes and generation.
+  Distinguish actual rollback movement from camera/visual resets before changing
+  readiness or clock recovery. Existing traces cannot count the visible resets.
+- No runtime edits, tests, launches, deployment or default changes in this
+  investigation. All completed trial processes remain stopped.
+
 ## Priority update: skid discrepancy deferred by owner, 2026-09-05
 
 - Owner considers observer-only skid marks minor and requested logging them for
