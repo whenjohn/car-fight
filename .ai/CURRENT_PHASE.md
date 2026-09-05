@@ -1,5 +1,20 @@
 # Current phase
 
+## Premature diagnostic launch stopped, 2026-09-05
+
+- Owner clarified that "started" meant opening Terminal, not running capture.
+  The interrupted tool invocation nevertheless bootstrapped the prepared job.
+  No tcpdump/capture process was present; this is not packet-correlated evidence.
+- Stopped exact client PIDs 3812/3870 with SIGTERM (exit 143), allowed monitor
+  cleanup, verified isolated UDP 12780/TCP 12781 free and production PID 57599
+  still on UDP 10080, then removed the completed launchd job.
+  Partial evidence: `.crash-runs/two-client-20260905-031540/` and the prepared
+  `.network-runs/diagnostic-a7e5256-20260905-0305/` launcher directory.
+- Next: owner must execute the actual sudo capture command and authenticate in
+  Terminal. Verify a live endpoint-filtered tcpdump before any new launch; never
+  unconditionally chain verification with bootstrap. Use a fresh launcher/server
+  evidence prefix for the retry so this partial run is preserved.
+
 ## Diagnostic playtest prepared, awaiting capture authentication, 2026-09-05
 
 - Owner approved the next two-native-client diagnostic playtest. Refreshed only
