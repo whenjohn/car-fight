@@ -2,6 +2,14 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner requested the revised Ambusher playtest. Launched gameplay `fd41fc7`
+  in monitored run `20260905-033038`, client PID 8194: offline, 64 initial
+  Ambushers, survivor sample, batched drawing, ordinary inset window at 100,100.
+  Offline readiness and 64-fixture startup confirmed; no startup errors seen.
+  Population remains opt-in in the Sprite test UI. Await owner observations of
+  circling cover, passing/turning-away rushes and sustained FPS. No code changes
+  or new acceptance claim; this launch supersedes "no new rendered launch" below.
+
 - Owner requested object-aware Ambusher hiding: run to cover, keep the same
   object between sprite and circling car, then rush a passing/turned-away car.
   Also explicitly required bounded object tracking to protect the accepted
