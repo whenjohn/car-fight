@@ -10,8 +10,8 @@ static func initial(id: int, profile: String, home: Vector3) -> Dictionary:
 		"cooldown": float(id % 10) * 0.1, "aim": 0.0, "wander": 0,
 		"evading": false, "cover": Vector3.INF, "peek": Vector3.INF,
 		"hidden": 0.0, "burst": 0, "cover_retry": 0.0, "cover_cursor": 0, "rush_left": 0.0,
-		"cover_id": -1, "cover_sector": -1, "cover_choices": [], "cover_shifted": false,
-		"prepared": false, "closest_approach": INF,
+		"cover_id": -1, "pass_armed": false,
+		"prepared": false,
 		"pace": random.randf_range(0.88, 1.12), "motion_age": 0.0,
 		"drift_phase": random.randf_range(0.0, TAU), "drift_period": random.randf_range(3.0, 6.0),
 		"drift_bias": random.randf_range(-0.18, 0.18),
@@ -120,7 +120,7 @@ static func _ambush(s: Dictionary, result: Dictionary, position: Vector3,
 		s.rush_left = 0.0
 		s.hidden = 0.0
 		s.prepared = false
-		s.closest_approach = INF
+		s.pass_armed = false
 		s.aim = 0.0
 		result.state = "wait" if s.cover == Vector3.INF else "cover"
 		result.destination = position if s.cover == Vector3.INF else s.cover
@@ -145,7 +145,7 @@ static func _ambush(s: Dictionary, result: Dictionary, position: Vector3,
 		s.rush_left = 0.0
 		s.hidden = 0.0
 		s.prepared = false
-		s.closest_approach = INF
+		s.pass_armed = false
 		s.route_clock = 0.0
 	s.aim = 0.0
 	result.speed *= 1.5
@@ -157,36 +157,35 @@ static func _ambush(s: Dictionary, result: Dictionary, position: Vector3,
 			s.cover_retry = 2.0
 		return
 	result.destination = s.cover
-	result.state = "shadow" if s.prepared else "cover"
-	if not visible and (arrived or s.prepared):
-		s.hidden = minf(1.0, s.hidden + delta)
-		s.prepared = s.prepared or s.hidden >= 1.0
-		if arrived:
-			result.state = "hide"
-	elif visible:
+	result.state = "cover"
+	if not arrived:
 		s.hidden = 0.0
-	# Treat circling as a reason to reposition, not a proximity attack trigger.
-	if (s.cover_shifted or (arrived and visible)) and s.cover_retry <= 0.0:
-		result.seek_cover = true
-		s.cover_retry = 0.5
-	var object_distance := float(car.get("cover_distance", distance))
-	var toward_cover := planar(car.position, car.get("cover_center", position)).normalized()
+		s.prepared = false
+		s.pass_armed = false
+		return
+	# Grass concealment is an authored region, not a ray-blocking building.
+	result.state = "hide"
+	s.hidden = minf(1.0, s.hidden + delta)
+	s.prepared = s.hidden >= 1.0
+	var toward_sprite := planar(car.position, position)
 	var velocity: Vector3 = car.velocity
 	velocity.y = 0.0
 	var forward: Vector3 = car.get("forward", Vector3.ZERO)
 	forward.y = 0.0
-	var departing := velocity.dot(toward_cover) < -1.0
-	var turned_away := forward.normalized().dot(toward_cover) < -0.35
-	if s.prepared:
-		s.closest_approach = minf(s.closest_approach, object_distance)
-	var passed: bool = s.closest_approach <= 18.0 and object_distance > s.closest_approach + 1.0 and departing
-	if s.prepared and object_distance <= 24.0 and (passed or turned_away):
+	if distance > 24.0:
+		s.pass_armed = false
+	if s.prepared and distance <= 18.0 and velocity.dot(toward_sprite) > distance:
+		s.pass_armed = true
+	# Observe an approach first, then the sprite must be behind both the
+	# direction of travel and the car's facing. Parked/reversing cars do not spring it.
+	var passed := velocity.dot(toward_sprite) < -distance and forward.normalized().dot(toward_sprite.normalized()) < -0.35
+	if s.prepared and s.pass_armed and distance <= 24.0 and passed:
 		s.rush_left = 10.0
 		s.burst = 0
 		s.hidden = 0.0
+		s.pass_armed = false
 		s.route_clock = 0.0
 		result.state = "rush"
-		result.seek_cover = false
 		result.destination = car.position
 
 static func _aim(s: Dictionary, result: Dictionary, delta: float, settings: Dictionary) -> void:

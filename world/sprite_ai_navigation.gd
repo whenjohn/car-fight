@@ -1,29 +1,30 @@
 extends RefCounted
 const CITY := preload("res://world/city_layout.gd")
 const MAP := preload("res://world/map_layout.gd")
+const GRASS := preload("res://world/grass_layout.gd")
 const CELL := 2.0
 var radius := 0.35
 var grid := AStarGrid2D.new()
 var blocks: Array[Dictionary] = []
-var cover_anchors: Array[PackedVector3Array] = []
+var grass_slots := PackedVector3Array()
 var ready := false
 var _build_cursor := 0
 
 func setup(capsule_radius: float, incremental: bool = false) -> void:
 	radius = capsule_radius
 	blocks.clear()
-	cover_anchors.clear()
+	grass_slots.clear()
 	for building in CITY.BUILDINGS:
 		blocks.append({"center": building.position * CITY.SCALE,
 			"half": building.footprint * CITY.SCALE * 0.5,
 			"yaw": deg_to_rad(float(building.yaw)), "height": building.height * CITY.SCALE})
-		var block: Dictionary = blocks.back()
-		var half: Vector2 = block.half + Vector2.ONE * (radius + 3.0)
-		var anchors := PackedVector3Array()
-		for offset in [Vector2(half.x, 0), half, Vector2(0, half.y), Vector2(-half.x, half.y),
-			Vector2(-half.x, 0), -half, Vector2(0, -half.y), Vector2(half.x, -half.y)]:
-			anchors.append(block.center + Vector3(offset.x, 0, offset.y).rotated(Vector3.UP, block.yaw))
-		cover_anchors.append(anchors)
+	# At most 100 spaced candidates, generated once per capsule-radius cache.
+	for z in 10:
+		for x in 10:
+			var point := GRASS.CENTER + Vector3((x - 4.5) * 3.6, 0, (z - 4.5) * 3.6)
+			point = Vector3(roundf(point.x / CELL) * CELL, 0, roundf(point.z / CELL) * CELL)
+			if GRASS.contains(point, radius + 1.0) and clear(point, CELL * 0.71):
+				grass_slots.append(point)
 	var edge := int(MAP.CITY_HALF_EXTENT / CELL)
 	grid.region = Rect2i(-edge, -edge, edge * 2 + 1, edge * 2 + 1)
 	grid.cell_size = Vector2.ONE * CELL
@@ -79,53 +80,3 @@ func _nearest(origin: Vector2i) -> Vector2i:
 				if grid.is_in_boundsv(point) and not grid.is_point_solid(point):
 					return point
 	return Vector2i(9999, 9999)
-
-func cover_distance(id: int, point: Vector3) -> float:
-	var block: Dictionary = blocks[id]
-	var local := (point - Vector3(block.center)).rotated(Vector3.UP, -block.yaw)
-	return Vector2(maxf(0.0, absf(local.x) - block.half.x), maxf(0.0, absf(local.z) - block.half.y)).length()
-
-func cover_objects(from: Vector3, height: float) -> Array[int]:
-	# Only called when acquiring an object, not every frame or while holding it.
-	# IDs index the same immutable boxes used by the real city colliders.
-	var result: Array[int] = []
-	for id in blocks.size():
-		if blocks[id].height >= height + 0.25 and minf(blocks[id].half.x, blocks[id].half.y) > radius \
-				and cover_distance(id, from) <= 64.0:
-			result.append(id)
-	result.sort_custom(func(a, b): return cover_distance(a, from) < cover_distance(b, from))
-	return result
-
-func cover_sector(id: int, observer: Vector3, previous: int = -1) -> int:
-	var block: Dictionary = blocks[id]
-	var away := (Vector3(block.center) - observer).rotated(Vector3.UP, -block.yaw)
-	var angle := atan2(away.z, away.x)
-	# Seven-degree hysteresis avoids route churn on a sector boundary.
-	if previous >= 0 and absf(angle_difference(previous * PI / 4.0, angle)) < PI / 8.0 + 0.12:
-		return previous
-	return posmod(int(floor((angle + PI / 8.0) / (PI / 4.0))), 8)
-
-func cover_point(id: int, sector: int, elevation: float) -> Vector3:
-	var point := cover_anchors[id][posmod(sector, 8)]
-	point.y = elevation
-	return point
-
-func cover_candidates(from: Vector3, max_distance: float = 32.0) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	for block in blocks:
-		var half: Vector2 = block.half
-		var margin := radius + 2.0
-		for x in [-1.0, 1.0]:
-			for z in [-1.0, 1.0]:
-				# One point along each face near a shared corner. Each can be
-				# cover or peek depending on which side the observer occupies.
-				var a := Vector3(x * (half.x + margin), 0, z * maxf(0, half.y - 2.0))
-				var b := Vector3(x * maxf(0, half.x - 2.0), 0, z * (half.y + margin))
-				a = Vector3(block.center) + a.rotated(Vector3.UP, block.yaw)
-				b = Vector3(block.center) + b.rotated(Vector3.UP, block.yaw)
-				a.y = from.y
-				b.y = from.y
-				if from.distance_to(a) <= max_distance and clear(a) and clear(b):
-					result.append({"cover": a, "peek": b})
-					result.append({"cover": b, "peek": a})
-	return result

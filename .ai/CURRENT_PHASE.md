@@ -2,6 +2,42 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Owner rejected building Ambusher as too complicated and requested grass:
+  run there, blend in, rush from behind after the vehicle passes. Replaced
+  building selection/sector circling with the existing single grass field at
+  (58, 0, 18), east of the central intersection. Shared static `grass_layout.gd`
+  also drives unchanged render placement/dimensions; no additional blades,
+  physics bodies, world scans, renderer or sprite-size changes.
+- At most 100 spaced, grid-aligned slots generated once per current radius;
+  actual world/capsule checks validate reachable endpoints. Each brain reserves
+  one slot and uses a round-robin cursor, two candidates/job, two-second retries,
+  existing four jobs/tick and staggered 5 Hz decisions. Claims release on
+  death/despawn/reset; excess sprites wait if no slots are free. The accepted
+  64-live count fits. Initial city-wide travel can take over a minute.
+- Arrival hides with green 22%-opacity tint through existing original/batched
+  sprite color. Hitbox and run-over deaths remain; rush/death restore visibility
+  and hits still flash. After one second settled, observe approach within 18,
+  then departure while behind the car's facing within 24 to trigger 1.5x rush.
+  Parked/merely turned-away/alongside cars do not trigger. Three shots or ten
+  seconds returns to reserved grass. No building-occlusion requirement remains.
+- Final PASS: fast check, cover and AI decisions, AI runtime, sprite fixture/
+  batch, population and offline smoke. Real grass rush moved 4.46 units and fired
+  three shots; all 64 reached distinct grass spots within 120 simulated seconds.
+  Lifecycle reservation and shared tint/hitbox checks pass. Headless GPU color
+  readback is unavailable, so visual blend-in is still explicitly unaccepted.
+- Existing probe extended with actual grass passes, keeping every tick at 64
+  living using diagnostic-only health restoration outside CPU timing. Final
+  service median/P95/max: prepare 0.762/1.269/6.678 ms, street square
+  0.436/0.740/1.499 ms, active grass passes 1.040/1.628/2.713 ms. 695 shots,
+  peak 52 active, max four jobs/tick; grass-pass diagnostic restored 2,290
+  repeated run-over deaths, not normal gameplay survival evidence. Earlier
+  preparation P95 was 2.041 ms; no cherry-picked locked-FPS claim. Logs and
+  retained initial failures: `.crash-runs/grass-ambush.bcVXyj/`; limitations and
+  full evidence in `docs/SPRITE_AI.md`. No networking work/tests/deployment.
+- Previous building playtest `20260905-033038` ended cleanly. No grass-version
+  rendered launch yet; next is owner observation of camouflage, pass timing
+  and sustained FPS with 64. Attacker/Evader and population behavior unchanged.
+
 - Owner requested the revised Ambusher playtest. Launched gameplay `fd41fc7`
   in monitored run `20260905-033038`, client PID 8194: offline, 64 initial
   Ambushers, survivor sample, batched drawing, ordinary inset window at 100,100.

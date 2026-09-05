@@ -54,7 +54,7 @@ func _cover_probe(lab, car) -> void:
 	lab.configure(true, 64, 1.0, true)
 	lab.ai.configure("ambusher", 3.0, 32.0, 1.0, false)
 	var corners := [Vector3(-63, 1, 0), Vector3(0, 1, 0), Vector3(0, 1, -63), Vector3(-63, 1, -63)]
-	for phase in ["prepare", "circle"]:
+	for phase in ["prepare", "circle", "grass_pass"]:
 		var samples: Array[int] = []
 		var prevented_deaths := 0
 		for tick in 1800:
@@ -63,6 +63,14 @@ func _cover_probe(lab, car) -> void:
 				var edge := int(along / 63.0)
 				var direction: Vector3 = (corners[(edge + 1) % 4] - corners[edge]).normalized()
 				car.position = corners[edge] + direction * fmod(along, 63.0)
+				car.linear_velocity = direction * 10.0
+				car.rotation.y = atan2(-direction.x, -direction.z)
+			elif phase == "grass_pass":
+				# Repeated passes through the real grass, including actual rushes,
+				# shots and run-over work. The original two phases stay comparable.
+				var along := fmod(tick * 10.0 / 60.0, 80.0)
+				var direction := Vector3.RIGHT if along < 40.0 else Vector3.LEFT
+				car.position = Vector3(40.0 + (along if along < 40.0 else 80.0 - along), 1, 10)
 				car.linear_velocity = direction * 10.0
 				car.rotation.y = atan2(-direction.x, -direction.z)
 			var start := Time.get_ticks_usec()

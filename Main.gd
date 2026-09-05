@@ -1385,7 +1385,7 @@ func _build_world() -> void:
 		grass.name = "InteractiveGrass"
 		grass.set_script(INTERACTIVE_GRASS_SCRIPT)
 		grass.call("setup", _players, _combat_bolts)
-		grass.position = Vector3(58.0, 0.0, 18.0)
+		grass.position = preload("res://world/grass_layout.gd").CENTER
 		add_child(grass)
 		_build_presentation()
 		_build_city_presentation()

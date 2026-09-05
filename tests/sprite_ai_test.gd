@@ -163,11 +163,13 @@ func _run() -> void:
 	_check(ambush.state == "hide" and not ambush.fire, "ambush waits concealed")
 	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 0.5, settings)
 	_check(ambush.state == "hide", "nearby car alone does not trigger an ambush")
-	seen.forward = seen.position.normalized()
+	seen.forward = -seen.position.normalized()
 	seen.velocity = seen.forward * 3.0
+	brain.decide(ambusher, Vector3.ZERO, seen, 0.2, settings)
+	seen.position = -seen.position
 	ambush = brain.decide(ambusher, Vector3.ZERO, seen, 0.2, settings)
 	_check(ambush.state == "rush" and ambush.destination == seen.position and is_equal_approx(ambush.speed, 4.5),
-		"turned-away car triggers full rush, not a peek point")
+		"observed passing car triggers full rush, not a peek point")
 	seen.visible = true
 	for shot in 3:
 		seen.position.x += 1.0
@@ -176,7 +178,7 @@ func _run() -> void:
 	ambush = brain.decide(ambusher, ambusher.peek, seen, 0.2, settings)
 	_check(ambush.state == "cover" and not ambush.fire, "three-shot burst returns to cover")
 	ambush = brain.decide(ambusher, ambusher.cover, seen, 0.2, settings)
-	_check(ambush.seek_cover and not ambusher.prepared, "exposed former cover requests a new hiding side, never counted as hidden")
+	_check(ambush.state == "hide" and not ambush.fire, "return to grass hides without requiring building occlusion")
 	ambusher = brain.initial(10000, "ambusher", Vector3.ZERO)
 	ambusher.cover = Vector3.ZERO
 	seen.visible = false

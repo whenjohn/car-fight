@@ -56,28 +56,28 @@ and counters only: no damage, resources, impulses, shield or det interactions.
   A predicted run-over takes priority: full-speed direct sidestep until clear
   of the projected path, then weaving resumes if still evading. It does not
   read bullets or player input to predict intent.
-- Ambusher selects a reachable, tall-enough solid building within 64 units and
-  runs to its far side at the existing 1.5× speed cap. It knows the eligible
-  player's position even before direct sight, retaining cloak/editing/RC/map
-  exclusions. It keeps that building's identity while repositioning around it
-  to keep the object between itself and the car. Eight shared anchors per
-  building and seven-degree sector hysteresis avoid constant route changes;
-  reposition requests retry at most twice/second. Actual capsule clearance and
-  occlusion must validate the route endpoint; geometry alone is not concealment.
-  If both candidate routes fail it releases that building and reacquires cover.
-  Initial acquisition retries every two seconds, progressing through cached IDs.
-  No Basic-shooting fallback, teleportation or invisibility; if no cover works it
-  waits and retries. A fast circling car can still expose or catch a moving sprite.
-  After one second of genuine concealment it is prepared. Merely approaching
-  or circling while facing the building does not trigger a rush. An opportunity
-  requires the car within 24 units of the building surface and either facing
-  away (forward dot toward-building < -0.35), or departing at >1 unit/second
-  after passing within 18 units and opening the gap by >1 unit. A prepared
-  sprite remembers its preparation through brief exposure while repositioning.
-  It then rushes the player's current position at 1.5× speed, shoots with clear
-  sight inside eighteen units and closes to six. After three shots or ten seconds
-  it returns to cover and prepares again. Losing the eligible player cancels
-  preparation/rush. Expect initial travel to cover, sometimes a long route.
+- Ambusher runs at 1.5× speed into the existing grass field, reserves a spaced
+  hiding spot, and stays there with a muted green tint at 22% opacity. It remains
+  hittable/run-over-able; normal visibility returns on rush, death, profile reset
+  or leaving the hiding state. Hit flashes override camouflage. Both original
+  and batched drawing reuse the sprite's existing tint; no extra draw pass.
+  This is grass camouflage, not building-ray occlusion or invulnerability.
+  After one second settled in grass, observing a car approach within eighteen
+  units arms the trap. It rushes only once the car is moving away at more than
+  one unit/second radially, the sprite is behind its facing (dot < -0.35), and
+  the car is still within twenty-four units. Merely turning away, parking or
+  reversing past while facing the sprite does not trigger. Moving beyond
+  twenty-four units clears the observed approach. Eligible-player changes also
+  clear preparation; cloak/editing/RC/map exclusions remain.
+  The rush pursues the current player at 1.5×, shoots with clear sight within
+  eighteen units and closes to six. After three shots or ten seconds it returns
+  to its reserved grass spot and prepares again. There is no exposed Basic fire
+  fallback. It retries unavailable slots every two seconds, two candidates per
+  job; if the field is full or blocked it waits rather than stacking reservations.
+  Buildings now only constrain navigation: no building selection or circling.
+  The one existing 42×42 grass field is centered at world (58, 0, 18), east of
+  the central intersection. City-wide spawns must actually travel there; some
+  take over a minute. No new field, grass density, renderer or spawn change.
 
 Defaults: movement 3 units/second, attack 1.5× and evasion up to 1.5× movement, detection 32 units,
 shot interval 1 second, aim delay at least 0.35 seconds. Decisions run at 5 Hz,
@@ -186,15 +186,16 @@ Routing uses a two-unit grid inflated for capsule and cell-corner clearance;
 initial grid preparation is limited to 512 cells per tick, with routing held
 until complete. It is not a synchronous full-grid build on the first AI tick.
 Physics sweeps retain final authority. Cover/peek positions also require actual
-world clearance. Ambushers reuse the radius cache's 14 immutable city-building
-descriptors and 112 anchor positions. Each brain holds one building ID/sector
-and at most 14 cached candidate IDs; there is no scene-tree scan each frame,
-per-sprite object registry, new physics body or replicated cover field. Loose
-moving crates, trees and decorative meshes are deliberately not tracked as
-cover in this pass. Acquiring scans only the fixed building table; holding one
-uses constant-size geometry lookup at the existing 5 Hz decision cadence.
-Each cover job tries at most two candidates/paths: at most eight per tick under
-the shared four-job cap. Counters expose attempts, retargets and their maximum.
+world clearance. Ambushers use a shared static grass-region descriptor, also
+used to place the render-only field. At most 100 spaced, grid-aligned slots are
+generated once per radius cache, excluding building/capsule overlap; the default
+size supports at least 64. Each brain holds one reserved slot ID and one search
+cursor. Reservations are released on death/despawn and cleared on reset/retire.
+No scene-tree/per-blade scan, per-sprite list, added grass bodies, extra ray to
+validate hiding, or replicated cover field. Candidate checking stays at two per
+job under the shared four-job/tick limit (at most eight checks/paths per tick).
+The fixed region remains available headlessly; simulation never reads grass
+animation or rendering. Above field capacity, excess Ambushers wait and retry.
 Attackers add server-only soft separation at 5 Hz using spatial
 cells, capped at 16 representatives per cell and nine cells per hunter query.
 Cached steering clears on reset and ignores dead/non-attacker sprites. The
@@ -242,7 +243,48 @@ networking branch explicitly. The fast gate alone does not execute it.
 Evidence and remaining acceptance are recorded in `.ai/CURRENT_PHASE.md`.
 No production deployment or rendered acceptance is implied by headless results.
 
-### Object-tracking Ambusher CPU check, 2026-09-05
+### Grass Ambusher verification, 2026-09-05
+
+PASS: fast check, cover/AI decision tests, AI runtime, sprite fixture/batch,
+population and ordinary offline smoke. Runtime verifies actual travel to grass,
+no parked/alongside trigger, then a passing car causes 4.46 units of movement
+and three actual shots. All 64 achieve distinct grass hiding spots within 120
+simulated seconds from city-wide spawns. Death/despawn/reset release reservations.
+Camouflage tests verify the shared tint input and retained hitbox; the headless
+Dummy renderer cannot read back uploaded MultiMesh colors. Actual visual blending
+and rendered FPS remain owner acceptance, not inferred from those checks.
+
+The existing `CAR_FIGHT_AI_PROBE_SCENARIO=cover` probe now retains the original
+two 30-second phases and adds 30 seconds of repeated 10-unit/second passes through
+the actual grass field. Local evidence: `.crash-runs/grass-ambush.bcVXyj/`, final
+`runtime-final.log`, `presentation-final.log`, `population.log`, `probe-passes.log`.
+No unexpected errors in final logs. The initial runtime compile error was fixed;
+its exact stalled process was stopped. Retained failed assertions were corrected
+to compare cumulative shots against the phase baseline and avoid unsupported
+headless GPU-buffer readback; neither was hidden by a gameplay workaround.
+
+| 64-live phase | Median / P95 / max service CPU |
+| --- | --- |
+| Travel/preparation, including cold grid | 0.762 / 1.269 / 6.678 ms |
+| Original street-square drive | 0.436 / 0.740 / 1.499 ms |
+| Repeated grass passes with active ambushes | 1.040 / 1.628 / 2.713 ms |
+
+The earlier grass probe without the added pass phase (`probe.log`) measured
+preparation 0.898/2.041/7.186 ms and square driving 0.498/0.914/2.298 ms;
+separate-run timing varies, and longer initial travel is not a free improvement.
+Final run: 64 candidates total, maximum one checked per job (hard cap two),
+maximum four jobs/tick, 695 shots and peak 52 active. As in the matched probe,
+diagnostic health restoration outside the timer keeps every tick at 64 living.
+The grass-pass phase restored 2,290 repeated contact deaths; that is sustained
+synthetic load, not normal gameplay survival or population-controller evidence.
+No grass blades/bodies/draw passes were added. Thermal equality is unestablished;
+these are sprite-service timings, not whole-frame, GPU or network capacity.
+Network gates remain deferred: no authority, RPC schema or transport change.
+
+### Superseded building-Ambusher CPU check, 2026-09-05
+
+Historical evidence for the building version rejected by the owner; grass
+camouflage now replaces this behavior and its object-tracking tests.
 
 Run the existing probe with `CAR_FIGHT_AI_PROBE_SCENARIO=cover` and the offline
 arguments above. Matched 64-live workload: 1,800 preparation ticks with a parked

@@ -62,13 +62,20 @@ func register_hit() -> void:
 	set_hit_count(hit_count + 1)
 	_flash = 0.13
 
+func presentation_tint() -> Color:
+	if _flash > 0.0:
+		return Color(2.0, 2.0, 2.0)
+	if health > 0 and ai_profile == "ambusher" and ai_state == "hide":
+		return Color(0.42, 0.62, 0.28, 0.22)
+	return Color.WHITE
+
 func _process(delta: float) -> void:
 	if network_position != Vector3.INF and health > 0:
 		position = position.lerp(network_position, 1.0 - exp(-20.0 * delta))
 	_flash = maxf(0.0, _flash - delta)
 	if visual != null:
 		visual.heading = heading
-		var color := Color(2.0, 2.0, 2.0) if _flash > 0.0 else Color.WHITE
+		var color := presentation_tint()
 		if visual.modulate != color:
 			visual.modulate = color
 

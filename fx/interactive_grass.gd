@@ -3,8 +3,9 @@ extends Node3D
 ## the GPU bends blades away from every replicated Jeep and live bolt.
 
 const GRASS_SHADER := preload("res://fx/interactive_grass.gdshader")
-const CHUNK_SIZE := 14.0
-const CHUNKS_PER_SIDE := 3
+const LAYOUT := preload("res://world/grass_layout.gd")
+const CHUNK_SIZE := LAYOUT.CHUNK_SIZE
+const CHUNKS_PER_SIDE := LAYOUT.CHUNKS_PER_SIDE
 const TUFTS_PER_CHUNK := 900
 const FIELD_HALF_EXTENT := CHUNK_SIZE * CHUNKS_PER_SIDE * 0.5
 const OFF_FIELD := Vector3(10000.0, 0.0, 10000.0)

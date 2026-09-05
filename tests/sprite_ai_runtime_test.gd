@@ -220,77 +220,58 @@ func _run() -> void:
 				nearest = minf(nearest, member.position.distance_to(other.position))
 		nearest_total += nearest
 	_check(nearest_total / 16.0 > 1.0, "stacked pack spreads into separate hunters over time")
-	# Real city cover, independent of mesh presentation and visual sizing.
-	lab.configure(true, 1, 1.0, false)
-	ai.configure("ambusher", 3.0, 48.0, 1.0, false)
-	var target = lab._fixtures[0]
-	target.position = Vector3(-8, 1, -32)
-	target.home = target.position
-	car.position = Vector3(-8, 1, -10)
-	ai.reset()
-	await physics_frame
-	await physics_frame
-	ai._excluded = main._combat_dynamic_rids()
-	var brain: Dictionary = ai.brains[target.target_id]
-	brain.car = {"id": 1, "position": car.position, "velocity": Vector3.ZERO, "visible": true}
-	var nav = ai._navigation(target)
-	nav.advance(30000)
-	for search in 32:
-		ai._find_cover(target, brain, nav)
-		if brain.cover != Vector3.INF:
-			break
-	_check(brain.cover != Vector3.INF, "real building produces reachable ambush cover")
-	if brain.cover != Vector3.INF:
-		_check(not ai._visible(brain.cover, car.position), "cover is physically occluded")
-		_check(ai._position_clear(target, brain.cover), "cover uses actual scaled capsule clearance")
-		# Exercise the walk into cover, not just a successful cover query.
-		for tick in 2400:
-			lab.service(1.0 / 60.0)
-			if target.ai_state == "hide":
-				break
-		_check(target.ai_state == "hide" and target.position.distance_to(brain.cover) < 0.6,
-			"exposed ambusher actually walks to concealment")
-	# Same known building, four vehicle sides: verify actual repositioning rather
-	# than only changing a requested goal. Manual AI ticks avoid teleport-sweep
-	# run-overs as the test jumps the car between observation stations.
+	# Grass is shared static gameplay data even when blades are not rendered.
 	lab.configure(true, 1, 1.0, true)
 	ai.configure("ambusher", 3.0, 32.0, 1.0, false)
-	target = lab._fixtures[0]
-	brain = ai.brains[target.target_id]
-	nav = ai._navigation(target)
+	var target = lab._fixtures[0]
+	var brain: Dictionary = ai.brains[target.target_id]
+	var nav = ai._navigation(target)
 	nav.advance(30000)
-	var building: Dictionary = nav.blocks[1]
-	target.position = building.center + Vector3(17, 0.98, 0)
-	var initial_cover_id := -1
-	var orbit_shots: int = ai.metrics.shots
-	for side in [Vector3.LEFT, Vector3.FORWARD, Vector3.RIGHT, Vector3.BACK]:
-		car.position = building.center + side * 24.0 + Vector3.UP
-		var toward: Vector3 = (building.center - car.position).normalized()
-		car.rotation.y = atan2(-toward.x, -toward.z)
-		car.linear_velocity = Vector3.ZERO
-		for tick in 900:
-			ai.begin(1.0 / 60.0)
-			target.position = ai.move(target, 1.0 / 60.0)
-			ai.finish(1.0 / 60.0)
-		if initial_cover_id < 0:
-			initial_cover_id = brain.cover_id
-		_check(brain.cover_id == 1 and brain.cover_id == initial_cover_id, "circling retains the same building identity")
-		_check((target.position - Vector3(building.center)).dot(car.position - Vector3(building.center)) < 0,
-			"sprite physically follows opposite side as car circles building")
-		_check(not ai._visible(target.position, car.position), "repositioned sprite is actually occluded by city geometry")
-	_check(ai.metrics.shots == orbit_shots, "facing/circling the building does not trigger premature attacks")
+	var slot := 0
+	for index in nav.grass_slots.size():
+		if nav.grass_slots[index].distance_to(Vector3(60, 0, 12)) < nav.grass_slots[slot].distance_to(Vector3(60, 0, 12)):
+			slot = index
+	brain.cover_cursor = slot
+	var spot: Vector3 = nav.grass_slots[slot] + Vector3.UP * 0.98
+	target.position = spot + Vector3.FORWARD * 8.0
+	car.position = spot + Vector3(-10, 0, 5)
+	car.linear_velocity = Vector3.ZERO
+	car.rotation.y = PI * 0.5
+	await physics_frame
+	await physics_frame
+	var preparation_shots: int = ai.metrics.shots
+	for tick in 600:
+		lab.service(1.0 / 60.0)
+	_check(target.ai_state == "hide" and target.position.distance_to(brain.cover) < 0.6,
+		"sprite physically runs into grass and blends, even without building occlusion")
+	_check(ai._position_clear(target, brain.cover) and nav.GRASS.contains(brain.cover), "grass cover has actual capsule clearance")
+	_check(ai.metrics.shots == preparation_shots, "parked car facing away does not spring grass ambush")
+	var hiding_id: int = brain.cover_id
+	car.rotation.y = -PI * 0.5
+	car.linear_velocity = Vector3.RIGHT * 6.0
+	for offset in [-10.0, 0.0]:
+		car.position = spot + Vector3(offset, 0, 5)
+		for tick in 15:
+			lab.service(1.0 / 60.0)
+	_check(target.ai_state == "hide" and brain.cover_id == hiding_id, "approach and alongside retain grass spot without rushing")
+	car.position = spot + Vector3(8, 0, 5)
 	var rush_start: Vector3 = target.position
 	var rush_seen := false
 	var rush_distance := 0.0
 	var shots_before: int = ai.metrics.shots
-	car.rotation.y += PI
-	for tick in 900:
+	for tick in 720:
 		lab.service(1.0 / 60.0)
-		rush_seen = rush_seen or target.ai_state == "rush"
+		if target.ai_state == "rush":
+			rush_seen = true
+			_check(target.presentation_tint() == Color.WHITE, "rush unblends the sprite")
 		rush_distance = maxf(rush_distance, target.position.distance_to(rush_start))
-	print("AMBUSH_OBJECT_RUSH moved=%.2f shots=%d" % [rush_distance, ai.metrics.shots - shots_before])
-	_check(rush_seen and rush_distance > 2.0, "turning away triggers real movement out from the tracked building")
-	_check(ai.metrics.shots > shots_before, "opportunity rush obtains sight and fires")
+	print("AMBUSH_GRASS_RUSH moved=%.2f shots=%d" % [rush_distance, ai.metrics.shots - shots_before])
+	_check(rush_seen and rush_distance > 2.0 and ai.metrics.shots > shots_before, "passing car causes physical rear rush and actual shots")
+	_check(ai.grass_claims.size() == 1, "rush retains one reserved return spot")
+	target.set_hit_count(3)
+	ai.begin(1.0 / 60.0)
+	_check(ai.grass_claims.is_empty(), "death releases grass reservation")
+	car.linear_velocity = Vector3.ZERO
 	# The wall, rather than the car behind it, ends the bullet.
 	car.position = Vector3(0, 1, 0)
 	await physics_frame
@@ -312,7 +293,7 @@ func _run() -> void:
 	var concealed := {}
 	var rushed := {}
 	var prepared := {}
-	for tick in 2400:
+	for tick in 7200:
 		lab.service(1.0 / 60.0)
 		for member in lab._fixtures:
 			if ai.brains[member.target_id].cover != Vector3.INF:
@@ -325,9 +306,11 @@ func _run() -> void:
 	for member in lab._fixtures:
 		if not concealed.has(member.target_id):
 			print("AMBUSH_NOT_HIDDEN id=%d position=%s cover=%s state=%s" % [member.target_id, member.position, ai.brains[member.target_id].cover, member.ai_state])
-	_check(prepared.size() == 64 and concealed.size() >= 48, "64-sprite cohort finds cover and most physically hide within 40 seconds")
+	_check(prepared.size() == 64 and concealed.size() == 64, "64-sprite cohort reaches distinct grass spots within 120 seconds")
 	_check(ai.metrics.get("max_cover_attempts", 0) <= 2, "cover work bounded to two candidates per queued job")
-	_check(nav.cover_anchors.size() == 14, "cover geometry cache does not grow with cohort or resets")
+	_check(ai.grass_claims.size() == 64 and ai._navigation(lab._fixtures[0]).grass_slots.size() <= 100, "grass reservations and shared cache stay bounded")
+	ai.forget_fixture(lab._fixtures[0].target_id)
+	_check(ai.grass_claims.size() == 63, "despawn releases its grass reservation")
 	# Actual extended motion payloads fit the budget; stale ticks/generations
 	# cannot overwrite current state. The configuration stream commits atomically.
 	lab.configure(true, 256, 2.0, false)

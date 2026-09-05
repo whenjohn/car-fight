@@ -151,6 +151,20 @@ func _run() -> void:
 		fixture.visual.clip = "idle"
 		batch._process(0.0)
 		_check(batch.batches.has("idle") and fixture.visual._key.get_slice("/", 1) == "idle", "managed batch applies current clip intent")
+		fixture.ai_profile = "ambusher"
+		fixture.ai_state = "hide"
+		fixture._process(0.0)
+		batch._process(0.0)
+		# Dummy renderer cannot read back the instance buffer. Check the shared
+		# tint input used by both paths; actual blending needs rendered acceptance.
+		_check(fixture.visual.modulate.a < 0.5 and fixture.visual.batch_managed,
+			"grass camouflage supplies tint while batch manages presentation")
+		_check(fixture.health == 3 and fixture.collision_layer == 8, "camouflage does not remove normal hitbox")
+		fixture.ai_state = "rush"
+		fixture._process(0.0)
+		batch._process(0.0)
+		_check(fixture.visual.modulate == Color.WHITE,
+			"rush restores shared drawing tint")
 		fixture.visual.set_frame_and_progress(3, 0.4)
 		fixture.visual.manual_direction = 2
 		batch._process(0.0)
