@@ -160,6 +160,11 @@ rest of the frame or additional peers. Existing correction limits remain intact.
 
 ### Aggressive attacker tuning, 2026-09-04
 
+Follow-up rendered slowdown diagnosis:
+[256-attacker profile](SPRITE_ATTACKER_PROFILE.md). It measures the full-frame
+simulation/presentation interaction and the optional debug display's ~7-FPS case;
+the headless service numbers below are not rendered capacity evidence.
+
 Run the same probe with `CAR_FIGHT_AI_PROBE_MODE=attacker` for all hunters.
 Evidence: `.network-runs/sprite-ai/attacker/probe.log`. Matched legacy/attacker
 P95 service times were 0.412/0.659 ms (16), 1.720/2.537 ms (64), and

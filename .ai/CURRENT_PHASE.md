@@ -2,6 +2,23 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Latest request: profile the 256-attacker slowdown, not implement a fix.
+  Rendered investigation at `585525d` is recorded in
+  `docs/SPRITE_ATTACKER_PROFILE.md`. Temporary timers were removed; gameplay
+  source is unchanged. Monitored runs `20260904-222537` and
+  `20260904-222858` completed cleanly without engine/script errors.
+- Broad results: legacy median 29.2 ms, attacker 67.6 ms, hidden sprites 42.6,
+  frozen visuals 48.6, lab simulation disabled 29.6, attacker repeat 66.7.
+  Whole lab costs ~8.2 ms/tick, accumulating ~32.6 ms/rendered frame.
+  Movement/world queries are the largest measured AI sub-scope; spacing and
+  visibility are much smaller. The prior targeting optimization is present.
+- Debug follow-up: Show AI decisions off/on measured 69.7/135.5 ms median
+  (~14.4/~7.4 FPS), with 360/697 endpoint draw calls. This reproduces the
+  reported magnitude; owner's exact debug/auto-fire settings remain unconfirmed.
+  Different surviving counts and background OS load limit exact comparisons.
+- Next: owner decision on optimizing high-count debug presentation, then
+  movement/contact and animation update costs. Keep debug off for high-count
+  playtests in the meantime. No behavior, size or network changes made.
 - Latest tuning: owner requested loose attacker groups instead of run-over
   clumps. Added server-only 5 Hz soft separation, preferred center gap 2.5 units
   or actual capsule diameter + 1.5, with bounded spatial-neighbor sampling.
