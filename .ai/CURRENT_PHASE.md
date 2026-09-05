@@ -86,8 +86,18 @@ renderer, lighting safety policy, Rapier, caches, or world architecture.
   Removed unchanged per-frame dropdown/spin rewrites, explicitly kept the tool
   window non-exclusive, widened controls, and treats an open option popup as
   tool focus so driving remains neutral. Focused dropdown/spin contracts and
-  fast check pass. Monitored run `20260904-191711` is open for owner validation;
-  acceptance remains pending.
+  fast check pass. That first change did not resolve the flashing. Live run
+  `20260904-192229` then exposed the actual focus churn: the Intel-Mac window
+  safety policy logged 455 `near_edge` enforcement attempts because macOS
+  consistently reported the decorated game window 16 px away from the position
+  Godot requested. Added a bounded 24 px window-manager position tolerance so
+  this stable title-bar correction settles while larger unsafe placements are
+  still clamped. Fast check, window-safety contracts, and sprite-lab contracts
+  pass. In monitored run `20260904-192626`, the owner reported the dropdown was
+  substantially better with only one isolated flash, then requested a clean
+  restart to confirm autosaved size settings in run `20260904-193235` and asked
+  to commit the checkpoint. Treat the residual one-off flash as observation,
+  not a claim that the underlying Intel rendering load is fully solved.
 - Baked-shadow trial for modern samples: confirmed translucent shadows in the
   downloaded PNGs. Changed modern-only alpha discard to opaque-prepass blending
   and ground registration from row 88 to 91 to retain soft pixels and avoid

@@ -24,6 +24,14 @@ func _init() -> void:
 	if bool(manually_resized["changed"]):
 		_fail("large manual resize inside the safe inset was changed: %s" % manually_resized)
 		return
+	# On macOS a position requested at y=110 can be reported back as y=126 due
+	# to native title-bar geometry. That stable 16 px correction must not cause
+	# the guard to move/refocus the window five times per second forever.
+	var decorated := POLICY.desired_state(DisplayServer.WINDOW_MODE_WINDOWED,
+		false, Rect2i(0, 62, 2880, 1584), Vector2i(2600, 1488), Vector2i(64, 126))
+	if bool(decorated["changed"]):
+		_fail("native title-bar correction did not settle: %s" % decorated)
+		return
 
 	var expanded := POLICY.desired_state(DisplayServer.WINDOW_MODE_MAXIMIZED,
 		true, usable, Vector2i(2800, 1518), Vector2i(0, 25))

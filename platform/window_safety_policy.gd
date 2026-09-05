@@ -7,6 +7,11 @@ signal enforced(action: String, details: Dictionary)
 
 const CHECK_INTERVAL_SECONDS := 0.20
 const SAFE_MARGIN := 48
+# macOS reports a decorated window a few pixels away from the position Godot
+# just requested. Treat that small, stable correction as settled; otherwise the
+# safety loop moves the main window every 0.2 seconds and churns native popup
+# focus forever.
+const WINDOW_MANAGER_POSITION_TOLERANCE := 24
 
 var _elapsed := 0.0
 var _enabled := false
@@ -114,6 +119,10 @@ static func desired_state(mode: int, borderless: bool, usable_rect: Rect2i,
 	var safe_position := Vector2i(
 		clampi(window_position.x, inset.position.x, maximum_position.x),
 		clampi(window_position.y, inset.position.y, maximum_position.y))
+	if absi(safe_position.x - window_position.x) <= WINDOW_MANAGER_POSITION_TOLERANCE:
+		safe_position.x = window_position.x
+	if absi(safe_position.y - window_position.y) <= WINDOW_MANAGER_POSITION_TOLERANCE:
+		safe_position.y = window_position.y
 	if safe_position != window_position:
 		reasons.append("near_edge")
 
