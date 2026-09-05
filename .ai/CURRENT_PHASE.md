@@ -13,6 +13,9 @@
   No broad suite required for this localized steering tune. High-count rendered
   performance has not been rebenchmarked for the variation.
 - Previous batched interactive run `20260904-230807` closed cleanly.
+- Opened approved monitored run `20260904-231501` at `875022e`, 256 batched
+  survivor attackers with varied movement. Owner feel evaluation and final
+  monitor outcome remain pending.
 - Latest owner request: try batched sprite drawing, with no engine/backend
   change. Added opt-in MultiMesh presentation for survivor/thug, original
   AnimatedSprite3D clocks retained. AI, hitboxes, spacing, wire data and sizing
