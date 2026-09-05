@@ -1,5 +1,26 @@
 # Current phase
 
+## Diagnostic playtest prepared, awaiting capture authentication, 2026-09-05
+
+- Owner approved the next two-native-client diagnostic playtest. Refreshed only
+  the isolated macai2 runtime's project configuration, stage observer/source UID
+  and publication markers. Production PID 57599 remains on UDP 10080/TCP 10181;
+  isolated UDP 12780/TCP 12781 were free. No clients/server launched yet.
+- Prepared ignored launcher/plist in
+  `.network-runs/diagnostic-a7e5256-20260905-0305/`. It enables 120-second server
+  and client stage traces plus client presentation traces, unchanged legacy
+  settings, monitored decorated windows and P cruise in both clients. The
+  non-restarting job is `com.whenjohn.car-fight-diagnostic-a7e5256-20260905-0305`.
+- Routed capture interface is `utun6`. Owner must run the bounded 180-second
+  capture helper in their Terminal with sudo, endpoint 100.113.2.60:12780,
+  output `diagnostic-a7e5256-20260905-0305/packets` beneath `.network-runs/`.
+  Wait for capture confirmation before bootstrapping the prepared job in gui/501.
+  A quiet Terminal is expected while recording; never request a password in chat.
+- After play: inspect capture completeness/drops and both stage/presentation
+  traces, run endpoint-specific reports with the copied server trace, verify
+  isolated server cleanup and remove the completed launchd job. If capture has
+  already expired, use a fresh output directory; the helper refuses overwrites.
+
 ## Connection-versus-processing diagnostics implemented, 2026-09-05
 
 - Owner requested the diagnostic setup. Read `docs/NETWORK_DIAGNOSTICS.md`.
