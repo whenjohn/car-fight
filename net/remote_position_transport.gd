@@ -462,6 +462,7 @@ func _sample_bodies() -> Array:
 	return samples
 
 func _send_legacy(peer: int, publication: int, tick: int, samples: Array) -> void:
+	var diagnostic_start := NetworkStageTrace.publication_started()
 	for sample in samples:
 		var payload := [publication, tick, int(sample["id"]), int(sample["generation"]),
 			sample["position"] as Vector3, sample["rotation"] as Quaternion,
@@ -473,6 +474,8 @@ func _send_legacy(peer: int, publication: int, tick: int, samples: Array) -> voi
 		_push_legacy.rpc_id(peer, publication, tick, int(sample["id"]),
 			int(sample["generation"]), sample["position"], sample["rotation"],
 			sample["linear_velocity"], sample["angular_velocity"])
+	NetworkStageTrace.record_publication(diagnostic_start, MODE_LEGACY, publication,
+		tick, peer, samples.size())
 
 func _send_relevant_batch(peer: int, publication: int, tick: int,
 		samples: Array, buckets: Dictionary, samples_by_id: Dictionary) -> void:
@@ -510,6 +513,7 @@ func _send_relevant_batch(peer: int, publication: int, tick: int,
 
 func _send_batch(peer: int, sequence: int, publication: int, tick: int,
 		recipient_map: int, samples: Array) -> void:
+	var diagnostic_start := NetworkStageTrace.publication_started()
 	var ids := PackedInt64Array()
 	var generations := PackedInt32Array()
 	var positions := PackedVector3Array()
@@ -547,6 +551,8 @@ func _send_batch(peer: int, sequence: int, publication: int, tick: int,
 	NetworkPerformance.record_app_message("out", "remote_state_batch", payload)
 	_push_batch.rpc_id(peer, sequence, publication, tick, recipient_map,
 		ids, generations, positions, rotations, linear_velocities, angular_velocities)
+	NetworkStageTrace.record_publication(diagnostic_start, MODE_BATCH, publication,
+		tick, peer, samples.size())
 
 @rpc("authority", "unreliable", "call_remote", RPC_CHANNEL)
 func _push_legacy(publication: int, tick: int, body_id: int, generation: int,

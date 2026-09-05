@@ -71,6 +71,8 @@ rules.
   implementation evidence; known lifecycle and cross-platform validation gaps.
 - `docs/NETWORK_PACKET_BUDGETS_2026-09-04.md`: repeatable real-schema RPC-size
   baseline and telemetry maxima; not live-load or fragmentation acceptance.
+- `docs/NETWORK_DIAGNOSTICS.md`: opt-in packet capture, per-loop stage timing,
+  endpoint-aware correlation, permissions and interpretation limits.
 - `NETWORKING_1_NEXT_STEPS.md`, `NETWORKING_2_PLAN.md`, and
   `WEB_PLATFORM_PLAN.md`: historical execution plans; never treat their old
   baselines or “next” sections as current authorization.

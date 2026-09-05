@@ -367,6 +367,11 @@ before proposing any new display experiment.
 
 For multiplayer feel testing without hosting the server on this Mac, deploy the isolated macai2 service and run `./scripts/play_macai2_two.sh`. It opens two named 1280 x 720 native clients side by side, both through the same telemetry and Intel-display monitor used above. Both clients enable the `P` cruise toggle: press `P` to start full-speed forward driving without burst, switch to the other client to observe, and press `P` again in the driving client to stop cruise. Cruise starts off and generates normal networked inputs even while unfocused. Otherwise, an unfocused client deliberately sends neutral controls, so its Jeep brakes instead of following the focused window's macOS cursor. For a single monitored client, opt in with `CAR_FIGHT_CLIENT_CRUISE=1 ./scripts/play_monitored.sh`. The server remains on macai2 UDP `10080`; G2 remains separate on UDP `9950`.
 
+For opt-in simulation/rollback timing and endpoint-filtered packet capture, read
+[Connection versus processing diagnostics](docs/NETWORK_DIAGNOSTICS.md). Packet
+capture requires separate administrator authentication on this Mac; never run
+the game as root. These tools do not change networking defaults.
+
 The first two-rendered-client trial exposed the stale-history loop later fixed by D-040. Subsequent pairs remain in one shared world and play smoothly. In the latest accepted run, accidentally enlarging one client from 1280 x 720 to 2800 x 1518 briefly reduced it to 6-8 FPS while physics stayed inexpensive; reducing the window restored performance. Keep both clients at the launcher's safe inset size. See [`NETWORK_SHAPING_FINDINGS.md`](NETWORK_SHAPING_FINDINGS.md) for the networking evidence.
 
 To test the failure detector safely, run `./scripts/crash_monitor_test.sh`. It freezes only a headless Godot client's main thread for seven seconds, verifies that telemetry stops and resumes, and requires the external watcher to capture a real process stack during the stall. It does not stress the GPU, open a window, kill WindowServer, or simulate a successful result.

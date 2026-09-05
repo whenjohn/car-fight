@@ -1,5 +1,39 @@
 # Current phase
 
+## Connection-versus-processing diagnostics implemented, 2026-09-05
+
+- Owner requested the diagnostic setup. Read `docs/NETWORK_DIAGNOSTICS.md`.
+  Added an opt-in observer before StateBundle/gameplay autoload subscriptions:
+  per-loop forward/rollback prepare/simulate/record elapsed spans, frame gaps,
+  clock anchors, native ENet local port and server publication queueing markers.
+  Monitored clients receive unique stage-trace paths. Defaults remain off;
+  authority/schema/clock/rollback logic and networking settings are unchanged.
+- Added bounded endpoint-filtered tcpdump capture and a report that isolates
+  sibling client ports and compares incoming packet observations with game gaps.
+  It flags incomplete/dropped capture, clock shifts and unknown endpoints rather
+  than inferring healthy networking. This is aggregate correlation, not exact
+  packet-to-RPC queue delay or network-loss measurement; spans are not CPU time.
+- Node fixture/mock tests and focused stage timing test PASS. Existing clean
+  live headless gate with traces and injected 350 ms Bravo pause PASS: 0.300-unit
+  worst probe discrepancy, zero reference rejects, no engine errors. All three
+  stage traces have real loops/phases and zero drops; Bravo gap 386.9 ms.
+- Final fast check and presentation-trace, remote-position and adaptive-delay
+  regressions PASS without engine/script errors. PCAP fixture decoding/report
+  CLI also passed from outside the project directory. Full suite not rerun for
+  opt-in diagnostics; previous unrelated milestone failures remain open.
+- Live packet capture did NOT start: macOS BPF requires admin authentication and
+  `sudo -n` returned password required. The owner must authenticate the narrowly
+  scoped capture command in their terminal at the next approved test; never ask
+  them to share a password. No security settings/production services changed.
+- Isolated macai2 still has the previous runtime. Next diagnostic playtest must
+  refresh project.godot, the new diagnostic autoload/source and transport changes,
+  not just copy the transport file. Enable server stage output as documented;
+  do not deploy production. No rendered or browser test ran in this turn.
+- Next: authorized short packet + stage + presentation capture on the original
+  two-client setup, inspect per-stage stalls and packet timing. Only then choose
+  a measured optimization. Rendered overhead, paired-server packet evidence,
+  macOS/browser validation and prior milestone failures remain open.
+
 ## First rendered trace analyzed, 2026-09-05
 
 - Owner finished the `6e47ca6` trace-enabled playtest. Both clients exited zero,

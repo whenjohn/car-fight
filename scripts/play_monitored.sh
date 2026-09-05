@@ -259,6 +259,7 @@ fi
 server_pid=""
 if (( start_local_server == 1 )); then
 	CAR_FIGHT_TELEMETRY_FILE="$run_dir/server.telemetry.jsonl" \
+		CAR_FIGHT_NETWORK_STAGE_TRACE_PATH="$run_dir/server.network-stages.jsonl" \
 		"$godot_bin" "${driver_args[@]}" --headless --path "$project_root" -- \
 		--server --port "$port" "${network_stack_args[@]}" \
 		"${server_fixture_args[@]}" > "$run_dir/server.log" 2>&1 &
@@ -278,6 +279,7 @@ if (( start_local_server == 1 )); then
 	fi
 fi
 CAR_FIGHT_TELEMETRY_FILE="$run_dir/client.telemetry.jsonl" \
+	CAR_FIGHT_NETWORK_STAGE_TRACE_PATH="$run_dir/network-stages.jsonl" \
 	CAR_FIGHT_FAKE_STALL_AFTER_SECONDS="$fake_stall_after" \
 	CAR_FIGHT_FAKE_STALL_DURATION_SECONDS="$fake_stall_duration" \
 	"$godot_bin" "${driver_args[@]}" "${client_display_args[@]}" \

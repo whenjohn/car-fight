@@ -78,6 +78,12 @@ accepted only with the expected CLIENT_STOPPED marker; errors still fail the run
 
 ## Gate selection
 
+For connection-versus-processing diagnostics, run
+`tests/network_stage_trace_test.gd`, `node scripts/network_diagnostics_test.mjs`,
+the existing presentation/remote-position regressions, and a bounded live gate
+with stage tracing enabled. See [Network diagnostics](NETWORK_DIAGNOSTICS.md)
+for packet-capture permissions, timing boundaries and missing live evidence.
+
 For presentation-trace changes, run `tests/presentation_trace_test.gd`, the
 existing remote-position and adaptive-delay tests, plus a bounded live network
 gate with tracing enabled. See [Remote presentation diagnosis](NETWORK_PRESENTATION_TRACE.md)
