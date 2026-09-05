@@ -2,6 +2,7 @@ extends "res://addons/netfox.extras/physics/network-rigid-body-3d.gd"
 ## Server-owned Rapier body with client-owned input and local prediction.
 
 const FOLLOW := preload("res://player/follow_controller.gd")
+const CONNECTION_STATE := preload("res://net/connection_state.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const TRACTOR := preload("res://player/tractor_controller.gd")
 const IMPACT := preload("res://player/impact_controller.gd")
@@ -587,7 +588,8 @@ func _static_support_normal() -> Vector3:
 
 
 func remote_position_transport_controlled() -> bool:
-	return not multiplayer.is_server() and not _is_local
+	return CONNECTION_STATE.has_connected_peer(multiplayer) \
+		and not multiplayer.is_server() and not _is_local
 
 
 func _remote_collision_proxy_candidate() -> bool:
@@ -930,6 +932,8 @@ func _is_headless_presentation() -> bool:
 	return DisplayServer.get_name() == "headless"
 
 func _process(_delta: float) -> void:
+	if not CONNECTION_STATE.has_connected_peer(multiplayer):
+		return
 	_process_local_presentation(_delta)
 	_process_remote_position(_delta)
 	_update_tractor_rope()

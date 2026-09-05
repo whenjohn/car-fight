@@ -43,8 +43,9 @@ unchanged rather than redesigned.
   instrumentation or untested platforms instead of claiming acceptance.
 - For lifecycle changes, finish collecting process logs and reject unexpected
   engine/script errors. Existing network harnesses do not yet enforce this
-  consistently: inspect their logs and report known debt alongside their exit
-  status. Do not broadly allowlist errors or relax correction limits to pass.
+  consistently (`network_test.sh` now does): inspect their logs and report known
+  debt alongside their exit status. Do not broadly allowlist errors or relax
+  correction limits to pass.
 
 Run the live player input regression from the project root:
 
@@ -55,8 +56,25 @@ Run the live player input regression from the project root:
 
 This is currently an explicit focused gate and part of `scripts/test.sh`, not
 an executed step in `scripts/check.sh`. Automatic fast-gate execution, complete
-network error collection, and standardized feature-cost reports remain follow-up
-implementation work; documenting this policy does not install that automation.
+error collection across the other network harnesses, and standardized feature-cost
+reports remain follow-up implementation work.
+
+For connection/frame guards or the combined ENet harness, run the focused gates:
+
+```bash
+/Applications/Godot47.app/Contents/MacOS/Godot --headless --path . \
+  --script res://tests/connection_lifecycle_test.gd -- --offline --presentation-test
+./scripts/network_test_harness_test.sh
+```
+
+The first creates presentation nodes under the headless renderer to inspect real
+callbacks; it does not open a rendered window. The second uses mock processes to
+exercise the real `network_test.sh` success, late-error, bad-exit, and timeout
+paths without sockets. Neither replaces live transport/reconnect tests.
+`network_test.sh` waits for complete client logs before checking engine/script
+errors and exit status; `CAR_FIGHT_NETWORK_SHUTDOWN_TIMEOUT` bounds each client
+wait after the server exits (default 10 seconds), not the entire run. Exit 2 is
+accepted only with the expected CLIENT_STOPPED marker; errors still fail the run.
 
 ## Gate selection
 

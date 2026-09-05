@@ -44,6 +44,11 @@ server_port="${CAR_FIGHT_TEST_PORT:-10380}"
 proxy_port=$((server_port + 1))
 server_ticks="${CAR_FIGHT_NETWORK_SERVER_TICKS:-480}"
 client_ticks="${CAR_FIGHT_NETWORK_CLIENT_TICKS:-600}"
+shutdown_timeout="${CAR_FIGHT_NETWORK_SHUTDOWN_TIMEOUT:-10}"
+if [[ "$shutdown_timeout" != <-> ]] || (( shutdown_timeout < 1 )); then
+	echo "CAR_FIGHT_NETWORK_SHUTDOWN_TIMEOUT must be a positive number of seconds" >&2
+	exit 1
+fi
 log_dir="$(mktemp -d "${TMPDIR:-/tmp}/car-fight-network.XXXXXX")"
 server_pid=""
 proxy_pid=""
@@ -56,8 +61,33 @@ cleanup() {
 			kill "$process_id" >/dev/null 2>&1 || true
 		fi
 	done
+	wait 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
+
+wait_for_client() {
+	local process_id="$1" client_log="$2"
+	local deadline=$((SECONDS + shutdown_timeout))
+	while kill -0 "$process_id" 2>/dev/null; do
+		if (( SECONDS >= deadline )); then
+			echo "client shutdown timed out; log: $client_log" >&2
+			kill -KILL "$process_id" 2>/dev/null || true
+			wait "$process_id" 2>/dev/null || true
+			return 1
+		fi
+		sleep 0.1
+	done
+	local exit_code=0
+	wait "$process_id" || exit_code=$?
+	# The server intentionally ends first. Main exits 2 on server loss in
+	# tick-limited clients; accept only that documented terminal event.
+	if (( exit_code == 0 )) || { (( exit_code == 2 )) \
+			&& rg -q '^\[car-fight:client\] CLIENT_STOPPED$' "$client_log"; }; then
+		return 0
+	fi
+	echo "client exited unexpectedly ($exit_code); log: $client_log" >&2
+	return 1
+}
 
 "$godot_bin" --headless --path "$project_root" -- --server --no-drone --port "$server_port" --ticks "$server_ticks" "${stack_args[@]}" >"$log_dir/server.log" 2>&1 &
 server_pid=$!
@@ -81,6 +111,26 @@ if ! wait "$server_pid"; then
 fi
 server_pid=""
 
+# Finish all logs before asserting gameplay or error results. Keep the proxy
+# alive until both clients have received the server's disconnect or timed out.
+clients_failed=0
+wait_for_client "$client_a_pid" "$log_dir/client-a.log" || clients_failed=1
+client_a_pid=""
+wait_for_client "$client_b_pid" "$log_dir/client-b.log" || clients_failed=1
+client_b_pid=""
+kill "$proxy_pid" 2>/dev/null || true
+wait "$proxy_pid" 2>/dev/null || true
+proxy_pid=""
+if rg -n 'ERROR:|SCRIPT ERROR|Parse Error|Invalid call|Invalid get index|Node not found|Failed to get path from RPC' \
+		"$log_dir"/*.log >&2; then
+	echo "runtime engine/script error; logs: $log_dir" >&2
+	exit 1
+fi
+if (( clients_failed )); then
+	echo "client lifecycle failed; logs: $log_dir" >&2
+	exit 1
+fi
+
 if ! rg -q 'CLIENT_READY' "$log_dir/client-a.log" || ! rg -q 'CLIENT_READY' "$log_dir/client-b.log"; then
 	echo "a client did not complete the ENet handshake; logs: $log_dir" >&2
 	tail -60 "$log_dir/client-a.log" >&2
@@ -102,11 +152,6 @@ fi
 if ! rg -q 'RESULT players=2 .*contact=1 escapes=[1-9][0-9]*' "$log_dir/server.log"; then
 	echo "colliding cars never triggered the authoritative escape assist; logs: $log_dir" >&2
 	tail -100 "$log_dir/server.log" >&2
-	exit 1
-fi
-if rg -q 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.log; then
-	echo "runtime script error; logs: $log_dir" >&2
-	rg 'SCRIPT ERROR|Parse Error|Invalid call|Invalid get index' "$log_dir"/*.log >&2
 	exit 1
 fi
 if [[ -n "${CAR_FIGHT_REMOTE_INTERP_MODE:-}" ]]; then

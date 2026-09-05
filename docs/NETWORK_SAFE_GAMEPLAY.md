@@ -97,6 +97,8 @@ when prediction makes the same local decision for responsiveness.
 
 - Only gather/send/apply network-dependent gameplay in valid connection and
   readiness states. A non-null peer reference alone does not prove it is active.
+  Reuse `net/connection_state.gd` for the connected-peer prerequisite; it accepts
+  offline play but does not replace feature-specific readiness or authority checks.
 - Stop callbacks and clear or invalidate pending work as nodes/sessions retire.
   Reject stale events using the existing identity/generation/tick contracts;
   reused IDs must not route an old event into a replacement object.
@@ -156,15 +158,18 @@ The following distinction is important for future sessions:
 
 - **Implemented:** live player input-schema and codec regression; explicit focused
   test selection; existing network/performance counters; opt-in mixed-transport
-  packing assertions. Run the codec test explicitly after input/registration work.
+  packing assertions; instrumented real-scene connection regression; complete
+  client logs/error checks and bounded post-server client waits in `network_test.sh`,
+  covered by process-only harness tests. Run codec/lifecycle tests explicitly for
+  their affected changes.
 - **Not yet automated:** running that codec test inside the fast `check.sh` gate;
-  complete process-log collection and unexpected-engine-error failure in all
+  complete process-log collection and unexpected-engine-error failure in the other
   network harnesses; standardized per-feature cost/percentile reports and budgets.
 - **Required now:** follow the contracts, choose and run affected focused checks,
   inspect logs, and disclose missing evidence. `check.sh` checks the test manifest
   but does not execute the codec test. Follow [Quality gates](QUALITY_GATES.md)
   for exact commands and when the full suite is required.
 
-First automation priorities are fast live-schema coverage, reliable log/error
-gating, and repeatable feature-cost reports. They are follow-up tasks, not changes
-silently installed by this documentation or permission for a broad rewrite.
+Remaining automation priorities are fast live-schema coverage, auditing log/error
+gating in the other harnesses, and repeatable feature-cost reports. They are
+follow-up tasks, not permission for a broad rewrite.

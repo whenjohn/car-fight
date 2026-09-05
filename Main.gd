@@ -2,6 +2,7 @@ extends Node3D
 ## Small, auditable game shell: ENet lifecycle and spawn authority live here;
 ## player scripts own deterministic FOLLOW simulation and presentation.
 
+const CONNECTION_STATE := preload("res://net/connection_state.gd")
 const DEFAULT_PORT := 10080
 const DEFAULT_SIGNAL_PORT := 10181
 const MAX_CLIENTS := 16
@@ -477,6 +478,13 @@ func _on_window_safety_enforced(event: String, details: Dictionary) -> void:
 
 func _process(_delta: float) -> void:
 	_frame_ms_current = _delta * 1000.0
+	if not CONNECTION_STATE.has_connected_peer(multiplayer):
+		if _status_label != null:
+			_status_label.visible = true
+			_status_label.text = "CAR FIGHT  |  NETWORK\n%s\n%s" % [
+				_network_status if not _network_status.is_empty() else "CONNECTING",
+				_connection_target()]
+		return
 	_poll_presentation_control(_delta)
 	if _network_hud_enabled:
 		_update_network_hud(_delta)
@@ -989,6 +997,8 @@ func _connect_network_events() -> void:
 		_log("CLIENT_READY id=%d name=%s" % [id, _player_name])
 	)
 	NetworkEvents.on_client_stop.connect(func():
+		_network_status = "DISCONNECTED"
+		_client_cruise_active = false
 		_log("CLIENT_STOPPED")
 		if _quit_after_ticks > 0:
 			get_tree().quit(2)
@@ -1268,7 +1278,7 @@ func _spawn_ramming_lab_props() -> void:
 func _on_peer_leave(id: int) -> void:
 	StateBundle.forget_peer_transport(id)
 	_vehicle_size_respawns_pending.erase(id)
-	if not multiplayer.is_server():
+	if not CONNECTION_STATE.has_connected_peer(multiplayer) or not multiplayer.is_server():
 		return
 	var body := _players.get_node_or_null(str(id))
 	if body != null:
@@ -3258,6 +3268,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not CONNECTION_STATE.has_connected_peer(multiplayer):
+		return
 	if _role not in ["client", "offline"] or not _scripted.is_empty():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -3769,7 +3781,7 @@ func _recover_server_driver(body: RigidBody3D, tick: int) -> void:
 	_log("SERVER_DRIVER recovered tick=%d reason=left-city" % tick)
 
 func local_player():
-	if _players == null:
+	if _players == null or not CONNECTION_STATE.has_connected_peer(multiplayer):
 		return null
 	return _players.get_node_or_null(str(multiplayer.get_unique_id()))
 
@@ -3783,6 +3795,8 @@ func _client_world_positions() -> String:
 	return "|".join(entries)
 
 func _on_tick(delta: float, tick: int) -> void:
+	if not CONNECTION_STATE.has_connected_peer(multiplayer):
+		return
 	if _start_tick < 0:
 		_start_tick = tick
 	var elapsed := tick - _start_tick
@@ -3855,7 +3869,8 @@ func _on_tick(delta: float, tick: int) -> void:
 
 
 func _send_settled_authority_probes() -> void:
-	if not multiplayer.is_server() or _start_tick < 0:
+	if not CONNECTION_STATE.has_connected_peer(multiplayer) \
+			or not multiplayer.is_server() or _start_tick < 0:
 		return
 	var tick: int = int(NetworkTime.tick)
 	while not _authority_probe_queue.is_empty() \

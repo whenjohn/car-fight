@@ -4,6 +4,7 @@ extends Node3D
 ## network state and is visible only while the local player is in the city map.
 
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
+const CONNECTION_STATE := preload("res://net/connection_state.gd")
 const CITY_LAYOUT := preload("res://world/city_layout.gd")
 const TREE_VISUAL_LIBRARY := preload("res://world/tree_visual_library.gd")
 const DISTRICT_PATH := "res://assets/local/city_audition/extracted/city_district.tscn"
@@ -69,7 +70,7 @@ func set_lighting_style(style_index: int) -> void:
 
 
 func _process(_delta: float) -> void:
-	if _players == null:
+	if _players == null or not CONNECTION_STATE.has_connected_peer(multiplayer):
 		return
 	var local := _players.get_node_or_null(str(multiplayer.get_unique_id()))
 	visible = local != null and int(local.get("map_id")) == MAP_LAYOUT.CITY

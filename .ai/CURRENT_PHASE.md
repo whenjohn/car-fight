@@ -1,5 +1,36 @@
 # Current phase
 
+## Active worktree: connection guards and complete logs, 2026-09-04
+
+- Resumed networking work on `codex/networking-review` after the owner approved
+  continuing. Fixed the observed inactive-peer frame callbacks using the shared
+  `net/connection_state.gd` connected-peer predicate; offline peers still qualify.
+  Main/local-player lookup, pickup prediction, vehicle presentation, city/oil
+  visuals, and boost blur no longer query identity while connecting/disconnected.
+- Client stop records DISCONNECTED and clears automatic cruise. Gameplay input,
+  Main tick work, and settled probes are gated while inactive. No peer is replaced
+  with an offline/server peer to hide errors; authority, schemas, replication
+  rates, collision math, netfox history patches, and defaults remain unchanged.
+- `network_test.sh` now waits for both client logs, bounds each post-server client
+  wait (10 seconds by default), checks terminal exit status, reaps child processes,
+  and fails engine errors as well as script errors. Server-first shutdown still
+  permits the existing client exit 2 only with its CLIENT_STOPPED terminal marker.
+  The two-unit correction limit is unchanged. Other harnesses need separate audit.
+- Added a real-scene lifecycle regression with instrumented peer states; confirmed
+  pre-fix failures, then passed connected/offline, connecting, disconnect/event,
+  frame callbacks, gameplay input, and cruise checks. Process-only harness tests
+  pass clean shutdown and reject late engine errors, unexpected exits, and hangs.
+- Fast check and codec regression passed. Packed-input combined ENet gate passed
+  at 0.805 units with complete error-free logs; mixed ENet/WebRTC passed at 0.300;
+  default ENet reconnect passed (3 joins, 3 leaves). Mixed collision rejection has
+  its expected signaling error; shared-gameplay/door-control logs are clean.
+  Evidence: `.network-runs/lifecycle-2026-09-04/` and review follow-up.
+- Next: bound WebRTC connection/negotiation failure paths while preserving live
+  gameplay when signaling alone is lost. Same-session recovery, browser/mobile
+  resume, and the earlier sporadic CityBall spawn/RPC ordering issue are not fixed
+  by this change. Full milestone suite remains required before branch merge.
+- No deployment, master merge, rendered run, or networking default change.
+
 ## Standing gameplay/networking guidance, 2026-09-04
 
 - Owner requested durable rules and the reasoning behind them. Added
@@ -9,7 +40,8 @@
   class, replay safety, lifecycle behavior, bounded cost, and focused evidence.
   The guide explains general ownership/retry/budget/measurement principles and
   the Car Fight failures that motivate them, plus a reusable handoff checklist.
-- Existing checks and proposed automation are explicitly separate. The codec
+- At that documentation checkpoint, checks and proposed automation were explicitly
+  separate. The codec
   regression is still run explicitly, network log/error enforcement still needs
   repair, and standardized feature-cost reports are not implemented yet.
 - Documentation-only update on `codex/networking-review`; checked links/commands

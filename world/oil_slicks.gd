@@ -3,6 +3,7 @@ extends Node3D
 ## reads oil_slick.gd directly, so this node is safe to omit on headless peers.
 
 const OIL_SLICK := preload("res://world/oil_slick.gd")
+const CONNECTION_STATE := preload("res://net/connection_state.gd")
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
 const DECAL_SHADER := preload("res://fx/oil_slick_decal.gdshader")
 const DECAL_HEIGHT := 0.038
@@ -23,7 +24,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _players == null:
 		return
-	if multiplayer.multiplayer_peer == null:
+	if not CONNECTION_STATE.has_connected_peer(multiplayer):
 		visible = true
 		return
 	var local := _players.get_node_or_null(str(multiplayer.get_unique_id()))

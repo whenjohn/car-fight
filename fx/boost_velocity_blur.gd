@@ -3,6 +3,7 @@ extends CanvasLayer
 ## current frame, lives below the HUD, and owns no gameplay or network state.
 
 const BOOST_BLUR_SHADER := preload("res://fx/boost_velocity_blur.gdshader")
+const CONNECTION_STATE := preload("res://net/connection_state.gd")
 const MIN_EFFECT_SPEED := 2.0
 const FULL_EFFECT_SPEED := 18.0
 const RISE_SPEED := 8.5
@@ -60,8 +61,6 @@ static func effect_strength(boosting: bool, speed: float) -> float:
 	return smoothstep(MIN_EFFECT_SPEED, FULL_EFFECT_SPEED, speed)
 
 func _local_player() -> RigidBody3D:
-	if _players == null or multiplayer.multiplayer_peer == null:
-		return null
-	if multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
+	if _players == null or not CONNECTION_STATE.has_connected_peer(multiplayer):
 		return null
 	return _players.get_node_or_null(str(multiplayer.get_unique_id())) as RigidBody3D

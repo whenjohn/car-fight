@@ -34,6 +34,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/crash_telemetry_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/server_result_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/input_codec_test.gd -- --offline
+"$godot_bin" --headless --path "$project_root" --script res://tests/connection_lifecycle_test.gd -- --offline --presentation-test
 "$godot_bin" --headless --path "$project_root" --script res://tests/controller_input_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/client_cruise_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/motion_trace_test.gd
@@ -52,6 +53,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$project_root/scripts/offline_test.sh"
 "$project_root/scripts/sprite_network_test.sh"
 "$project_root/scripts/network_test.sh"
+"$project_root/scripts/network_test_harness_test.sh"
 "$project_root/scripts/mixed_transport_test.sh"
 "$project_root/scripts/join_transient_test.sh"
 "$project_root/scripts/reconnect_test.sh"

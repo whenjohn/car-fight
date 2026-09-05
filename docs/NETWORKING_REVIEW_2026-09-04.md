@@ -408,3 +408,67 @@ real browser, TURN, packaged-platform, mobile, or rendered test was run. The
 native WebRTC extension gate does not substitute for browser acceptance. Run
 the full milestone suite before any shared-schema/netfox merge, and retain the
 review's lifecycle and platform work before promoting networking defaults.
+
+## Implementation follow-up: connection guards and gate, 2026-09-04
+
+The next bounded implementation addresses the inactive-peer frame errors in
+finding 2 and the incomplete logs in `scripts/network_test.sh`. It does not
+implement reconnect/rejoin, browser negotiation deadlines, or the separate
+sporadic CityBall spawn/RPC ordering issue.
+
+### Contract and changes
+
+Server authority, input/state schemas, replication classes/rates, collision math,
+and netfox's history/lifecycle patches are unchanged. A small shared predicate
+requires a connected peer before the affected gameplay identity/authority queries;
+offline play remains valid. No disconnected network peer is replaced with an
+OfflineMultiplayerPeer as a workaround, which would incorrectly imply authority.
+
+Main frame/tick/input/probe entry points and local-player lookup are guarded, as
+are pickup prediction, vehicle presentation, city/oil visuals, and boost blur.
+Client stop records DISCONNECTED and clears automatic cruise. This stops the
+observed unsafe callbacks; it does not clear/rebuild the entire world or constitute
+a complete same-session recovery workflow. The extra guards are constant-time
+status checks and add no replicated objects or messages.
+
+The ENet gate now waits for both clients before evaluating logs, keeps the proxy
+alive until they finish, checks exit codes, and fails engine errors as well as
+script errors. Each post-server client wait is bounded by
+`CAR_FIGHT_NETWORK_SHUTDOWN_TIMEOUT` (default 10 seconds). A hung client is killed
+and reaped, and the gate fails. The existing server-first test intentionally causes
+client exit 2; only that code with CLIENT_STOPPED is accepted in addition to zero.
+There is no engine-error allowlist in this gate, and the two-unit correction ceiling
+is unchanged. This is not an overall server-run timeout or a rewrite of all harnesses.
+
+### Verification and limits
+
+- `tests/connection_lifecycle_test.gd -- --offline --presentation-test` first
+  reproduced unsafe identity queries and missing disconnect status. With the fix,
+  its instrumented peer passes connected/offline, connecting/disconnected frames,
+  stop-event, Main tick/probe/leave callbacks, local lookup, gameplay input, and
+  cruise checks. Presentation nodes are exercised headlessly, without a window.
+- `scripts/network_test_harness_test.sh` passes a clean server-first shutdown,
+  rejects an engine error emitted after the server has exited, rejects exit 3,
+  bounds a hung client, and verifies all fixture child processes are reaped.
+  This is orchestration coverage, not gameplay or transport evidence.
+- `CAR_FIGHT_PACKED_INPUT=1 ./scripts/network_test.sh combined` passed at 0.805
+  units, three reference rejections, and no engine/script errors in complete logs.
+  Both clients recorded CLIENT_STOPPED. Codec fallbacks/rejects remained zero.
+- `CAR_FIGHT_PACKED_INPUT=1 ./scripts/mixed_transport_test.sh` passed at 0.300
+  units. Shared gameplay and transport-door logs were clean; the deliberate
+  peer-ID collision retained its expected signaling-closure error.
+- `./scripts/reconnect_test.sh` passed with three joins, three leaves, and six
+  two-player survivor samples, using unchanged native networking defaults.
+- `./scripts/check.sh` and the live input codec regression passed. The final
+  lifecycle regression with certificate-store access emitted no engine errors;
+  sandboxed development invocations of GDScript tests emitted the known macOS
+  certificate permission diagnostic, separate from assertions.
+
+Evidence is retained under ignored `.network-runs/lifecycle-2026-09-04/`:
+`car-fight-network.8jLXaR`, `car-fight-mixed.GPURu8`,
+`car-fight-reconnect.dPAL4M`, and `car-fight-network-harness.XZaYGB`.
+The ENet run preceded the final connecting-state blur guard, which is covered by
+the lifecycle regression and subsequent mixed/reconnect runs. No new throughput
+or visual-feel claim follows from these short correction samples. No production
+deployment, default change, rendered/browser/mobile/TURN run, or master merge.
+The full milestone suite remains a pre-merge requirement for this branch.

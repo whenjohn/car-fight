@@ -3,6 +3,7 @@ extends Node3D
 ## rendered through one mesh; it is never a physics body, collider, or rollback state.
 
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
+const CONNECTION_STATE := preload("res://net/connection_state.gd")
 const CITY_LAYOUT := preload("res://world/city_layout.gd")
 const DOT_COUNT := 72
 const DOT_ID_BASE := 700001
@@ -165,7 +166,7 @@ func _collect_local(ids: PackedInt32Array, collectors: PackedInt32Array) -> void
 		_scores[peer_id] = int(_scores.get(peer_id, 0)) + 1
 
 func _process(delta: float) -> void:
-	if multiplayer.multiplayer_peer == null:
+	if not CONNECTION_STATE.has_connected_peer(multiplayer):
 		return
 	if not multiplayer.is_server():
 		_predict(delta)
@@ -206,6 +207,8 @@ func _has_local_flyin(me: Node3D) -> bool:
 	return false
 
 func _local_body() -> Node3D:
+	if not CONNECTION_STATE.has_connected_peer(multiplayer):
+		return null
 	var players := get_parent().get_node_or_null("Players")
 	return null if players == null else players.get_node_or_null(str(multiplayer.get_unique_id())) as Node3D
 
