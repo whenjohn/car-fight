@@ -1,5 +1,37 @@
 # Current phase
 
+## Elapsed-cursor human trial active, 2026-09-05
+
+- Owner said ready to test. Implemented opt-in at `856e081` before launching;
+  read the opt-in trial section in `docs/NETWORK_PRESENTATION_TRACE.md`.
+  `CAR_FIGHT_REMOTE_CURSOR_CLOCK=elapsed` affects fixed/adaptive remote visual
+  cursor delta only. Shipping default engine delta, simulation/rollback, schemas,
+  authority, collision, 75 ms delay and renderer remain unchanged. Gaps above
+  250 ms deliberately retain original engine-delta/rebase recovery behavior.
+- Focused actual-body cursor test, existing transport, adaptive and presentation
+  trace tests PASS; final fast check PASS. Opt-in clean headless two-client gate
+  PASS: 0.300-unit worst probe, zero reference rejects, no runtime errors. Initial
+  new test fixture emitted missing Input-node error; corrected rerun was clean.
+  Broad milestone/browser tests not rerun and remain unaccepted.
+- Both monitored clients connected with `clock=elapsed` verified in startup logs:
+  `.crash-runs/two-client-20260905-035412/`; Alpha subrun 20260905-035412,
+  PID 12552, peer 1401744304; Bravo subrun 20260905-035415, PID 12609,
+  peer 1120983699. P cruise available in both, 120-second presentation/stage
+  traces enabled, unchanged legacy settings. No startup SCRIPT ERROR/ERROR
+  matches at readiness check. Await actual post-warmup feel and saved traces.
+- Isolated macai2 runtime received only the matching player and two presentation
+  helpers. Temporary server PID 65544 on UDP 12780/TCP 12781; production PID
+  57599 remains on UDP 10080. Server stage trace shortened to 90 seconds to reduce
+  the prior cap pressure; inspect actual drops, do not assume zero.
+- Launcher/server evidence: `.network-runs/elapsed-20260905-0351/`.
+  Non-restarting job `com.whenjohn.car-fight-elapsed-20260905-0351` in gui/501.
+  No packet capture required/launched for this cursor trial; shared delivery-gap
+  investigation remains separate. No Terminal authentication step for owner.
+- On done: verify both exits and isolated server cleanup, remove completed job,
+  compare warmed-up cursor speed/headroom/modes to retained engine-clock run.
+  This is a sequential trial, not a matched randomized A/B; do not infer reduced
+  network loss or full smoothness from the offline proof. Defaults stay off.
+
 ## Warmed-up remote playback analyzed, 2026-09-05
 
 - Owner explicitly kept this work on networking quality. Startup shader work is
