@@ -1,5 +1,22 @@
 # Current phase
 
+## Trace-enabled cruise playtest active, 2026-09-05
+
+- Owner approved this rendered test. Both monitored native clients connected
+  to isolated macai2 UDP 12780 / TCP 12781 at runtime `6e47ca6`, with P cruise,
+  HUD/telemetry and 120-second presentation traces verified in startup args.
+  Legacy/fixed networking settings are unchanged. No browser test launched.
+- Run: `.crash-runs/two-client-20260905-020617/`; alpha subrun
+  `20260905-020617` PID 85989, bravo `20260905-020620` PID 86049.
+  Each client writes `presentation-trace.jsonl` after two minutes or normal exit.
+- Launcher/server evidence: `.network-runs/trace-6e47ca6-2026-09-05/`.
+  Non-restarting job `com.whenjohn.car-fight-trace-6e47ca6-20260905` in `gui/501`.
+  The isolated checkout received only the tested remote-position trace runtime
+  update; production PID 57599/UDP 10080 was not changed. Launcher stops its
+  isolated server and copies its log after both clients close.
+- Await owner-observed stutter times; inspect actual trace records after flush.
+  No smoothness claim yet. Remove the completed job after play; no auto-relaunch.
+
 ## Legacy presentation trace repaired, 2026-09-05
 
 - Owner approved continued improvement and requested a macOS + browser test
