@@ -1,5 +1,32 @@
 # Current phase
 
+## Elapsed-cursor trial completed and analyzed, 2026-09-05
+
+- Owner finished after reporting "smooth very little stutter", separately from
+  observer-only straight-path skid marks. Both clients exited zero after about
+  9.3 minutes; isolated server stopped, job removed, production PID 57599 remains
+  on UDP 10080. Read the elapsed trial result in `docs/NETWORK_PRESENTATION_TRACE.md`.
+- All client traces completed with zero drops; 90-second server trace also zero
+  drops (24,119 records). Detailed client coverage is first 120 seconds only.
+  No packet capture in this trial; no new delivery-gap/loss conclusion.
+- Equal seconds-30-to-80 windows and regular/near-target playback filters support
+  improved cursor pacing. Non-overlapping >=100 ms blocks reduce the current
+  trace's 1 ms timestamp quantization: rate p05/p95 narrowed from about 0.92/1.08-1.10
+  to 0.99/1.01. Documented raw short-interval ambiguity, different focus/frame
+  rates and limited selected coverage; this is not a matched A/B or FPS claim.
+- Bravo had a 2.800-unit probe at tick 5940 classified with a stall and a
+  572.609 ms process metric; Alpha maximum 0.469. Final state current, zero final
+  rejects. No engine/script/display precursor errors found. The outlier exceeds
+  the two-unit gate reference and remains unresolved, not blamed on the opt-in
+  without evidence. CPU limits reached 73 during this longer run.
+- Evidence: `.crash-runs/two-client-20260905-035412/`, plus server logs and
+  `compare-cursors.mjs` / `cursor-comparison.json` in
+  `.network-runs/elapsed-20260905-0351/`. No trial processes remain.
+- Next: keep clock opt-in/default unchanged; characterize remote skid trigger
+  inputs against presentation time, investigate the stall/probe outlier, then
+  controlled comparison and later native/browser validation. Do not equate the
+  positive motion verdict with approval to promote or deploy.
+
 ## Owner observation during elapsed trial: remote-only skid marks
 
 - Owner's follow-up motion verdict: "yes smooth very little stutter" when asked

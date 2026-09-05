@@ -311,6 +311,89 @@ that fixture was corrected and its rerun was clean. Full milestone/browser gates
 are not cleared. Human testing compares against the retained engine-clock run;
 it is not yet a matched randomized A/B or a proven perceptual improvement.
 
+## Elapsed trial result, 2026-09-05
+
+Owner's motion verdict: "yes smooth very little stutter". They separately saw
+straight-path skid marks under the other vehicle in the observing client, but
+none in that vehicle's own client. Neither symptom is inferred from FPS alone.
+
+Both clients exited zero after about 9.3 minutes. Temporary macai2 server stopped,
+completed job removed, production PID 57599/UDP 10080 unchanged. Runtime `856e081`;
+both trace headers confirm `cursor_clock=elapsed`, fixed 75 ms and legacy 60 Hz.
+Client stage/presentation traces completed with zero drops; shortened 90-second
+server trace has 24,119 records and zero drops. Client detailed traces cover only
+the first two minutes, not the full observation period. No packet capture was
+collected, so this run cannot clear the earlier shared packet-delivery gaps.
+
+Evidence: `.crash-runs/two-client-20260905-035412/`, Alpha subrun
+`20260905-035412`, Bravo `20260905-035415`. Server and repeatable offline
+`compare-cursors.mjs` / `cursor-comparison.json` are under
+`.network-runs/elapsed-20260905-0351/`.
+
+### Timing comparison
+
+Compare seconds 30-80 after each first connected presentation frame against
+the retained engine-clock run `two-client-20260905-032049`. Use the same
+established-body, interp/positive-headroom, effective-delay 60-90 ms filter and
+exclude callback gaps above 50 ms plus their following second. Epoch/generation
+changes break comparisons. These remain selected regular intervals, not a
+whole-session jitter score or wall-time interpolation percentage.
+
+This run had many 1-4 ms body intervals, unlike the prior run's approximately
+31 ms median in this subset. Millisecond timestamps are too coarse for reliable
+per-step ratios at that scale; the raw per-step p95 was about 1.44-1.45 and must
+not be treated as proof of a regression or silently discarded. As a resolution
+check, combine consecutive qualifying intervals into non-overlapping blocks of
+at least 100 ms, resetting at every exclusion/discontinuity. This retains short
+intervals and reduces timestamp quantization without spanning stalled periods.
+
+| Cursor rate over qualifying blocks | Engine Alpha | Engine Bravo | Elapsed Alpha | Elapsed Bravo |
+| --- | ---: | ---: | ---: | ---: |
+| Blocks | 196 | 182 | 153 | 231 |
+| Summed duration | 22.5 s | 21.1 s | 16.6 s | 24.8 s |
+| p05 | 0.918 | 0.921 | 0.991 | 0.993 |
+| Median | 1.000 | 1.001 | 1.001 | 1.001 |
+| p95 | 1.079 | 1.099 | 1.010 | 1.007 |
+
+A second diagnostic restricted to 17-50 ms intervals, the baseline's observed
+range, found elapsed cursor p05/p95 about 0.97/1.03 versus engine 0.82/1.28.
+It retained only 374/556 elapsed intervals and is not an independent matched
+experiment. Focus, driving, callback rates and host conditions differed; almost
+none of the trial's selected near-target intervals were continuously focused
+over the preceding second. This is evidence that the targeted cursor mechanism
+improved, consistent with owner feedback, not quantified GPU/screen-space
+smoothness, an FPS gain attributable to the code, or cross-platform acceptance.
+
+### Remaining issues
+
+Alpha/Bravo maximum observed probe errors were 0.469/2.800 units. Bravo's tick
+5940 discrepancy was classified `stall`, with `process_ms=572.609`, source age
+9 ticks and rollback duration about 19 ms in the cause record. A 1.4-unit sample
+followed, then smaller corrections. The process metric is diagnostic elapsed
+time, not proof of a specific CPU function or that the clock change caused the
+event. The 2.8-unit outlier exceeds the two-unit reference used by network gates;
+this trial does not qualify the branch for promotion on smoothness alone.
+Final applied state was current with zero rejects in each final interval.
+Startup probe misses were retained (60/49 total), with two guarded stale-origin
+warnings on Bravo. No client/server SCRIPT ERROR/ERROR or display precursor was
+found. CPU speed-limit samples reached 73 later in the long run, unlike the
+previous short run's all-100 samples. Long startup/frame stalls remain.
+
+The skid discrepancy is a separate network-presentation contract issue to
+characterize. `GroundVehicleHull._animation_inputs()` reads current simulated
+rigid velocity/basis and brake state, while the remote hull is positioned from
+delayed snapshots. Skid emission also reads reverse, drift assist, oil and boost
+transitions. No effect-trigger inputs were traced, so the exact trigger remains
+unknown; speed variation alone is not a skid trigger. These FX paths predate the
+trial. Do not hide the issue by disabling remote marks or add replicated fields
+without first reproducing and measuring the state/time mismatch.
+
+Next: retain the opt-in, investigate the remote FX inputs and stall/correction
+outlier, then perform a controlled comparison and later native/browser gate.
+No defaults or production services changed during analysis. Validation here was
+saved-evidence parsing/assertions and documentation diff checks, not a new live
+gate or repeated broad suite.
+
 ## Later platform gate
 
 The owner requested a macOS-native plus browser playtest later, not now. After
