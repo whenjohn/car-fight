@@ -147,6 +147,11 @@ Previous milestone failures and later macOS/browser acceptance remain open.
 
 ## First real packet-correlated run, 2026-09-05
 
+Follow-up: the owner kept priority on warmed-up remote movement. Read the
+"Warmed-up network playback analysis" in `NETWORK_PRESENTATION_TRACE.md` for
+the separated cursor-pacing and shared delivery-gap findings. This supersedes
+the startup-graphics-first priority at the end of this initial analysis.
+
 Owner completed the two-native-client run against isolated macai2 UDP 12780.
 Both clients exited zero, the temporary server stopped, and the completed
 non-restarting launchd job was removed. Production PID 57599 remained on UDP

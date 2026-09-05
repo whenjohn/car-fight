@@ -151,6 +151,133 @@ Do not simply increase the interpolation buffer: the focused observer had ample
 samples during the earlier observation slice. No runtime tuning was applied
 while analyzing this run.
 
+## Warmed-up network playback analysis, 2026-09-05
+
+Owner explicitly kept the next investigation on networked remote movement, not
+a rendering optimization project. Startup shader work is separate debt. This
+analysis reuses `.crash-runs/two-client-20260905-032049/`, the successful packet
+capture and isolated server trace described in `NETWORK_DIAGNOSTICS.md`. No
+runtime, renderer, networking default, production service or browser change.
+
+### Method and limits
+
+Discard the first 30 seconds after each presentation trace's first connected
+frame, then stop at that client's last captured incoming packet. Windows are
+approximately 03:21:31.437-03:22:25.715 (Alpha) and
+03:21:34.370-03:22:25.715 (Bravo), America/Chicago. This is a deliberately bounded
+54.3/51.3-second slice, not a whole-session performance rating.
+
+Use body observation timestamps, not the containing transport record's time:
+body samples can be collected on the following transport callback. Break cursor
+comparisons at recorded epochs or observed generation changes. Classify a body
+interval as stalled if it exceeds 50 ms or overlaps a stage callback gap above
+50 ms; separately label intervals within one second after such a gap. Remaining
+intervals are called regular, not guaranteed perceptually smooth. Thresholds
+are analysis filters, not acceptance criteria. The one-second exclusion alone
+does not clear prolonged cursor recovery, so also isolate pairs where both
+effective delays are 60-90 ms, both modes are interp, the body is established,
+and final snapshot headroom is positive.
+
+Both client traces have zero drops and clock-anchor offset variation below
+0.83 ms. Body timestamps have millisecond resolution. Packet classification is
+per local endpoint, and packet contents are not matched to RPCs. The server
+trace has a dropped tail; only retained, exact recipient/publication/tick matches
+are used below. Comparing spacing between matching publications does not require
+synchronized client/server clocks and is not a one-way latency measurement.
+
+Local reproducible artifacts are under
+`.network-runs/diagnostic-1788596366046/`: `analyze-warm.mjs`,
+`warm-analysis.json`, `cursor-characterization.gd` and its `.log`.
+Run the Node script from the worktree root. It reads existing evidence only.
+An initial slow analysis process was stopped and its redundant per-packet clock
+conversion removed; the completed reruns and assertions succeeded. No game
+process was running during analysis.
+
+### Lead 1: interpolation timeline pacing
+
+In the packet-covered slice all 3,094/2,926 received remote-body legacy records
+were accepted. Local-body deliveries are excluded, not counted as rejects/loss.
+Ordinary callback intervals were almost entirely interpolating: 1009/1012 and
+1078/1082 observations. This does not exclude occasional starvation, below.
+
+Even the stricter near-target, positive-headroom subset has varying playback
+speed. Speed here means render-cursor tick advance divided by nominal tickrate
+and elapsed body-callback time, not measured vehicle/world/screen velocity.
+
+| Near-target regular intervals | Alpha | Bravo |
+| --- | ---: | ---: |
+| Interval count | 846 | 755 |
+| Summed interval time | 26.0 s | 23.0 s |
+| Cursor speed p05 / median / p95 | 0.817 / 1.002 / 1.265 | 0.822 / 0.999 / 1.285 |
+| Steps outside 0.8-1.2 times nominal | 115 | 106 |
+| Headroom median | 74.3 ms | 64.2 ms |
+| Latest accepted callback age median | 13 ms | 11 ms |
+
+For example, focused Alpha at 03:22:19.326 advanced its cursor by 30.95 ms over
+a 21 ms body interval, while retaining 75.1 ms snapshot headroom. Its supplied
+engine delta was 31.06 ms. No stage callback gap above 50 ms occurred in the
+preceding second. The mismatch is much larger than timestamp quantization.
+
+`PlayerBody._process_remote_position()` passes its supplied process delta into
+`RemoteSnapshotInterpolation.advance_cursor()`. That helper advances nominally
+by delta * tickrate and adds bounded clock correction. Reconstructing the helper
+from the aligned engine delta and recorded desired timeline matches all 1,601
+near-target pairs to within 1e-10 ticks. Cursor speed closely follows supplied
+delta divided by elapsed time, even with snapshots available. This identifies a
+specific network-presentation timing mechanism; it does not measure screen-space
+jerk, prove constant authoritative vehicle speed, or prove every visible hitch
+has this cause. The trace lacks poses and GPU presentation timestamps.
+
+The headless characterization executes the actual existing helper and sampler
+with a full linear snapshot history. Alternating 20/46.667 ms callbacks with
+a constant 33.333 ms supplied delta gives cursor speeds 0.715-1.655 times
+nominal; every sample is interp. An elapsed-delta control gives 1.000 throughout.
+It passed without engine/script errors. This is a controlled reproduction of
+the mechanism, not a tested PlayerBody fix or rendered improvement.
+
+Next bounded experiment: characterize and then compare a presentation-only
+monotonic elapsed-time cursor behind an opt-in, retaining bounded clock following,
+history/generation resets and the existing large-discontinuity policy. Cover
+ordinary jitter, a long pause, clock backsteps, rebase, relevance transitions,
+and reconnect before any rendered A/B. Do not change simulation time, authority,
+rollback, the 75 ms target or shipping defaults to perform that experiment.
+
+### Lead 2: shared delivery gaps and rare starvation
+
+Both local endpoint captures contain the same three incoming-traffic gaps:
+
+| Gap start, local time | Alpha | Bravo |
+| --- | ---: | ---: |
+| 03:22:00.233 | 133.742 ms | 133.742 ms |
+| 03:22:06.236 | 115.170 ms | 115.167 ms |
+| 03:22:12.234 | 129.182 ms | 129.172 ms |
+
+The approximately six-second spacing is an observation of three events, not an
+established periodic root cause. Regular client callbacks continued. Bravo
+briefly extrapolated during these intervals; Alpha also extrapolated and reached
+one regular-callback hold around 03:22:12.375. This is a distinct delivery-related
+symptom, unlike continuous cursor-speed variation with ample headroom.
+
+Consecutive accepted remote ticks straddling these events were 4247->4248,
+4607->4608 and 4967->4968. Matching server publication queueing spans were
+approximately 15.6, 20.9 and 13.8 ms for each recipient; corresponding client
+callback gaps were 100-141 ms. That argues against those specific state updates
+being generated 100+ ms apart. It does not identify where delivery waited:
+ENet flushing/server polling after queueing, host scheduling, Tailscale or the
+network path remain possible. Client PCAP timestamps are OS observations, not
+physical wire timestamps; no server-side packet capture was collected.
+
+Future targeted delivery capture should compare server packet egress and client
+ingress alongside these publication identities. Keep captures endpoint-filtered
+and bounded, and do not assume host clocks are synchronized. No packet-loss rate
+or Tailscale fault has been established. Do not increase the buffer to cover
+these events until their source and the added input/visual delay are evaluated.
+
+Validation here is parsed real-trace assertions plus the offline helper
+characterization and documentation diff checks. No production code changed, so
+the full gameplay suite was not rerun. Earlier milestone and browser acceptance
+gaps remain open; no new human smoothness verdict was supplied for this run.
+
 ## Later platform gate
 
 The owner requested a macOS-native plus browser playtest later, not now. After

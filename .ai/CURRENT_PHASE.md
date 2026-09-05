@@ -1,5 +1,35 @@
 # Current phase
 
+## Warmed-up remote playback analyzed, 2026-09-05
+
+- Owner explicitly kept this work on networking quality. Startup shader work is
+  separate debt, not the next rendering project. Read the warmed-up analysis in
+  `docs/NETWORK_PRESENTATION_TRACE.md`; it supersedes the prior shader-first next.
+- Reused the completed packet-correlated run, excluding first 30 presentation
+  seconds and all uncovered packet tail. No new rendered run or runtime changes.
+- Found a reproducible presentation pacing mechanism: even regular callback
+  intervals with positive snapshot headroom and effective delay 60-90 ms show
+  cursor-speed p05/p95 about 0.82/1.27-1.28 of nominal. All 1,601 selected pairs
+  match the existing helper driven by supplied engine delta rather than elapsed
+  body-callback time. Focused Alpha advanced 30.95 ms over a 21 ms interval with
+  75 ms headroom. No screen-space motion/pose or perceptual proof is claimed.
+- Actual helper/sampler headless characterization PASS: full history, jittered
+  callbacks and constant supplied delta reproduce speed 0.715-1.655; elapsed-time
+  control stays 1.000, all samples interpolating. No engine/script errors.
+- Separately, both client captures have shared 115-134 ms incoming gaps around
+  03:22:00, :06, :12 with regular client callbacks and rare extra/hold samples.
+  Matching consecutive server publications were queued only 14-21 ms apart.
+  This points to delivery after queueing, not proof of loss or a Tailscale fault;
+  server packet egress is still missing. Keep this distinct from cursor pacing.
+- Evidence and offline analysis: `.network-runs/diagnostic-1788596366046/`
+  `analyze-warm.mjs`, `warm-analysis.json`, `cursor-characterization.gd` and log.
+  Client/server/capture paths remain in the preceding completed-run entry.
+- Next bounded experiment: presentation-only elapsed cursor opt-in with focused
+  jitter/pause/backstep/rebase/lifecycle regressions, then separately approved A/B.
+  Preserve simulation/rollback time, authority, fixed delay, networking defaults
+  and display policy. Separately pair server egress/client ingress to localize
+  shared delivery gaps. Server trace quality debt and browser gates remain open.
+
 ## First packet-correlated playtest analyzed, 2026-09-05
 
 - Both clients exited zero; isolated server stopped and completed job removed.
