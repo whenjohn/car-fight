@@ -231,3 +231,51 @@ monitor root. Diagnostic import passed before launch. All temporary code was
 removed afterward and both touched source files exactly match `18e2f92`.
 This follow-up commits documentation only; source-restoration and diff checks
 are the relevant gates. No network work, gameplay tuning or default change.
+
+## Verified 64 / 32 live attackers (2026-09-05)
+
+Owner requested the same stationary-Jeep, all-alive test at lower counts and
+explicitly approved temporarily keeping its small ordinary window above other
+windows to prevent occlusion. Run `20260905-015827` at `83127c0` plus temporary
+diagnostic: same 1280x720, survivor size 1, batched attacker settings, fixed Jeep,
+15-second warmup and 12-second samples. Order: 64, 32, 32 repeat, 64 repeat.
+Run-over hits were suppressed only in the diagnostic, with movement/contact
+calculations retained; 32 was permitted only by that temporary fixture.
+
+| Living throughout | Sample | Average rendered FPS | Median ms | P95 ms | Worst ms |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 64 | First | 62.73 | 13.912 | 27.710 | 33.383 |
+| 32 | First | 73.58 | 11.886 | 23.645 | 29.169 |
+| 32 | Repeat | 76.89 | 11.769 | 23.219 | 29.088 |
+| 64 | Repeat | 57.36 | 16.510 | 28.002 | 36.764 |
+
+Average FPS here is measured frames divided by elapsed wall-clock seconds,
+not the reciprocal median used in earlier tables. Windows lasted
+12.003/12.000/12.004/12.013 seconds with 753/883/923/689 frames respectively.
+Every row confirmed alive and drawn equal the requested count, with the Jeep
+remaining stationary. Each 64 sample had one frame over 33.333 ms; neither 32
+sample did. Sprite shot counts were 610/320/320/630, confirming active shooting.
+
+**64 is a reasonable next playtest target for ~60 FPS; 32 offers more room.**
+Neither result establishes a locked 60: P95 frame times still exceed 16.7 ms.
+CPU performance allowances were initially 100, then fell during the final
+64 phase (recorded readings included 68/56; end reading 65). The slower repeat
+cannot be attributed to entity count alone. This remains a short stationary
+load check, not moving-player or sustained thermal-soak acceptance.
+
+The window stayed visible above other windows, but focus varied: both 64
+samples were unfocused, 182 of 883 first-32 frames were unfocused, and the
+32 repeat was focused. All produced complete continuous rendered samples,
+unlike the earlier occluded attempts. The frozen-Jeep setup avoids changing
+driving input with focus. Floating-window composition and system load differ
+from the earlier true-128 run, so do not infer an exact cross-run scaling law.
+
+Monitor outcome `clean`, no engine/script errors. Raw per-frame records,
+configuration and summaries: `.crash-runs/live-count-1788591520/`; temporary
+patch and CPU-limit telemetry: `.crash-runs/20260905-015827/`. Import passed
+before capture. All test-only hit suppression, 32-count allowance and
+always-on-top/runner changes were removed afterward; both touched source
+files exactly match HEAD. There is no permanent new 32-count UI option,
+default change or networking work in this result. Documentation-only handoff
+uses source-restoration verification and diff checks, not repeated gameplay
+or full-suite tests.

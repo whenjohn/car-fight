@@ -2,6 +2,25 @@
 
 ## Active session: Car-Fight: sprite ai
 
+- Valid lower-live-count retry completed at `83127c0` plus temporary diagnostic.
+  Owner approved keeping the ordinary window above other windows. Run
+  `20260905-015827` closed cleanly with no engine/script errors; 1280x720,
+  stationary Jeep, all requested attackers alive and drawn on every frame.
+- 64 living: average 62.73 / 57.36 FPS across two 12-second samples, median
+  13.912 / 16.510 ms, P95 27.710 / 28.002 ms. Mac CPU allowance fell during
+  the repeat (end speed limit 65); not an isolated count-only comparison.
+  32 living: average 73.58 / 76.89 FPS, median 11.886 / 11.769 ms, P95
+  23.645 / 23.219 ms. Recommendation: 64 is a reasonable ~60-FPS playtest
+  target; 32 has more headroom. Neither is a locked-60 claim.
+- Full-active rows/config/results: `.crash-runs/live-count-1788591520/`.
+  Diagnostic patch and CPU samples are in the monitored run directory.
+  Window focus varied but remained visible above others and produced complete
+  uninterrupted draw samples. Prior true-128 test used an ordinary nonfloating
+  window; do not infer an exact scaling law across those separate runs.
+- Test-only immortality, 32-count allowance and always-on-top/runner code were
+  removed; both touched source files match HEAD. Default counts unchanged.
+  Import passed before run; final source-restoration and diff checks cover
+  this documentation-only handoff. No networking or gameplay changes shipped.
 - Owner requested same all-alive stationary-Jeep test at lower counts.
   Prepared 64/32 with two repeats, matching 15-second warmup / 12-second
   samples, temporarily permitting 32 only in the offline diagnostic.
