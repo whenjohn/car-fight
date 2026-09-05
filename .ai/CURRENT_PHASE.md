@@ -1,5 +1,25 @@
 # Current phase
 
+## Clock-fix human retest active, 2026-09-05
+
+- Owner approved retrying the same two-client setup. Both monitored clients are
+  connected on this Mac using runtime `e2a3121`, default networking plus telemetry.
+  Run: `.crash-runs/two-client-20260905-010252/`; alpha PID 65585, bravo PID 65644.
+- Updated only `addons/netfox/network-time.gd` in the stopped isolated macai2
+  checkout; the remaining runtime matches the prior snapshot. Remote import
+  verification passed. Temporary mux PID 57242 uses UDP 12780 / TCP 12781;
+  production PID 57599 still listens independently on UDP 10080.
+- Non-restarting user job `com.whenjohn.car-fight-clock-retest-20260905` was
+  bootstrapped in `gui/501` with explicit `KeepAlive=false`. Plist and launch
+  script are under ignored `.network-runs/clock-retest-2026-09-05/`. After both
+  windows close, cleanup identity-checks/stops the temporary server and copies
+  its log. Server also retains the 216000-tick limit.
+- Initial samples: both clients see two players, applied state age 0 ticks,
+  zero rejected states in the sampled interval, no observed engine/script or
+  display-precursor errors yet. This is startup evidence only; collect human
+  feedback and completed logs before claiming the desync is resolved.
+- No new full-suite run, production update, default change or master merge.
+
 ## Diagnostic desync and pause-clock fix, 2026-09-05
 
 - Owner reported the two clients out of sync. Captured both clients and the
