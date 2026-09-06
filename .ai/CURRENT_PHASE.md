@@ -1,5 +1,42 @@
 # Current phase
 
+## Mixed native/browser trial: browser startup failed, 2026-09-06
+
+- Owner authorized "ok lets start the test". Fresh `Web Network` release
+  export passed (export log `car-fight-web-export.ZcNgW8`); source/runtime
+  unchanged from `095608c`, branch documentation at `bf374f2`. Refreshed only
+  the isolated macai2 copy. No production deployment/default change.
+- Live run `.network-runs/mixed-20260906-022852/`; non-restarting launchd job
+  `com.whenjohn.car-fight-mixed-20260906-022852`. Server PID 29690 at UDP 12780 /
+  TCP 12781; production 57599/UDP 10080 verified untouched. Native monitored
+  subrun `native/20260906-023140`, PID 62387, peer 625000790. Dedicated-profile
+  Chrome PID 62414; browser WebRTC peer 2. HTTP localhost 18089. Decorated
+  windows at 80,100 and 1520,100. P cruise enabled on both; no automated input.
+- Native reached STARTUP_PLAYABLE tick 2222, server activation tick 2217.
+  Browser connected but never activated: `STARTUP_FAILED reason=Game
+  synchronization timed out` at browser console timestamp 1788679973932.
+  Repeated `ERROR: Buffer full! Dropping data.` originates in
+  `modules/webrtc/webrtc_data_channel_js.cpp:77`. Browser log also shows stale
+  authority recoveries and server state ticks hundreds ahead of local ticks
+  (e.g. local 3451 vs incoming through 3731). Browser sample FPS fell to 6.
+  This is a failed cross-platform joining trial, not a smoothness acceptance.
+  Do not infer the causal ordering of CPU stalls, backlog and clock lag yet.
+- Server admission and startup gate enabled; legacy networking otherwise.
+  Native also uses experimental forward-clock recovery and elapsed cursor.
+  Those two switches currently read native environment only; browser does NOT
+  have equivalent query support. Browser uses `startupReady=1`, `clientCruise=1`,
+  HUD/app telemetry and a 120-second console presentation trace. No browser
+  stage trace or packet capture; do not claim equivalent diagnostic coverage.
+- Browser console/error events saved in `browser.log` by CDP before navigation;
+  Chrome stderr separate. HTTP URL saved in `browser.url`. Existing personal
+  browser profiles untouched; test profile retained as ignored evidence.
+- Windows remain available for owner inspection. Close native window to end
+  both clients; launcher stops its web server and dedicated browser, waits for
+  isolated server trace completion, stops only its server and collects traces.
+  On completion verify cleanup and remove completed launchd job. Next work is
+  focused browser startup/backlog/clock investigation before another movement
+  or reconnect trial; no automatic reload or new experiment performed.
+
 ## Native admission trial completed; mixed browser trial next, 2026-09-06
 
 - Owner reported joining works, then said "done whats next". Both monitors
