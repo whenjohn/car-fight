@@ -79,6 +79,11 @@ func _gather() -> void:
 		editing = true
 		_finalize_input()
 		return
+	if main.has_method("network_startup_ready") and not main.network_startup_ready():
+		_clear_live_input()
+		editing = true
+		_finalize_input()
+		return
 	if main.has_method("scripted_input_for") and main.is_scripted_client():
 		var scripted: Dictionary = main.scripted_input_for(body)
 		cursor_offset = scripted.get("cursor_offset", Vector2.ZERO)

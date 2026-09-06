@@ -12,13 +12,13 @@ cases=(0 6000)
 duration=25
 client_ticks=600
 entry_args=()
-if [[ "$mode" == "--clock-recovery" ]]; then
+if [[ "$mode" == "--clock-recovery" || "$mode" == "--startup-ready" ]]; then
 	cases=(0 1)
 	duration=45
 	client_ticks=1800
 	entry_args=(--script res://tests/fixtures/startup_stale_clock.gd)
 elif [[ "$mode" != "stall" ]]; then
-	echo "Usage: $0 [--clock-recovery]" >&2
+	echo "Usage: $0 [--clock-recovery|--startup-ready]" >&2
 	exit 1
 fi
 
@@ -37,10 +37,13 @@ echo "startup trace logs: $log_dir"
 for case_value in "${cases[@]}"; do
 	stall_ms="$case_value"
 	recovery="${CAR_FIGHT_FORWARD_CLOCK_RECOVERY:-0}"
+	startup_ready="${CAR_FIGHT_STARTUP_READY:-0}"
 	case_dir="$log_dir/stall-$case_value"
-	if [[ "$mode" == "--clock-recovery" ]]; then
+	if [[ "$mode" == "--clock-recovery" || "$mode" == "--startup-ready" ]]; then
 		stall_ms=0
 		recovery="$case_value"
+		startup_ready=0
+		if [[ "$mode" == "--startup-ready" ]]; then startup_ready="$case_value"; fi
 		case_dir="$log_dir/recovery-$case_value"
 	fi
 	mkdir "$case_dir"
@@ -55,10 +58,11 @@ for case_value in "${cases[@]}"; do
 		fi
 		sleep 0.1
 	done
-	if [[ "$mode" == "--clock-recovery" ]]; then sleep 6; fi
+	if [[ "$mode" != "stall" ]]; then sleep 6; fi
 	CAR_FIGHT_NETWORK_DIAGNOSTICS_SECONDS="$duration" CAR_FIGHT_STARTUP_TRACE_SECONDS="$duration" \
 	CAR_FIGHT_NETWORK_STAGE_TRACE_PATH="$case_dir/startup.jsonl" \
 	CAR_FIGHT_FORWARD_CLOCK_RECOVERY="$recovery" \
+	CAR_FIGHT_STARTUP_READY="$startup_ready" \
 	CAR_FIGHT_JOIN_STALL_MS="$stall_ms" CAR_FIGHT_JOIN_STALL_AFTER_MS=500 \
 		"$godot_bin" --headless --max-fps 60 --path "$project_root" "${entry_args[@]}" -- \
 		--client --host 127.0.0.1 --port "$server_port" --name startup \
@@ -98,14 +102,14 @@ assert(samples.some(r => r.recorded_cursor?.[0] > 0), 'moving input not observed
 const first = samples[0].physics.position;
 assert(samples.some(r => Math.hypot(...r.physics.position.map((v, i) => v - first[i])) > 1), 'no actual movement');
 JS
-	if [[ "$mode" == "--clock-recovery" ]]; then
+	if [[ "$mode" != "stall" ]]; then
 		rg -q 'STARTUP_SEED offset=-4.7234838' "$case_dir/client.log"
 		rg -q 'above panic threshold' "$case_dir/client.log"
 	fi
 	echo "STARTUP_TRACE_CASE PASS stall_ms=$stall_ms recovery=$recovery evidence=$case_dir/report.json"
 done
-if [[ "$mode" == "--clock-recovery" ]]; then
-	node --input-type=module - "$log_dir" <<'JS'
+if [[ "$mode" != "stall" ]]; then
+	node --input-type=module - "$log_dir" "$mode" <<'JS'
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const dir = process.argv[2];
@@ -123,6 +127,21 @@ assert.equal((log.match(/Forward clock recovery:/g) ?? []).length, 1, 'expected 
 assert(!fs.readFileSync(`${dir}/recovery-0/client.log`, 'utf8').includes('Forward clock recovery:'), 'control unexpectedly rebased');
 console.log(`STARTUP_CLOCK_TIMELINE PASS; return candidates=${before.return_to_first_pose_count}->${after.return_to_first_pose_count}`);
 assert(after.return_to_first_pose_count === 0, 'recovery still returned to first pose');
+if (process.argv[3] === '--startup-ready') {
+  const retry = process.env.CAR_FIGHT_STARTUP_TEST_RETRY === '1';
+  assert.equal((log.match(/STARTUP_PLAYABLE /g) ?? []).length, retry ? 2 : 1, 'unexpected playable transitions');
+  if (retry) {
+    assert.equal((log.match(/STARTUP_RETRY /g) ?? []).length, 1, 'retry was not exercised');
+    assert.equal((log.match(/CLIENT_READY /g) ?? []).length, 2, 'retry did not reconnect');
+    assert.equal(after.identities, 2, 'retry did not replace the local body');
+  }
+  const waiting = rows.filter(r => r.event === 'startup_sample' && r.startup_ready === false);
+  assert(waiting.length > 30, 'readiness wait not exercised');
+  assert(waiting.every(r => r.recorded_cursor == null || r.recorded_cursor.every(v => v === 0)), 'input moved before readiness');
+  const playing = rows.filter(r => r.event === 'startup_sample' && r.startup_ready === true);
+  assert(playing.length > 300 && playing.some(r => r.recorded_cursor?.[0] > 0), 'no sustained movement after readiness');
+  console.log('STARTUP_READY_TEST PASS neutral while joining; zero startup returns; movement after readiness');
+}
 console.log(`STARTUP_CLOCK_RECOVERY_TEST PASS returns=${before.return_to_first_pose_count}->${after.return_to_first_pose_count}; rendered acceptance pending`);
 JS
 else

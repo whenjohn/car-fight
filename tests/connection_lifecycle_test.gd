@@ -84,6 +84,16 @@ func _run() -> void:
 	main._on_webrtc_failed("late failure callback")
 	_check(main._network_status == "WEBRTC FAILED: original connection timeout",
 		"late stop/failure callbacks preserve the original WebRTC failure")
+	main._startup_gate = load("res://net/startup_readiness.gd").new()
+	main._startup_gate.begin(Time.get_ticks_msec())
+	var stop_events: Array[int] = []
+	events.on_client_stop.connect(func(): stop_events.append(1))
+	events.on_client_stop.emit()
+	main._update_startup_readiness()
+	main._close_startup_connection()
+	_check(main._startup_gate.is_failed() and stop_events.size() == 1,
+		"readiness cleanup does not duplicate a natural disconnect notification")
+	_check(root.multiplayer.multiplayer_peer == null, "failed join releases its peer")
 	main.free()
 	if not _failed:
 		print("CONNECTION_LIFECYCLE_TEST PASS")

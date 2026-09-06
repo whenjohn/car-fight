@@ -1,5 +1,50 @@
 # Current phase
 
+## Joining gate implemented; zero-reset automated acceptance, 2026-09-05
+
+- Owner explicitly requested withholding the game until networking is ready.
+  Added opt-in `CAR_FIGHT_STARTUP_READY=1` (browser gate query `startupReady=1`):
+  opaque Joining game screen, neutral input before readiness, 30-second failure
+  timeout, Retry/Quit. No deployment/default changes. Test the native gate with
+  `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1`; clock recovery alone remains partial.
+- Admission requires a fresh full clock-sample window, simulation/reference and
+  estimated remote offsets within two ticks, and fresh authority state received
+  after clock validation and consumed by rollback. Local seeded history and
+  old rebased recovery keys cannot qualify. Owning-client intent/server-state
+  authority and all 14 input fields unchanged; no new wire traffic/history.
+- Disconnect and body replacement revoke readiness. Input checks body identity
+  even before the next Main frame. Retry reloads fresh scene/bodies; cancelled
+  initial-sync coroutines and old ping timers are generation-guarded. Cleanup
+  does not duplicate natural disconnect events. Regular post-ready clock jitter
+  does not reopen startup. World/server simulation keeps running while joining.
+- `zsh scripts/startup_trace_test.sh --startup-ready`: six resets to zero in
+  `car-fight-startup.1W4KNz`. With `CAR_FIGHT_STARTUP_TEST_RETRY=1`, same-process
+  reconnect passed five-to-zero (`rNBXv8`); final cleanup A/B passed six-to-zero
+  (`A0YRx6`), two connections/two identities, neutral pre-ready intent and
+  sustained movement after readiness. All startup traces complete, zero drops
+  and no unexpected runtime errors. Evidence in local temporary directories.
+- Focused readiness/input, timeout/cancelled sync, UI action/logical bounds,
+  live input codec, pause/forward clock, stage, connection lifecycle and bundle
+  coalescing passed. Both opt-ins: join-transient `whhVgG` passed, reconnect
+  `DEbF0v` passed, mixed native ENet/WebRTC `87l5pi` passed (worst 0.300 units).
+  Short replacement/ENet mixed clients did not reach playable before their
+  existing tick limit; the long-lived ENet survivor and WebRTC client did.
+  Mixed ID-collision negative control emitted its expected signaling-closed
+  ERROR; positive paths clean. Do not call this a browser or two-ready feel test.
+- See "Joining readiness gate" in `docs/NETWORK_DIAGNOSTICS.md` for exact
+  admission contract, evidence, limits and commands. The first stale-seed run
+  waited about 6.324 seconds from first body sample to playable, not a configured
+  delay. Real rendered wait length remains unknown. UI bounds tested headless,
+  not screenshots. Full milestone suite still required before merge/promotion.
+- Fast import/syntax/manifest/UID/diff check passed; engine-failure harness
+  control failed promptly as expected (`BA1I2T`). Final unit coverage also pins
+  that slow asset/shader loading does not consume the network deadline; it
+  starts only at connection attempt. All local test processes have exited.
+- Next: separately approve and launch the two
+  monitored macOS clients with both flags, elapsed presentation cursor retained
+  and P cruise available after readiness. No new human launch this turn. Later
+  macOS/browser trial remains pending. Production/macai2 untouched.
+
 ## Forward clock recovery implemented; first reset unresolved, 2026-09-05
 
 - Owner approved the targeted startup fix. Added default-off

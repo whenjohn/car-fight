@@ -95,6 +95,12 @@ when prediction makes the same local decision for responsiveness.
 
 ### Lifecycle
 
+- Transport connected is not gameplay ready. Keep intent neutral and present a
+  joining state until current timing evidence and an actually received/applied
+  authoritative state agree. A locally initialized history tick is not proof
+  of server state. Bound the wait, offer retry, and invalidate readiness across
+  disconnects and body replacement; do not use an arbitrary sleep as readiness.
+
 - Only gather/send/apply network-dependent gameplay in valid connection and
   readiness states. A non-null peer reference alone does not prove it is active.
   Reuse `net/connection_state.gd` for the connected-peer prerequisite; it accepts

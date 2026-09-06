@@ -289,6 +289,87 @@ are recorded in `.ai/CURRENT_PHASE.md`. Shared-clock milestone validation is
 still required before merge; native rendered and browser acceptance remain
 pending. No deployment, networking-default change or new human launch occurred.
 
+### Joining readiness gate, 2026-09-05
+
+The owner requested withholding gameplay until the network is ready instead
+of showing predicted movement and undoing it. Native opt-in:
+`CAR_FIGHT_STARTUP_READY=1`, alongside `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` for
+the tested combined path. Both remain off by default. The browser can select
+the joining gate with `startupReady=1`; browser testing and selection of the
+separate native-only clock-recovery experiment remain follow-up work.
+
+The client shows an opaque "Joining game..." overlay and gathers neutral
+intent (`editing=true`) until all of these hold:
+
+- Initial time sync completed, a full window of normal ping samples exists
+  after any panic, and the latest completed sample is recent (one second with
+  the current 250 ms interval). Samples and pending sync attempts reset across
+  disconnect/retry; old timer continuations cannot start another ping loop.
+- Simulation/reference offset and estimated remaining remote-clock offset
+  are each within two ticks. This is an admission condition, not a change to
+  the existing clock discipline or tick rate.
+- This local body has received authority state after timing validation, its
+  source tick is within retained history and not in the future, and rollback
+  has consumed that state. Accepted full/diff receptions carry two local scalar
+  markers; seeded history and artificially rebased old recovery keys do not
+  qualify as fresh received state.
+
+The whole server/world continues running during the wait. Only this client's
+intent and view are gated, including scripted input, cruise and gameplay hotkeys.
+The wire schema, server authority, physics and replay of recorded inputs are
+unchanged. Body replacement cannot inherit permission even between frames.
+Ordinary clock jitter after admission does not reopen the startup screen.
+Disconnect revokes permission. A 30-second monotonic timeout, starting with the
+connection attempt rather than asset/shader loading, shows failure and
+Retry/Quit controls; Retry closes the old connection and reloads the scene with
+fresh bodies and readiness. A disconnect is notified only once. The timeout
+bounds waiting; it is not a fixed delay before admission.
+
+Cost: constant local readiness work, two scalar markers per transmitter, no
+new RPCs, payload fields, retained history windows or entity families. Startup
+traces now include `startup_ready`; normal logs distinguish `STARTUP_WAITING`,
+`STARTUP_PLAYABLE` and `STARTUP_FAILED`. Existing `CLIENT_READY` still describes
+transport connection, not permission to drive. No CPU/traffic savings claimed.
+
+Validation commands:
+
+```bash
+zsh scripts/startup_trace_test.sh --startup-ready
+CAR_FIGHT_STARTUP_TEST_RETRY=1 zsh scripts/startup_trace_test.sh --startup-ready
+```
+
+The zero-return requirement was not relaxed. Initial combined A/B
+`car-fight-startup.1W4KNz` reproduced six returns in the control and zero with
+readiness. About 6.324 seconds elapsed from first body sample to playable in
+that deliberately stale-clock case. Same-process retry A/B `rNBXv8` passed
+five-to-zero; final body-permission/disconnect-cleanup A/B `A0YRx6` passed
+six-to-zero with two connections and two body identities. All startup traces
+complete, zero drops or unexpected runtime errors. Runs live under the local
+temporary directory; no rendered clients or macai2 changes were involved.
+
+Focused readiness/input, cancelled sync, timeout, retry action and logical UI
+layout at 1280x720/320x568 passed, as did the real-schema input codec, pause,
+forward-clock, stage, connection-lifecycle and bundle-coalescing regressions.
+The input regression failed before gathering was gated. A layout test initially
+compared physical window dimensions against the project's 1280x720 logical
+canvas; it now explicitly tests both logical viewport sizes. This is layout
+coverage, not a screenshot/browser acceptance claim.
+
+With both opt-ins, join-transient passed (`whhVgG`, one reliable recovery and
+playable at tick 421), reconnect passed (`DEbF0v`, three joins/leaves), and mixed
+native ENet/WebRTC passed (`car-fight-mixed.87l5pi`, worst correction 0.300).
+The short reconnect replacement and mixed ENet client ended before admission;
+the long-lived ENet survivor and mixed WebRTC client did become playable. These
+gates prove lifecycle/shared-world behavior, not a full two-ready-client feel
+test. The mixed collision negative control intentionally rejected signaling
+with `ERROR: WebRTC signaling closed before gameplay connected`; positive
+mixed paths had no engine/script errors. No global error allowlist was changed.
+
+Next: a separately approved monitored two-macOS-client trial with both opt-ins,
+then macOS/browser acceptance. Shared-clock milestone suite remains required
+before merge/promotion; this branch experiment has not changed defaults or
+been deployed. Startup wait length under real rendering remains to be measured.
+
 ## Next approved capture
 
 Use the isolated macai2 server, not production. Refresh its project/autoload and

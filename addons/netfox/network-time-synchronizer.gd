@@ -109,6 +109,8 @@ static var _logger: NetfoxLogger = NetfoxLogger._for_netfox("NetworkTimeSynchron
 var _sample_buffer: _RingBuffer
 var _sample_idx: int = 0
 var _awaiting_samples: Dictionary = {}
+var _last_sample_msec := -1
+var _sync_generation := 0
 
 var _clock: NetworkClocks.SystemClock = NetworkClocks.SystemClock.new()
 var _offset: float = 0.
@@ -139,6 +141,9 @@ func start() -> void:
 		return
 		
 	_clock.set_time(0.)
+	_sync_generation += 1
+	_last_sample_msec = -1
+	_awaiting_samples.clear()
 
 	if not multiplayer.is_server():
 		_active = true
@@ -150,6 +155,16 @@ func start() -> void:
 ## Stop the time synchronization loop.
 func stop() -> void:
 	_active = false
+	_sync_generation += 1
+	_last_sample_msec = -1
+	_awaiting_samples.clear()
+	_sample_buffer = null
+
+## Readiness evidence only; does not change clock discipline or traffic.
+func has_fresh_sample_window(now_msec: int) -> bool:
+	return _active and _sample_buffer != null and _sample_buffer.size() >= sync_samples \
+		and _last_sample_msec >= 0 and now_msec >= _last_sample_msec \
+		and now_msec - _last_sample_msec <= maxi(1000, int(sync_interval * 3000.0))
 
 ## Get the current time from the reference clock.
 ##
@@ -158,10 +173,11 @@ func get_time() -> float:
 	return _clock.get_time()
 
 func _loop() -> void:
+	var generation := _sync_generation
 	_logger.info("Time sync loop started! Initial timestamp: %ss", [_clock.get_time()])
 	on_initial_sync.emit()
 
-	while _active:
+	while _active and generation == _sync_generation:
 		if multiplayer.is_server():
 			return stop()
 
@@ -260,6 +276,7 @@ func _send_pong(idx: int, ping_received: float, pong_sent: float) -> void:
 	# Once a sample is done, remove from in-flight samples and move to sample buffer
 	_awaiting_samples.erase(idx)
 	_sample_buffer.push(sample)
+	_last_sample_msec = Time.get_ticks_msec()
 	
 	# Discipline clock based on new sample
 	_discipline_clock()

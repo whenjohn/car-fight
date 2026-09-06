@@ -46,9 +46,11 @@ these rules do not authorize new features, broad rewrites, or deployment.
   seconds ahead and rejecting fresh server state as stale.
 - Forward clock recovery is experimental and off by default
   (`CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1`). Its moving stale-seed A/B reduces five
-  startup returns to one, not zero. Preserve the zero-return acceptance gate in
-  `scripts/startup_trace_test.sh --clock-recovery`; initial sync/readiness is
-  still unresolved. Do not promote this as a completed startup fix.
+  startup returns to one by itself. Combining it with the default-off joining
+  gate (`CAR_FIGHT_STARTUP_READY=1`) passes zero-return startup and same-process
+  retry tests. Preserve both the original `--clock-recovery` characterization
+  and `scripts/startup_trace_test.sh --startup-ready` zero-return requirement.
+  Rendered/browser acceptance and milestone validation remain before promotion.
 - Do not port G2's half-handshake-RTT initial time seed. In Car Fight's 120 ms
   two-client A/B it caused 3.16-3.46 unit startup corrections in two of three
   runs; the unseeded control passed three of three at 1.178 units or less.

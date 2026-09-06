@@ -165,6 +165,7 @@ func _sample_startup(now: int) -> void:
 		return
 	var record := _startup_clock()
 	record["event"] = "startup_sample"
+	record["startup_ready"] = main.network_startup_ready() if main.has_method("network_startup_ready") else null
 	record["history_start"] = get_node("/root/NetworkRollback").get("history_start")
 	record["display_tick"] = get_node("/root/NetworkRollback").get("display_tick")
 	record.merge(_startup_body_snapshot(body))

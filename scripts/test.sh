@@ -37,6 +37,7 @@ CAR_FIGHT_IMPORT_QUIET=1 "$project_root/scripts/godot_import_check.sh"
 "$godot_bin" --headless --path "$project_root" --script res://tests/network_payload_telemetry_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/network_time_pause_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/network_time_forward_recovery_test.gd
+"$godot_bin" --headless --path "$project_root" --script res://tests/network_startup_ready_test.gd
 "$godot_bin" --headless --path "$project_root" --script res://tests/network_packet_size_test.gd -- --offline
 "$godot_bin" --headless --path "$project_root" --script res://tests/connection_lifecycle_test.gd -- --offline --presentation-test
 "$godot_bin" --headless --path "$project_root" --script res://tests/webrtc_connection_test.gd

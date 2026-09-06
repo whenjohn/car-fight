@@ -34,6 +34,8 @@ var _next_diff_ack_tick: int
 
 var _earliest_input_tick: int
 var _latest_state_tick: int
+var _received_state_tick := -1
+var _received_state_msec := -1
 var _recovery_request_after_msec := 0
 
 var _is_predicted_tick: bool
@@ -101,6 +103,8 @@ func configure(
 	reset()
 
 func reset() -> void:
+	_received_state_tick = -1
+	_received_state_msec = -1
 	_ackd_state.clear()
 	_fallback_full_state_ticks.clear()
 	_latest_state_tick = NetworkTime.tick - 1
@@ -369,6 +373,7 @@ func _receive_full_state(data: Array, tick: int, sender: int, count_wire_message
 
 	_latest_state_tick = tick
 	NetworkPerformance.note_app_state_applied(tick)
+	_note_received_authority(tick, sender)
 	if NetworkRollback.enable_diff_states and send_ack:
 		_ack_full_state.rpc_id(sender, tick)
 		NetworkPerformance.record_app_message("out", "state_full_ack", [tick])
@@ -413,6 +418,7 @@ func _receive_diff_state(data: PackedByteArray, tick: int, reference_tick: int, 
 
 	_latest_state_tick = tick
 	NetworkPerformance.note_app_state_applied(tick)
+	_note_received_authority(tick, sender)
 
 	if NetworkRollback.enable_diff_states:
 		if diff_ack_interval > 0 and tick > _next_diff_ack_tick:
@@ -444,6 +450,11 @@ func apply_recovery_full_state(data: Array, target_tick: int, sender: int) -> bo
 	snapshot.apply(_property_cache)
 	_latest_state_tick = target_tick
 	return true
+
+func _note_received_authority(tick: int, sender: int) -> void:
+	if sender == root.get_multiplayer_authority():
+		_received_state_tick = tick
+		_received_state_msec = Time.get_ticks_msec()
 
 func reset_peer_state_reference(peer: int) -> void:
 	_ackd_state.erase(peer)

@@ -106,6 +106,18 @@ pass. Keep that zero-return requirement; see the experiment record in
 [Network diagnostics](NETWORK_DIAGNOSTICS.md). Run join/reconnect with
 `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` to cover the selected experimental path.
 
+For the opt-in joining gate (`CAR_FIGHT_STARTUP_READY=1`), run
+`tests/network_startup_ready_test.gd`, `tests/input_codec_test.gd -- --offline`,
+`tests/network_stage_trace_test.gd` and the connection lifecycle regression.
+Run `zsh scripts/startup_trace_test.sh --startup-ready` for the combined clock
+recovery/readiness zero-reset A/B. Repeat with
+`CAR_FIGHT_STARTUP_TEST_RETRY=1` when changing retry/session cleanup. It requires
+two connections, replacement body identity, neutral pre-ready intent, sustained
+post-ready movement and zero return candidates, not merely a READY log.
+Keep join/reconnect and mixed native transport checks selected with both opt-ins.
+Small headless UI layout checks do not replace a monitored rendered or browser
+test. The standalone clock-only characterization is still insufficient.
+
 For payload accounting, replicated-state growth, or packet-budget work, run
 `tests/network_payload_telemetry_test.gd` and
 `tests/network_packet_size_test.gd -- --offline` with the pinned headless editor.

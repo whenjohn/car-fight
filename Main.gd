@@ -3,6 +3,7 @@ extends Node3D
 ## player scripts own deterministic FOLLOW simulation and presentation.
 
 const CONNECTION_STATE := preload("res://net/connection_state.gd")
+const STARTUP_READINESS := preload("res://net/startup_readiness.gd")
 const DEFAULT_PORT := 10080
 const DEFAULT_SIGNAL_PORT := 10181
 const MAX_CLIENTS := 16
@@ -370,6 +371,11 @@ var _troop_delivery: Node3D
 var _webrtc_transport: Node
 var _mux_peer
 var _network_status := ""
+var _startup_gate: RefCounted
+var _startup_overlay: CanvasLayer
+var _startup_closed := false
+var _startup_stop_notified := false
+var _startup_retrying := false
 var _join_stall_ms := 0
 var _join_stall_after_ms := 0
 var _join_stall_started := false
@@ -403,6 +409,14 @@ func _ready() -> void:
 		_start_proxy()
 		return
 	_connect_network_events()
+	if _role == "client" and (OS.get_environment("CAR_FIGHT_STARTUP_READY") == "1" \
+			or (OS.has_feature("web") and _web_query("startupReady") == "1")):
+		_startup_gate = STARTUP_READINESS.new()
+		if not _is_headless():
+			_startup_overlay = load("res://ui/network_join_overlay.gd").new()
+			add_child(_startup_overlay)
+			_startup_overlay.retry_requested.connect(_retry_network_join)
+			_startup_overlay.quit_requested.connect(func(): get_tree().quit())
 	_build_world()
 	NetworkTime.on_tick.connect(_on_tick)
 	NetworkRollback.after_loop.connect(_send_settled_authority_probes)
@@ -482,6 +496,7 @@ func _on_window_safety_enforced(event: String, details: Dictionary) -> void:
 
 func _process(_delta: float) -> void:
 	_frame_ms_current = _delta * 1000.0
+	_update_startup_readiness()
 	if not CONNECTION_STATE.has_connected_peer(multiplayer):
 		if _status_label != null:
 			_status_label.visible = true
@@ -1010,11 +1025,14 @@ func _connect_network_events() -> void:
 		_log("CLIENT_READY id=%d name=%s" % [id, _player_name])
 	)
 	NetworkEvents.on_client_stop.connect(func():
+		_startup_stop_notified = true
+		if _startup_gate != null and not _startup_gate.is_failed():
+			_startup_gate.fail("Connection lost")
 		if not _webrtc_failure_reported:
 			_network_status = "DISCONNECTED"
 		_client_cruise_active = false
 		_log("CLIENT_STOPPED")
-		if _quit_after_ticks > 0:
+		if _quit_after_ticks > 0 and not _startup_retrying:
 			get_tree().quit(2)
 	)
 	NetworkEvents.on_peer_join.connect(_on_peer_join)
@@ -1084,6 +1102,9 @@ func _start_server() -> void:
 		_log("server listening on udp://0.0.0.0:%d" % _port)
 
 func _start_client() -> void:
+	if _startup_gate != null:
+		_startup_gate.begin(Time.get_ticks_msec())
+		_log("STARTUP_WAITING")
 	_webrtc_failure_reported = false
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	if _transport == "webrtc":
@@ -1108,6 +1129,10 @@ func _start_client() -> void:
 	var peer := ENetMultiplayerPeer.new()
 	var error := peer.create_client(_host, _port)
 	if error != OK:
+		if _startup_gate != null:
+			_startup_gate.fail("Could not connect")
+			_log("STARTUP_CONNECT_ERROR %s" % error_string(error))
+			return
 		push_error("Could not connect to %s:%d: %s" % [_host, _port, error_string(error)])
 		get_tree().quit(2)
 		return
@@ -1131,6 +1156,8 @@ func _on_webrtc_failed(message: String) -> void:
 		return
 	_webrtc_failure_reported = true
 	_network_status = "WEBRTC FAILED: %s" % message
+	if _startup_gate != null:
+		_startup_gate.fail("Connection failed")
 	if _quit_after_ticks > 0 or DisplayServer.get_name() == "headless":
 		get_tree().quit(2)
 
@@ -1139,10 +1166,71 @@ func _on_connection_failed() -> void:
 	if _webrtc_failure_reported:
 		return
 	_network_status = "CONNECTION FAILED"
+	if _startup_gate != null:
+		_startup_gate.fail("Connection failed")
 	push_error("Connection failed to %s" % _connection_target())
 	if _quit_after_ticks > 0:
 		get_tree().quit(2)
 
+
+func network_startup_ready() -> bool:
+	if _startup_gate == null:
+		return true
+	var body: Node = local_player()
+	return body != null and _startup_gate.permits_body(body.get_instance_id())
+
+func _update_startup_readiness() -> void:
+	if _startup_gate == null:
+		return
+	var was_ready: bool = _startup_gate.is_ready()
+	var now := Time.get_ticks_msec()
+	var connected := CONNECTION_STATE.has_connected_peer(multiplayer) \
+		and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	var body: Node = local_player() if connected else null
+	var sync: Node = body.get_node_or_null("RollbackSynchronizer") if body != null else null
+	var received_tick := -1
+	var received_msec := -1
+	var consumed_tick := -1
+	if sync != null and sync._history_transmitter != null:
+		received_tick = sync._history_transmitter._received_state_tick
+		received_msec = sync._history_transmitter._received_state_msec
+		consumed_tick = sync._consumed_authority_tick
+	var clock_ready := NetworkTime.is_initial_sync_done() \
+		and NetworkTimeSynchronizer.has_fresh_sample_window(now) \
+		and absf(NetworkTime.clock_offset) <= 2.0 * NetworkTime.ticktime \
+		and absf(NetworkTimeSynchronizer.remote_offset) <= 2.0 * NetworkTime.ticktime
+	_startup_gate.observe(now, connected, clock_ready,
+		body.get_instance_id() if body != null else 0, received_tick, consumed_tick,
+		NetworkTime.tick, NetworkRollback.history_start, received_msec)
+	if not was_ready and _startup_gate.is_ready():
+		_client_cruise_active = false
+		_log("STARTUP_PLAYABLE tick=%d state_tick=%d" % [NetworkTime.tick, received_tick])
+	if _startup_overlay != null:
+		_startup_overlay.show_status(_startup_gate.is_ready(), _startup_gate.failure)
+	if _startup_gate.is_failed() and not _startup_closed:
+		_log("STARTUP_FAILED reason=%s" % _startup_gate.failure)
+		_close_startup_connection()
+
+func _close_startup_connection() -> void:
+	if _startup_closed:
+		return
+	_startup_closed = true
+	if _webrtc_transport != null:
+		_webrtc_transport.call("close")
+	if multiplayer.multiplayer_peer != null:
+		multiplayer.multiplayer_peer.close()
+	if not _startup_stop_notified:
+		NetworkEvents.on_client_stop.emit()
+	multiplayer.multiplayer_peer = null
+
+func _retry_network_join() -> void:
+	if _startup_retrying or _startup_gate == null or not _startup_gate.is_failed():
+		return
+	_startup_retrying = true
+	_close_startup_connection()
+	# Reload only after disconnect callbacks finish; the new scene owns new
+	# bodies, UI and readiness state. Autoload clock attempts are epoch-guarded.
+	get_tree().call_deferred("reload_current_scene")
 
 func _on_mux_peer_rejected(peer_id: int, transport: String) -> void:
 	if transport == "webrtc" and _webrtc_transport != null:
@@ -3277,6 +3365,8 @@ func _update_editor_label() -> void:
 		rad_to_deg(widths[_selected_zone]), direction_label, used, COVERAGE.TOTAL_BUDGET]
 
 func _input(event: InputEvent) -> void:
+	if not network_startup_ready():
+		return
 	if _role not in ["client", "offline"] or not _scripted.is_empty():
 		return
 	if event is InputEventJoypadMotion:
@@ -3292,6 +3382,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not network_startup_ready():
+		return
 	if not CONNECTION_STATE.has_connected_peer(multiplayer):
 		return
 	if _role not in ["client", "offline"] or not _scripted.is_empty():

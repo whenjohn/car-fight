@@ -13,6 +13,8 @@ class StartupBody extends RigidBody3D:
 		return global_position + Vector3.RIGHT
 
 class StartupMain extends Node:
+	func network_startup_ready() -> bool:
+		return false
 	func local_player() -> Node:
 		return get_node_or_null("Players/42")
 
@@ -130,6 +132,7 @@ func _test_startup(output: String) -> void:
 	trace._sample_startup(trace.clock)
 	var sample: Dictionary = trace._records.back()
 	_check(sample["event"] == "startup_sample" and sample["generation"] == 2, "body identity")
+	_check(sample["startup_ready"] == false, "startup gate selection is observed with the pose")
 	_check(sample["node_position"] == [2.0, 0.0, 0.0]
 		and sample["presented_position"] == [3.0, 0.0, 0.0]
 		and sample["physics"]["position"] == [4.0, 0.0, 0.0], "separate node, visual and physics poses")

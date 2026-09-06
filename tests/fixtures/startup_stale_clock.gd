@@ -1,5 +1,19 @@
 extends SceneTree
 
+var _retry_sent := false
+
+func _process(_delta: float) -> bool:
+	if OS.get_environment("CAR_FIGHT_STARTUP_TEST_RETRY") == "1" and not _retry_sent \
+			and current_scene != null and current_scene.get("_startup_gate") != null \
+			and current_scene.network_startup_ready():
+		_retry_sent = true
+		call_deferred("_retry_once")
+	return false
+
+func _retry_once() -> void:
+	print("STARTUP_RETRY test-only connection failure")
+	current_scene._startup_gate.fail("Test connection failure")
+	current_scene._retry_network_join()
 
 func _init() -> void:
 	call_deferred("_run")

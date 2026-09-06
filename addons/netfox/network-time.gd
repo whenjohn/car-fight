@@ -379,6 +379,7 @@ var _state: int = _STATE_INACTIVE
 var _tick: int = 0
 var _was_paused: bool = false
 var _initial_sync_done = false
+var _sync_generation := 0
 var _process_delta: float = 0
 
 var _next_tick_time: float = 0
@@ -425,6 +426,8 @@ func start() -> int:
 			"under netfox/Time/Suppress Offline Peer Warning.")
 
 	# Reset state
+	_sync_generation += 1
+	var generation := _sync_generation
 	_tick = 0
 	_initial_sync_done = false
 	
@@ -437,6 +440,8 @@ func start() -> int:
 	
 	if not multiplayer.is_server():
 		await NetworkTimeSynchronizer.on_initial_sync
+		if generation != _sync_generation or _state != _STATE_SYNCING:
+			return ERR_UNAVAILABLE
 
 		_tick = seconds_to_ticks(NetworkTimeSynchronizer.get_time())
 		_initial_sync_done = true
@@ -466,6 +471,7 @@ func start() -> int:
 ## This will stop the time sync in the background, and no more ticks will be 
 ## emitted until the next start.
 func stop() -> void:
+	_sync_generation += 1
 	NetworkTimeSynchronizer.stop()
 	_tickrate_handshake.stop()
 	_state = _STATE_INACTIVE
