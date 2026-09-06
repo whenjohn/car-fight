@@ -1,5 +1,33 @@
 # Current phase
 
+## Rendered server-admission trial: owner reports working, 2026-09-05
+
+- Owner approved "ok lets test", then reported "ok looks like it works".
+  Two monitored native clients launched from runtime `095608c`; both reached
+  STARTUP_PLAYABLE and both received the same activation events. No client
+  engine/script errors at the launch check. This is visual joining acceptance,
+  not completed diagnostics or browser/performance acceptance.
+- Trial remains running pending owner completion. Run:
+  `.crash-runs/two-client-20260905-225043/`; Alpha subrun 225043, PID 58704,
+  peer 1660602140; Bravo subrun 225046, PID 58764, peer 632207941.
+  Bravo activated at tick 1186/playable 1189; Alpha at 1862/playable 1863.
+  Independent readiness still permits different join times.
+- Isolated macai2 copied runtime refreshed, server PID 19177 on UDP 12780 /
+  TCP 12781. Production PID 57599 remains on UDP 10080 unchanged. Server
+  admission, client startup readiness and forward clock recovery enabled only
+  for this trial; elapsed remote cursor, P cruise, decorated windows at 80,100
+  and 1520,100 with the existing three-second stagger. Defaults unchanged.
+- Launcher/evidence: `.network-runs/admission-20260905-224635/`, launchd label
+  `com.whenjohn.car-fight-admission-20260905-224635` (non-restarting).
+  Client startup trace 60 seconds; stage/presentation traces 120 seconds.
+  Server stage trace 90 seconds. After both clients close, cleanup waits for
+  server trace completion (bounded 95 seconds), stops only its isolated server
+  and collects its log/trace. No packet capture was started.
+- On "done": verify monitor exits, server cleanup and trace completeness;
+  collect/analyze startup and stage evidence, record remaining issues and
+  remove the completed launchd job. No further launch, production deployment,
+  default enablement or browser trial is authorized by this acceptance.
+
 ## Server admission implemented; ready for visual trial, 2026-09-05
 
 - Owner's "ok do it" authorizes server-visible joining/active admission.
