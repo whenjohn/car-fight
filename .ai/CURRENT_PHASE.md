@@ -2,6 +2,11 @@
 
 ## Rendered startup resets captured; trial awaiting completion, 2026-09-05
 
+- Owner explicitly confirms this startup move/reset behavior has existed since
+  networking was first introduced, months ago. Treat it as a longstanding
+  baseline startup defect, not a symptom introduced by this networking review
+  or the elapsed-cursor experiment. Historical onset is owner-reported, not
+  bisected; recent work could still affect its severity or duration.
 - Owner approved launching both clients and reports four move/return-to-origin
   resets right at startup. Position trace now confirms four large Alpha physics
   returns to approximately (-3, 0), at process monotonic seconds 26.245, 30.434,

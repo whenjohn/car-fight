@@ -39,6 +39,12 @@ normal play; this predates the latest presentation experiment. Treat startup
 readiness/reconciliation as a networking issue to investigate, not as harmless
 FX or proof of a sustained client/server speed difference.
 
+Owner subsequently clarified that this has happened since networking was first
+introduced, months ago, and reported four resets in the latest rendered trial.
+Treat onset as a longstanding baseline defect, not a regression introduced by
+this review or the elapsed-cursor change. This history is owner-reported, not a
+commit bisect; it does not rule out recent changes affecting severity/duration.
+
 Read-only evidence from `.crash-runs/two-client-20260905-035412/`:
 
 - Alpha `alpha/20260905-035412/client.log`: `CLIENT_READY` at line 17, initial
