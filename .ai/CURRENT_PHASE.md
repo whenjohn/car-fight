@@ -4,7 +4,7 @@
 
 - Owner additionally reports appearing away from the original position on
   finally entering play, as though movement occurred behind the wait screen.
-  Asked which window; confirmation pending. Native trace has zero sampled
+  Owner confirmed the native window. Native trace has zero sampled
   displacement before `startup_ready`; first ready at process 33.242408 s
   remains exactly (-3, 1.590000033, 0). First >0.05-unit 3D displacement sample
   at 38.237671 s is about 0.11 horizontal units from spawn. Input was neutral
@@ -26,7 +26,7 @@
 - Native reached STARTUP_PLAYABLE tick 2222, server activation tick 2217.
   Browser connected but never activated: `STARTUP_FAILED reason=Game
   synchronization timed out` at browser console timestamp 1788679973932.
-  Repeated `ERROR: Buffer full! Dropping data.` originates in
+  367 `ERROR: Buffer full! Dropping data.` messages originate in
   `modules/webrtc/webrtc_data_channel_js.cpp:77`. Browser log also shows stale
   authority recoveries and server state ticks hundreds ahead of local ticks
   (e.g. local 3451 vs incoming through 3731). Browser sample FPS fell to 6.
