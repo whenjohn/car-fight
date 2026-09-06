@@ -1,5 +1,34 @@
 # Current phase
 
+## Timed readiness trial completed, 2026-09-06
+
+- Owner says native still felt long, slower than browser, probably shorter
+  than before. Runtime `0e11f08`, evidence `mixed-20260906-031809`.
+  Native process-to-playable 38.689 s vs 42.726 s previously (4.037 s / 9.4%
+  shorter); body-first 21.019 vs 20.473 s; body-to-ready 17.671 vs 22.253 s.
+  Browser engine-log-to-playable 17.746 vs 21.885 s (4.139 s / 18.9% shorter);
+  connected-to-playable 8.258 vs 11.332 s (27.1% shorter). These are one-run
+  comparisons with different timing origins across platforms, not causal proof
+  or a controlled benchmark. Do not claim all savings came from the patch.
+- New native trace: first fresh full clock window at process 31.174 s; first
+  observation satisfying ALL clock conditions at 38.312 s; playable 38.689 s.
+  During late waiting, remaining remote-clock offset was above two ticks in
+  most samples. Thus loading plus clock sample collection/settling dominates
+  this run, with about 0.378 s from first eligible clock sample to playable.
+  Next speed focus is pre-connection loading and bounded clock warm-up, not
+  loosening readiness or shortening arbitrary timeouts. No new fix authorized
+  by the owner's request for numbers alone.
+- Native startup trace complete/zero drops, zero return candidates, no quality
+  warnings. Collected native/browser/server logs have zero engine/script errors.
+  Owner had said done but windows remained open; agent terminated exact native
+  PID 71164, so monitor status 143 is intentional SIGTERM, not a crash verdict.
+  Launcher closed dedicated browser/HTTP, collected server evidence and stopped
+  isolated 32104; test ports free, production 57599/UDP 10080 unchanged.
+  Completed launchd job removed. No trial running or production/default change.
+- Native first-visible-position concern, prior early browser mismatch and
+  intermittent WebRTC departure send error remain separate open issues. Latest
+  feedback addresses wait duration, not acceptance of those issues.
+
 ## Timed readiness trial live, 2026-09-06
 
 - Owner approved "ok let test it". Launched runtime `0e11f08` with the
