@@ -2,6 +2,17 @@
 
 ## Mixed native/browser trial: browser startup failed, 2026-09-06
 
+- Owner additionally reports appearing away from the original position on
+  finally entering play, as though movement occurred behind the wait screen.
+  Asked which window; confirmation pending. Native trace has zero sampled
+  displacement before `startup_ready`; first ready at process 33.242408 s
+  remains exactly (-3, 1.590000033, 0). First >0.05-unit 3D displacement sample
+  at 38.237671 s is about 0.11 horizontal units from spawn. Input was neutral
+  in samples around readiness. Browser stayed at (3, 0) in CLIENT_TICK X/Z
+  logs and never reached playable in its initial attempt. This does not
+  disprove the visible symptom: actual displayed-frame timing is not captured
+  by the readiness flag. Keep input-unlock vs first-visible-ready-frame as an
+  unresolved hypothesis, not an established cause or implemented fix.
 - Owner authorized "ok lets start the test". Fresh `Web Network` release
   export passed (export log `car-fight-web-export.ZcNgW8`); source/runtime
   unchanged from `095608c`, branch documentation at `bf374f2`. Refreshed only
