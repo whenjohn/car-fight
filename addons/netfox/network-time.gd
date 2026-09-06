@@ -386,6 +386,7 @@ var _last_process_time: float = 0.
 
 var _clock: NetworkClocks.SteppingClock = NetworkClocks.SteppingClock.new()
 var _clock_stretch_factor: float = 1.
+var _forward_clock_recovery: bool = OS.get_environment("CAR_FIGHT_FORWARD_CLOCK_RECOVERY") == "1"
 
 var _tickrate_handshake: NetworkTickrateHandshake
 
@@ -524,6 +525,17 @@ func _loop() -> void:
 	# Adjust local clock
 	_clock.step(_clock_stretch_factor)
 	var clock_diff: float = NetworkTimeSynchronizer.get_time() - _clock.get_time()
+	# A reference correction can leave input ticks outside server history for
+	# seconds without a local stall. Opt in to the existing whole-timeline reset;
+	# never rewind for a negative correction or change ordinary clock discipline.
+	if _forward_clock_recovery and _is_active() and _initial_sync_done \
+			and clock_diff > NetworkTimeSynchronizer.panic_threshold:
+		var peer := multiplayer.multiplayer_peer
+		if peer != null and not peer is OfflineMultiplayerPeer \
+				and peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED \
+				and not multiplayer.is_server():
+			_was_paused = true
+			_logger.info("Forward clock recovery: rebasing timeline by %.4fs", [clock_diff])
 	
 	# Ignore diffs under 1ms
 	clock_diff = sign(clock_diff) * max(abs(clock_diff) - 0.001, 0.)
@@ -545,7 +557,7 @@ func _loop() -> void:
 			_was_paused = true
 			_logger.debug("Game stalled for %.4fs, assuming it was a pause", [clock_step_raw])
 
-	# Handle pause
+	# Handle pause or opted-in forward clock recovery
 	if _was_paused:
 		_was_paused = false
 		# Rebase the whole timeline. Retaining the old schedule after jumping the

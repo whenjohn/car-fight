@@ -44,6 +44,11 @@ these rules do not authorize new features, broad rewrites, or deployment.
   `tests/network_time_pause_test.gd` and the existing stall/reconnect gates when
   changing that path. A clock correction plus a stall previously left clients
   seconds ahead and rejecting fresh server state as stale.
+- Forward clock recovery is experimental and off by default
+  (`CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1`). Its moving stale-seed A/B reduces five
+  startup returns to one, not zero. Preserve the zero-return acceptance gate in
+  `scripts/startup_trace_test.sh --clock-recovery`; initial sync/readiness is
+  still unresolved. Do not promote this as a completed startup fix.
 - Do not port G2's half-handshake-RTT initial time seed. In Car Fight's 120 ms
   two-client A/B it caused 3.16-3.46 unit startup corrections in two of three
   runs; the unseeded control passed three of three at 1.178 units or less.

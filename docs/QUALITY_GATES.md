@@ -96,6 +96,16 @@ injects reference-clock offsets and scheduling backlog and compares recovery
 against a clean timeline; it does not require rendered windows or system-clock
 changes. Shared-clock changes still require milestone validation before merge.
 
+For the default-off forward clock recovery experiment, also run
+`tests/network_time_forward_recovery_test.gd` and
+`zsh scripts/startup_trace_test.sh --clock-recovery`. The latter injects a stale
+initial timestamp into a real moving ENet client and compares off/on; it must
+reproduce repeated returns in the control and eliminate them with recovery.
+It currently exposes one remaining startup return and is not an acceptance
+pass. Keep that zero-return requirement; see the experiment record in
+[Network diagnostics](NETWORK_DIAGNOSTICS.md). Run join/reconnect with
+`CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` to cover the selected experimental path.
+
 For payload accounting, replicated-state growth, or packet-budget work, run
 `tests/network_payload_telemetry_test.gd` and
 `tests/network_packet_size_test.gd -- --offline` with the pinned headless editor.

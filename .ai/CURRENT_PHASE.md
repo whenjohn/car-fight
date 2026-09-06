@@ -1,5 +1,47 @@
 # Current phase
 
+## Forward clock recovery implemented; first reset unresolved, 2026-09-05
+
+- Owner approved the targeted startup fix. Added default-off
+  `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1`: an active, initially synced connected
+  client rebases clock/tick/next scheduled tick together when reference time
+  leads simulation by more than the existing panic threshold. No backwards
+  reference-gap rebase, new RPC/schema, prediction-authority change, history
+  enlargement, or networking-default change. Existing pause reset preserved.
+- **Partial improvement, not startup acceptance.** Real moving ENet stale-seed
+  A/B reproduced five returns with recovery off and one remaining 14.040-unit
+  return with recovery on, immediately after the reference panic. Correcting
+  time cannot restore previously rejected movement. The prolonged catchup is
+  removed: 1,342 later samples stayed within 27.414 ms of reference time and
+  exactly one forward rebase occurred. Both traces complete, zero drops/errors.
+- Reproduction: `zsh scripts/startup_trace_test.sh --clock-recovery`.
+  This deliberately fails until the enabled case has **zero** return-to-first-
+  pose candidates. Do not relax that assertion to accept one. Test-only seed
+  offset -4.7234838 seconds; real ping discipline repairs reference time. No
+  fixed production/client startup delay. Evidence under local temporary
+  `car-fight-startup.LpvW67/recovery-{0,1}/`; detailed record and reasoning in
+  `docs/NETWORK_DIAGNOSTICS.md`, "Forward clock recovery experiment".
+- Focused clock regression failed before runtime fix and passed afterward;
+  guards/default-off/negative offsets and 900 post-rebase frames covered.
+  Existing pause regression passed. With recovery enabled, join-transient
+  passed (one recovery/request/application; `car-fight-join-transient.nYtFHB`),
+  reconnect passed (three joins/three leaves; `car-fight-reconnect.tCisv6`), and
+  original moving/no-stall plus six-second-stall trace modes passed
+  (`car-fight-startup.KZq4pe`). Complete logs scanned: no unexpected errors.
+  Harness engine-failure control exited promptly as expected (`UPNRlb`). Fast
+  import/syntax/manifest/UID/diff check passed. Earlier fixture annotation error
+  was corrected before the measured A/B; no ignored passing-gate engine errors.
+- No rendered clients, macai2 changes or deployment this turn. All local test
+  processes exited. Full suite not rerun for this unaccepted, off-by-default
+  branch experiment; shared-clock milestone suite remains required before
+  merge/promotion, alongside rendered and later macOS/browser acceptance.
+- **Next:** investigate initial time acquisition/readiness so local prediction
+  does not begin on an untrustworthy timeline. Keep the positive-control
+  reproduction and zero-reset requirement. Do not mask it with arbitrary wait,
+  weaken stale-input guards, or revive the rejected half-handshake-RTT seed.
+  Do not launch another human trial merely to confirm this known remaining
+  reset; first get automated startup acceptance, then request a monitored test.
+
 ## Startup trial completed and analyzed, 2026-09-05
 
 - Owner said done. Both monitored clients exited zero at 19:39:08/09 CDT;

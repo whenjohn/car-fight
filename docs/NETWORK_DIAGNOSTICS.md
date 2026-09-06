@@ -221,6 +221,74 @@ server-ahead/moving-input reproduction, existing pause/join/reconnect gates,
 and a separately approved human retest. Preserve the coupled rebase and stale
 history guards; do not increase rollback history or hide the defect with delay.
 
+### Forward clock recovery experiment, 2026-09-05
+
+`CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` opts native clients into a forward-only
+whole-timeline rebase when the reference clock leads the simulation clock by
+more than the synchronizer's panic threshold (currently two seconds). The
+default remains off. This is a **partial fix, not startup acceptance**.
+
+The existing 1.25x clock stretch took many seconds to consume a multi-second
+correction. During that interval the server could reject old input timestamps
+while the client continued to predict movement. The experiment reuses the
+existing pause recovery: clock, tick label, next scheduled tick and stretch
+reset together before emitting more input ticks on the old timeline. Small or
+negative reference corrections retain ordinary clock discipline; existing
+pause handling is unchanged. Only connected, initially synchronized, active
+clients qualify. Server, offline and disconnected behavior is unchanged.
+
+Contract: owning clients still supply intent and peer 1 still owns bodies;
+wire schemas, replication classes, physics and stale-history guards are
+unchanged. No new RPCs, queues or retained history. Selection adds a constant
+guard per network loop, with a log only on recovery, and does not replay skipped
+ticks. Actual pause recovery remains capable of rebasing in either direction;
+the new reference-gap trigger itself never rewinds. CPU/traffic savings have
+not been benchmarked; this is correctness evidence, not a performance claim.
+
+Run the focused reproduction without rendered windows or macai2:
+
+```bash
+zsh scripts/startup_trace_test.sh --clock-recovery
+```
+
+The test-only SceneTree entry point registers before initial sync and makes the
+initial timestamp 4.7234838 seconds stale. Real ENet traffic and normal ping
+samples must discover the error. A six-second **server-only fixture warmup**
+keeps injected timestamps positive; no production/client startup delay was
+added. The harness runs recovery off/on sequentially, drives a real player,
+captures history/physics samples and rejects incomplete traces or runtime
+errors. It requires a repeated-return positive control, stable corrected time,
+exactly one rebase, and **zero** return-to-first-pose candidates with recovery.
+This opt-in acceptance gate currently fails its zero-return requirement; do
+not weaken it to accept one return. It is not part of the broad default runner.
+
+Evidence: local temporary directory `car-fight-startup.LpvW67`, `recovery-0/`
+and `recovery-1/`, each containing server/client logs, `startup.jsonl` and
+`report.json`. Control reproduced five returns, with roughly 14-unit largest
+backward steps and a 4.90-second maximum reference-minus-tick lag. Recovery
+produced one rebase and one remaining 14.040-unit return at process second
+4.078, about 21 ms after the panic. The sampled latest authority history still
+held spawn. In 1,342 samples more than 500 ms after panic, absolute tick/reference
+offset stayed below 27.414 ms. Both traces completed with zero drops and no
+engine/script errors. An earlier fixture run `car-fight-startup.xZLIbk` failed
+on a GDScript type annotation; fixed before the measured A/B.
+
+Interpretation: correcting the timeline removes prolonged catchup and repeated
+returns, but cannot preserve earlier predicted movement whose timestamps the
+server could not accept. Initial timeline acquisition/readiness remains the
+next focus. Investigate why prediction can begin on an untrustworthy initial
+timeline, with an evidence-based readiness condition rather than an arbitrary
+delay. Do not relabel client movement as authoritative, enlarge history, or
+restore the rejected half-handshake-RTT seed to hide the first reset.
+
+The injected-clock unit regression failed before the runtime change and passed
+afterward, including default-off, small/negative offsets, threshold boundary,
+server/offline/disconnected/sync-pending guards and 900 subsequent frames.
+Existing pause regression passed. Live join/reconnect results and final checks
+are recorded in `.ai/CURRENT_PHASE.md`. Shared-clock milestone validation is
+still required before merge; native rendered and browser acceptance remain
+pending. No deployment, networking-default change or new human launch occurred.
+
 ## Next approved capture
 
 Use the isolated macai2 server, not production. Refresh its project/autoload and
