@@ -155,6 +155,72 @@ No vendored repair was made; the trace uses guarded `get_latest_tick()` instead.
 No new rendered, browser, macai2 or deployment run; shared-clock changes still
 require the larger gates described above before promotion.
 
+### Completed rendered startup trial
+
+Owner approved two monitored macOS clients at runtime `b84a5a4`, with the elapsed
+cursor opt-in retained and startup trace enabled for 60 seconds. Both clients
+used the isolated macai2 mux/ENet endpoint UDP 12780, three-second launch stagger,
+ordinary inset windows and P cruise support. No injected stall or packet capture.
+Owner saw four early move/return-to-origin resets and confirms this behavior
+dates back to the introduction of networking months ago.
+
+Alpha's recorded physics and presented positions confirm four large returns to
+its spawn near planar (-3, 0), without an instance or generation change:
+
+| Process monotonic seconds | Return distance (units) | Latest state tick | Reference minus client tick (seconds) |
+| --- | --- | --- | --- |
+| 26.245 | 5.571 | 1627 | 3.743 |
+| 30.434 | 7.810 | 1896 | 2.604 |
+| 33.942 | 6.359 | 2091 | 1.710 |
+| 36.011 | 5.568 | 2244 | 1.230 |
+
+There are also smaller 0.573/1.612-unit return candidates at process seconds
+20.611/36.386. The table isolates the four large returns matching the owner's
+description, not four total threshold crossings. Alpha initially synchronized
+at process second 17.298, then corrected its reference clock by +4.723 seconds;
+Bravo corrected by +4.299 seconds and had no return-to-first-pose candidates.
+
+For each large return, sampled history at the latest state tick holds the
+stationary spawn pose. Those ticks match reliable recovery sends in the server
+log and accepted recovery entries in the client log. Importantly, each key was
+first observed in client history 1.1-1.7 seconds before its large return: these
+are not measured immediate-on-receipt teleports. Display/state history selection
+while the client's timeline trails authority needs to be covered by the fix.
+
+Server NETAPP windows from ticks 1263 through 2106 show incoming input traffic
+but no input-driven rollback origins; those origins start later, first for
+Bravo, then Alpha. The input encoder silently skips timestamps older than
+`NetworkRollback.history_start` (current server tick minus 64). Combined with
+the multi-second lag and stationary recovery poses, this strongly supports
+inputs aging out while local motion continues and recovery restores the spawn.
+It is not a per-packet rejection trace: input receipt timestamps/content and
+exact state-application callbacks were not recorded, nor are host clocks assumed
+aligned. Do not call this proof of packet loss or blame the recent cursor change.
+
+The normal authority-probe maxima were only 0.642 units for Alpha and 0.618 for
+Bravo. They do not represent the 5.6-7.8-unit startup returns: startup history
+coverage/measurement timing leaves a diagnostic blind spot. Acceptance of the
+repair must include the actual physics/presented-position timeline, not only a
+passing correction-probe limit or `CLIENT_READY` marker.
+
+Evidence: `.crash-runs/two-client-20260905-193712/`, Alpha subrun
+`20260905-193712`, Bravo `20260905-193715`; server log/trace and generated
+`alpha.startup-report.json` / `bravo.startup-report.json` are under
+`.network-runs/startup-20260905-193556/`. Client stage footers have 13,338/13,261
+records, 2,418/2,390 startup samples and zero drops; server trace is complete,
+zero drops, 4,934 network loops. Both clients closed before the requested
+120-second trace deadline and flushed normally, not by truncation. No client or
+server engine/script errors were found. Server elapsed loop maximum 153.229 ms
+is a separate timing observation, not an explanation for the startup returns.
+
+Both clients exited zero at 19:39:08/09 CDT; isolated PID 9955 stopped and its
+logs were collected. The completed non-restarting launch job was removed.
+Production PID 57599/UDP 10080 was unchanged. No runtime changes were made during
+analysis. Next is a bounded startup timeline-recovery fix with an automated
+server-ahead/moving-input reproduction, existing pause/join/reconnect gates,
+and a separately approved human retest. Preserve the coupled rebase and stale
+history guards; do not increase rollback history or hide the defect with delay.
+
 ## Next approved capture
 
 Use the isolated macai2 server, not production. Refresh its project/autoload and

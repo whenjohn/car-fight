@@ -1,5 +1,39 @@
 # Current phase
 
+## Startup trial completed and analyzed, 2026-09-05
+
+- Owner said done. Both monitored clients exited zero at 19:39:08/09 CDT;
+  isolated server PID 9955 stopped, logs collected, completed launchd job removed.
+  Production PID 57599 remains on UDP 10080; test ports 12780/12781 free.
+  No trial processes remain and no new launch is authorized by this completion.
+- Four large Alpha physics/presented-position returns to spawn measured 5.571,
+  7.810, 6.359 and 5.568 units. Same instance/generation. Reference-minus-client
+  tick lag at those resets was 3.743, 2.604, 1.710 and 1.230 seconds. The sampled
+  latest-state snapshots match spawn, and their ticks match server reliable
+  recovery sends. See completed rendered trial in `docs/NETWORK_DIAGNOSTICS.md`.
+- Server received input traffic throughout much of the stalled startup but
+  telemetry reports no input-driven rollback origins until later catchup.
+  `_RedundantHistoryEncoder.apply()` silently skips inputs older than the
+  64-tick history window. This strongly supports stale-timestamped intent plus
+  repeated recovery to stationary authority; exact per-input rejection events
+  were not recorded. Fresh keys were visible in client history 1.1-1.7 seconds
+  before the four large resets, so do not equate reset time with packet arrival.
+- Existing authority probes maxed at only 0.642/0.618 units despite the visible
+  5.6-7.8-unit resets. Startup acceptance must check real movement, not only the
+  correction-probe ceiling. No engine/script errors; all three stage traces
+  complete with zero drops (client samples 2,418/2,390; server 4,934 loops).
+  Clients closed before the requested 120-second trace deadline and flushed
+  normally; this is not missing/incomplete output. No packet-loss conclusion.
+- Evidence `.crash-runs/two-client-20260905-193712/` and
+  `.network-runs/startup-20260905-193556/`, including both startup reports and
+  server trace/log. No runtime/default changes this analysis turn.
+- Next implementation focus: characterize and repair startup timeline recovery
+  after a large reference-clock correction, preserving coupled clock/tick/next
+  tick rebasing and stale-input guards. Cover server-ahead states and movement
+  in a focused automated reproduction, then clock/join/reconnect gates and a
+  separately approved human retest. Do not repeat the current human test just
+  to reconfirm the resets or mask them with a fixed startup delay.
+
 ## Rendered startup resets captured; trial awaiting completion, 2026-09-05
 
 - Owner explicitly confirms this startup move/reset behavior has existed since
