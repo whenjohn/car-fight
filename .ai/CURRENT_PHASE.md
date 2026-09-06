@@ -1,5 +1,33 @@
 # Current phase
 
+## Native admission trial completed; mixed browser trial next, 2026-09-06
+
+- Owner reported joining works, then said "done whats next". Both monitors
+  exited cleanly/status 0. Isolated server 19177 stopped; test UDP 12780/TCP
+  12781 free, production 57599/UDP 10080 unchanged. Completed launchd job
+  `com.whenjohn.car-fight-admission-20260905-224635` removed. No trial running.
+- Evidence paths in the handoff below. Client and server stage traces complete
+  with zero drops; server trace successfully collected this time. Clients
+  closed around process 44-45 seconds, so their requested 120-second captures
+  ended cleanly at shutdown, not at the full configured duration.
+- Startup reports: Alpha 1,000 samples, Bravo 816; zero return-to-first-pose
+  candidates and no quality warnings. First playable samples at process
+  29.192/15.608 seconds respectively. This is bounded sampled evidence, not
+  proof against every intra-frame correction. Client logs have zero errors;
+  largest HUD corrections 0.218/0.525 units, zero reported recoveries.
+- Performance remains separate debt: initial frame gaps 5.272/5.174 seconds;
+  post-ready frame-gap maxima 639/1,693 ms, medians 34.465/32.627 ms. Client
+  network-loop p95 26.846/40.116 ms; server p95 6.688 ms, max 160.813 ms.
+  Phase timings include descheduling, not just CPU execution. No packet
+  capture in this trial, so do not claim precise CPU/GPU or wire attribution.
+- Next proposed networking checkpoint: owner-approved native macOS + actual
+  browser/WebRTC against the isolated matching runtime. Check admission and
+  pending visibility, bidirectional movement/P observation, disconnect/rejoin
+  and errors. Native mux automation is not browser acceptance. Review browser
+  flag support before launch; do not silently equate native-only clock recovery
+  with browser behavior. No browser launch, deployment or default enablement
+  authorized yet. Joining accepted; broader smoothness/performance not cleared.
+
 ## Rendered server-admission trial: owner reports working, 2026-09-05
 
 - Owner approved "ok lets test", then reported "ok looks like it works".
