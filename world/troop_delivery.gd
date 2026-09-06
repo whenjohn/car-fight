@@ -5,6 +5,7 @@ extends Node3D
 ## deploy. Spawn/arrival events keep every peer's visible stream coherent.
 
 const SOURCE_POSITION := Vector3(-32.0, 0.0, 12.0)
+const PLAYER_PARTICIPATION := preload("res://net/player_participation.gd")
 const DESTINATION_POSITION := Vector3(32.0, 0.0, -12.0)
 const COLLECTION_RADIUS := 8.0
 const DROP_RADIUS := 9.0
@@ -61,7 +62,7 @@ func _on_tick(delta: float, _tick: int) -> void:
 func _service_source(delta: float) -> void:
 	if _players == null:
 		return
-	for child in _players.get_children():
+	for child in PLAYER_PARTICIPATION.children(_players):
 		var car := child as Node3D
 		if car == null or not in_collection_area(car.global_position):
 			continue
@@ -75,7 +76,7 @@ func _service_source(delta: float) -> void:
 func _service_deploy(delta: float) -> void:
 	if _players == null:
 		return
-	for child in _players.get_children():
+	for child in PLAYER_PARTICIPATION.children(_players):
 		var car := child as Node3D
 		if car == null:
 			continue

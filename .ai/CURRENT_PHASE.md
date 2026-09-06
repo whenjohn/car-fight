@@ -1,6 +1,87 @@
 # Current phase
 
-## Rendered joining-gate trial active, 2026-09-05
+## Server admission implemented; ready for visual trial, 2026-09-05
+
+- Owner's "ok do it" authorizes server-visible joining/active admission.
+  Added default-off `CAR_FIGHT_SERVER_ADMISSION=1`; no deployment, default
+  enablement or new rendered launch. Matching clients automatically select
+  the joining gate when their spawn requires admission. Next native trial
+  should explicitly select both client startup flags as before.
+- Waiting bodies remain replicated for owner timing/state validation, but are
+  hidden, frozen, collision-layer/mask zero and excluded from gameplay ticks,
+  weapons/hits, pickups/troops, grass and offscreen markers. Server checks the
+  sender's body generation and recent state tick, then sends a reliable,
+  immutable next-tick activation. Local input/UI wait for that acknowledgement.
+  Replay before activation stays inert; late joiners receive existing events.
+  Duplicate/replaced-generation events do not change admission. Server expiry
+  45 seconds, client response deadline 30 seconds, requests at most 1/sec.
+  Opt-in cap 16 waiting plus active humans across transports; no new queue,
+  input/state schema growth, transport expansion or CPU/traffic savings claim.
+- New regression first failed on the original waiting-player defect. Focused
+  tests cover physics, combat, pickups, troop actions, editor/marker visibility,
+  activation/replay, same-ID replacement, expiry and cap. Initial network gates
+  passed ENet `car-fight-admission.YpLDK3` and native mux/WebRTC `bKiUPr`, with
+  server/client collision queries, five-second readiness withholding, invalid
+  requests, automatic owner gate, post-ready movement and a third late joiner.
+- Admission-enabled stale-clock/retry A/B `car-fight-startup.dqaYD3` passed
+  six return candidates to zero, two fresh identities/activations, neutral
+  waiting input and sustained motion. Complete traces/zero drops/errors.
+  Final clearance-aware A/B `83BFzN` also passed five-to-zero with retry.
+- Broad validation exposed and fixed a standalone body preload/autoload
+  dependency, an expanded unit fixture's MeshInstance type mismatch, and an
+  activation-presentation call missing Main's body argument. Preserved failed
+  logs under `.network-runs/admission-full-suite-{initial,fixed,tail}.log`.
+  Passing prefix was not repeatedly restarted; remaining integration gates
+  finished in `admission-full-suite-final-tail.log`. Default latency120 gate
+  passed at 1.403 units, mixed native at 0.300, join/reconnect passed. Expected
+  malformed SDP/ICE and truncated codec negative controls emit engine errors;
+  these are distinct from the corrected implementation/fixture failures.
+- Broad remaining gates completed, including default admission-off respawn,
+  mass collision, ball/tractor, reverse, combat/RC/shield/det. Full milestone
+  coverage is a passing prefix plus corrected unit and resumed tails, not one
+  uninterrupted clean suite invocation. Final ENet admission `Z7QYhN` passed.
+- Final selected checks in `.network-runs/admission-clearance-checks.log`:
+  admission/stage regressions, native mux `ZTzfAN`, stall `c4U6RN`, reconnect
+  `KyjjFQ`, startup/retry `83BFzN`, fast check all passed. Short reconnect peers
+  end before readiness; the survivor and separate full same-process retry
+  provide active admission coverage. No unexpected positive-path errors.
+- Admission latency trial `ofgRDd` exposed activation into a waiting spawn
+  occupied by an already-moving player. Added server clearance checks for
+  active/scheduled cars and dynamic props/balls; blocked sites stay pending
+  until clear or timeout (no alternate-site selection). Costly checks are
+  limited to two per second per body. Regression covers occupancy/reservation.
+  Test-only scripted `converge` now waits for admitted partners; normal human
+  controls remain independent. With 900/1000 server/client ticks for a real
+  post-ready collision window, latency120 passed unchanged contact/escape and
+  two-unit limits: worst 0.300, minpair 2.500 (`car-fight-network.7NpmUo`).
+  Both failed and passing shaped logs retained under `.network-runs/`.
+- Standing contract and commands updated in AGENTS.md, NETWORK_SAFE_GAMEPLAY,
+  QUALITY_GATES and NETWORK_DIAGNOSTICS. Startup samples expose admission flag
+  and activation tick. Production PID 57599/UDP 10080 untouched. Browser and
+  rendered admission acceptance remain pending; do not launch without approval.
+- Next: owner-approved two monitored native clients against the isolated
+  macai2 runtime, server admission plus both client startup flags and elapsed
+  cursor/P cruise. First ready player must not see/interact with the waiting
+  vehicle, and both must drive normally afterward. Preserve server trace:
+  previous server was stopped around tick 5288 (88.1 s), before the requested
+  90-second flush; wait for trace completion or graceful exit before stopping.
+  Final fast check passed; 19 clearance/latency positive-path log files scanned
+  with zero engine/script errors. All local test processes exited; no new
+  human trial is running.
+
+## Previous rendered joining-gate trial completed, 2026-09-05
+
+- Both monitored clients exited cleanly (0). Isolated server 13860 stopped;
+  UDP 12780/TCP 12781 free, production still 57599/UDP 10080. Removed completed
+  launchd job `com.whenjohn.car-fight-readiness-20260905-205744`. Server log
+  collected, but requested server stage file was absent remotely. Client
+  traces complete/zero drops: Alpha 3,491 samples/zero return candidates;
+  Bravo 3,614/one 0.362-unit return at 25.934 s while its joining screen was
+  still up (playable 30.274 s). Owner accepted screen experience, not CPU/FPS
+  performance. Do not claim a zero-reset simulation from hidden presentation.
+  No human test remains active. The notes below preserve the original trial.
+
+## Rendered joining-gate trial handoff (superseded), 2026-09-05
 
 - Owner says the joining experience is fine, but asks why clients become ready
   at different times and why the ready player can see the waiting vehicle.

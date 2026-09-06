@@ -289,7 +289,139 @@ are recorded in `.ai/CURRENT_PHASE.md`. Shared-clock milestone validation is
 still required before merge; native rendered and browser acceptance remain
 pending. No deployment, networking-default change or new human launch occurred.
 
+### Server admission extension, 2026-09-05
+
+Owner approved keeping a joining vehicle out of everyone else's game, not
+just hiding its owner's screen. Select `CAR_FIGHT_SERVER_ADMISSION=1` on a
+matching-build test server. It is off by default. A required-admission spawn
+automatically enables the owner's joining gate, including clients without
+`CAR_FIGHT_STARTUP_READY=1`. Explicitly select that client flag for the next
+rendered trial so its overlay is present before connection. Keep
+`CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` for the tested native startup path.
+No old-binary interoperability or browser acceptance is claimed.
+
+Contract and reasoning:
+
+- Server peer 1 still owns physics/state; the client reports readiness, never
+  a position or an activation time. The request uses its actual RPC sender,
+  current body generation and a received state tick within server history.
+  Unknown/replaced bodies, stale generations, future/stale ticks and repeated
+  activation requests cannot activate a different body or move its activation.
+- A pending body stays in the existing spawner/rollback/remote-state paths so
+  the owner can validate real authority state. Its root is hidden, physics is
+  frozen with zero collision layer/mask, and its gameplay tick returns before
+  movement/weapons/tractor. Gameplay query filters also exclude it from combat,
+  troop recruitment/deployment, dot collection, grass and offscreen markers.
+  Editing visibility cannot reveal it. This is not a traffic-saving change.
+- Once client timing/state readiness is established, a reliable request asks
+  for admission. The server broadcasts a reliable generation/activation-tick
+  event for its next tick. Input and the joining overlay wait for that event
+  and tick. Physics participation is derived from the actual rollback tick,
+  not a mutable presentation boolean; replay before activation stays inert.
+  Late joiners receive existing activation events after replicated spawns.
+- Each body generation activates once. Replacement/retry requires fresh
+  readiness and admission. Existing independent joining times are intentional:
+  a slow client does not hold every player at a barrier. Event delivery can
+  differ by network latency; this does not promise simultaneous screen reveal.
+- Client requests are paced to at most one per second, with a 30-second
+  admission-response timeout; normal readiness already has its own 30-second
+  timeout. The server removes unadmitted peers after 45 seconds from body
+  creation. The opt-in admission path caps waiting plus active humans at 16
+  across transports (the existing ENet cap alone does not limit WebRTC), with no
+  extra pending event queue or new object family. Events/spawn metadata add
+  small fixed payloads, with at most one broadcast activation per generation
+  and one existing-player event per late joiner/body. Input/state field lists,
+  packed codec version, history size and networking defaults are unchanged.
+- Before activation, the server checks clearance from active/scheduled cars
+  using their conservative footprint radii plus a two-tick velocity margin,
+  and queries the physics space for overlapping dynamic props/balls. Existing
+  static spawn sites are unchanged. An occupied site remains hidden/inert and
+  is retried within the same deadline, not relocated or activated inside a
+  moving car. A persistently blocked site can time out; alternate-site
+  selection is not implemented. Costly checks are server-paced to at most
+  two per second per pending body, with a 64-hit physics query cap.
+
+Evidence before rendered acceptance:
+
+- The new unit test first failed on visibility, collision, firing, hits,
+  pickups and the missing activation contract, then passed. It also covers
+  generation rejection, duplicate activation, backward replay, troop actions,
+  awareness markers and editor visibility. The broad suite exposed an early
+  autoload dependency in standalone body preloads; the body now uses its
+  existing root-node lookup pattern, and the impact regression passes again.
+- `zsh scripts/player_admission_test.sh`: `car-fight-admission.YpLDK3` passed
+  actual server/client collision queries, a five-second held-readiness client,
+  rejected invalid requests, automatic gate selection, post-ready movement
+  and a third late joiner. Native mux ENet/WebRTC passed the same checks in
+  `car-fight-admission.bKiUPr`. These are headless tests, not browser/rendered
+  or maximum-load acceptance. Processes are intentionally stopped and reaped
+  by the bounded harness after assertions; complete logs are scanned first.
+- Admission-enabled same-process startup/retry A/B `car-fight-startup.dqaYD3`
+  passed six return candidates in the ungated control versus zero when enabled,
+  two fresh connections/generations, neutral pre-ready input and sustained
+  motion after readiness. Server/client activation ticks matched: 871/1264.
+  Traces complete with zero drops; no unexpected runtime errors.
+- Startup samples include `admission_required` and `activation_tick`; logs
+  distinguish `PLAYER_ACTIVATED` from transport `CLIENT_READY` and local
+  `STARTUP_PLAYABLE`. CPU savings and reduced traffic are not measured/claimed.
+
+Final validation and limits:
+
+- Broad milestone tests completed across a passing prefix and resumed tails
+  after correcting the development failures above. Logs:
+  `.network-runs/admission-full-suite-{initial,fixed,tail,final-tail}.log`.
+  This was not one uninterrupted clean `test.sh` invocation. The initial
+  activation-presentation call also needed Main's body argument; an explicit
+  activated-vehicle/editor regression now covers it. Final ENet admission
+  gate `Z7QYhN`, default latency120 1.403 units, mixed 0.300, respawn, mass
+  collision, ball/tractor, reverse, combat/RC/shield/det gates passed.
+- Final clearance-aware selection is in
+  `.network-runs/admission-clearance-checks.log`: admission/stage units,
+  native mux `ZTzfAN`, stalled join `c4U6RN`, reconnect `KyjjFQ`, fast check
+  and same-process startup/retry A/B `83BFzN` passed (five returns to zero).
+  The short reconnect peers still end before readiness; survivor admission
+  and pending departure are covered there, while the A/B proves full retry.
+- The original admission-enabled eight-second head-on run `ofgRDd` failed its
+  escape assertion: independently admitted cars could pass into a waiting
+  spawn, then overlap at activation (minimum center separation 0.070 units).
+  Added occupied/scheduled-spawn regressions before the clearance fix. The
+  scripted `converge` fixture now starts only when partners are admitted, with
+  a regression before that change too. This is test choreography, not a
+  player-wide startup barrier. With 900 server/1000 client ticks to leave a
+  post-join collision window, the unchanged latency120 contact/escape and
+  two-unit correction assertions passed in `car-fight-network.7NpmUo`:
+  worst correction 0.300, minimum center separation 2.500, contact/escape 1.
+  See `.network-runs/admission-latency120{-final,}.log` for both outcomes.
+- Complete positive-path logs were checked. The broad suite's malformed
+  SDP/ICE, truncated packed-state, peer-ID collision and harness late-error
+  negative controls produce their expected errors; no broad allowlist or
+  acceptance-threshold relaxation was added. New admission positive paths
+  contain no unexpected engine/script errors. Actual browser/rendered and
+  representative maximum-load/CPU validation remain unmeasured.
+
+The previous rendered client-only trial `.crash-runs/two-client-20260905-205852`
+closed cleanly (both exit 0). Its isolated server stopped; production PID 57599
+remained on UDP 10080 and test ports were free. Completed launchd job removed.
+Client startup traces are complete/zero-drop: Alpha 3,491 samples/zero returns;
+Bravo 3,614 samples/one 0.362-unit return at process 25.934 s, still behind its
+joining screen (first playable 30.274 s). Subsequent backward-step candidates
+are not automatically network corrections during human/cruise movement. Owner
+accepted the joining-screen experience, not overall performance. Server log
+was collected, but the requested server stage file was absent remotely and
+could not be collected. Preserve that evidence gap; verify trace output during
+the next approved launch rather than claiming server-stage coverage.
+
+No production deployment, default enablement or new rendered launch accompanies
+this implementation. Next visual trial must refresh only the isolated test
+runtime, select server admission and both client startup flags, then verify
+that the first ready client sees no waiting vehicle. Later macOS/browser
+validation remains separate.
+
 ### Joining readiness gate, 2026-09-05
+
+This section describes the original client-only gate. The separately selected
+server-admission extension below adds world participation control; its RPC and
+spawn-data costs are additional to the original gate's local-only cost.
 
 The owner requested withholding gameplay until the network is ready instead
 of showing predicted movement and undoing it. Native opt-in:

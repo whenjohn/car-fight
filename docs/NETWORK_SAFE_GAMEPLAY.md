@@ -100,6 +100,14 @@ when prediction makes the same local decision for responsiveness.
   authoritative state agree. A locally initialized history tick is not proof
   of server state. Bound the wait, offer retry, and invalidate readiness across
   disconnects and body replacement; do not use an arbitrary sleep as readiness.
+  Local input/UI gating alone does not remove a player from the world. When
+  server admission is selected, use `net/player_participation.gd` for gameplay
+  queries, including targets, pickups and awareness markers. Pending bodies
+  still synchronize, but cannot collide, fire, receive hits or collect items.
+  Activation is a server-authored generation/tick event; replay before that
+  tick must remain inert. Do not use visual visibility as gameplay authority.
+  Check dynamic spawn occupancy before activation, including other scheduled
+  admissions: an active player can drive into an invisible waiting position.
 
 - Only gather/send/apply network-dependent gameplay in valid connection and
   readiness states. A non-null peer reference alone does not prove it is active.

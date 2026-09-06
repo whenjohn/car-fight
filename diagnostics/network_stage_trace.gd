@@ -166,6 +166,9 @@ func _sample_startup(now: int) -> void:
 	var record := _startup_clock()
 	record["event"] = "startup_sample"
 	record["startup_ready"] = main.network_startup_ready() if main.has_method("network_startup_ready") else null
+	if body.has_method("gameplay_active"):
+		record["admission_required"] = bool(body.get("admission_required"))
+		record["activation_tick"] = int(body.get("activation_tick"))
 	record["history_start"] = get_node("/root/NetworkRollback").get("history_start")
 	record["display_tick"] = get_node("/root/NetworkRollback").get("display_tick")
 	record.merge(_startup_body_snapshot(body))

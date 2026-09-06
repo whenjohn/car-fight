@@ -38,15 +38,19 @@ for case_value in "${cases[@]}"; do
 	stall_ms="$case_value"
 	recovery="${CAR_FIGHT_FORWARD_CLOCK_RECOVERY:-0}"
 	startup_ready="${CAR_FIGHT_STARTUP_READY:-0}"
+	server_admission="${CAR_FIGHT_SERVER_ADMISSION:-0}"
 	case_dir="$log_dir/stall-$case_value"
 	if [[ "$mode" == "--clock-recovery" || "$mode" == "--startup-ready" ]]; then
 		stall_ms=0
 		recovery="$case_value"
 		startup_ready=0
 		if [[ "$mode" == "--startup-ready" ]]; then startup_ready="$case_value"; fi
+		# Preserve the ungated positive control even when admission is selected.
+		if [[ "$mode" != "--startup-ready" || "$case_value" == "0" ]]; then server_admission=0; fi
 		case_dir="$log_dir/recovery-$case_value"
 	fi
 	mkdir "$case_dir"
+	CAR_FIGHT_SERVER_ADMISSION="$server_admission" \
 	"$godot_bin" --headless --max-fps 60 --path "$project_root" -- \
 		--server --no-drone --port "$server_port" --ticks 3600 >"$case_dir/server.log" 2>&1 &
 	server_pid=$!

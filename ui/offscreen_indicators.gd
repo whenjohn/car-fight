@@ -4,6 +4,7 @@ extends Control
 ## are plentiful enough that marking them would turn the rim into decoration.
 
 const KIND_PLAYER := 0
+const PLAYER_PARTICIPATION := preload("res://net/player_participation.gd")
 const KIND_BALL := 1
 const MAX_PLAYER_MARKERS := 3
 const MAX_DISTANCE := 150.0
@@ -90,7 +91,7 @@ func _collect(delta: float) -> Array[Dictionary]:
 	var seen := {}
 	var players := _main.get_node_or_null("Players")
 	if players != null:
-		for player_variant in players.get_children():
+		for player_variant in PLAYER_PARTICIPATION.children(players):
 			var player := player_variant as Node3D
 			if player == null or int(player.name) == my_id or int(player.get("map_id")) != my_map:
 				continue

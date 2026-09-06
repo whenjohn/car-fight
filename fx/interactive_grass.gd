@@ -3,6 +3,7 @@ extends Node3D
 ## the GPU bends blades away from every replicated Jeep and live bolt.
 
 const GRASS_SHADER := preload("res://fx/interactive_grass.gdshader")
+const PLAYER_PARTICIPATION := preload("res://net/player_participation.gd")
 const CHUNK_SIZE := 14.0
 const CHUNKS_PER_SIDE := 3
 const TUFTS_PER_CHUNK := 900
@@ -97,7 +98,7 @@ func _process(delta: float) -> void:
 		trails.append(OFF_FIELD)
 	if _players != null:
 		var index := 0
-		for child in _players.get_children():
+		for child in PLAYER_PARTICIPATION.children(_players):
 			if index >= 4:
 				break
 			var body := child as RigidBody3D

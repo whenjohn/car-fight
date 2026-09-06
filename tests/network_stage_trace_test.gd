@@ -7,6 +7,10 @@ class Trace extends "res://diagnostics/network_stage_trace.gd":
 
 class StartupBody extends RigidBody3D:
 	var remote_state_generation := 2
+	var admission_required := true
+	var activation_tick := -1
+	func gameplay_active() -> bool:
+		return false
 	var physics_state := [Vector3(4, 0, 0), Quaternion.IDENTITY,
 		Vector3(3, 0, 0), Vector3.ZERO, false]
 	func presented_position() -> Vector3:
@@ -133,6 +137,8 @@ func _test_startup(output: String) -> void:
 	var sample: Dictionary = trace._records.back()
 	_check(sample["event"] == "startup_sample" and sample["generation"] == 2, "body identity")
 	_check(sample["startup_ready"] == false, "startup gate selection is observed with the pose")
+	_check(sample["admission_required"] == true and sample["activation_tick"] == -1,
+		"server admission state is observed with the pose")
 	_check(sample["node_position"] == [2.0, 0.0, 0.0]
 		and sample["presented_position"] == [3.0, 0.0, 0.0]
 		and sample["physics"]["position"] == [4.0, 0.0, 0.0], "separate node, visual and physics poses")

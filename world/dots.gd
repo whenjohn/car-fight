@@ -3,6 +3,7 @@ extends Node3D
 ## rendered through one mesh; it is never a physics body, collider, or rollback state.
 
 const MAP_LAYOUT := preload("res://world/map_layout.gd")
+const PLAYER_PARTICIPATION := preload("res://net/player_participation.gd")
 const CONNECTION_STATE := preload("res://net/connection_state.gd")
 const CITY_LAYOUT := preload("res://world/city_layout.gd")
 const DOT_COUNT := 72
@@ -89,7 +90,7 @@ func _on_tick(_delta: float, _tick: int) -> void:
 		var position: Vector3 = _dots[id]
 		var best_id := -1
 		var best_distance := radius_squared
-		for body_node in players.get_children():
+		for body_node in PLAYER_PARTICIPATION.children(players):
 			var body := body_node as Node3D
 			if body == null:
 				continue
@@ -210,7 +211,8 @@ func _local_body() -> Node3D:
 	if not CONNECTION_STATE.has_connected_peer(multiplayer):
 		return null
 	var players := get_parent().get_node_or_null("Players")
-	return null if players == null else players.get_node_or_null(str(multiplayer.get_unique_id())) as Node3D
+	var body := null if players == null else players.get_node_or_null(str(multiplayer.get_unique_id())) as Node3D
+	return body if PLAYER_PARTICIPATION.active(body) else null
 
 func _start_flyin(from: Vector3, peer_id: int) -> void:
 	if _mesh != null:

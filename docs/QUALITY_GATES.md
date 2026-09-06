@@ -118,6 +118,24 @@ Keep join/reconnect and mixed native transport checks selected with both opt-ins
 Small headless UI layout checks do not replace a monitored rendered or browser
 test. The standalone clock-only characterization is still insufficient.
 
+For server admission (`CAR_FIGHT_SERVER_ADMISSION=1` on the server), run
+`tests/player_admission_test.gd -- --offline` and
+`zsh scripts/player_admission_test.sh`. Repeat the latter with
+`CAR_FIGHT_ADMISSION_TEST_TRANSPORT=mux` for ENet plus native WebRTC. These
+exercise hidden/inert waiting bodies on server and clients, invalid requests,
+automatic owner gating, movement after admission and late-join activation.
+Run the startup/retry A/B with `CAR_FIGHT_SERVER_ADMISSION=1` and
+`CAR_FIGHT_STARTUP_TEST_RETRY=1`; its control explicitly disables admission.
+Keep the zero-return assertion. Run join/reconnect with server admission and
+forward recovery enabled. Shared spawning/physics changes require the broad
+milestone suite, plus a separately approved rendered trial before acceptance.
+For admission-enabled shaped contact, run the existing `network_test.sh` with
+all three opt-ins, `CAR_FIGHT_NETWORK_SERVER_TICKS=900` and
+`CAR_FIGHT_NETWORK_CLIENT_TICKS=1000`. The scripted `converge` scenario waits
+for its partners' admission before driving; normal human/cruise controls do
+not wait for other players. Extra ticks leave contact/escape time after joining.
+Keep the two-unit correction limit and contact/escape assertions unchanged.
+
 For payload accounting, replicated-state growth, or packet-budget work, run
 `tests/network_payload_telemetry_test.gd` and
 `tests/network_packet_size_test.gd -- --offline` with the pinned headless editor.

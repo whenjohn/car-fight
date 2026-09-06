@@ -4,9 +4,11 @@ extends Node3D
 
 const CONNECTION_STATE := preload("res://net/connection_state.gd")
 const STARTUP_READINESS := preload("res://net/startup_readiness.gd")
+const PLAYER_PARTICIPATION := preload("res://net/player_participation.gd")
 const DEFAULT_PORT := 10080
 const DEFAULT_SIGNAL_PORT := 10181
 const MAX_CLIENTS := 16
+const SERVER_ADMISSION_TIMEOUT_MSEC := 45000
 const WORLD_CONFIG := preload("res://world/world_config.gd")
 const VEHICLE_CONFIG := preload("res://player/vehicle_config.gd")
 const FOLLOW := preload("res://player/follow_controller.gd")
@@ -376,6 +378,11 @@ var _startup_overlay: CanvasLayer
 var _startup_closed := false
 var _startup_stop_notified := false
 var _startup_retrying := false
+var _server_admission_enabled := false
+var _startup_playable_body := 0
+var _activation_request_body := 0
+var _activation_request_started := 0
+var _activation_request_sent := -1
 var _join_stall_ms := 0
 var _join_stall_after_ms := 0
 var _join_stall_started := false
@@ -409,14 +416,11 @@ func _ready() -> void:
 		_start_proxy()
 		return
 	_connect_network_events()
+	_server_admission_enabled = _role == "server" \
+		and OS.get_environment("CAR_FIGHT_SERVER_ADMISSION") == "1"
 	if _role == "client" and (OS.get_environment("CAR_FIGHT_STARTUP_READY") == "1" \
 			or (OS.has_feature("web") and _web_query("startupReady") == "1")):
-		_startup_gate = STARTUP_READINESS.new()
-		if not _is_headless():
-			_startup_overlay = load("res://ui/network_join_overlay.gd").new()
-			add_child(_startup_overlay)
-			_startup_overlay.retry_requested.connect(_retry_network_join)
-			_startup_overlay.quit_requested.connect(func(): get_tree().quit())
+		_enable_startup_gate()
 	_build_world()
 	NetworkTime.on_tick.connect(_on_tick)
 	NetworkRollback.after_loop.connect(_send_settled_authority_probes)
@@ -1173,16 +1177,27 @@ func _on_connection_failed() -> void:
 		get_tree().quit(2)
 
 
+func _enable_startup_gate() -> void:
+	if _startup_gate != null:
+		return
+	_startup_gate = STARTUP_READINESS.new()
+	if not _is_headless():
+		_startup_overlay = load("res://ui/network_join_overlay.gd").new()
+		add_child(_startup_overlay)
+		_startup_overlay.retry_requested.connect(_retry_network_join)
+		_startup_overlay.quit_requested.connect(func(): get_tree().quit())
+
+
 func network_startup_ready() -> bool:
 	if _startup_gate == null:
 		return true
 	var body: Node = local_player()
-	return body != null and _startup_gate.permits_body(body.get_instance_id())
+	return body != null and _startup_gate.permits_body(body.get_instance_id()) \
+		and PLAYER_PARTICIPATION.active(body)
 
 func _update_startup_readiness() -> void:
 	if _startup_gate == null:
 		return
-	var was_ready: bool = _startup_gate.is_ready()
 	var now := Time.get_ticks_msec()
 	var connected := CONNECTION_STATE.has_connected_peer(multiplayer) \
 		and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer
@@ -1202,14 +1217,104 @@ func _update_startup_readiness() -> void:
 	_startup_gate.observe(now, connected, clock_ready,
 		body.get_instance_id() if body != null else 0, received_tick, consumed_tick,
 		NetworkTime.tick, NetworkRollback.history_start, received_msec)
-	if not was_ready and _startup_gate.is_ready():
+	if body != null and _startup_gate.permits_body(body.get_instance_id()) \
+			and bool(body.get("admission_required")) and not PLAYER_PARTICIPATION.active(body):
+		if _activation_request_body != body.get_instance_id():
+			_activation_request_body = body.get_instance_id()
+			_activation_request_started = now
+			_activation_request_sent = -1
+		if now - _activation_request_started >= STARTUP_READINESS.TIMEOUT_MSEC:
+			_startup_gate.fail("Server admission timed out")
+		elif _activation_request_sent < 0 or now - _activation_request_sent >= 1000:
+			_activation_request_sent = now
+			_request_player_activation.rpc_id(1, int(body.get("remote_state_generation")), received_tick)
+	var playable := network_startup_ready()
+	if playable and _startup_playable_body != body.get_instance_id():
+		_startup_playable_body = body.get_instance_id()
 		_client_cruise_active = false
 		_log("STARTUP_PLAYABLE tick=%d state_tick=%d" % [NetworkTime.tick, received_tick])
 	if _startup_overlay != null:
-		_startup_overlay.show_status(_startup_gate.is_ready(), _startup_gate.failure)
+		_startup_overlay.show_status(playable, _startup_gate.failure)
 	if _startup_gate.is_failed() and not _startup_closed:
 		_log("STARTUP_FAILED reason=%s" % _startup_gate.failure)
 		_close_startup_connection()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_player_activation(generation: int, state_tick: int) -> void:
+	if not multiplayer.is_server() or not _server_admission_enabled:
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var body := _players.get_node_or_null(str(sender))
+	if sender <= 1 or body == null or not bool(body.get("admission_required")) \
+			or int(body.get("activation_tick")) >= 0 \
+			or int(body.get("remote_state_generation")) != generation \
+			or Time.get_ticks_msec() - int(body.get("admission_started_msec")) \
+				>= SERVER_ADMISSION_TIMEOUT_MSEC \
+			or state_tick < NetworkRollback.history_start or state_tick > NetworkTime.tick:
+		return
+	var now := Time.get_ticks_msec()
+	if now - int(body.get("admission_last_request_msec")) < 500:
+		return
+	body.set("admission_last_request_msec", now)
+	if not _admission_spawn_clear(body):
+		return
+	# The client reports readiness, never a pose or its preferred activation time.
+	_apply_player_activation.rpc(sender, generation, NetworkTime.tick + 1)
+
+
+func _admission_spawn_clear(body: RigidBody3D) -> bool:
+	var collision := body.get_node_or_null("Collision") as CollisionShape3D
+	if collision == null or collision.shape == null:
+		return false
+	var radius := _admission_vehicle_radius(collision)
+	for other in _players.get_children():
+		if other == body or not other is RigidBody3D:
+			continue
+		if bool(other.get("admission_required")) and int(other.get("activation_tick")) < 0:
+			continue
+		var other_collision := other.get_node_or_null("Collision") as CollisionShape3D
+		if other_collision == null:
+			continue
+		# Also reserve next-tick activations whose colliders are still disabled.
+		# A two-tick velocity margin avoids admitting just ahead of a moving car.
+		var clearance := radius + _admission_vehicle_radius(other_collision) \
+			+ (other as RigidBody3D).linear_velocity.length() * NetworkTime.ticktime * 2.0
+		if _planar_distance(collision.global_position, other_collision.global_position) < clearance:
+			return false
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = collision.shape
+	query.transform = collision.global_transform
+	query.exclude = [body.get_rid()]
+	# Existing spawn sites already handle static terrain. Dynamic props/balls
+	# can move into them while a client waits and must not overlap admission.
+	for hit in get_world_3d().direct_space_state.intersect_shape(query, 64):
+		if hit["collider"] is RigidBody3D:
+			return false
+	return true
+
+
+func _admission_vehicle_radius(collision: CollisionShape3D) -> float:
+	if collision.shape is CapsuleShape3D:
+		return (collision.shape as CapsuleShape3D).height * 0.5
+	return (collision.shape as SphereShape3D).radius
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_player_activation(owner_id: int, generation: int, tick: int) -> void:
+	var body := _players.get_node_or_null(str(owner_id))
+	if body != null and body.call("activate_for_generation", generation, tick):
+		_log("PLAYER_ACTIVATED id=%d generation=%d tick=%d" % [owner_id, generation, tick])
+
+
+func _expire_player_admissions() -> void:
+	if not _server_admission_enabled:
+		return
+	var now := Time.get_ticks_msec()
+	for body in _players.get_children():
+		if bool(body.get("admission_required")) and int(body.get("activation_tick")) < 0 \
+				and now - int(body.get("admission_started_msec")) >= SERVER_ADMISSION_TIMEOUT_MSEC:
+			multiplayer.multiplayer_peer.disconnect_peer(int(body.name))
 
 func _close_startup_connection() -> void:
 	if _startup_closed:
@@ -1269,6 +1374,15 @@ func _start_offline() -> void:
 func _on_peer_join(id: int) -> void:
 	if not multiplayer.is_server():
 		return
+	if _server_admission_enabled:
+		var admitted_and_waiting := 0
+		for body in _players.get_children():
+			if bool(body.get("admission_required")):
+				admitted_and_waiting += 1
+		if admitted_and_waiting >= MAX_CLIENTS:
+			_log("ADMISSION_REJECT id=%d reason=capacity" % id)
+			multiplayer.multiplayer_peer.disconnect_peer(id)
+			return
 	if _ramming_lab_enabled and not RAMMING_LAB.drone_for_id(id).is_empty():
 		_log("RAMMING_LAB_REJECT reserved_peer_id=%d" % id)
 		multiplayer.multiplayer_peer.disconnect_peer(id)
@@ -1280,6 +1394,7 @@ func _on_peer_join(id: int) -> void:
 		_broadcast_peer_transport_map()
 	var spawn_data := {"id": id, "slot": _next_spawn_slot,
 		"remote_generation": _allocate_remote_state_generation(),
+		"admission_required": _server_admission_enabled,
 		"player_capsule": _player_capsule_enabled}
 	if _ramming_lab_enabled:
 		# Start in the west lane facing its first northbound drone. This gives
@@ -1302,6 +1417,12 @@ func _on_peer_join(id: int) -> void:
 		spawn_data["position"] = observer_position
 		spawn_data["yaw"] = -PI * 0.5
 	_spawner.spawn(spawn_data)
+	# Spawner replays original spawn data to late joiners. Follow it with the
+	# immutable activation event for each body that has already been admitted.
+	for body in _players.get_children():
+		if bool(body.get("admission_required")) and int(body.get("activation_tick")) >= 0:
+			_apply_player_activation.rpc_id(id, int(body.name),
+				int(body.get("remote_state_generation")), int(body.get("activation_tick")))
 	var config := _configuration_for(id)
 	_apply_coverage_config.rpc(id, config["ranges"], config["widths"], config["tips_outward"])
 	_apply_oil_tuning_snapshot.rpc_id(id, OIL_SLICK.tuning_snapshot())
@@ -1555,6 +1676,11 @@ func _spawn_player(data: Variant) -> Node:
 	body.set("vehicle_mass", vehicle_mass)
 	body.set("disable_collision_escape", bool(info.get("disable_collision_escape", false)))
 	body.set("remote_state_generation", int(info.get("remote_generation", 0)))
+	body.set("admission_required", bool(info.get("admission_required", false)))
+	if _role == "client" and owner_id == multiplayer.get_unique_id() \
+			and bool(info.get("admission_required", false)) and _startup_gate == null:
+		_enable_startup_gate()
+		_startup_gate.begin(Time.get_ticks_msec())
 	body.set("local_presentation_smoothing", _local_presentation_smoothing_enabled)
 	body.set("map_id", int(info.get("map_id", MAP_LAYOUT.CITY)))
 	if not _coverage_configs.has(owner_id):
@@ -2887,6 +3013,7 @@ func _respawn_vehicle_with_tuning(owner_id: int, vehicle_index: int,
 		"remote_generation": _allocate_remote_state_generation(),
 		"player_capsule": _player_capsule_enabled,
 		"vehicle_visual_index": vehicle_index,
+		"admission_required": _server_admission_enabled,
 		"vehicle_model_scale": approved_scale,
 		"vehicle_collider_scale": approved_scale,
 		"vehicle_mass": approved_mass,
@@ -3341,7 +3468,8 @@ func _update_editor_presentation(local: Node3D) -> void:
 	for player_node in _players.get_children():
 		var player := player_node as Node3D
 		if player != null:
-			player.visible = not _combat_editor_active or player == local
+			player.visible = PLAYER_PARTICIPATION.active(player) \
+				and (not _combat_editor_active or player == local)
 	var peer_marker := local.get_node_or_null("PeerMarker") as VisualInstance3D
 	if peer_marker != null:
 		peer_marker.visible = not _combat_editor_active
@@ -3686,6 +3814,12 @@ func scripted_input_for(body: Node3D) -> Dictionary:
 		"converge", "converge-burst", "mass-heavy", "mass-light":
 			# Fixed opposing headings make the network gate test collision rather
 			# than the far-distance FOLLOW turning radius around a moving target.
+			if _scripted == "converge" and bool(body.get("admission_required")):
+				# Test choreography only: do not drive through a still-inert partner
+				# before the head-on scenario can actually exercise collisions.
+				for partner in _players.get_children():
+					if not PLAYER_PARTICIPATION.active(partner):
+						return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
 			if _scripted in ["mass-heavy", "mass-light"] \
 					and NetworkTime.tick - _start_tick < 150:
 				return {"cursor_offset": Vector2.ZERO, "burst": false, "editing": false}
@@ -3816,7 +3950,7 @@ func _service_ramming_lab(delta: float, tick: int) -> void:
 	if not _ramming_lab_enabled:
 		return
 	var human_positions: Array[Vector3] = []
-	for player_node in _players.get_children():
+	for player_node in PLAYER_PARTICIPATION.children(_players):
 		var player := player_node as RigidBody3D
 		if player != null and not bool(player.get("is_ramming_drone")):
 			human_positions.append(player.global_position)
@@ -3925,6 +4059,7 @@ func _on_tick(delta: float, tick: int) -> void:
 			_mux_peer.call("close_inner", "enet")
 		_log("MUX_TEST_CLOSED transport=%s tick=%d" % [_mux_close_transport_test, elapsed])
 	if multiplayer.is_server():
+		_expire_player_admissions()
 		_service_server_driver_route(tick)
 		_service_ramming_lab(delta, tick)
 		_sprite_test_lab.call("service", delta)
@@ -4018,7 +4153,7 @@ func _send_settled_authority_probes() -> void:
 ## rollback rigid bodies; a player may only have one, so the cost remains
 ## bounded as the city gains ordinary physics objects.
 func _service_rc_orbs(delta: float, tick: int) -> void:
-	for player_node in _players.get_children():
+	for player_node in PLAYER_PARTICIPATION.children(_players):
 		var pilot := player_node as RigidBody3D
 		if pilot == null:
 			continue
@@ -4173,7 +4308,7 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 	_step_server_bolts(delta)
 	_service_homing_missiles(tick)
 	_service_shield_drone(tick)
-	for player_node in _players.get_children():
+	for player_node in PLAYER_PARTICIPATION.children(_players):
 		var body := player_node as RigidBody3D
 		if body == null or int(body.get("map_id")) != MAP_LAYOUT.CITY:
 			continue
@@ -4205,7 +4340,7 @@ func _service_auto_combat(delta: float, tick: int) -> void:
 			_fire_combat_bolt(body, target, zone)
 
 func _service_area_weapons() -> void:
-	for player_node in _players.get_children():
+	for player_node in PLAYER_PARTICIPATION.children(_players):
 		var body := player_node as RigidBody3D
 		if body == null:
 			continue
@@ -4274,6 +4409,8 @@ func _planar_distance(a: Vector3, b: Vector3) -> float:
 
 func _segment_player_entry(from: Vector3, to: Vector3, player: RigidBody3D,
 		sweep_radius: float = 0.0) -> float:
+	if not PLAYER_PARTICIPATION.active(player):
+		return 1.01
 	var collision := player.get_node_or_null("Collision") as CollisionShape3D
 	if collision != null and collision.shape is CapsuleShape3D:
 		var capsule := collision.shape as CapsuleShape3D
@@ -4286,6 +4423,8 @@ func _segment_player_entry(from: Vector3, to: Vector3, player: RigidBody3D,
 	return IMPACT_CONTROLLER.segment_sphere_entry(from, to, player.global_position, radius)
 
 func _planar_player_distance(point: Vector3, player: RigidBody3D) -> float:
+	if not PLAYER_PARTICIPATION.active(player):
+		return INF
 	var collision := player.get_node_or_null("Collision") as CollisionShape3D
 	if collision != null and collision.shape is CapsuleShape3D:
 		var capsule := collision.shape as CapsuleShape3D
@@ -4297,7 +4436,7 @@ func _planar_player_distance(point: Vector3, player: RigidBody3D) -> float:
 	return maxf(_planar_distance(point, player.global_position) - radius, 0.0)
 
 func _service_homing_missiles(_tick: int) -> void:
-	for player_node in _players.get_children():
+	for player_node in PLAYER_PARTICIPATION.children(_players):
 		var body := player_node as RigidBody3D
 		if body == null:
 			continue
@@ -4517,7 +4656,7 @@ func _nearest_drone_target() -> RigidBody3D:
 	var best: RigidBody3D
 	var best_distance := INF
 	var origin: Vector3 = _shield_drone.call("muzzle_position")
-	for player_node in _players.get_children():
+	for player_node in PLAYER_PARTICIPATION.children(_players):
 		var body := player_node as RigidBody3D
 		if body == null or int(body.get("map_id")) != MAP_LAYOUT.CITY \
 				or bool(body.get("is_cloaked")) or bool(body.get("rc_pilot_active")):
@@ -4557,7 +4696,7 @@ func _step_server_bolts(delta: float) -> void:
 			wall_position = wall_hit["position"]
 		var detonator: RigidBody3D
 		var det_fraction := 1.01
-		for player_node in _players.get_children():
+		for player_node in PLAYER_PARTICIPATION.children(_players):
 			var candidate := player_node as RigidBody3D
 			if candidate == null or int(candidate.name) == int(bolt["shooter"]):
 				continue # A defensive det field never eats its owner's shots.

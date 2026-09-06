@@ -51,6 +51,13 @@ these rules do not authorize new features, broad rewrites, or deployment.
   retry tests. Preserve both the original `--clock-recovery` characterization
   and `scripts/startup_trace_test.sh --startup-ready` zero-return requirement.
   Rendered/browser acceptance and milestone validation remain before promotion.
+- Server-side joining isolation is a separate default-off experiment:
+  `CAR_FIGHT_SERVER_ADMISSION=1`. Matching clients automatically enable the
+  readiness gate when their spawn requires admission. Pending bodies continue
+  state synchronization but must stay hidden and out of physics/combat/pickups.
+  Use `net/player_participation.gd` in gameplay queries and preserve the
+  generation-checked, immutable activation tick across replay and late join.
+  Run the admission unit/network gates listed in `docs/QUALITY_GATES.md`.
 - Do not port G2's half-handshake-RTT initial time seed. In Car Fight's 120 ms
   two-client A/B it caused 3.16-3.46 unit startup corrections in two of three
   runs; the unseeded control passed three of three at 1.178 units or less.

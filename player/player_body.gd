@@ -58,6 +58,14 @@ var landing_fall_speed := 0.0
 var landing_jostle_cooldown := 0.0
 var map_id := MAP_LAYOUT.CITY
 var remote_state_generation := 0
+var admission_required := false
+# Immutable, server-authored lifecycle event, not a rollback-restored toggle.
+var activation_tick := -1
+var admission_started_msec := 0
+var admission_last_request_msec := -1000
+var _admission_collision_layer := 1
+var _admission_collision_mask := 1
+var _admission_presented := false
 var gate_cooldown := 0.0
 var gate_transition_count := 0
 var area_weapon_armed := false
@@ -165,6 +173,12 @@ func set_gameplay_collision_debug_visible(enabled: bool) -> void:
 
 func _ready() -> void:
 	add_to_group("pilotable")
+	_admission_collision_layer = collision_layer
+	_admission_collision_mask = collision_mask
+	admission_started_msec = Time.get_ticks_msec()
+	if admission_required:
+		visible = false
+		_apply_admission_physics(-1)
 	owner_id = int(name)
 	set_multiplayer_authority(1)
 	if input_authority_id == 0:
@@ -254,7 +268,43 @@ func _ready() -> void:
 		_ensure_remote_visual_roots()
 		_apply_remote_position_visibility()
 
+func gameplay_active(tick: int = -1) -> bool:
+	if not admission_required:
+		return true
+	if tick < 0:
+		var network_time := get_node_or_null("/root/NetworkTime") if is_inside_tree() else null
+		tick = int(network_time.get("tick")) if network_time != null else -1
+	return activation_tick >= 0 and tick >= activation_tick
+
+
+func activate_for_generation(generation: int, tick: int) -> bool:
+	if not admission_required or generation != remote_state_generation \
+			or tick < 0 or activation_tick >= 0:
+		return false
+	activation_tick = tick
+	return true
+
+
+func _apply_admission_physics(tick: int) -> void:
+	if not admission_required:
+		return
+	var active := gameplay_active(tick)
+	freeze = not active
+	collision_layer = _admission_collision_layer if active else 0
+	collision_mask = _admission_collision_mask if active else 0
+	if not active and direct_state != null:
+		direct_state.linear_velocity = Vector3.ZERO
+		direct_state.angular_velocity = Vector3.ZERO
+
+
 func _physics_rollback_tick(delta: float, tick: int) -> void:
+	if admission_required:
+		var rollback := get_node_or_null("/root/NetworkRollback")
+		var simulated_tick: int = int(rollback.get("tick")) \
+			if rollback != null and rollback.call("is_rollback") else tick
+		_apply_admission_physics(simulated_tick)
+		if not gameplay_active(simulated_tick):
+			return
 	if direct_state == null:
 		return
 	var queued_linear_impulse := Vector3.ZERO
@@ -532,6 +582,8 @@ func _service_area_weapon() -> void:
 ## already does for the city ball.
 func apply_external_impact(linear_impulse: Vector3, torque_impulse: Vector3,
 		recovery_time: float, shielded: bool) -> void:
+	if not gameplay_active():
+		return
 	_pending_linear_impulse += linear_impulse
 	_pending_torque_impulse += torque_impulse
 	_pending_recovery_time = maxf(_pending_recovery_time, recovery_time)
@@ -957,6 +1009,16 @@ func _is_headless_presentation() -> bool:
 func _process(_delta: float) -> void:
 	if not CONNECTION_STATE.has_connected_peer(multiplayer):
 		return
+	if admission_required:
+		if not gameplay_active():
+			visible = false
+			_admission_presented = false
+			return
+		if not _admission_presented:
+			_admission_presented = true
+			var main := get_tree().current_scene
+			visible = _is_local or main == null or not main.has_method("combat_editor_active") \
+				or not main.combat_editor_active(self)
 	_process_local_presentation(_delta)
 	_process_remote_position(_delta)
 	_update_tractor_rope()

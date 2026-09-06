@@ -1,4 +1,6 @@
 extends Node
+
+const PLAYER_PARTICIPATION := preload("res://net/player_participation.gd")
 ## Opt-in, server-owned fixture family. No rollback histories or impulses.
 const TARGET := preload("res://combat/sprite_target.gd")
 const VISUAL := preload("res://fx/directional_sprite.gd")
@@ -78,7 +80,7 @@ func service(delta: float) -> void:
 			if space.intersect_shape(query, 1).is_empty():
 				var sweep := space.cast_motion(query)
 				target.position = previous.lerp(finish, float(sweep[0]))
-		for car in _players.get_children():
+		for car in PLAYER_PARTICIPATION.children(_players):
 			var collision := car.get_node_or_null("Collision") as CollisionShape3D
 			if collision == null or not collision.shape is CapsuleShape3D:
 				continue
@@ -90,7 +92,7 @@ func service(delta: float) -> void:
 				set_hits(target.target_id, 3)
 				break
 	_previous_cars.clear()
-	for car in _players.get_children():
+	for car in PLAYER_PARTICIPATION.children(_players):
 		var collision := car.get_node_or_null("Collision") as CollisionShape3D
 		if collision != null:
 			_previous_cars[car.get_instance_id()] = collision.global_transform.orthonormalized()
