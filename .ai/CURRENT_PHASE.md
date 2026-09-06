@@ -1,5 +1,30 @@
 # Current phase
 
+## Rendered joining-gate trial active, 2026-09-05
+
+- Owner approved "let me see it". Launched two monitored decorated macOS
+  clients from runtime `ab64080`; both reached `STARTUP_PLAYABLE` without
+  engine/script errors at the launch check. Alpha tick 1687/state 1678; Bravo
+  tick 2116/state 2113. User feedback and completed startup traces still pending.
+  Do not claim rendered zero-reset or smoothness acceptance from READY logs.
+- `CAR_FIGHT_STARTUP_READY=1`, `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1`, elapsed
+  presentation cursor, legacy networking defaults otherwise. P cruise enabled
+  after readiness. Positions 80,100 and 1520,100, ordinary monitored windows.
+  Startup traces 60 seconds; stage/presentation traces 120 seconds.
+- Run `.crash-runs/two-client-20260905-205852/`: Alpha subrun 205852 PID 42544,
+  peer 1872130622; Bravo subrun 205855 PID 42597, peer 1462349423. Initial HUD
+  readings include low rendered FPS; evaluate completed timing evidence before
+  attributing later stutter to transport or accepting performance.
+- Refreshed only the isolated macai2 copied runtime. Test server PID 13860 owns
+  UDP 12780/TCP 12781; production PID 57599 remains on UDP 10080, unchanged.
+  Launcher/evidence `.network-runs/readiness-20260905-205744/`, non-restarting
+  launchd job `com.whenjohn.car-fight-readiness-20260905-205744` (PID 42507).
+- Trial is intentionally still running. On owner completion, verify both
+  monitor exits, isolated-server cleanup and collected server logs/stage trace;
+  remove the completed launchd job, analyze startup reports and record feedback.
+  The launcher stops only its isolated server after both windows close. No new
+  production deployment, default enablement or browser trial authorized.
+
 ## Joining gate implemented; zero-reset automated acceptance, 2026-09-05
 
 - Owner explicitly requested withholding the game until networking is ready.
