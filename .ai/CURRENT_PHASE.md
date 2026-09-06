@@ -1,5 +1,45 @@
 # Current phase
 
+## Faster readiness candidate implemented, 2026-09-06
+
+- Owner asked to speed up joining. Identified and reproduced starvation from
+  always comparing the newest authority snapshot with the local tick: a steady
+  five-tick-ahead stream kept moving the target. Gate now retains one fresh,
+  post-clock-validation consumed state tick, waits until it is nonfuture and
+  retained, and invalidates it on clock instability, history expiry, body
+  replacement or retry. No relaxation of clock stability, neutral input,
+  server admission, timeouts, authority, buffers or networking defaults.
+- Last rendered native body-first/ready times were 20.473/42.726 process seconds.
+  Late samples repeatedly show authority ticks ahead of local simulation.
+  Missing remote-offset/sample-window fields prevent attributing the whole
+  22-second wait to this one gate condition. No measured rendered speedup yet.
+  Loading/shader work and native first-visible-frame handoff are unchanged.
+- Failing-before/passing-after readiness unit covers steady future stream,
+  unconsumed/future rejection and witness invalidation. Stage unit passes new
+  optional `clock_offset_seconds`, `remote_offset_seconds`, `fresh_clock_samples`
+  fields (offsets null before sync). Fast check passes.
+- Real startup/admission/same-process retry `car-fight-startup.TK8mT8`: six
+  returns to zero, neutral before ready, sustained motion after, two admissions.
+  Native mux/WebRTC admission `MWQC4Z` passes hidden/physics isolation, late join,
+  automatic owner gate and movement. Runtime log scans have zero engine/script
+  errors. Web release export `car-fight-web-export.z58giA` passes.
+- Actual headless WebRTC check `browser-recovery-check/readiness-witness`
+  joined/moved with recovery absent and enabled, one recovered missing-diff
+  reference warning each and zero browser engine errors. Strict server scan
+  failed on disconnect-time SCTP errno 54/data-channel errno 102/FAILED from
+  state transmission just before peer 2 departure. Preserve failure; no claim
+  yet whether this is a new regression or previously unobserved race. One
+  isolated rerun `readiness-witness-retry` passed with two admissions/movement,
+  zero engine errors and one recovered enabled-case warning. Retain the first
+  disconnect failure as intermittent lifecycle debt; no full-suite restart.
+  All automated processes exited; no trial running.
+- Next owner-approved native/browser trial should measure ready time and use
+  the new clock fields to identify the remaining wait. Keep browser
+  `startupReady=1&forwardClockRecovery=1`, native both flags, server admission,
+  existing positions/stagger/P cruise. Browser early stall/mismatch outlier and
+  native apparent pre-visible movement remain open. No production deployment,
+  default promotion, or additional rendered launch performed by this change.
+
 ## Mixed retest completed; owner reports smooth both ways, 2026-09-06
 
 - Owner: "done. it was smooth observing both on either clients". Record

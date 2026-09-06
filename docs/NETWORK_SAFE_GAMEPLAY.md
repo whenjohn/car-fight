@@ -100,6 +100,9 @@ when prediction makes the same local decision for responsiveness.
   authoritative state agree. A locally initialized history tick is not proof
   of server state. Bound the wait, offer retry, and invalidate readiness across
   disconnects and body replacement; do not use an arbitrary sleep as readiness.
+  Do not chase the newest snapshot indefinitely: retain one post-clock-validation
+  consumed snapshot as the readiness target, wait until its tick is no longer
+  future, and discard it if clock stability or retained history is lost.
   Local input/UI gating alone does not remove a player from the world. When
   server admission is selected, use `net/player_participation.gd` for gameplay
   queries, including targets, pickups and awareness markers. Pending bodies

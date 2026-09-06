@@ -294,6 +294,52 @@ two-unit ceiling and investigate the stall/recovery/history sequence separately
 from the owner's sustained smoothness report. Native movement at the visible
 joining transition also remains unresolved, not implicitly accepted here.
 
+### Readiness moving-target fix, 2026-09-06
+
+The last native trial first sampled a synchronized body at process 20.473 s
+and became playable at 42.726 s. Its late waiting samples repeatedly show
+latest authority ticks a few ticks ahead of local simulation, even while the
+simulation/reference tick offset is small. Those old traces do not record the
+remaining remote-clock offset or full-sample-window condition, so they cannot
+quantify how much of the wait this particular condition caused.
+
+The policy had a reproducible starvation case: it required the newest received
+snapshot to be consumed and not future on the same observation. With a steady
+five-tick-ahead stream it never admitted, although previously received state
+had reached the local timeline. The gate now retains one actually received,
+consumed state tick from after clock validation. It releases only when that
+tick is nonfuture, inside retained history, and the consumed watermark still
+covers it. Newer packets do not move the target. Clock instability, history
+expiry, replacement and retry invalidate it. Timeouts, clock requirements,
+neutral input, server admission and all networking defaults remain unchanged.
+The witness is one scalar per gate; no new traffic or replay state.
+
+The focused unit failed before the fix and passes afterward, including future
+and unconsumed rejection and all witness invalidations. Real startup/retry
+with admission `car-fight-startup.TK8mT8` passes six returns to zero and neutral
+waiting input. Native mux/WebRTC admission `MWQC4Z` passes hidden/physics
+isolation, late join and normal post-ready movement. Fast check, stage unit and
+Web release export `z58giA` pass. No whole-suite rerun or rendered launch.
+
+Actual headless browser check `browser-recovery-check/readiness-witness` joined
+and moved with recovery absent and enabled, but failed the strict server-log
+scan during page disconnect: SCTP send errno 54, data-channel errno 102/FAILED
+from state transmission immediately before peer 2 departure. Both browser
+sessions had one recovered missing-diff-reference warning and no engine errors.
+The server error remains a failed lifecycle result; do not hide it behind the
+two successful joins or relax the log filter. This does not establish whether
+the disconnect race predates the readiness change.
+One isolated rerun `readiness-witness-retry` passed both admissions and movement
+with zero server/browser engine errors (one recovered enabled-case warning).
+Keep the first failure as intermittent lifecycle debt. All local test services
+exited; no human test or production service was launched or changed.
+
+Startup stage records now also expose `clock_offset_seconds`,
+`remote_offset_seconds`, and `fresh_clock_samples`, so a future capture can
+separate both clock requirements from the authority-state wait. Before initial
+sync the two offsets are null, not zero. No claim yet of a measured rendered
+startup-time reduction; loading and shader preparation are not changed.
+
 ### Forward clock recovery experiment, 2026-09-05
 
 `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` opts native clients into a forward-only

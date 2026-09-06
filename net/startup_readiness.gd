@@ -7,6 +7,7 @@ var phase := Phase.JOINING
 var failure := ""
 var _started_msec := -1
 var _clock_ready_msec := -1
+var _authority_tick := -1
 var _body_id := 0
 var _connected := false
 
@@ -15,6 +16,7 @@ func begin(now_msec: int) -> void:
 	failure = ""
 	_started_msec = now_msec
 	_clock_ready_msec = -1
+	_authority_tick = -1
 	_body_id = 0
 	_connected = false
 
@@ -51,16 +53,26 @@ func observe(now_msec: int, connected: bool, clock_ready: bool, body_id: int,
 			_connected = true
 		_body_id = body_id
 		_clock_ready_msec = -1
+		_authority_tick = -1
 	if now_msec - _started_msec >= TIMEOUT_MSEC:
 		fail("Game synchronization timed out")
 		return
 	if not clock_ready or body_id == 0:
 		_clock_ready_msec = -1
+		_authority_tick = -1
 		return
 	if _clock_ready_msec < 0:
 		_clock_ready_msec = now_msec
 	# A locally seeded history tick is not proof of a received server snapshot.
 	# Require a post-validation packet and a completed rollback consumption.
-	if received_msec > _clock_ready_msec and state_tick >= maxi(0, history_start) \
-			and state_tick <= tick and consumed_tick >= state_tick:
+	# Keep one consumed witness instead of chasing the latest packet, which can
+	# remain ahead of local simulation on every frame. It must still reach the
+	# local timeline and remain inside retained history before admission.
+	if _authority_tick < maxi(0, history_start):
+		_authority_tick = -1
+	if _authority_tick < 0 and received_msec > _clock_ready_msec \
+			and state_tick >= maxi(0, history_start) and consumed_tick >= state_tick:
+		_authority_tick = state_tick
+	if _authority_tick >= maxi(0, history_start) and _authority_tick <= tick \
+			and consumed_tick >= _authority_tick:
 		phase = Phase.READY

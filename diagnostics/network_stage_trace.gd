@@ -127,9 +127,13 @@ func _process(delta: float) -> void:
 
 func _startup_clock() -> Dictionary:
 	var synced := bool(_network_time.call("is_initial_sync_done"))
+	var synchronizer := get_node("/root/NetworkTimeSynchronizer")
 	return {"mono_usec": _now_usec(), "epoch": _epoch,
 		"tick": int(_network_time.get("tick")), "initial_sync_done": synced,
-		"reference_seconds": get_node("/root/NetworkTimeSynchronizer").call("get_time") if synced else null,
+		"reference_seconds": synchronizer.call("get_time") if synced else null,
+		"clock_offset_seconds": _network_time.get("clock_offset") if synced else null,
+		"remote_offset_seconds": synchronizer.get("remote_offset") if synced else null,
+		"fresh_clock_samples": synchronizer.call("has_fresh_sample_window", Time.get_ticks_msec()),
 		"tickrate": int(_network_time.get("tickrate"))}
 
 

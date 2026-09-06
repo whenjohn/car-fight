@@ -137,6 +137,19 @@ func _test_startup(output: String) -> void:
 	var sample: Dictionary = trace._records.back()
 	_check(sample["event"] == "startup_sample" and sample["generation"] == 2, "body identity")
 	_check(sample["startup_ready"] == false, "startup gate selection is observed with the pose")
+	_check(sample["clock_offset_seconds"] == null and sample["remote_offset_seconds"] == null
+		and sample["fresh_clock_samples"] == false, "unsynchronized clock readiness is unavailable, not zero")
+	var time := root.get_node("NetworkTime")
+	var synchronizer := root.get_node("NetworkTimeSynchronizer")
+	var original_offset: float = synchronizer._offset
+	time._initial_sync_done = true
+	synchronizer._offset = 0.25
+	var clock_record: Dictionary = trace._startup_clock()
+	_check(clock_record["clock_offset_seconds"] is float
+		and is_equal_approx(clock_record["remote_offset_seconds"], 0.25),
+		"trace exposes both distinct readiness clock offsets")
+	time._initial_sync_done = false
+	synchronizer._offset = original_offset
 	_check(sample["admission_required"] == true and sample["activation_tick"] == -1,
 		"server admission state is observed with the pose")
 	_check(sample["node_position"] == [2.0, 0.0, 0.0]
