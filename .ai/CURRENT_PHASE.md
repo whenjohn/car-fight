@@ -1,5 +1,34 @@
 # Current phase
 
+## Timed readiness trial live, 2026-09-06
+
+- Owner approved "ok let test it". Launched runtime `0e11f08` with the
+  previously verified matching Web release export `z58giA`; no new code or
+  redundant rebuild. Isolated macai2 copy refreshed; production unchanged.
+- Evidence `.network-runs/mixed-20260906-031809/`; non-restarting launchd label
+  `com.whenjohn.car-fight-mixed-20260906-031809`. Isolated server PID 32104 at
+  UDP 12780/TCP 12781; production 57599/UDP 10080 verified unchanged. Native
+  monitored subrun `native/20260906-031855`, PID 71164; dedicated Chrome PID
+  71194. Local HTTP 18089. Both reached STARTUP_PLAYABLE with zero engine/script
+  errors at readiness check: native peer 844115258 activated 2449/playable 2459;
+  browser peer 2 activated 1646/playable 1650. Browser connection-to-playable
+  console interval 8.258 seconds. Completed timings and owner feedback pending.
+- Same decorated windows at 80,100 and 1520,100, three-second stagger, P cruise,
+  server admission and both client readiness/recovery flags. Browser URL
+  includes `startupReady=1&forwardClockRecovery=1`. Elapsed cursor native-only.
+  Native startup trace 60 seconds, stage/presentation 120 seconds; browser
+  console/presentation, server stage 90 seconds. New native stage fields expose
+  both clock offsets and fresh sample-window eligibility.
+- Compare native body-first/ready timing with previous 20.473/42.726 process
+  seconds and browser transport-to-playable timing. A single run is indicative,
+  not a controlled benchmark. Also observe position at first visible gameplay;
+  prior native entry-position concern and early browser mismatch remain open.
+- Trial intentionally running. Close native window to stop dedicated browser,
+  HTTP and isolated server with trace collection. On owner completion verify
+  clean exits, inspect errors including the known intermittent WebRTC departure
+  send failure, analyze timing, and remove completed launchd job. No production
+  deployment/default promotion authorized.
+
 ## Faster readiness candidate implemented, 2026-09-06
 
 - Owner asked to speed up joining. Identified and reproduced starvation from
