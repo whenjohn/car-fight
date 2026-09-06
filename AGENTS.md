@@ -45,7 +45,11 @@ these rules do not authorize new features, broad rewrites, or deployment.
   changing that path. A clock correction plus a stall previously left clients
   seconds ahead and rejecting fresh server state as stale.
 - Forward clock recovery is experimental and off by default
-  (`CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1`). Its moving stale-seed A/B reduces five
+  (`CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1`, Web `forwardClockRecovery=1`). It must
+  recover both reference-clock lag and prior-frame scheduled tick backlog;
+  an aligned clock does not prove simulation ticks kept up. Preserve the
+  per-frame tick cap and never rewind an already-ahead tick timeline.
+  Its moving stale-seed A/B reduces five
   startup returns to one by itself. Combining it with the default-off joining
   gate (`CAR_FIGHT_STARTUP_READY=1`) passes zero-return startup and same-process
   retry tests. Preserve both the original `--clock-recovery` characterization

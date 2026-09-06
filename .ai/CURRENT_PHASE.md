@@ -1,5 +1,45 @@
 # Current phase
 
+## Browser recovery candidate implemented; rendered retest pending, 2026-09-06
+
+- Owner authorized investigating/fixing the failed browser join. Added Web
+  `forwardClockRecovery=1` configuration for the existing default-off native
+  recovery; actual selection logs explicitly. Also fixed a demonstrated
+  algorithm gap: an aligned clock can coexist with stale scheduled ticks when
+  slow frames exhaust the tick cap. Opt-in recovery now checks prior-loop
+  schedule backlog against the existing panic threshold and rebases the whole
+  timeline, with ahead-tick protection. No changes to defaults, buffers,
+  bandwidth, history size, authority/input schema, or joining timeouts.
+- Added failing-then-passing focused regressions for Web configuration and
+  aligned-clock/four-second tick backlog, plus sustained five-FPS frame work
+  caps and threshold/ahead-tick cases. Existing pause and readiness units pass.
+  Startup with admission/same-process retry `car-fight-startup.l2z9ex`: five
+  returns to zero, neutral before readiness and two successful admissions.
+  Stall `dhbtbb` and reconnect `26Ch0F` pass with admission and both flags.
+- Web release export `C6ESlu` passed. Actual headless Chrome WebRTC localhost
+  check `.network-runs/browser-recovery-check/final/` passes absent-query and
+  opt-in selection, joining, post-ready scripted movement, fresh page rejoin
+  identities and two server admissions. Zero engine errors; one recovered
+  missing-diff-reference warning in enabled case. Neither case reproduced
+  overloaded rendered startup or needed recovery, so this is NOT confirmation
+  that original browser receive overflows/timeouts are eliminated. Initial
+  harness false failure classified console.error warnings as engine errors;
+  retained original evidence, corrected classification without ignoring errors.
+- Previous human mixed trial ended cleanly (native status 0), dedicated
+  browser/HTTP stopped, isolated server gone; production 57599/UDP 10080
+  verified unchanged. Removed completed launchd job. Human evidence including
+  collected server log/stage trace stays at `mixed-20260906-022852`. All new
+  automated browser/server processes exited. No new rendered trial launched.
+- Native owner report is still unresolved: no sampled pre-ready displacement,
+  but logical readiness does not prove the displayed frame appeared before
+  controls unlocked. No speculative visual-handoff change was made.
+- Next: owner-approved monitored native + browser on isolated matching macai2,
+  browser URL `startupReady=1&forwardClockRecovery=1`, native both flags. Capture
+  overflows, actual forward rebases, admission and post-ready movement; keep
+  elapsed cursor native-only explicit. Diagnose remaining loading/receive
+  bursts from evidence rather than enlarging buffers. Broad milestone suite
+  was not rerun for this candidate; required before merge/default promotion.
+
 ## Mixed native/browser trial: browser startup failed, 2026-09-06
 
 - Owner additionally reports appearing away from the original position on

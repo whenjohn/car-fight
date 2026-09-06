@@ -221,6 +221,56 @@ server-ahead/moving-input reproduction, existing pause/join/reconnect gates,
 and a separately approved human retest. Preserve the coupled rebase and stale
 history guards; do not increase rollback history or hide the defect with delay.
 
+### Browser clock recovery follow-up, 2026-09-06
+
+The first native/browser admission trial (`mixed-20260906-022852`) connected
+WebRTC peer 2 but failed gameplay readiness. Browser logs recorded 367 receive
+buffer overflows, incoming state roughly 280 ticks ahead of local simulation,
+and sample FPS as low as 6. The native client activated successfully. The
+upstream [Godot WebRTC receive path](https://github.com/godotengine/godot/blob/master/modules/webrtc/webrtc_data_channel_js.cpp)
+emits this error when its inbound ring buffer cannot fit a received message.
+This is evidence of receive-buffer exhaustion, not proof of network packet loss
+or the exact CPU/GPU cause of the preceding stalls.
+
+Two bounded recovery gaps are addressed, still opt-in:
+
+- `forwardClockRecovery=1` in a Web Network URL now selects the same recovery
+  path as native `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1`. Omitted/other query values
+  select false on each scene start. `[network-clock] forward_recovery=...`
+  reports the actual selection. Offline export is unchanged.
+- An aligned simulation clock can coexist with old scheduled ticks after
+  repeated slow frames hit the eight-tick cap. The previous recovery checked
+  only clock offset, so this case was missed. Recovery now also checks work
+  left over from the prior loop against the existing panic threshold, then
+  rebases clock/tick/schedule together. The current frame's ordinary pending
+  tick does not change the threshold boundary. Clients only, active and synced,
+  connected, never rewinding an already-ahead tick label; no buffer, traffic,
+  history, input schema, authority, admission timeout or default changes.
+
+The new unit first failed for aligned-clock/four-second tick backlog; final
+coverage includes sustained five-FPS frames, unchanged work cap, default-off,
+thresholds, ahead-tick protection, server/offline/connection states and Web
+configuration. Startup/retry `car-fight-startup.l2z9ex` passes five returns to
+zero, neutral pre-ready intent and two admissions. Stall `dhbtbb` and reconnect
+`26Ch0F` pass with admission and both client flags. Pause/readiness units pass.
+
+Final Web release export `car-fight-web-export.C6ESlu` passes. Bounded localhost
+headless Chrome evidence is in `.network-runs/browser-recovery-check/final/`:
+actual absent-query and opt-in selections both joined and drove, with fresh
+peer identities across page navigation and two server admissions. Zero engine
+errors; one opt-in missing-diff-reference warning recovered via a full snapshot.
+Neither case reproduced the original overload or needed a forward rebase; this
+proves Web wiring and basic lifecycle, not the original fix under rendered load.
+The first local check incorrectly classified Godot warnings on console.error as
+engine errors; retained evidence at the parent directory shows that harness
+failure. Final checks still reject engine errors/uncaught exceptions.
+
+Next approved human trial must explicitly select `startupReady=1` and
+`forwardClockRecovery=1` for the browser. Elapsed remote cursor remains
+native-only. Receive overflow prevention, rendered performance and the reported
+native movement at the visible joining transition remain unresolved. Do not
+declare the full browser failure fixed from these bounded checks.
+
 ### Forward clock recovery experiment, 2026-09-05
 
 `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` opts native clients into a forward-only
@@ -427,8 +477,9 @@ The owner requested withholding gameplay until the network is ready instead
 of showing predicted movement and undoing it. Native opt-in:
 `CAR_FIGHT_STARTUP_READY=1`, alongside `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` for
 the tested combined path. Both remain off by default. The browser can select
-the joining gate with `startupReady=1`; browser testing and selection of the
-separate native-only clock-recovery experiment remain follow-up work.
+the joining gate with `startupReady=1` and, as of the September 6 follow-up,
+the same opt-in recovery with `forwardClockRecovery=1`. Bounded headless browser
+wiring passes; rendered mixed-platform acceptance remains pending.
 
 The client shows an opaque "Joining game..." overlay and gathers neutral
 intent (`editing=true`) until all of these hold:

@@ -614,6 +614,7 @@ func _parse_args() -> void:
 		if OS.has_feature("web_network"):
 			_role = "client"
 			_transport = "webrtc"
+			NetworkTime.set_forward_clock_recovery_enabled(_web_query("forwardClockRecovery") == "1")
 			_signal_url = _web_query("signal")
 			if _signal_url.is_empty():
 				_signal_url = _default_web_signaling_url()

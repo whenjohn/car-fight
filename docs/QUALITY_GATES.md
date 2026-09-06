@@ -105,6 +105,11 @@ It currently exposes one remaining startup return and is not an acceptance
 pass. Keep that zero-return requirement; see the experiment record in
 [Network diagnostics](NETWORK_DIAGNOSTICS.md). Run join/reconnect with
 `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` to cover the selected experimental path.
+Web Network selects it explicitly with `forwardClockRecovery=1`; log selection
+must agree with the requested URL. The focused unit also covers prior-loop
+tick backlog with an aligned clock, sustained slow frames, no tick-cap increase
+and no rewind. A Web export plus actual browser join is required for query
+wiring changes; headless localhost is not rendered cross-platform acceptance.
 
 For the opt-in joining gate (`CAR_FIGHT_STARTUP_READY=1`), run
 `tests/network_startup_ready_test.gd`, `tests/input_codec_test.gd -- --offline`,

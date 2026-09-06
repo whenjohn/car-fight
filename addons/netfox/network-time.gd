@@ -395,6 +395,11 @@ var _synced_peers: Dictionary = {}
 
 static var _logger: NetfoxLogger = NetfoxLogger._for_netfox("NetworkTime")
 
+## Explicit opt-in for platforms without process environment configuration.
+func set_forward_clock_recovery_enabled(enabled: bool) -> void:
+	_forward_clock_recovery = enabled
+	print("[network-clock] forward_recovery=%s" % str(enabled))
+
 ## Start NetworkTime.
 ##
 ## Once this is called, time will be synchronized and ticks will be consistently
@@ -530,18 +535,24 @@ func _get_tick_tag() -> String:
 func _loop() -> void:
 	# Adjust local clock
 	_clock.step(_clock_stretch_factor)
-	var clock_diff: float = NetworkTimeSynchronizer.get_time() - _clock.get_time()
+	var reference_now: float = NetworkTimeSynchronizer.get_time()
+	var clock_diff: float = reference_now - _clock.get_time()
+	var tick_backlog: float = reference_now - ticks_to_seconds(_tick)
+	var schedule_backlog: float = maxf(0.0, _last_process_time - _next_tick_time)
 	# A reference correction can leave input ticks outside server history for
 	# seconds without a local stall. Opt in to the existing whole-timeline reset;
-	# never rewind for a negative correction or change ordinary clock discipline.
+	# Slow frames can also exhaust the tick cap while the clock stays current.
+	# Recover that scheduled backlog without increasing per-frame work. Never
+	# rewind tick labels or change ordinary clock discipline.
 	if _forward_clock_recovery and _is_active() and _initial_sync_done \
-			and clock_diff > NetworkTimeSynchronizer.panic_threshold:
+			and tick_backlog > 0.0 \
+			and maxf(clock_diff, schedule_backlog) > NetworkTimeSynchronizer.panic_threshold:
 		var peer := multiplayer.multiplayer_peer
 		if peer != null and not peer is OfflineMultiplayerPeer \
 				and peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED \
 				and not multiplayer.is_server():
 			_was_paused = true
-			_logger.info("Forward clock recovery: rebasing timeline by %.4fs", [clock_diff])
+			_logger.info("Forward clock recovery: clock_diff=%.4fs tick_backlog=%.4fs", [clock_diff, tick_backlog])
 	
 	# Ignore diffs under 1ms
 	clock_diff = sign(clock_diff) * max(abs(clock_diff) - 0.001, 0.)
