@@ -271,6 +271,29 @@ native-only. Receive overflow prevention, rendered performance and the reported
 native movement at the visible joining transition remain unresolved. Do not
 declare the full browser failure fixed from these bounded checks.
 
+### Rendered mixed retest, 2026-09-06
+
+Owner-approved runtime `fb20961` trial `mixed-20260906-024954` admitted both
+native ENet and Chrome WebRTC clients. Owner reported smooth observation in
+both directions. Browser explicitly selected recovery, but neither client
+logged a forward rebase; this is successful joining/observed smoothness, not
+causal proof that the recovery fixed the earlier overload. No buffer overflows
+or engine/script errors appeared; browser logged three stale-rollback warnings.
+Native and server stage traces are complete with zero drops; native startup
+has 983 samples and zero return-to-first-pose candidates. Browser stage/startup
+coverage is still unavailable. Trial and isolated server shut down; production
+unchanged. No human reconnect/background-resume test was performed.
+
+Do not accept all diagnostics: browser authority-probe error reached 15.800
+units at tick 2130, about 4.3 seconds after browser readiness and before native
+activation. Adjacent evidence contains an FPS=1 sample, stale rollback and a
+full-state recovery. The probe compares historical client/server poses; it does
+not directly measure an applied visual jump. Next-largest browser probe error
+was 1.500 units; native worst 1.866. Preserve the startup outlier above the usual
+two-unit ceiling and investigate the stall/recovery/history sequence separately
+from the owner's sustained smoothness report. Native movement at the visible
+joining transition also remains unresolved, not implicitly accepted here.
+
 ### Forward clock recovery experiment, 2026-09-05
 
 `CAR_FIGHT_FORWARD_CLOCK_RECOVERY=1` opts native clients into a forward-only

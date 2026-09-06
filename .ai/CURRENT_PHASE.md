@@ -1,5 +1,34 @@
 # Current phase
 
+## Mixed retest completed; owner reports smooth both ways, 2026-09-06
+
+- Owner: "done. it was smooth observing both on either clients". Record
+  native/browser bidirectional observed smoothness for runtime `fb20961`,
+  not blanket correctness/performance acceptance or native entry-position
+  acceptance. Both admitted; no new human disconnect/rejoin was exercised.
+- `.network-runs/mixed-20260906-024954/` completed: native status 0, dedicated
+  browser/HTTP stopped, isolated macai2 30681 gone and ports free. Production
+  57599/UDP 10080 unchanged. Removed completed launchd job; no trial running.
+- Full native/browser/server logs have zero engine/script errors and browser
+  receive-buffer overflows. Browser has three stale-rollback warnings. No
+  forward-clock rebase occurred, so success cannot be attributed causally to
+  the recovery change from this run alone.
+- Native/server stage files complete with zero drops. Native startup 983
+  samples, zero return candidates, no quality warnings. Browser does not have
+  equivalent startup/stage coverage. Browser console covers about 195 seconds.
+- Significant remaining diagnostic: browser authority-probe mismatch 15.800
+  units at source tick 2130, logged 02:51:19 local, about 4.3 seconds after its
+  STARTUP_PLAYABLE and before native admission. It follows an FPS=1 sample,
+  stale rollback and a full-state recovery; cause signal is `stall`. This is
+  historical client/server pose disagreement, not proof of an applied 15.8-unit
+  visible jump. Next-largest sampled browser mismatch 1.500; native max 1.866.
+  The outlier exceeds the usual two-unit diagnostic ceiling and stays open
+  despite owner smoothness acceptance. Do not hide it behind a no-error claim.
+- Next focus: browser early post-admission stall/recovery and history/probe
+  consistency, plus native first-visible-frame/input handoff. Human WebRTC
+  reconnect/background-resume remains untested. No automatic further launch,
+  production deployment, default enablement or promotion authorized.
+
 ## Mixed recovery retest live, 2026-09-06
 
 - Owner approved "ok lets test it again". Launched runtime `fb20961` using
