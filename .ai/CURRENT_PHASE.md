@@ -1,5 +1,31 @@
 # Current phase
 
+## Mixed recovery retest live, 2026-09-06
+
+- Owner approved "ok lets test it again". Launched runtime `fb20961` using
+  the verified release Web export `C6ESlu`; no redundant rebuild or new code.
+  Browser log confirms `[network-clock] forward_recovery=true`. Both reached
+  STARTUP_PLAYABLE: browser activation/playable tick 1891, native activation
+  2709/playable 2710. No buffer overflow or engine/script errors at readiness
+  check. Owner feedback and completed diagnostics pending; no recovery rebase
+  observed at this check, so one successful join is not causal A/B proof.
+- Evidence `.network-runs/mixed-20260906-024954/`; non-restarting launchd label
+  `com.whenjohn.car-fight-mixed-20260906-024954`. Isolated macai2 PID 30681 owns
+  UDP 12780/TCP 12781; production 57599/UDP 10080 verified unchanged.
+  Native monitored subrun `native/20260906-025043`, PID 66548, peer 2085044977;
+  dedicated-profile Chrome PID 66574, WebRTC peer 2; HTTP localhost 18089.
+- Same decorated positions/stagger, P cruise, server admission and client
+  startup gates. Both select forward recovery; elapsed presentation cursor
+  remains native-only. Native startup trace 60 seconds and stage/presentation
+  120 seconds; browser console/presentation logging, server stage 90 seconds.
+- Observe browser admission/overflows/rebases and native position at first
+  visible gameplay. Native visual-handoff bug remains unfixed. No movement
+  acceptance or original browser-failure resolution claimed from connection.
+- Trial intentionally running for owner. Closing native window ends dedicated
+  browser/HTTP and collects/stops only the isolated server after trace flush.
+  On completion verify monitor exits and cleanup, analyze logs, remove the
+  completed launchd job. No production deployment/default changes authorized.
+
 ## Browser recovery candidate implemented; rendered retest pending, 2026-09-06
 
 - Owner authorized investigating/fixing the failed browser join. Added Web
