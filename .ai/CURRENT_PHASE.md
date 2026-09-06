@@ -1,5 +1,30 @@
 # Current phase
 
+## Rendered startup resets captured; trial awaiting completion, 2026-09-05
+
+- Owner approved launching both clients and reports four move/return-to-origin
+  resets right at startup. Position trace now confirms four large Alpha physics
+  returns to approximately (-3, 0), at process monotonic seconds 26.245, 30.434,
+  33.942 and 36.011, plus smaller return candidates at 20.611 and 36.386.
+  Same body instance/generation throughout, not a respawn or camera-only effect.
+- Each large return matches the sampled history position at latest state tick
+  1627, 1896, 2091 or 2244, respectively. Alpha clock panic +4.723 seconds,
+  Bravo +4.299 seconds; repeated reliable state recovery during startup.
+  Exact application callbacks and server input acceptance still need tracing;
+  do not claim the complete causal chain from sampled history alone.
+- Both stage traces complete, zero shared/startup drops: Alpha 2,418 startup
+  samples, Bravo 2,390. Run `.crash-runs/two-client-20260905-193712/`, Alpha
+  subrun 20260905-193712 PID 30760 peer 909707526, Bravo subrun 20260905-193715
+  PID 30813 peer 2010561370. No further reproduction needed before analysis.
+- Runtime b84a5a4, elapsed cursor retained, legacy defaults unchanged, startup
+  samples 60 seconds, stage/presentation 120 seconds, P cruise enabled in both.
+  Ordinary monitored windows at 80,100 and 1520,100; no packet capture step.
+- Isolated macai2 server PID 9955, UDP 12780/TCP 12781; only its diagnostic file
+  updated. Production PID 57599/UDP 10080 untouched. Non-restarting launchd job
+  `com.whenjohn.car-fight-startup-20260905-193556`; launcher/evidence directory
+  `.network-runs/startup-20260905-193556/`. Owner has not said done. On completion,
+  verify client exits and isolated cleanup, collect server trace and remove job.
+
 ## Startup trace implemented and characterized, 2026-09-05
 
 - Added opt-in local startup samples and sync/panic events to the existing
