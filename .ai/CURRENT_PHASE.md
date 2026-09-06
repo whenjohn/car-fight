@@ -2,6 +2,19 @@
 
 ## Rendered joining-gate trial active, 2026-09-05
 
+- Owner says the joining experience is fine, but asks why clients become ready
+  at different times and why the ready player can see the waiting vehicle.
+  Alpha first playable sample at process 25.064 s; Bravo at 30.274 s, plus the
+  existing three-second launch stagger. First body-to-ready waits 10.783/16.732 s.
+  Bravo logged local 4.661 s and 1.315 s stalls during joining; exact CPU/GPU
+  attribution not established. Each gate independently waits for live evidence.
+- Confirmed remaining design gap: `_on_peer_join()` immediately spawns the
+  server body. The new gate withholds only local view/input; other peers still
+  see the waiting vehicle and it remains in the simulation. Proposed follow-up
+  is server-visible joining/active admission, keeping joining bodies out of
+  visibility/collisions/combat until readiness is confirmed. No implementation
+  of that follow-up or additional deployment is authorized by the question.
+  Owner has not said done; keep this trial running pending feedback/completion.
 - Owner approved "let me see it". Launched two monitored decorated macOS
   clients from runtime `ab64080`; both reached `STARTUP_PLAYABLE` without
   engine/script errors at the launch check. Alpha tick 1687/state 1678; Bravo
